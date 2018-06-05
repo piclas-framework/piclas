@@ -220,6 +220,14 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
+TYPE tSurfFluxPart
+  INTEGER                                :: PartIdx
+  INTEGER,ALLOCATABLE                    :: SideInfo(:)
+  TYPE(tSurfFluxPart), POINTER           :: nextSurfFluxPart => null()
+END TYPE tSurfFluxPart
+
+TYPE(tSurfFluxPart), POINTER             :: firstSurfFluxPart => null()
+
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
@@ -249,6 +257,10 @@ TYPE typeSurfaceflux
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
   REAL                                   :: PressureFraction
+  TYPE(tSurfFluxPart), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
+                                                                             ! used for linked list during sampling
+  TYPE(tSurfFluxPart), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
+                                                                             ! used for abort criterion in do while during sampling
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -266,8 +278,9 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)
-REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
+                                                                             ! saved for daptive surfaceflux
+REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles

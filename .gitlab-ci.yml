@@ -1,6 +1,5 @@
 stages:
   - build
-  - error_clean
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
@@ -9,70 +8,269 @@ stages:
   - reggie_nightly_build_all
   - reggie_weekly
 
-cache:
-  key: "$CI_COMMIT_SHA"
-  paths: 
-    - build_gnu/    
-    - build_intel/    
-    - reggie/
+.template: &defaults_gnu
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    paths:
+      - build_gnu
+    policy: pull
+
+.template: &defaults_intel
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL"
+    paths:
+      - build_intel
+    policy: pull
+
+.template: &defaults_gnu_maxwell
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu_maxwell
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    paths:
+      - build_gnu_maxwell
+    policy: pull
+
+.template: &defaults_intel_maxwell
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel_maxwell
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL-MAX"
+    paths:
+      - build_intel_maxwell
+    policy: pull
+
+.template: &defaults_gnu_poisson
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu_poisson
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    paths:
+      - build_gnu_poisson
+    policy: pull
+
+.template: &defaults_intel_poisson
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel_poisson
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL-POI"
+    paths:
+      - build_intel_poisson
+    policy: pull
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build with intel/gnu on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-checkout_reggie:
-  stage: build
-  tags:
-    - withmodules
-  script:
-    - rm -rf reggie || true
-    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-
 build_gnu:
-  stage: build
   tags:
-    - withmodules
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU"
+    paths:
+      - build_gnu
+    policy: push
+  stage: build
   script:
-    - module load env/gnu ; rm -rf build_gnu || true 
-    - mkdir -p build_gnu ; cd build_gnu ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - module load env/gnu; mkdir -p build_gnu ; cd build_gnu
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
 build_intel:
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL"
+    paths:
+      - build_intel
+    policy: push
   stage: build
-  tags:
-    - withmodules
   script:
-    - module load env/intel ; rm -rf build_intel || true 
-    - mkdir -p build_intel ; cd build_intel ; cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - module load env/intel; mkdir -p build_intel ; cd build_intel
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "clean": delete build folders if previous builds fail and exit
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-clean:
-  stage: error_clean
+build_gnu_maxwell:
   tags:
-    - withmodules
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu_maxwell
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU-MAX"
+    paths:
+      - build_gnu_maxwell
+    policy: push
+  stage: build
   script:
-    - rm -rf build_gnu
-    - rm -rf build_intel
-    - rm -rf share
-    - rm -rf reggie
-  when: on_failure
+    - module load env/gnu; mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_intel_maxwell:
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel_maxwell
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL-MAX"
+    paths:
+      - build_intel_maxwell
+    policy: push
+  stage: build
+  script:
+    - module load env/intel; mkdir -p build_intel_maxwell ; cd build_intel_maxwell
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_gnu_poisson:
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_gnu_poisson
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-GNU-POI"
+    paths:
+      - build_gnu_poisson
+    policy: push
+  stage: build
+  script:
+    - module load env/gnu; mkdir -p build_gnu_poisson ; cd build_gnu_poisson
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+
+build_intel_poisson:
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_intel_poisson
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-INTEL-POI"
+    paths:
+      - build_intel_poisson
+    policy: push
+  stage: build
+  script:
+    - module load env/intel; mkdir -p build_intel_poisson ; cd build_intel_poisson
+    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
+    - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu:
+  <<: *defaults_gnu
   stage: reggie_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
 
 intel:
+  <<: *defaults_intel
   stage: reggie_checkin
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+
+gnu_maxwell:
+  <<: *defaults_gnu_maxwell
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+
+intel_maxwell:
+  <<: *defaults_intel_maxwell
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+
+gnu_poisson:
+  <<: *defaults_gnu_poisson
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
+
+intel_poisson:
+  <<: *defaults_intel_poisson
+  stage: reggie_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -81,126 +279,142 @@ intel:
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_PIC_gyrotron_variable_Bz:
+  <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
 
 gnu_PIC_single_particle_PML:
+  <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
 gnu__PIC_IMD_coupling:
+  <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
 gnu_DSMC_check:
+  <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin
 
 
 gnu_PIC_maxwell_implicitBC:
+  <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 intel_PIC_gyrotron_variable_Bz:
+  <<: *defaults_intel
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
     
 intel_PIC_single_particle_PML:
+  <<: *defaults_intel
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
 intel__PIC_IMD_coupling:
+  <<: *defaults_intel
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
 intel_PIC_maxwell_implicitBC:
+  <<: *defaults_intel
   stage: reggie_feature_checkin
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_implicitBC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_tracking:
+  <<: *defaults_gnu
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
 gnu_tracing_cylinder:
+  <<: *defaults_gnu
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
 
 
 intel_tracking:
+  <<: *defaults_intel
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/tracking_DSMC ; fi
 
 intel_tracing_cylinder:
+  <<: *defaults_intel
   stage: reggie_tracking_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/tracing_cylinder ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_chemistry_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_chemistry:
+  <<: *defaults_gnu
   stage: reggie_DSMC_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
 intel_chemistry:
+  <<: *defaults_intel
   stage: reggie_DSMC_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_chemistry ; fi
 
 intel_DSMC_check:
+  <<: *defaults_intel
   stage: reggie_DSMC_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_checkin; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -216,246 +430,280 @@ intel_DSMC_check:
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_feature_dielectric:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/feature_dielectric ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/feature_dielectric ; fi
 
 gnu_PIC:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle/ ; fi
 
 gnu_emission_gyro:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron ; fi
 
 gnu_TWT:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_TWT_recordpoints ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_TWT_recordpoints ; fi
        
 gnu_convtest:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/convtest ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/convtest ; fi
        
 gnu_HDG_turner:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
        
 gnu_power_density:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
 
 gnu_maxwell_cylinder_PML:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
 
 gnu_PIC_HDG_plasma_wave:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
 
 gnu_maxwell_sphere_dielectric:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
 
 gnu_maxwell_ExactFlux_PML:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
 
 gnu_poisson_implicit_surface_flux:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
 
 gnu_feature_PIC_poisson_imexfluid:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
 
 gnu_PIC_maxwell_bgfield:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
 
 gnu_QDS:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
 
 gnu_feature_LoadBalance:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
 
 gnu_code_analyze:
+  <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
        
 intel_feature_dielectric:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/feature_dielectric ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/feature_dielectric ; fi
        
 intel_PIC:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_single_particle/ ; fi
 
 intel_emission_gyro:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_emission_gyrotron ; fi
 
 intel_TWT:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_TWT_recordpoints ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_TWT_recordpoints ; fi
        
 intel_convtest:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/convtest ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/convtest ; fi
        
 intel_HDG_turner:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_turner/ ; fi
        
 intel_power_density:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_poisson_powerdensity/ ; fi
 
 intel_maxwell_cylinder_PML:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_cylinder_PML/ ; fi
 
 intel_PIC_HDG_plasma_wave:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_HDG_plasma_wave/ ; fi
 
 intel_maxwell_sphere_dielectric:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_dipole_dielectric/ ; fi
 
 intel_maxwell_ExactFlux_PML:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_maxwell_ExactFlux_PML/ ; fi
 
 intel_poisson_implicit_surface_flux:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_implicitsf/ ; fi
 
 intel_feature_PIC_poisson_imexfluid:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_poisson_imexfluid/ ; fi
 
 intel_PIC_maxwell_bgfield:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_bgfield/ ; fi
 
 intel_QDS:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
 
 intel_feature_LoadBalance:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_LoadBalance/ ; fi
 
 intel_code_analyze:
+  <<: *defaults_intel
   stage: reggie_nightly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/code_analyze/ ; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -463,19 +711,21 @@ intel_code_analyze:
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_build_all:
+  <<: *defaults_gnu
   stage: reggie_nightly_build_all
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
       
 
 intel_build_all:
+  <<: *defaults_intel
   stage: reggie_nightly_build_all
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ../reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
 
 
 
@@ -484,32 +734,36 @@ intel_build_all:
 #                         - feature_PIC_maxwell_plasma_wave/ : test a plasma-wave with different time-integration and maxwell's equations
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 gnu_PIC:
+  <<: *defaults_gnu
   stage: reggie_weekly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_weekly ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_weekly ; fi
 
 gnu_DSMC/:
+  <<: *defaults_gnu
   stage: reggie_weekly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_weekly/ ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_weekly/ ; fi
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
 intel_PIC:
+  <<: *defaults_intel
   stage: reggie_weekly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_weekly ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_PIC_maxwell_weekly ; fi
 
 intel_DSMC/:
+  <<: *defaults_intel
   stage: reggie_weekly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ../reggie/reggie.py ../regressioncheck/checks/feature_DSMC_weekly/ ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_DSMC_weekly/ ; fi
 

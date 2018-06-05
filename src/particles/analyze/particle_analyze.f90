@@ -38,9 +38,18 @@ INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
 
+INTERFACE PartIsElectron
+  MODULE PROCEDURE PartIsElectron
+END INTERFACE
+
+INTERFACE CalculatePartElemData
+  MODULE PROCEDURE CalculatePartElemData
+END INTERFACE
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles
+PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
+PUBLIC:: CalculatePartElemData
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -60,77 +69,82 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Analyze")
 
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Analyze is performed each Nth time step','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Flag to calculate Potential Energy.','.FALSE.')
-CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Validate the charge after each deposition'//&
-                                                       'and produces an output in std.out','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCharge'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Flag to compute the whole deposited charge,'//&
-                                                       ' absolute and relative charge error','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcKineticEnergy'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate Kinetic Energy. ','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcInternalEnergy' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate Internal Energy. ','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTemp'           , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate Translational temperature.'&
-                                                     ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPartBalance'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the Particle Power Balance'//&
-                                                       '- input and outflow energy of all particles','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcVelos'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate thermal and flow velocities.'//&
-                                                       'if CalcVelos = T VelocityDirections = (/[int],[int],[int],[int]/)  '//&
-                                                       'Switching dimensions for CalcVelos on (1) or off (0)\n'//&
-                                                       '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
-CALL prms%CreateIntArrayOption( 'VelocityDirections' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
-                                                     ,'1 , 1 , 1 , 1')
-CALL prms%CreateLogicalOption(  'Part-TrackPosition' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Track particle position','.FALSE.')
-CALL prms%CreateLogicalOption(  'printDiff'          , 'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateRealOption(     'printDiffTime'      , 'TODO-DEFINE-PARAMETER','12.')
-CALL prms%CreateRealArrayOption('printDiffVec'       , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
-CALL prms%CreateLogicalOption(  'CalcNumSpec'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate species count.','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcCollRates'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the collision rates per '//&
-                                                       'collision pair','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcReacRates'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the reaction rate per reaction'&
-                                                     ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfNumSpec'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the number of simulated'//&
-                                                       'particles per species on surfaces','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfCoverage'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the surface coverages for'//&
-                                                       'each species','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAccomodation'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the surface accomodation coefficient'&
-                                                     ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcEvaporation'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate rate of evaporation [kg/s]','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calcualte the adsorption probabilities of species'&
-                                                     ,'.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate the surface reaction rate per reaction'//&
-                                                       ' (k_r)','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcShapeEfficiency', 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Use efficiency methods for shape functions.'&
-                                                     , '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Choose between "AllParts" and '//&
-                                                       '"SomeParts", to either use all particles or a certain percentage'//&
-                                                       ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
-CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Percentage of currently used particles is used.'&
-                                                     ,'100')
-CALL prms%CreateLogicalOption(  'IsRestart'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Flag, if the current calculation is a restart. '&
-                                                     ,'.FALSE.')
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Flag to calculate Potential Energy.','.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
+                                                            'and write an output in std.out','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Flag to compute the ionization degree in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Flag to compute the Debye length in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Flag to compute the HDG time step in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Flag to compute the electron temperature in each cell','.FALSE.')
+!CALL prms%CreateLogicalOption(  'ElectronTemperatureIsMaxwell', 'Flag if  electron temperature is assumed to be Maxwellian in each cell','.TRUE.')
+CALL prms%CreateLogicalOption(  'CalcElectronDensity'     , 'Flag to compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Flag to compute the electron frequency in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCharge'              , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Flag to compute the whole deposited charge,'//&
+                                                            ' absolute and relative charge error','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate Kinetic Energy. ','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcInternalEnergy'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate Internal Energy. ','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTemp'                , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate Translational temperature.'&
+                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPartBalance'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the Particle Power Balance'//&
+                                                            '- input and outflow energy of all particles','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcVelos'               , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate thermal and flow velocities.'//&
+                                                            'if CalcVelos = T VelocityDirections = (/[int],[int],[int],[int]/)  '//&
+                                                            'Switching dimensions for CalcVelos on (1) or off (0)\n'//&
+                                                            '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
+CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
+                                                          ,'1 , 1 , 1 , 1')
+CALL prms%CreateLogicalOption(  'Part-TrackPosition'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Track particle position','.FALSE.')
+CALL prms%CreateLogicalOption(  'printDiff'               , 'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateRealOption(     'printDiffTime'           , 'TODO-DEFINE-PARAMETER','12.')
+CALL prms%CreateRealArrayOption('printDiffVec'            , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
+CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate species count.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the collision rates per '//&
+                                                            'collision pair','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the reaction rate per reaction'&
+                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfNumSpec'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the number of simulated'//&
+                                                            'particles per species on surfaces','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfCoverage'        , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface coverages for'//&
+                                                            'each species','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAccomodation'        , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface accomodation coefficient'&
+                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEvaporation'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate rate of evaporation [kg/s]','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcAdsorbRates'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calcualte the adsorption probabilities of species'&
+                                                          ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfRates'           , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Use efficiency methods for shape functions.'&
+                                                          , '.FALSE.')
+CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod', 'TODO-DEFINE-PARAMETER\n'//&
+                                                             'Choose between "AllParts" and '//&
+                                                             '"SomeParts", to either use all particles or a certain percentage'//&
+                                                             ' (ShapeEfficiencyNumber) of the currently used particles','AllParts')
+CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAMETER\n'//&
+                                                             'Percentage of currently used particles is used.'&
+                                                           , '100')
+CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
+                                                             'Flag, if the current calculation is a restart. '&
+                                                           , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -141,14 +155,15 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze
-USE MOD_Particle_Analyze_Vars
+USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars             ,ONLY: Adsorption
 #endif
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,6 +196,77 @@ IF(DoDeposition) THEN
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
+
+!--------------------------------------------------------------------------------------------------------------------
+! get derived particle properties 
+! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
+!--------------------------------------------------------------------------------------------------------------------
+! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+! p:        Polynomial degree
+! lambda_D: Debye length
+! L_cell:   Characteristic ceill length -> V_cell^(1/3)
+CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
+IF(CalcPointsPerDebyeLength)THEN
+  ALLOCATE( PPDCell(1:PP_nElems) )
+  PPDCell=0.0
+  CALL AddToElemData(ElementOut,'PPDCell',RealArray=PPDCell(1:PP_nElems))
+END IF
+
+! Ionization degree
+CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree','.FALSE.')
+IF(CalcIonizationDegree)THEN
+  ALLOCATE( IonizationCell(1:PP_nElems) )
+  IonizationCell=0.0
+  CALL AddToElemData(ElementOut,'IonizationCell',RealArray=IonizationCell(1:PP_nElems))
+END IF
+
+! Debye Length
+CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
+IF(CalcPointsPerDebyeLength) CalcDebyeLength=.TRUE.
+IF(CalcDebyeLength)THEN
+  ALLOCATE( DebyeLengthCell(1:PP_nElems) )
+  DebyeLengthCell=0.0
+  CALL AddToElemData(ElementOut,'DebyeLengthCell',RealArray=DebyeLengthCell(1:PP_nElems))
+END IF
+
+! PIC Time Step Approximation
+CalcPICTimeStep       = GETLOGICAL('CalcPICTimeStep','.FALSE.')
+IF(CalcPICTimeStep)THEN
+  ALLOCATE( PICTimeStepCell(1:PP_nElems) )
+  PICTimeStepCell=0.0
+  CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
+END IF
+
+! Plasma Frequency
+CalcPlasmaFrequency   = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
+IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
+IF(CalcPlasmaFrequency)THEN
+  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
+  PlasmaFrequencyCell=0.0
+  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+END IF
+
+! Electron Density
+CalcElectronDensity   = GETLOGICAL('CalcElectronDensity','.FALSE.')
+IF(CalcDebyeLength.OR.CalcPlasmaFrequency) CalcElectronDensity=.TRUE.
+IF(CalcElectronDensity) THEN
+  ALLOCATE( ElectronDensityCell(1:PP_nElems) )
+  ElectronDensityCell=0.0
+  CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+END IF
+
+! Electron Temperature
+CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
+IF(CalcDebyeLength.OR.CalcPlasmaFrequency) CalcElectronTemperature=.TRUE.
+IF(CalcElectronTemperature)THEN
+  !ElectronTemperatureIsMaxwell=GETLOGICAL('ElectronTemperatureIsMaxwell','.TRUE.')
+  ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
+  ElectronTemperatureCell=0.0
+  CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
+END IF
+!--------------------------------------------------------------------------------------------------------------------
+
+
 CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
@@ -301,14 +387,15 @@ SUBROUTINE AnalyzeParticles(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoAnalyze
-USE MOD_Particle_Analyze_Vars  !,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, BoltzmannConst
-USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_AnalyzeField           ,ONLY: CalcPotentialEnergy
-USE MOD_DSMC_Vars              ,ONLY: DSMC
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506) || PP_TimeDiscMethod==400)
+USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
+USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
+USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+USE MOD_DSMC_Vars,             ONLY: DSMC
+USE MOD_Dielectric_Vars,       ONLY: DoDielectric
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -316,7 +403,9 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
-USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBSplitTime, LBPauseTime
+#endif /*USE_LOADBALANCE*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
@@ -368,18 +457,17 @@ INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionN
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
-#ifdef MPI 
-! load balance
-REAL                :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
   END IF
   IF (.NOT.DoAnalyze) RETURN
-#ifdef MPI 
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   IF (useDSMC) THEN
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
@@ -870,7 +958,13 @@ REAL                :: tLBStart,tLBEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-  IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
+  IF(CalcEpot)THEN
+    IF(DoDielectric)THEN
+      CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
+    ELSE
+      CALL CalcPotentialEnergy(WEl,WMag)
+    END IF
+  END IF
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
@@ -879,7 +973,9 @@ REAL                :: tLBStart,tLBEnd
 !===================================================================================================================================
 #ifdef MPI
   IF (PartMPI%MPIRoot) THEN
-    tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -895,7 +991,9 @@ REAL                :: tLBStart,tLBEnd
     END IF
 #endif
   ELSE ! no Root
-    tLBStart = LOCALTIME() ! LB Time Start
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -909,12 +1007,10 @@ REAL                :: tLBStart,tLBEnd
     END IF
 #endif
   END IF
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
 #endif /*MPI*/
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn,Xi_Vib,Xi_Elec)
@@ -1229,10 +1325,9 @@ IF (PartMPI%MPIROOT) THEN
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
-#ifdef MPI 
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 #if ( PP_TimeDiscMethod ==42 )
 ! hard coded
@@ -2622,7 +2717,7 @@ IF(PartMPI%MPIRoot)THEN
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
             IF ((tempVib.GT.0.0) &
-              .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).LE.DSMC%GammaQuant)) THEN
+              .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.DSMC%GammaQuant)) THEN
               IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
                                 /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
             END IF
@@ -2992,6 +3087,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+USE MOD_Equation_Vars         ,ONLY: c2_inv
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3034,6 +3132,12 @@ IF(.NOT.fexist) THEN
     WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
     WRITE(iunit,'(A1)',ADVANCE='NO') ','
     WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'gamma', ' '
+#endif
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'Element '
     CLOSE(iunit)
   END IF
 ELSE
@@ -3049,6 +3153,10 @@ ELSE
         WRITE(iunit,'(A1)',ADVANCE='NO') ','
         WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
       END DO
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+        WRITE(iunit,'(A1)',ADVANCE='NO') ','
+        WRITE(iunit,104,ADVANCE='NO') 1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv))
+#endif
       WRITE(iunit,'(A1)',ADVANCE='NO') ','
       WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
       WRITE(iunit,'(A)') ' '
@@ -3258,12 +3366,365 @@ END DO
 END SUBROUTINE CalcPowerDensity
 
 
+PURE FUNCTION PARTISELECTRON(PartID)
+!===================================================================================================================================
+! check if particle is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: PartID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: PartIsElectron  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER            :: SpeciesID
+!===================================================================================================================================
+
+PartIsElectron=.FALSE.
+SpeciesID = PartSpecies(PartID)
+IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
+IF(NINT(Species(SpeciesID)%ChargeIC/(-1.60217653E-19)).EQ.1) PartIsElectron=.TRUE.
+
+END FUNCTION PARTISELECTRON
+
+
+SUBROUTINE CalculateIonizationCell() 
+!===================================================================================================================================
+! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
+! 2.) Count the number of neutrals per DG cell and divide it by element-volume -> neutral density n_n
+! 3.) Calculate the ionization degree: alpha = n_i/(n_i + n_n)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
+USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Preproc                ,ONLY:PP_nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iPart, iElem
+REAL                 :: charge
+REAL                 :: n_i ! ion density: Note that the volume in the density is dropped due to the ratio
+REAL                 :: n_n ! neutral density: Note that the volume in the density is dropped due to the ratio
+!===================================================================================================================================
+! nullify
+IonizationCell = 0.
+! Note that the volume in the density is dropped due to the ratio
+n_i            = 0.
+n_n            = 0.
+
+! loop over all particles and count the number of electrons per cell
+! CAUTION: we need the number of all real particle instead of simulated particles
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
+    IF(charge.LT.0.0)THEN ! ignore electrons (and any particles with negative charge)
+      CYCLE ! next particle
+    ELSEIF(charge.GT.0.0)THEN ! ion particle
+      IF(usevMPF) THEN
+        n_i = n_i + PartMPF(iPart) * charge
+      ELSE
+        n_i = n_i + Species(PartSpecies(iPart))%MacroParticleFactor * charge
+      END IF
+    ELSE ! neutral particle
+      IF(usevMPF) THEN
+        n_n = n_n + PartMPF(iPart)
+      ELSE
+        n_n = n_n + Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+    END IF
+  END IF ! ParticleInside
+END DO ! iPart
+
+! loop over all elements and divide by volume (Note that the volume in the density is dropped due to the ratio)
+DO iElem=1,PP_nElems
+  IF(ABS(n_i + n_n).LE.0.0)THEN ! no particles in cell
+    IonizationCell(iElem) = 0.0
+  ELSE
+    IonizationCell(iElem) = n_i / (n_i + n_n)
+  END IF
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateIonizationCell
+
+
+SUBROUTINE CalculateElectronDensityCell() 
+!===================================================================================================================================
+! Count the number of electrons per DG cell and divide it by element-volume
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell
+USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Preproc                ,ONLY:PP_nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iPart, iElem
+!===================================================================================================================================
+
+! nullify
+ElectronDensityCell=0.
+
+! loop over all particles and count the number of electrons per cell
+! CAUTION: we need the number of all real particle instead of simulated particles
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(.NOT.PARTISELECTRON(iPart)) CYCLE
+    IF(usevMPF) THEN
+      ElectronDensityCell(PEM%Element(iPart))=ElectronDensityCell(PEM%Element(iPart))+PartMPF(iPart)
+    ELSE
+      ElectronDensityCell(PEM%Element(iPart))=ElectronDensityCell(PEM%Element(iPart)) &
+                                             +Species(PartSpecies(iPart))%MacroParticleFactor
+    END IF
+  END IF ! ParticleInside
+END DO ! iPart
+
+! loop over all elements and divide by volume 
+DO iElem=1,PP_nElems
+  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/GEO%Volume(iElem)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateElectronDensityCell
+
+
+SUBROUTINE CalculateElectronTemperatureCell() 
+!===================================================================================================================================
+! Count the number of electrons per DG cell and divide it by element-volume
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronTemperatureCell
+USE MOD_Particle_Vars          ,ONLY:PDM,PEM,BoltzmannConst
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iPart, iElem, nElectronsPerCell(1:PP_nElems), ElemID
+!===================================================================================================================================
+
+! nullify
+ElectronTemperatureCell=0.
+nElectronsPerCell      =0
+
+! loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(.NOT.PARTISELECTRON(iPart)) CYCLE
+    ElemID=PEM%Element(iPart)
+    nElectronsPerCell(ElemID)=nElectronsPerCell(ElemID)+1
+    ElectronTemperatureCell(ElemID)=ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
+  END IF ! ParticleInside
+END DO ! iPart
+
+! loop over all elements and divide by electrons per cell to get average kinetic energy 
+DO iElem=1,PP_nElems
+  IF(nElectronsPerCell(iElem).EQ.0) CYCLE
+  ElectronTemperatureCell(iElem)=2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateElectronTemperatureCell
+
+
+SUBROUTINE CalculatePlasmaFrequencyCell() 
+!===================================================================================================================================
+! use the number of electron density to compute the plasma frequency per cell using fixed and global values for the
+! electron charge, electronmass and eps0
+! CAUTION: if c!=3e8 m/s the computed frequency may be wrong
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,PlasmaFrequencyCell
+USE MOD_Globals_Vars           ,ONLY:ElectronCharge,ElectronMass
+USE MOD_Equation_Vars          ,ONLY:Eps0
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+
+! nullify
+PlasmaFrequencyCell=0.
+
+! loop over all elements and compute the plasma frequency with the use of the electron density
+DO iElem=1,PP_nElems
+  PlasmaFrequencyCell(iElem) = SQRT((ElectronDensityCell(iElem)*ElectronCharge*ElectronCharge)/(ElectronMass*Eps0))
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePlasmaFrequencyCell
+
+SUBROUTINE CalculatePICTimeStepCell() 
+!===================================================================================================================================
+! use the plasma frequency per cell to estimate the pic time step
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY:PlasmaFrequencyCell,PICTimeStepCell
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+
+! nullify
+PICTimeStepCell=0
+
+! loop over all elements and compute the PIC-timestep with the plasma frequency 
+DO iElem=1,PP_nElems
+  IF(PlasmaFrequencyCell(iElem).LE.0) CYCLE
+  PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePICTimeStepCell
+
+
+SUBROUTINE CalculateDebyeLengthCell() 
+!===================================================================================================================================
+! use the number of electron density and electron temperature to compute the cold Debye-length per cell
+! CAUTION: use SI-units
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell
+USE MOD_Globals_Vars           ,ONLY:ElectronCharge
+USE MOD_Particle_Vars          ,ONLY:BoltzmannConst
+USE MOD_Equation_Vars          ,ONLY:Eps0
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+
+! nullify
+DebyeLengthCell=0.
+
+! loop over all elements and compute the plasma frequency with the use of the electron density
+DO iElem=1,PP_nElems
+  IF(ElectronDensityCell(iElem).LE.0.) CYCLE
+  DebyeLengthCell(iElem)=SQRT((eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/(ElectronDensityCell(iElem)*ElectronCharge**2))
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateDebyeLengthCell
+
+
+SUBROUTINE CalculatePPDCell() 
+!===================================================================================================================================
+! Calculate the points per Debye length for each cell
+! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc                ,ONLY:PP_nElems,PP_N
+USE MOD_Particle_Analyze_Vars  ,ONLY:DebyeLengthCell,PPDCell
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+! loop over all elements
+DO iElem=1,PP_nElems
+  PPDCell(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLength(iElem)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePPDCell
+
+
+SUBROUTINE CalculatePartElemData() 
+!===================================================================================================================================
+! use the plasma frequency per cell to estimate the pic time step
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronDensity&
+                                    ,CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+
+! electron density
+IF(CalcElectronDensity) CALL CalculateElectronDensityCell()
+
+! electron temperature
+IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
+
+! plasma frequency
+IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
+
+! Debye length 
+IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
+
+! PIC time step
+IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
+
+! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+IF(CalcPointsPerDebyeLength) CALL CalculatePPDCell()
+
+! Ionization degree
+IF(CalcIonizationDegree) CALL CalculateIonizationCell()
+
+END SUBROUTINE CalculatePartElemData
+
+
 SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeInitIsDone
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeInitIsDone,DebyeLengthCell,PICTimeStepCell &
+                                    ,ElectronTemperatureCell,ElectronDensityCell,PlasmaFrequencyCell
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3272,6 +3733,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
+SDEALLOCATE(DebyeLengthCell)
+SDEALLOCATE(PICTimeStepCell)
+SDEALLOCATE(ElectronDensityCell)
+SDEALLOCATE(ElectronTemperatureCell)
+SDEALLOCATE(PlasmaFrequencyCell)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 

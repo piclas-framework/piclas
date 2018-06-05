@@ -128,8 +128,8 @@ IF(nUserBCs .GT. 0)THEN
 __STAMP__&
 ,'Remapping non-periodic to periodic BCs is not possible!')
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
-      SWRITE(Unit_StdOut,'(A,I2,I2)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
-      SWRITE(Unit_StdOut,'(A,I2,I2)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
+      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
+      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
     END IF
@@ -183,11 +183,10 @@ USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 #endif
 USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
-USE MOD_IO_HDF5,            ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5
 #ifdef MPI
-USE MOD_io_hdf5
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight,DoLoadBalance
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem
+USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
 #endif /*PARTICLES*/
@@ -268,7 +267,7 @@ ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
 
-IF (DoRestart.AND.DoLoadBalance) THEN 
+IF (DoRestart) THEN 
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! 1) Only MPIRoot does readin of ElemTime
@@ -277,6 +276,7 @@ IF (DoRestart.AND.DoLoadBalance) THEN
   ElemGlobalTime=0.
   IF(MPIRoot)THEN
     ALLOCATE(ElemTime_local(1:nGlobalElems))
+    ElemTime_local=0.0
     nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
     offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
@@ -297,7 +297,10 @@ IF (DoRestart.AND.DoLoadBalance) THEN
     ElemGlobalTime = ElemTime_local
     DEALLOCATE(ElemTime_local)
     ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
-    IF(MINVAL(ElemGlobalTime).LE.0.0)ElemGlobalTime=1.0
+    IF(MAXVAL(ElemGlobalTime).LE.0.0) THEN
+      ElemGlobalTime = 1.0
+      ElemTimeExists = .FALSE.
+    END IF
   END IF
 
   ! 2) Distribute logical information ElemTimeExists
@@ -305,7 +308,6 @@ IF (DoRestart.AND.DoLoadBalance) THEN
 
   ! Distribute the elements according to the selected distribution method
   CALL ApplyWeightDistributionMethod(ElemTimeExists)
-
 ELSE
   nElems=nGlobalElems/nProcessors
   iElem=nGlobalElems-nElems*nProcessors
@@ -313,7 +315,7 @@ ELSE
     offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
   END DO
   offsetElemMPI(nProcessors)=nGlobalElems
-END IF ! IF(DoRestart.AND.DoLoadBalance)
+END IF ! IF(DoRestart)
 
 
 
@@ -345,24 +347,30 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   DO iProc=0,nProcessors-1
     WeightSum_proc(iProc) = SUM(ElemGlobalTime(1+offsetElemMPI(iProc):offsetElemMPI(iProc+1)))
   END DO
-  SDEALLOCATE(ElemGlobalTime)
   MaxWeight = MAXVAL(WeightSum_proc)
   MinWeight = MINVAL(WeightSum_proc)
   ! WeightSum (Mesh global value) is already set in BalanceMethod scheme
 
   ! new computation of current imbalance
-  TargetWeight=TargetWeight/nProcessors
+  TargetWeight=SUM(WeightSum_proc)/nProcessors
   NewImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
 
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
+  SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance:     ', NewImbalance
 ELSE
+  SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.
   MaxWeight = -1.
   MinWeight = -1.
 END IF
 
+SDEALLOCATE(ElemGlobalTime)
 
 
 
@@ -385,6 +393,14 @@ nTracksPerElem=0
 SDEALLOCATE(nSurfacefluxPerElem)
 ALLOCATE(nSurfacefluxPerElem(1:nElems))
 nSurfacefluxPerElem=0
+SDEALLOCATE(nPartsPerBCElem)
+ALLOCATE(nPartsPerBCElem(1:nElems))
+nPartsPerBCElem=0
+#if USE_LOADBALANCE
+SDEALLOCATE(nSurfacePartsPerElem)
+ALLOCATE(nSurfacePartsPerElem(1:nElems))
+nSurfacePartsPerElem=0
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! --
 #else /* MPI */

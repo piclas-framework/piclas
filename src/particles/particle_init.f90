@@ -115,31 +115,28 @@ CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-P
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
                                                                  , '100000')
+CALL prms%SetSection("IMD")
 ! IMD things
-CALL prms%CreateRealOption(     'IMDTimeScale'                       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Time unit of input file', '10.18e-15')
-CALL prms%CreateRealOption(     'IMDLengthScale'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Global IMD length scale' , '1.0e-10')
-CALL prms%CreateStringOption(   'IMDAtomFile'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Laser data file name containing'//&
-                                                                ' PartState(1:6)' &
+CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
+                                                                ' ~10.18 fs which comes from the unit system in IMD', '10.18e-15')
+CALL prms%CreateRealOption(     'IMDLengthScale'              , 'Length unit scale used by IMD which is 1 angstrom'&
+                                                              , '1.0e-10')
+CALL prms%CreateStringOption(   'IMDAtomFile'                 , 'IMD data file containing the atomic states for PartState(1:6)'&
                                                               , 'no file found')
-CALL prms%CreateStringOption(   'IMDCutOff'                   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Cut-off type for IMD data reduction:\n'//&
+CALL prms%CreateStringOption(   'IMDCutOff'                   , 'Atom cut-off parameter for reducing the number of improrted '//&
+                                                                'IMD particles\n'//&
                                                                 '1.) no_cutoff\n'//&
                                                                 '2.) Epot\n'//&
                                                                 '3.) coordinates\n'//&
-                                                                '4.) velocity', 'no cutoff')
-CALL prms%CreateRealOption(     'IMDCutOffxValue'              , "TODO-DEFINE-PARAMETER\n"//&
-                                                                "Cut-off coordinate for"//&
+                                                                '4.) velocity', 'no_cutoff')
+CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for"//&
                                                                 " IMDCutOff='coordiantes'" &
                                                               , '-999.9')
-CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Count of IMD species', '1')
-CALL prms%CreateStringOption(   'IMDInputFile'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Laser data file name containing '//&
+CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD species', '1')
+CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
                                                                 'PartState(1:6) ' &
                                                               , 'no file found')
+CALL prms%SetSection("VMPF")
                               
 ! vmpf stuff
 CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-PARAMETER\n'//&
@@ -224,11 +221,7 @@ CALL prms%CreateIntOption(      'Particles-DSMC-maxSurfCollisNumber'    ,  'TODO
                                                                            ' Sampling', '0')
 CALL prms%CreateIntOption(      'Particles-DSMC-NumberOfBCs'            ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of BC to be analyzed', '1')
-CALL prms%CreateIntOption(      'Particles-DSMC-SurfCollisBC'           ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (0 = all)'&
-                                                                        ,  '0')
-CALL prms%CreateIntArrayOption( 'Particles-SurfCollisBC'                ,  'TODO-DEFINE-PARAMETER\n'//&
-                                                                           'BCs to be analyzed (def.: 0 = all)?')
+CALL prms%CreateIntArrayOption( 'Particles-DSMC-SurfCollisBC'           ,  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateIntOption(      'Particles-CalcSurfCollis_NbrOfSpecies' ,  'TODO-DEFINE-PARAMETER\n'//&
                                                                            'Count of Species for wall  collisions (0: all)'&
                                                                            , '0')
@@ -1099,7 +1092,7 @@ ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,' Cannot allocate ParStage arrays!')
+  ,' Cannot allocate PartStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
@@ -1170,7 +1163,7 @@ ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,' Cannot allocate ParStage arrays!')
+  ,' Cannot allocate PartStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
@@ -1522,8 +1515,11 @@ __STAMP__&
       Species(iSpec)%Init(iInit)%VelocitySpreadMethod  = GETINT('Part-Species'//TRIM(hilf2)//'-velocityspreadmethod','0')
     END IF
     Species(iSpec)%Init(iInit)%InflowRiseTime        = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime','0.')
-    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) &
+    IF (Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
       Species(iSpec)%Init(iInit)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf2)//'-initialParticleNumber','0')
+    ELSE
+      Species(iSpec)%Init(iInit)%initialParticleNumber = 0 !dummy
+    END IF
     Species(iSpec)%Init(iInit)%RadiusIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC','1.')
     Species(iSpec)%Init(iInit)%Radius2IC             = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC','0.')
     Species(iSpec)%Init(iInit)%RadiusICGyro          = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusICGyro','1.')
@@ -1580,10 +1576,12 @@ __STAMP__&
 
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
-    IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-      .AND. Species(iSpec)%Init(iInit)%UseForInit) THEN
+    !IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
+    !  .AND. 
+    IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
       IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
-      .AND. (ABS(Species(iSpec)%Init(iInit)%PartDensity).LE.0.) ) THEN
+      .AND. (Species(iSpec)%Init(iInit)%PartDensity.EQ.0.) &
+      .AND. Species(iSpec)%Init(iInit)%ElemPartDensityFileID.EQ.0 ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
@@ -2804,11 +2802,29 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+TYPE(tSurfFluxPart),POINTER :: current,tmp
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
+#if defined(ROS) || defined(IMPA)
+SDEALLOCATE(PartStage)
+SDEALLOCATE(PartStateN)
+SDEALLOCATE(PartQ)
+SDEALLOCATE(PartDtFrac)
+#endif /*defined(ROS) || defined(IMPA)*/
+#if defined(IMPA)
+SDEALLOCATE(F_PartXk)
+SDEALLOCATE(F_PartX0)
+SDEALLOCATE(Norm_F_PartXk_old)
+SDEALLOCATE(Norm_F_PartXk)
+SDEALLOCATE(Norm_F_PartX0)
+SDEALLOCATE(PartDeltaX)
+SDEALLOCATE(PartLambdaAccept)
+SDEALLOCATE(DoPartInNewton)
+SDEALLOCATE(PartIsImplicit)
+#endif /*defined(IMPA)*/
 !SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(RandomVec)
@@ -2825,6 +2841,14 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
+current => firstSurfFluxPart
+DO WHILE (associated(current))
+  DEALLOCATE(current%SideInfo)
+  tmp => current%nextSurfFluxPart
+  DEALLOCATE(current)
+  NULLIFY(current)
+  current => tmp
+END DO
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)
@@ -2851,6 +2875,7 @@ SDEALLOCATE(PartBound%AdaptiveType)
 SDEALLOCATE(PartBound%AdaptiveMacroRestartFileID)
 SDEALLOCATE(PartBound%AdaptiveTemp)
 SDEALLOCATE(PartBound%AdaptivePressure)
+SDEALLOCATE(Adaptive_MacroVal)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%UseForQCrit)
 SDEALLOCATE(PartBound%Voltage_CollectCharges)

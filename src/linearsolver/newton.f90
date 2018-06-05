@@ -191,7 +191,7 @@ USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
@@ -214,7 +214,9 @@ USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
-USE MOD_LoadBalance_Vars,        ONLY:tcurrent
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -231,15 +233,14 @@ REAL,INTENT(INOUT)         :: coeff
 REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff,Norm_Diff_old, Delta_Norm_R0,Delta_Norm_Rel0 
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
-INTEGER                    :: nFullNewtonIter
+INTEGER                    :: nFullNewtonIter,Mode
 #ifdef PARTICLES
 INTEGER                    :: iPart,iCounter
-REAL                       :: tmpFac
+REAL                       :: tmpFac, relToleranceOld
 INTEGER                    :: AdaptIterRelaxation
-#ifdef MPI
-! load balance
-REAL                       :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                       :: tLBStart
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
 LOGICAL                    :: IsConverged
@@ -267,13 +268,16 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 #ifdef MPI
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! here: could use deposition as hiding, not done yet
   IF(DoPartRelaxation)THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
     IF(DoRefMapping)THEN
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
@@ -281,10 +285,6 @@ END IF
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_TRACK)=tCurrent(LB_TRACK)+tLBEnd-tLBStart
-#endif /*MPI*/
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(PartIsImplicit(iPart))THEN
@@ -292,6 +292,9 @@ END IF
     END IF
   END DO
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
@@ -300,31 +303,26 @@ END IF
   CALL MPIParticleRecv()
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
   ! map particle from gamma v to v
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! map particle from v to gamma v
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
 !END IF
 #endif /*PARTICLES*/
 
@@ -347,9 +345,12 @@ Norm_R=Norm_R0
 !Norm_Diff=HUGE(1.0)
 !Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0:         ',Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_R0:   ',Delta_Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_Rel0: ',Delta_Norm_Rel0
+  WRITE(UNIT_stdOut,'(A22       )') ' ----------------------'
+  WRITE(UNIT_stdOut,'(A22       )') ' Init Newton'
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0:           ',Norm_R0
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0 per DOF    ',Norm_R0*nDOFGlobalMPI_inv
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort NormRelative ',Norm_R*eps_FullNewton
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort per DOF      ',1e-12
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=fulletamax !0.9999
@@ -365,9 +366,18 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     SWRITE(UNIT_stdOut,'(A12,I10)') ' Iteration:', nFullNewtonIter
   END IF
   IF(FullEisenstatWalker.GT.0)THEN
+    ! to enforce quadratic convergence, the tolerance of the linearsolver has to be reduced in a 
+    ! quadratic approach. this quadratic degrease can be to strong for the newton for the particles,
+    ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
     IF(nFullNewtonIter.EQ.1)THEN
       relTolerance=etaMax
+#ifdef PARTICLES
+      relToleranceOld=relTolerance
+#endif /*PARTICLES*/
     ELSE
+#ifdef PARTICLES
+      relToleranceOld=relTolerance
+#endif /*PARTICLES*/
       etaA=FullgammaEW*Norm_R*Norm_R/(Norm_Rold*Norm_Rold) ! here the square
       !SWRITE(*,*) 'etaA ', etaA
       etaB=MIN(etaMax,etaA)
@@ -398,15 +408,12 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   IF (t.GE.DelayTime) THEN
     ! now, we have an initial guess for the field  can compute the first particle movement
     IF(FullEisenstatWalker.GT.1)THEN
-      ! to enforce quadratic convergence, the tolerance of the linearsolver has to be reduced in a 
-      ! quadratic approach. this quadratic degrease can be to strong for the newton for the particles,
-      ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
       IF(PartNewtonLinTolerance)THEN
         etaA=FullgammaEW*Norm_R/(Norm_Rold) ! here the square
         !SWRITE(*,*) 'etaA ', etaA
         etaB=MIN(etaMax,etaA)
         !SWRITE(*,*) 'etaB ', etaB
-        Criterion  =FullGammaEW*relTolerance    ! here the square
+        Criterion  =FullGammaEW*relToleranceOld    ! here the square
         !SWRITE(*,*) 'criterion ', Criterion
         IF(DoPrintConvInfo)THEN
           SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' EW-Criterion     :', Criterion
@@ -418,7 +425,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         END IF
         relTolerancePart=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
       ELSE
-        relTolerancePart=relTolerance
+        ! Default new tolerance
+        relTolerancePart=SQRT(relTolerance) ! eisenstat walker is decreasing quadratic, hence,
+                                            ! for a frozen field only linear decrease required
       END IF
     ELSE
       relTolerancePart=SQRT(eps2PartNewton)
@@ -437,7 +446,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF(DoPrintConvInfo)THEN
       SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' PartNewton-Tol   :', relTolerancePart
     END IF
-    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+    CALL ParticleNewton(tstage,coeff,Mode,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
     !END IF
     ! particle relaxation betweeen old and new position
@@ -477,8 +486,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF(.NOT.DoFullNewton)THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! open receive buffer for number of particles
       CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
         IF(DoRefMapping)THEN
@@ -494,6 +509,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
         END IF
       END DO
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! send number of particles
       CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! finish communication of number of particles and send particles
@@ -501,32 +519,27 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       ! finish communication
       CALL MPIParticleRecv()
       PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
       ! map particle from gamma v to v
-#ifdef MPI
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
     END IF ! .NOT.DoFullNewton
   END IF
 #endif /*PARTICLES*/
@@ -636,8 +649,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF (t.GE.DelayTime) THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! open receive buffer for number of particles
       CALL IRecvNbofParticles()
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! here: could use deposition as hiding, not done yet
       IF(DoPartRelaxation)THEN
         IF(DoRefMapping)THEN
@@ -653,6 +672,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           IF(.NOT.PDM%ParticleInside(iPart)) PartisImplicit(iPart)=.FALSE.
         END IF
       END DO
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! send number of particles
       CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! finish communication of number of particles and send particles
@@ -660,32 +682,27 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       ! finish communication
       CALL MPIParticleRecv()
       PartMPIExchange%nMPIParticles=0
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
       ! map particle from gamma v to v
-#ifdef MPI
-      tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-       tLBEnd = LOCALTIME() ! LB Time End
-       tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-       tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       IF(DoVerifyCharge) CALL VerifyDepositedCharge()
       ! and map back
-#ifdef MPI
-       tLBEnd = LOCALTIME() ! LB Time End
-       tCurrent(LB_DEPOSITION)=tCurrent(LB_DEPOSITION)+tLBEnd-tLBStart
-       tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
       CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-      tLBEnd = LOCALTIME() ! LB Time End
-      tCurrent(LB_PUSH)=tCurrent(LB_PUSH)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_PUSH,tLBStart)
+#endif /*USE_LOADBALANCE*/
     END IF
     ! update the Norm with all the new information of current state
     CALL ImplicitNorm(tStage,coeff,R,Norm_R,Delta_Norm_R,Delta_Norm_Rel)
@@ -695,45 +712,47 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ! detect convergence, fancy, extended list of convergence detection with wide range of 
   ! parameters
   ! OLD
-  Norm_Diff_old=Norm_Diff
-  Norm_Diff=Norm_Rold-Norm_R
-  ! IF((Norm_R.LT.Norm_R0*Eps_FullNewton).OR.
-  IF(ABS(Norm_Diff).LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
-  ! IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
+  ! Norm_Diff_old=Norm_Diff
+  ! Norm_Diff=Norm_Rold-Norm_R
+  ! ! IF((Norm_R.LT.Norm_R0*Eps_FullNewton).OR.
+  ! IF(ABS(Norm_Diff).LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
+  ! IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  ! ! IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
+  ! ! IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
+  ! ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps_FullNewton)) IsConverged=.TRUE.
+  ! IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+
+  ! ! relative norm
+  ! IF(Norm_R.LT.Norm_R0*Eps_FullNewton) IsConverged=.TRUE.
+  ! ! absolute norm
+  ! IF(Norm_R.LT.Eps_FullNewton) IsConverged=.TRUE.
+  ! ! some additional norms
+  ! IF(Delta_Norm_R.LT.eps_FullNewton) IsConverged=.TRUE.
   ! IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
-  ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps_FullNewton)) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*Eps_FullNewton)IsConverged=.TRUE.
 
-  ! relative norm
-  IF(Norm_R.LT.Norm_R0*Eps_FullNewton) IsConverged=.TRUE.
   ! absolute norm
-  IF(Norm_R.LT.Eps_FullNewton) IsConverged=.TRUE.
-  ! some additional norms
-  IF(Delta_Norm_R.LT.eps_FullNewton) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.5.*Norm_R0*Eps_FullNewton)IsConverged=.TRUE.
-
+  IF(Norm_R*nDOFGlobalMPI_inv.LT.1e-12) IsConverged=.TRUE.
+  !IF(Norm_R*nDOFGlobalMPI_inv.LT.eps_FullNewton) IsConverged=.TRUE.
+  ! relative norm
+  IF(Norm_R.LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
 
   IF(DoPrintConvInfo.AND.MPIRoot)THEN
     WRITE(UNIT_StdOut,'(A20,I0)')               ' Piccardi-iter    ',nFullNewtonIter
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps_FullNewton
     WRITE(UNIT_StdOut,'(A20,E24.15,2x,E24.15)') ' Norm , Norm_0    ',Norm_R, Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff        ',Norm_Diff
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
+    WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm per DOF     ',Norm_R*nDOFGlobalMPI_inv
   END IF 
 
-  IF(nFullNewtonIter.GT.5)THEN
-    IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
-      SWRITE(UNIT_StdOut,'(A20)') ' Convergence problem '
-      SWRITE(UNIT_StdOut,'(A20,I10)')    ' Iteration          ', nFullNewtonIter
-      SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
-      SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Current Norm_Diff: ', Norm_Diff
-    END IF
+#ifdef PARTICLES
+  ! check for particle simulations without a field update:
+  ! If all particles are converged and no further particle Newton iteration is required,
+  ! the method has to detect convergence because the norm will not change.
+  IF(.NOT.DoFieldUpdate)THEN 
+    IF(Mode.EQ.1) IsConverged=.TRUE.
   END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(DoPartRelaxation)THEN
@@ -756,14 +775,16 @@ END DO ! funny pseudo Newton for all implicit
 !IF(PartRelaxationFac0.NE.0) DoPartRelaxation=.TRUE.
 
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-!IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
-!  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
-!  IF(MPIRoot) CALL abort(&
-! __STAMP__&
-!   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
-!END IF
+IF(DoPrintConvInfo)THEN
+  IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+    SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
+    SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
+    SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R per DOF               : ',Norm_R*nDOFGlobalMPI_inv
+    IF(MPIRoot) CALL abort(&
+   __STAMP__&
+     ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
+  END IF
+END IF
 
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 

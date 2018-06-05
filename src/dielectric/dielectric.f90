@@ -39,9 +39,11 @@ IMPLICIT NONE
 CALL prms%SetSection("Dielectric Region")
 
 CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conservative fluxes at dielectric interfaces between a'&
+    //'dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
-CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens"' , 'default')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
     //' if a DOF is within a dielectric region' ,'.FALSE.')
@@ -92,6 +94,7 @@ IF(.NOT.DoDielectric) THEN
   nDielectricElems=0
   RETURN
 END IF
+DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving','.FALSE.')
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
 DielectricTestCase               = GETSTR('DielectricTestCase','default')
@@ -132,12 +135,14 @@ IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
   CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
                            ElementIsInside=.TRUE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.)
+                           DisplayInfo=.TRUE.,&
+                           GeometryName=DielectricTestCase)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
   CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
                            ElementIsInside=.FALSE.,&
                            DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.)
+                           DisplayInfo=.TRUE.,&
+                           GeometryName=DielectricTestCase)
 END IF
 
 ! find all faces in the Dielectric region
@@ -152,7 +157,9 @@ CALL CountAndCreateMappings('Dielectric',&
                             FaceToDielectricInter,DielectricInterToFace,& ! these two are allocated
                             DisplayInfo=.TRUE.)
 
-! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell
+! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
+! for HDG the volume field is not used, only for output in .h5 file for checking if the region is used correctly
+! because in HDG only a constant profile is implemented
 CALL SetDielectricVolumeProfile()
 
 #ifndef PP_HDG
@@ -166,7 +173,7 @@ CALL SetDielectricVolumeProfile()
          'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
   END IF
   CALL SetDielectricFaceProfile_HDG()
-  IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
+  !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
     ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
     IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
@@ -176,7 +183,7 @@ CALL SetDielectricVolumeProfile()
     END IF
     ! get the axial electric field strength in x-direction of the dielectric sphere setup
     Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
-  END IF
+  !END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
@@ -239,6 +246,26 @@ END IF
 DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
                                                                  (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
                                                                   DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+
+! check if MPI local values differ for HDG only (variable dielectric values are not implemented)
+#ifdef PP_HDG
+IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricEps(:,:,:,:)),MINVAL(DielectricEps(:,:,:,:)),1e-8))THEN
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
+    RealInfoOpt=MAXVAL(DielectricEps(:,:,:,:))-MINVAL(DielectricEps(:,:,:,:)))
+  END IF
+END IF
+IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricMu(:,:,:,:)),MINVAL(DielectricMu(:,:,:,:)),1e-8))THEN
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
+    RealInfoOpt=MAXVAL(DielectricMu(:,:,:,:))-MINVAL(DielectricMu(:,:,:,:)))
+  END IF
+END IF
+#endif /*PP_HDG*/
 END SUBROUTINE SetDielectricVolumeProfile
 
 
@@ -250,11 +277,11 @@ SUBROUTINE SetDielectricFaceProfile()
 !> (maybe slave information is used in the future)
 !>
 !> Note:
-!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
 !> threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !> is not allowed)
 !> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-!> infomation)
+!> information)
 !> This could be overcome by using template subroutines .t90 (see FlexiOS)
 !===================================================================================================================================
 ! MODULES
@@ -289,11 +316,11 @@ INTEGER                                                  :: iElem,I,J,iSide
 ! 1.  Initialize dummy arrays for Elem/Face
 ! 2.  Fill dummy element values for non-Dielectric sides
 ! 3.  Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
-! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
 !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !     is not allowed)
 !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-!     infomation)
+!     information)
 ! 5.  Send/Receive MPI data
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
 ! 7.  With MPI, use dummy array which was used for sending the MPI data
@@ -322,11 +349,11 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   
-  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the correpsonding MPI 
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
   !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
   !     is not allowed)
   !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
-  !     infomation)
+  !     information)
   Dielectric_dummy_Master2 = 0.
   Dielectric_dummy_Slave2  = 0.
   DO I=0,PP_N
@@ -379,7 +406,7 @@ END SUBROUTINE SetDielectricFaceProfile
 #ifdef PP_HDG
 SUBROUTINE SetDielectricFaceProfile_HDG()
 !===================================================================================================================================
-! set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master"
+! set the dielectric factor EpsR for each face DOF in the array "chitens" (constant. on the diagonal matrix)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -395,34 +422,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLE,Dielectric_dummy_Master2S
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master 
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave  
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem   
-!   #ifdef MPI
-!   REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
-!   REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2 
-!   #endif /*MPI*/
-!   INTEGER                                                  :: iElem,I,J,iSide
 INTEGER :: i,j,k,iElem
 INTEGER :: p,q,flip,locSideID,SideID
-!REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
-IF(.NOT.mpiroot)THEN
-  CALL abort(&
-       __STAMP__,&
-       'dielectric HDG not implemented for MPI!')
-END IF
-
 DO iElem=1,PP_nElems
   ! cycle the loop if no dielectric element is connected to the side
   IF(.NOT.isDielectricElem(iElem)) CYCLE
 
   !compute field on Gauss-Lobatto points (continuous!)
   DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
-    !CALL calcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
-    CALL calcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    CALL CalcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
   END DO; END DO; END DO !i,j,k
 
   DO locSideID=1,6
@@ -430,8 +441,8 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
     IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
       DO q=0,PP_N; DO p=0,PP_N
-        !CALL calcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
-        CALL calcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
       END DO; END DO !p, q
     END IF
   END DO !locSideID

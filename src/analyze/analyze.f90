@@ -49,18 +49,15 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Analyze")
-CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.TRUE.')
+CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and LInf error norms at analyze step.','.FALSE.')
 CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N.')
-CALL prms%CreateIntOption(    'nSkipAnalyze'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   '(Skip Analyze-Dt)')
-CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Flag if time averaging should be performed')
-CALL prms%CreateStringOption( 'VarNameAvg'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                   'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
+CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
+CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption( 'VarNameFluc'      , 'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAverage is performed')
 !CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
                                                  !'.FALSE.')
 !CALL prms%CreateIntOption(    'nWriteData' ,     "Intervall as multiple of Analyze_dt at which HDF5 files "//&
@@ -74,19 +71,23 @@ CALL prms%CreateStringOption( 'VarNameFluc'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
 #ifndef PARTICLES
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Analyze is performed each Nth time step','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Calculate Potential Energy.','.FALSE.')
+CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
+CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 #endif
 
 CALL prms%SetSection("Analyzefield")
-CALL prms%CreateIntOption(    'PoyntingVecInt-Planes'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                         'Count of planes ', '0')
+CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
+                                                       'directed power flow (energy flux density: Density and direction of an '//&
+                                                       'electromagnetic field.', '0')
+CALL prms%CreateRealOption(   'Plane-Tolerance'      , 'Absolute tolerance for checking the Poynting vector integral plane '//&
+                                                       'coordinates and normal vectors of the corresponding sides for selecting '//&
+                                                       'relevant sides', '1E-5')
+CALL prms%CreateRealOption(   'Plane-[$]-x-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Plane-[$]-y-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-[$]-z-coord'      , 'TODO-DEFINE-PARAMETER', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Plane-[$]-factor'       , 'TODO-DEFINE-PARAMETER', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Plane-Tolerance'        , 'TODO-DEFINE-PARAMETER\n'//&
-                                                         'Tolerance in plane searching', '1E-5')
+CALL prms%CreateIntOption(    'PoyntingMainDir'        , 'Direction in which the Poynting vector integral is to be measured. '//& 
+                                                         '\n1: x \n2: y \n3: z (default)')
 
 END SUBROUTINE DefineParametersAnalyze
 
@@ -100,11 +101,11 @@ USE MOD_Preproc
 USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
-USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
+USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt,CalcEpot
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
 #ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep, CalcEpot
+USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep
 USE MOD_Analyze_Vars,         ONLY:doAnalyze
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
@@ -126,10 +127,16 @@ IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
+
+! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms  =GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
+
+! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+
+! Get the time step for performing analyzes and integer for skipping certain steps
 Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
 doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
@@ -411,7 +418,7 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
 USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
@@ -434,12 +441,12 @@ USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
-#ifdef MPI
-USE MOD_LoadBalance_Vars       ,ONLY: tCurrent
-#endif /*MPI*/
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_TimeDisc_Vars          ,ONLY: tEnd
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -460,16 +467,15 @@ INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*MPI*/
 #endif /*PARTICLES*/
-#ifdef MPI
-! load balance
-REAL                          :: tLBStart,tLBEnd
-#endif /*MPI*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: CalcTime
+#if USE_LOADBALANCE
+REAL                          :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -511,9 +517,9 @@ END IF
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
@@ -548,18 +554,17 @@ IF (CalcPoyntingInt) THEN
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #endif
 #endif
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 
 ! fill recordpoints buffer
 #if defined(LSERK) || defined(IMPA) || (PP_TimeDiscMethod==110)
 IF(RP_onProc) THEN
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 #ifdef LSERK
   IF(RPSkip)THEN
     RPSkip=.FALSE.
@@ -569,10 +574,9 @@ IF(RP_onProc) THEN
 #else
   CALL RecordPoints(iter,t,forceAnalyze,Output)
 #endif /*LSERK*/
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END IF
 #endif
 
@@ -610,9 +614,9 @@ IF (DoAnalyze)  THEN
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
 #endif
 #else /*pure DGSEM */
-#ifdef MPI
-  tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   ! analyze field
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
@@ -638,21 +642,24 @@ IF (DoAnalyze)  THEN
 #else
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
 #endif
-#ifdef MPI
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(LB_DGANALYZE)=tCurrent(LB_DGANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 END IF
+
+#ifdef PARTICLES
+IF(OutPut .OR. ForceAnalyze) CALL CalculatePartElemData()
+#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC & LD 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
-#ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
 
 ! write volume data for DSMC macroscopic values 
 IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
@@ -785,10 +792,9 @@ IF(OutPut .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(LB_PARTANALYZE)=tCurrent(LB_PARTANALYZE)+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
