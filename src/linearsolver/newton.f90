@@ -197,8 +197,8 @@ USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,Fullga
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
@@ -282,8 +282,12 @@ END IF
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
       CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     ELSE
-      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-      CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+      IF (TriaTracking) THEN
+        CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      ELSE
+        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+        CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+      END IF
     END IF
   END IF
   DO iPart=1,PDM%ParticleVecLength
@@ -500,8 +504,12 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
           CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
         ELSE
-          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+          IF (TriaTracking) THEN
+            CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+          ELSE
+            ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+            CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+          END IF
         END IF
       END IF
       DO iPart=1,PDM%ParticleVecLength
@@ -663,8 +671,12 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
           ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
           CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
         ELSE
-          ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-          CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+          IF (TriaTracking) THEN
+            CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+          ELSE
+            ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+            CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+          END IF
         END IF
       END IF
       DO iPart=1,PDM%ParticleVecLength

@@ -36,7 +36,7 @@ PUBLIC::ParticleCollectCharges
 CONTAINS
 
 
-SUBROUTINE ParticleTriaTracking()
+SUBROUTINE ParticleTriaTracking(doParticle_In)
 !===================================================================================================================================
 ! Routine for tracking of moving particles, calculate intersection and boundary interaction
 ! in case of no reference tracking (dorefmapping = false) and using Triangles (TriTracking = true)
@@ -57,10 +57,12 @@ USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPa
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                          :: i
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
@@ -81,8 +83,15 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
 DO i = 1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(i)) THEN
+  !IF (PDM%ParticleInside(i)) THEN
+  IF(DoParticle(i))THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -158,7 +167,7 @@ DO i = 1,PDM%ParticleVecLength
                  LocalSide = iLocSide
                 END IF
               END IF
-            END DO
+            END DO 
             IF(.NOT.PDM%ParticleInside(i))THEN
               WRITE(*,*)'Particle',i,' lost completely!'
               WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
@@ -1672,6 +1681,9 @@ IF(BC(SideID).GT.0)THEN
     TriNumTemp = 0
   END IF
   IF (TriaTracking) THEN
+    IF (TriNumTemp.NE.1 .AND. TriNumTemp.NE.2) CALL abort(&
+__STAMP__ &
+,'ERROR in SelectInterSectionType for TriaTracking. TriNum is:',TriNumTemp)
     CALL IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
   END IF
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
