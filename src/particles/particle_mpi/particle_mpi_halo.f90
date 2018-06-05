@@ -835,14 +835,16 @@ DO iElem=1,nElems
         END IF ! not isSide
       END IF
     END DO ! ilocSide
-    !--- name nodes and update node-count
-    DO iNode=1,8
-      IF(.NOT.isNode(GEO%ElemToNodeID(iNode,iElem))) THEN
-        SendMsg%nNodes=SendMsg%nNodes+1
-        NodeIndex(GEO%ElemToNodeID(iNode,iElem)) = SendMsg%nNodes
-        isNode(GEO%ElemToNodeID(iNode,iElem))=.TRUE.
-      END IF
-    END DO
+    IF (TriaTracking) THEN
+      !--- name nodes and update node-count
+      DO iNode=1,8
+        IF(.NOT.isNode(GEO%ElemToNodeID(iNode,iElem))) THEN
+          SendMsg%nNodes=SendMsg%nNodes+1
+          NodeIndex(GEO%ElemToNodeID(iNode,iElem)) = SendMsg%nNodes
+          isNode(GEO%ElemToNodeID(iNode,iElem))=.TRUE.
+        END IF
+      END DO
+    END IF
   END IF ! Element is marked to send
 END DO ! iElem
 
