@@ -49,10 +49,10 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts,CountNbOfLostParts,nLostParts,TrackInfo
-#ifdef MPI
-USE MOD_LoadBalance_Vars,            ONLY:ElemTime
-#endif /*MPI*/
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,9 +78,9 @@ REAL                             :: det(6,2),detM,ratio,minRatio
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
-#ifdef MPI
-REAL                             :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
@@ -92,11 +92,10 @@ END IF
 DO i = 1,PDM%ParticleVecLength
   !IF (PDM%ParticleInside(i)) THEN
   IF(DoParticle(i))THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-    nTracks=nTracks+1
-    nCurrentParts=nCurrentParts+1
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
     TrackInfo%CurrElem = ElemID
@@ -250,13 +249,9 @@ DO i = 1,PDM%ParticleVecLength
         OldElemID=ElemID
         CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
           ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
-#ifdef MPI
-        IF(OldElemID.LE.PP_nElems)THEN
-          tLBEnd = LOCALTIME() ! LB Time End
-          ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-          tLBStart = LOCALTIME() ! LB Time Start
-        END IF
-#endif /*MPI*/
+#if USE_LOADBALANCE
+        IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
         IF(ElemID.NE.OldElemID)THEN
           DoneSideID(1) = SideID
           IF(TriNum.EQ.1) DoneSideID(2) = 2
@@ -272,10 +267,9 @@ DO i = 1,PDM%ParticleVecLength
         END IF
       END IF
     END DO
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    IF(PEM%Element(i).LE.PP_nElems) ElemTime(PEM%Element(i))=ElemTime(PEM%Element(i))+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END DO
 
@@ -297,7 +291,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo
 USE MOD_Particle_Boundary_Vars,      ONLY:nAuxBCs,UseAuxBCs
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionAuxBC
 USE MOD_Utils,                       ONLY:InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks, MeasureTrackTime, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -308,7 +302,6 @@ USE MOD_Mesh_Vars,                   ONLY:OffSetElem,ElemBaryNGeo
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
-USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
 #ifdef CODE_ANALYZE
@@ -320,6 +313,9 @@ USE MOD_Particle_Mesh_Vars,          ONLY:GEO
 USE MOD_TimeDisc_Vars,               ONLY:iStage
 USE MOD_Globals_Vars,                ONLY:epsMach
 #endif /*CODE_ANALYZE*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,           ONLY:LBStartTime,LBElemPauseTime,LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,9 +336,9 @@ REAL,ALLOCATABLE              :: locAlphaAll(:)
 INTEGER,ALLOCATABLE           :: locListAll(:)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
-#ifdef MPI
-REAL                          :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                          :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 INTEGER                       :: inElem
 INTEGER                       :: PartDoubleCheck
 REAL                          :: alphaOld
@@ -365,11 +361,10 @@ DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
   alphaOld = -1.0
   IF(DoParticle(iPart))THEN
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
-    nTracks=nTracks+1
-    nCurrentParts=nCurrentParts+1
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+    IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
 #ifdef CODE_ANALYZE
@@ -690,13 +685,9 @@ DO iPart=1,PDM%ParticleVecLength
               IF(ALMOSTZERO(lengthPartTrajectory))THEN
                 PartisDone=.TRUE.
               END IF
-#ifdef MPI
-              IF(OldElemID.LE.PP_nElems)THEN
-                tLBEnd = LOCALTIME() ! LB Time End
-                ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-                tLBStart = LOCALTIME() ! LB Time Start
-              END IF
-#endif /*MPI*/
+#if USE_LOADBALANCE
+              IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
               EXIT
             END IF
             IF(crossedBC) THEN
@@ -824,13 +815,9 @@ DO iPart=1,PDM%ParticleVecLength
                     PartisDone=.TRUE.
                   END IF
                   !PartTrajectory=PartTrajectory/lengthPartTrajectory
-#ifdef MPI
-                  IF(OldElemID.LE.PP_nElems)THEN
-                    tLBEnd = LOCALTIME() ! LB Time End
-                    ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-                    tLBStart = LOCALTIME() ! LB Time Start
-                  END IF
-#endif /*MPI*/
+#if USE_LOADBALANCE
+                  IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
                   !EXIT
                 END IF
                 IF(SwitchedElement) EXIT
@@ -955,10 +942,9 @@ DO iPart=1,PDM%ParticleVecLength
         IF(CountNbOfLostParts) nLostParts=nLostParts+1
       END IF
     END IF ! markTol
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    IF(PEM%Element(iPart).LE.PP_nElems) ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
+#endif /*USE_LOADBALANCE*/
 !    IF(markTol)THEN
 !      CALL PartInElemCheck(iPart,ElemID,isHit)
 !      PEM%Element(iPart)=ElemID
@@ -1058,7 +1044,7 @@ USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
-USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
+USE MOD_LoadBalance_Vars,        ONLY:nTracksPerElem
 #endif
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
@@ -1066,6 +1052,9 @@ USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #if defined(IMPA) 
 USE MOD_TimeDisc_Vars,           ONLY:iStage,RK_inflow
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1089,9 +1078,9 @@ LOGICAL                           :: PartisDone,PartIsMoved
 !LOGICAL                           :: HitBC(1:PDM%ParticleVecLength)
 REAL                              :: lengthPartTrajectory0
 ! load balance
-#ifdef MPI
-REAL                                :: tLBStart,tLBEnd
-#endif /*MPI*/
+#if USE_LOADBALANCE
+REAL                              :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
@@ -1104,9 +1093,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(DoParticle(iPart))THEN
     LastElemID = PEM%lastElement(iPart)
     ElemID=LastElemID
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     nTracks=nTracks+1
     ! sanity check
     PartIsDone=.FALSE.
@@ -1146,16 +1135,15 @@ DO iPart=1,PDM%ParticleVecLength
 !      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
          PEM%Element(iPart)=ElemID
-#ifdef MPI
-         tLBEnd = LOCALTIME() ! LB Time End
+#if USE_LOADBALANCE
          IF(ElemID.GT.PP_nElems)THEN
            IF(LastElemID.LE.PP_nElems)THEN
-             ElemTime(LastElemID)=ElemTime(LastElemID)+tLBEnd-tLBStart
+             CALL LBElemPauseTime(LastElemID,tLBStart)
+           ELSE
+             CALL LBElemPauseTime(ElemID,tLBStart)
            END IF
-         ELSE
-           ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
          END IF
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
         CYCLE
       END IF
     ELSE ! no bc elem, therefore, no bc interaction possible
@@ -1181,31 +1169,29 @@ DO iPart=1,PDM%ParticleVecLength
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
         PEM%Element(iPart)  = ElemID
-#ifdef MPI
-         tLBEnd = LOCALTIME() ! LB Time End
+#if USE_LOADBALANCE
          IF(ElemID.LE.PP_nElems)THEN
-           ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+           CALL LBElemPauseTime(ElemID,tLBStart)
          ELSE IF(PEM%LastElement(iPart).LE.PP_nElems)THEN
-           ElemTime(PEM%LastElement(iPart))=ElemTime(PEM%LastElement(iPart))+tLBEnd-tLBStart
+           CALL LBElemPauseTime(PEM%LastElement(iPart),tLBStart)
          END IF
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
         CYCLE
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
       !  IPWRITE(UNIT_stdOut,*) ' partposref to large!',iPart
       END IF
     END IF ! initial check
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
+#if USE_LOADBALANCE
     IF(ElemID.LE.PP_nElems)THEN
-      ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+      CALL LBElemPauseTime(ElemID,tLBStart)
     ELSE IF(PEM%LastElement(iPart).LE.PP_nElems)THEN
-      ElemTime(PEM%LastElement(iPart))=ElemTime(PEM%LastElement(iPart))+tLBEnd-tLBStart
+      CALL LBElemPauseTime(PEM%LastElement(iPart),tLBStart)
     END IF
-#endif /*MPI*/
-  ! still not located
-#ifdef MPI
-    tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
+    ! still not located
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     ! relocate particle
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
     ! get background mesh cell of particle
@@ -1256,9 +1242,9 @@ DO iPart=1,PDM%ParticleVecLength
     DO iBGMElem=1,nBGMElems
       IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
       ElemID=ListDistance(iBGMElem)
-#ifdef MPI
+#if USE_LOADBALANCE
       IF(ElemID.LE.PP_nElems) nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
@@ -1398,10 +1384,9 @@ __STAMP__ &
         END IF ! BCElem
       END IF ! inner eps to large
     END IF
-#ifdef MPI
-    tLBEnd = LOCALTIME() ! LB Time End
-    tTracking = tTracking +tLBEnd-tLBStart
-#endif /*MPI*/
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_TRACK,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
 END DO ! iPart
 
@@ -1481,14 +1466,23 @@ DO WHILE(DoTracing)
   IF(GEO%nPeriodicVectors.GT.0.AND.CartesianPeriodic)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
+    ! the position and trajectory has to be recomputed
+    IF(PeriMoved)THEN
+      IF(GEO%nPeriodicVectors.EQ.3) CYCLE
+      PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+      lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                               +PartTrajectory(2)*PartTrajectory(2) &
+                               +PartTrajectory(3)*PartTrajectory(3) )
+    ELSE
+      IF(GEO%nPeriodicVectors.EQ.3) RETURN
+    END IF
   ELSE
     PeriMoved=.FALSE.
   END IF
   locAlpha=-1.0
   nInter=0
   DO iLocSide=firstSide,LastSide
-    ! track particle vector until the final particle position is achieved
-    ! check if particle can intersect wit current side
+    ! track particle vector until the final particle position is achieved ! check if particle can intersect wit current side
     IF(BCElem(ElemID)%ElemToSideDistance(ilocSide).GT.lengthPartTrajectory0) EXIT
     SideID=BCElem(ElemID)%BCSideID(ilocSide)
     BCSideID=PartBCSideList(SideID)
