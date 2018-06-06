@@ -1004,7 +1004,7 @@ INTEGER                        :: sendbuf(1),recvbuf(1)
 INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
 INTEGER                        :: iSurfPart, iSurf_glob, iSurf_loc, iSpec, nVar
 INTEGER                        :: iOffset, UsedSiteMapPos, SideID, SurfSideID, PartBoundID
-INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart
+INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart, iVar
 INTEGER                        :: Coordinations          !number of PartInt and PartData coordinations
 INTEGER                        :: SurfPartIntSize        !number of entries in each line of PartInt
 INTEGER                        :: SurfPartDataSize       !number of entries in each line of PartData
@@ -1044,14 +1044,16 @@ ELSE
   nVar = 1
 END IF
 ALLOCATE(StrVarNames(nVar*nSpecies))
+iVar = 1
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
-  StrVarNames(iSpec)   = 'Spec'//TRIM(SpecID)//'_Coverage'
+  StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'_Coverage'
   IF (DSMC%WallModel.EQ.3) THEN
-    StrVarNames(iSpec+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
-    StrVarNames(iSpec+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
-    StrVarNames(iSpec+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
+    StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
+    StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
+    StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
   END IF
+  iVar = iVar + nVar
 END DO
 
 #ifdef MPI
@@ -1179,18 +1181,22 @@ IF (DSMC%WallModel.EQ.3) THEN
 
   ! set names and write attributes in hdf5 files
   ALLOCATE(StrVarNames(SurfPartIntSize*Coordinations))
+  iVar = 1
   DO iCoord=1,Coordinations
     WRITE(CoordID,'(I3.3)') iCoord
-    StrVarNames(iCoord)='Coord'//TRIM(CoordID)//'_nSites'
-    StrVarNames(iCoord+1)='Coord'//TRIM(CoordID)//'_FirstSurfPartID'
-    StrVarNames(iCoord+2)='Coord'//TRIM(CoordID)//'_LastSurfPartID'
+    StrVarNames(iVar)='Coord'//TRIM(CoordID)//'_nSites'
+    StrVarNames(iVar+1)='Coord'//TRIM(CoordID)//'_FirstSurfPartID'
+    StrVarNames(iVar+2)='Coord'//TRIM(CoordID)//'_LastSurfPartID'
+    iVar = iVar + 3
   END DO
 
   ALLOCATE(StrVarNamesData(SurfPartDataSize*Coordinations))
+  iVar = 1
   DO iCoord=1,Coordinations
     WRITE(CoordID,'(I3.3)') iCoord
-    StrVarNamesData(iCoord)='Coord'//TRIM(CoordID)//'_SiteMapPosition'
-    StrVarNamesData(iCoord+1)='Coord'//TRIM(CoordID)//'_Species'
+    StrVarNamesData(iVar)='Coord'//TRIM(CoordID)//'_SiteMapPosition'
+    StrVarNamesData(iVar+1)='Coord'//TRIM(CoordID)//'_Species'
+    iVar = iVar + 2
   END DO
 #ifdef MPI
   IF(SurfCOMM%MPIOutputRoot)THEN
