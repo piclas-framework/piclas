@@ -2864,6 +2864,7 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
+SDEALLOCATE(SpecReset)
 current => firstSurfFluxPart
 DO WHILE (associated(current))
   DEALLOCATE(current%SideInfo)
