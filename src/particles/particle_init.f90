@@ -239,6 +239,9 @@ CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
                                 , 'Number of different initial particle placements for Species [$]', '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Reset'  &
+                                , 'Flag for resetting species distribution with init during restart' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                 , '[TODO-DEFINE-PARAMETER]\n'//&
                                   'Particle Charge (without MPF) of species[$] dim' &
@@ -1359,6 +1362,8 @@ __STAMP__&
 END IF
 
 ! initialize macroscopic restart
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
@@ -1373,6 +1378,7 @@ ALLOCATE(Species(1:nSpecies))
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
+  SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1429,6 +1435,10 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
+        IF(.NOT.SpecReset(iSpec)) THEN
+          SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
+        END IF
+        SpecReset(iSpec)=.TRUE.
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.

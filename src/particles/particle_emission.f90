@@ -148,7 +148,8 @@ SUBROUTINE InitializeParticleEmission()
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF
+USE MOD_Restart_Vars,   ONLY : DoRestart
+USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
@@ -183,7 +184,6 @@ DO i=1, nSpecies
   IF (EmType6) EXIT
 END DO
 IF (.NOT.EmType6) DSMC%OutputMeshSamp=.false.
-IF (.NOT.DoRestart) THEN
 !   CALL Deposition()
 !   IF (MESH%t.GE.PIC%DelayTime) PIC%ParticleTreatmentMethod='standard'
   ! for the case of particle insertion per time, the inserted particle number for the current time must
@@ -193,140 +193,140 @@ IF (.NOT.DoRestart) THEN
 !  END DO
 !ELSE
 ! Do insanity check of max. particle number compared to the number that is to be inserted for certain insertion types
-  insertParticles = 0
-  DO i=1,nSpecies
-    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-        IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
-#ifdef MPI
-          insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
-#else
-          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
-#endif
-        ELSE
-          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
-        END IF
-      ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
-           .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+insertParticles = 0
+DO i=1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+      IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
         insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
         insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
 #endif
+      ELSE
+        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
       END IF
-    END DO
-  END DO
-  IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+    ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+         .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
 #ifdef MPI
-    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
-    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
-    WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
-    WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+      insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
 #endif
-    CALL abort(&
+    END IF
+  END DO
+END DO
+IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+#ifdef MPI
+  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
+  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+#else
+  WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
+  WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+#endif
+  CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
-  END IF
-  DO i = 1,nSpecies
-    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
-      ! of particles
-      !!!Here could be added a check for geometrically overlapping Inits and same Usefor-Flags!!!
-      !IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
-      !  WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
-      !  WRITE(*,*) 'OR the standard initialisation, not both!'
-      !  STOP
-      !END IF
-      IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
-           (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
-        CALL abort(&
+END IF
+DO i = 1,nSpecies
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
+    ! of particles
+    !!!Here could be added a check for geometrically overlapping Inits and same Usefor-Flags!!!
+    !IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
+    !  WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
+    !  WRITE(*,*) 'OR the standard initialisation, not both!'
+    !  STOP
+    !END IF
+    IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
+         (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
+      CALL abort(&
 __STAMP__&
 ,' particle pressure not moved to picasso!')
-        IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
-          CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-        ELSE !emission type 6 (constant pressure outflow)
-          CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+      IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
+        CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
+        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+      ELSE !emission type 6 (constant pressure outflow)
+        CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+      END IF
+      CALL SetParticleChargeAndMass(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (useDSMC) THEN
+        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+          NbrOfParticle = PDM%maxParticleNumber
         END IF
-        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-        IF (useDSMC) THEN
-          IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-            NbrOfParticle = PDM%maxParticleNumber
+        iPart = 1
+        DO WHILE (iPart .le. NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) THEN
+            PDM%PartInit(PositionNbr) = iInit
           END IF
-          iPart = 1
-          DO WHILE (iPart .le. NbrOfParticle)
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) THEN
-              PDM%PartInit(PositionNbr) = iInit
-            END IF
-            iPart = iPart + 1
-          END DO
-        END IF
-        !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-        CALL UpdateNextFreePosition()
-      ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
-        IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
+          iPart = iPart + 1
+        END DO
+      END IF
+      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      CALL UpdateNextFreePosition()
+    ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
+      IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
 __STAMP__&
 ,' Integer of initial particle number larger than max integer size: ',HUGE(1))
-        NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
+      NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
 #ifdef MPI
-        CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
-        CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
-        CALL SetParticlePosition(i,iInit,NbrOfParticle)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif /*MPI*/
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
-        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-        IF (useDSMC) THEN
-          IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-            NbrOfParticle = PDM%maxParticleNumber
-          END IF
-          iPart = 1
-          DO WHILE (iPart .le. NbrOfParticle)
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) THEN
-              PDM%PartInit(PositionNbr) = iInit
-            END IF
-            iPart = iPart + 1
-          END DO
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
+      CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
+      CALL SetParticleChargeAndMass(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (useDSMC) THEN
+        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+          NbrOfParticle = PDM%maxParticleNumber
         END IF
-        !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-        CALL UpdateNextFreePosition()
-        ! constant pressure condition
-        IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-          CALL abort(&
+        iPart = 1
+        DO WHILE (iPart .le. NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) THEN
+            PDM%PartInit(PositionNbr) = iInit
+          END IF
+          iPart = iPart + 1
+        END DO
+      END IF
+      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      CALL UpdateNextFreePosition()
+      ! constant pressure condition
+      IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+        CALL abort(&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
-          CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
-          IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
-            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-            IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+        CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
+        IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
+          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
+          IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
 #ifdef MPI
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
-            CALL SetParticlePosition(i,iInit,NbrOfParticle)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
-            CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-            CALL SetParticleChargeAndMass(i,NbrOfParticle)
-            IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-            !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-            PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-            CALL UpdateNextFreePosition()
-          END IF
+          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+          CALL SetParticleChargeAndMass(i,NbrOfParticle)
+          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+          CALL UpdateNextFreePosition()
         END IF
-      END IF ! not Emissiontype 4
-    END DO !inits
-  END DO ! species
-END IF ! not restart
+      END IF
+    END IF ! not Emissiontype 4
+  END DO !inits
+END DO ! species
 
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
 DO i = 1,PDM%ParticleVecLength

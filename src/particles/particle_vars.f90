@@ -14,6 +14,8 @@ REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! B
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
+LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
+                                                                             ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
 LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
 LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
