@@ -100,7 +100,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
 ! calculated with ParticleMPIWeight 
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-IF (ParticleMPIWeight.LE.0.0) THEN
+IF (ParticleMPIWeight.LT.0.0) THEN
   CALL abort(&
       __STAMP__&
       ,' ERROR: Particle weight cannot be negative!')
