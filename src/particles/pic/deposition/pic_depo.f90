@@ -202,6 +202,7 @@ CASE('shape_function','shape_function_simple')
     SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
     SDEALLOCATE(SFdepoFixesGeo)
     SDEALLOCATE(SFdepoFixesChargeMult)
+    SDEALLOCATE(SFdepoFixesPartOfLink)
     SDEALLOCATE(SFdepoFixesBounds)
     ALLOCATE(SFdepoFixesGeo(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(base,normal);1:3(x,y,z)
     IF (ALLOCSTAT.NE.0) THEN
@@ -254,6 +255,7 @@ CASE('shape_function','shape_function_simple')
     END DO
     NbrOfSFdepoFixLinks = GETINT('PIC-NbrOfSFdepoFixLinks','0')
     IF (NbrOfSFdepoFixLinks.GT.0) THEN
+      SDEALLOCATE(SFdepoFixLinks)
       ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:3),STAT=ALLOCSTAT)
       IF (ALLOCSTAT.NE.0) THEN
         CALL abort(&
@@ -609,7 +611,12 @@ CASE('shape_function','shape_function_simple')
       LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile = GETSTR('PIC-SFResampleRestartFile','dummy')
     END IF
     LastAnalyzeSurfCollis%NumberOfBCs = GETINT('PIC-SFResampleNumberOfBCs','1')
-    ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs))
+    SDEALLOCATE(LastAnalyzeSurfCollis%BCs)
+    ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%BCs!')
+    END IF
     IF (LastAnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
       LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',1,'0') ! 0 means all...
     ELSE     
