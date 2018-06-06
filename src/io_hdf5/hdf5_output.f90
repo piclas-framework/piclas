@@ -97,6 +97,7 @@ USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
+USE MOD_Particle_Boundary_Vars,ONLY:nAdaptiveBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
@@ -294,6 +295,13 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
+IF (nAdaptiveBC.GT.0) THEN
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
+    CALL CloseDataFile()
+  END IF
+END IF
 IF(OutPutSource) THEN
   ! output of pure current and density
   ! not scaled with epsilon0 and c_corr

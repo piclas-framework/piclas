@@ -3630,13 +3630,15 @@ USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, Boltzmann
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
+USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
+USE MOD_IO_HDF5
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3682,6 +3684,10 @@ LOGICAL               :: r0inside, intersecExists(2,2)
 REAL                  :: corners(2,4),atan2Shift,rmin,rmax
 INTEGER               :: FileID
 LOGICAL               :: OutputSurfaceFluxLinked
+CHARACTER(LEN=255),ALLOCATABLE   :: VarNamesAdd_HDF5(:),VarNames_Adaptive(:,:)
+REAL,ALLOCATABLE      :: ElemData_HDF5(:,:)
+LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
+INTEGER               :: nVarAdd_HDF5, iElem, iVar
 !===================================================================================================================================
 
 #ifdef MPI
@@ -4138,9 +4144,72 @@ DEALLOCATE(TmpMapToBC &
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
-  ALLOCATE(Adaptive_MacroVal(1:10,1:nElems,1:nSpecies))
-  Adaptive_MacroVal(:,:,:)=0
+  ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
+  ALLOCATE(VarNames_Adaptive(1:DSMC_NVARS,1:nSpecies))
+  DO iSpec = 1,nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    VarNames_Adaptive(DSMC_VELOX,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_x'
+    VarNames_Adaptive(DSMC_VELOY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_y'
+    VarNames_Adaptive(DSMC_VELOZ,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_z'
+    VarNames_Adaptive(DSMC_TEMPX,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
+    VarNames_Adaptive(DSMC_TEMPY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
+    VarNames_Adaptive(DSMC_TEMPZ,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
+    VarNames_Adaptive(DSMC_DENSITY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Density'
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOX,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOY,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOZ,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPX,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPX,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPY,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPY,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPZ,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPZ,1:nElems,iSpec))
+    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_DENSITY,iSpec),RealArray=Adaptive_MacroVal(DSMC_DENSITY,1:nElems,iSpec))
+  END DO
+  ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
+  AdaptiveInitDone = .FALSE.
+  IF (DoRestart) THEN
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)
+    ! read local ParticleInfo from HDF5
+    CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
+    IF(AdaptiveDataExists)THEN
+      AdaptiveInitDone = .TRUE.
+      !read local ElemInfo from HDF5
+      CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+      nVarAdd_HDF5=HSize(1)
+      ALLOCATE(VarNamesAdd_HDF5(nVarAdd_HDF5))
+      CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd_HDF5,StrArray=VarNamesAdd_HDF5)
+      ALLOCATE(ElemData_HDF5(1:nVarAdd_HDF5,1:nElems))
+      ElemData_HDF5=0.
+      CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,nElems))
+      DO iSpec = 1,nSpecies
+        DO iElem = 1,nElems
+          DO iVar = 1,nVarAdd_HDF5
+            IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOX,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_VELOX,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOY,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_VELOY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOZ,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_VELOZ,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPX,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_TEMPX,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPY,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_TEMPY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPZ,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_TEMPZ,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_DENSITY,iSpec))) THEN
+              Adaptive_MacroVal(DSMC_DENSITY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
+            END IF
+          END DO
+        END DO
+      END DO
+      SDEALLOCATE(ElemData_HDF5)
+      SDEALLOCATE(VarNamesAdd_HDF5)
+      SDEALLOCATE(VarNames_Adaptive)
+    END IF
+    CALL CloseDataFile()
+  ELSE
+    Adaptive_MacroVal(:,:,:)=0
+  END IF
 END IF
+
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
@@ -4334,21 +4403,29 @@ __STAMP__&
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF
         IF (.NOT.noAdaptive) THEN
-          ! initialize velocity, trans_temperature and density of macrovalues
-          FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
-          IF (FileID.EQ.0) THEN
-            Adaptive_MacroVal(1:3,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-                * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
-            Adaptive_MacroVal(4:6,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-            Adaptive_MacroVal(7,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-          ELSE
-            Adaptive_MacroVal(1,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(2,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(3,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(4,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(5,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(6,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(7,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+          IF (.NOT.AdaptiveInitDone) THEN
+            ! initialize velocity, trans_temperature and density of macrovalues
+            FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            IF (FileID.EQ.0) THEN
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+            ELSE
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+            END IF
           END IF
         END IF
       END DO ! iSide
