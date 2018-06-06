@@ -1044,6 +1044,7 @@ USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*ROS*/
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
+USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1378,7 +1379,13 @@ ALLOCATE(Species(1:nSpecies))
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-  SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
+#ifdef MPI
+  IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+    SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
+#ifdef MPI
+  END IF
+#endif /*MPI*/
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1435,10 +1442,16 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
-        IF(.NOT.SpecReset(iSpec)) THEN
-          SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
+#ifdef MPI
+        IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+          IF(.NOT.SpecReset(iSpec)) THEN
+            SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
+          END IF
+          SpecReset(iSpec)=.TRUE.
+#ifdef MPI
         END IF
-        SpecReset(iSpec)=.TRUE.
+#endif /*MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
