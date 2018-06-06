@@ -251,7 +251,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
@@ -318,12 +318,9 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-#ifdef MPI
-LOGICAL                      :: PerformLoadBalance
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
@@ -642,7 +639,7 @@ DO !iter_t=0,MaxIter
 #endif
 #if USE_LOADBALANCE
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
-    CALL ComputeElemLoad(PerformLoadBalance,time)
+    CALL ComputeElemLoad()
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
@@ -750,7 +747,7 @@ DO !iter_t=0,MaxIter
 #if USE_LOADBALANCE
     IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
-      CALL LoadBalance(PerformLoadBalance)
+      CALL LoadBalance()
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) THEN

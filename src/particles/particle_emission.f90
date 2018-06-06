@@ -146,6 +146,7 @@ SUBROUTINE InitializeParticleEmission()
 ! MODULES
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
+USE MOD_LoadBalance_Vars,      ONLY : PerformLoadBalance
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars,   ONLY : DoRestart
@@ -196,6 +197,9 @@ IF (.NOT.EmType6) DSMC%OutputMeshSamp=.false.
 insertParticles = 0
 DO i=1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
+#ifdef MPI
+  IF(PerformLoadBalance) CYCLE
+#endif
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
