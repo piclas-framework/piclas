@@ -108,10 +108,10 @@ IF(iError.EQ.0) THEN
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
   CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersion)
-  IF(FileVersion .LT. FileVersionRef)THEN
-    isValidHDF5File=.FALSE.
-    SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
-  END IF
+  !IF(FileVersion .LT. FileVersionRef)THEN
+  !  isValidHDF5File=.FALSE.
+  !  SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
+  !END IF
   ! Close the file.
   CALL H5FCLOSE_F(File_ID, iError)
   ! Close FORTRAN predefined datatypes

@@ -20,7 +20,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_StringTools
 USE MOD_Commandline_Arguments
-USE MOD_IO_HDF5,             ONLY: InitIO!,DefineParametersIO_HDF5
+USE MOD_IO_HDF5,             ONLY: InitIO,DefineParametersIO
 USE MOD_IO_HDF5,             ONLY: HSize
 USE MOD_MPI,                 ONLY: InitMPI!,DefineParametersMPI
 USE MOD_ReadInTools ,        ONLY: prms,PrintDefaultParameterFile
@@ -53,8 +53,8 @@ REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution f
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
 REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)                 ! Solution on visualiation nodes
 REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes 
-REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)     
-REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)     
+REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
+REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE               :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
 REAL,ALLOCATABLE               :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualisation nodes
 INTEGER                        :: nGeo_old,nVar_State_old           ! Variables used to check if we need to reinitialize
@@ -64,22 +64,12 @@ CHARACTER(LEN=255)             :: NodeType_State_old                !     "
 CHARACTER(LEN=255)             :: FileString_DG
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL                           :: OutputTime
-INTEGER                        :: iDG,iFV
-CHARACTER(LEN=255)             :: FileString_FV,FileString_multiblock
-INTEGER                        :: NVisu_FV                          ! Polynomial degree of visualisation for FV
-CHARACTER(LEN=255)             :: NodeTypeVisuOut_FV                ! Stores user selected type of visualisation nodes
-REAL,ALLOCATABLE,TARGET        :: U_Visu_FV(:,:,:,:,:)              ! Solution on visualiation nodes
-REAL,POINTER                   :: U_Visu_FV_p(:,:,:,:,:)              ! Solution on visualiation nodes
-REAL,ALLOCATABLE               :: Coords_NVisu_FV(:,:,:,:,:)        ! Coordinates of visualisation nodes
-REAL,ALLOCATABLE,TARGET        :: Coords_FV(:,:,:,:,:)      
-REAL,POINTER                   :: Coords_FV_p(:,:,:,:,:)      
-REAL,ALLOCATABLE               :: Vdm_CLNGeo_NVisu_FV(:,:)
-INTEGER                        :: nDims,nVarAdd_HDF5,iVarAdd,nLocalElems_FV,nLocalElems_DG
+INTEGER                        :: iDG
+CHARACTER(LEN=255)             :: FileString_multiblock
+INTEGER                        :: nDims,nVarAdd_HDF5,iVarAdd,nLocalElems_DG
 LOGICAL                        :: elemDataFound
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAdd_HDF5(:)
 REAL,ALLOCATABLE               :: ElemData_HDF5(:,:)
-INTEGER,ALLOCATABLE            :: FV_Elems(:)
-INTEGER                        :: i,j,k,iVar
 LOGICAL                        :: CmdLineMode                       ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
@@ -88,14 +78,14 @@ CHARACTER(LEN=20)              :: fmtString                         ! String con
 CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
-!CALL DefineParametersIO_HDF5()
 ! Define parameters for H5BOLTZ2VTK
 CALL prms%SetSection("H5BOLTZ2VTK")
-CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//& 
+CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order information in mesh. Turn off to discard "//&
                                              "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
+CALL DefineParametersIO()
 
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
@@ -154,7 +144,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! Set and read in parameters differently depending if H5BOLTZ2VTK is invoked with a parameter file or not
 IF (CmdLineMode) THEN
   ! Read NVisu from the first command line argument
-  NVisuString = TRIM(ParameterFile(9:LEN(TRIM(ParameterFile)))) 
+  NVisuString = TRIM(ParameterFile(9:LEN(TRIM(ParameterFile))))
   READ(NVisuString,'(I2.1)') NVisu
   ! Since we are not reading a parameter file, some properties of the prms object need to be set
   prms%maxNameLen  = 13 ! gatheredWrite is the longest option
@@ -182,8 +172,7 @@ END IF
 ! Set necessary parameters for H5BOLTZ2VTK tool
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
-useCurveds       = GETLOGICAL('useCurveds','.TRUE.')  ! Allow curved mesh or not
-NodeTypeVisuOut_FV = 'VISU_FVEQUI'
+useCurveds       = GETLOGICAL('useCurveds','.FALSE.')  ! Allow curved mesh or not
 
 ! Initialization of I/O routines
 CALL InitIO()
@@ -215,12 +204,11 @@ DO iArgs = 2,nArgs
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-1,' of ',nArgs-1,'...'
 
   ! Open .h5 file
-  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Read in parameters from the State file
   CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
   CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-  NVisu_FV = (N_State+1)*2-1
   ! Check if we need to reallocate the var names array
   IF (nVar_State.NE.nVar_State_old) THEN
     SDEALLOCATE(StrVarNames)
@@ -246,7 +234,7 @@ DO iArgs = 2,nArgs
     CALL FinalizeMesh()
 
     ! Read in parameters from mesh file
-    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+    CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
     CALL CloseDataFile()
   
@@ -258,8 +246,6 @@ DO iArgs = 2,nArgs
       SDEALLOCATE(Vdm_EQNgeo_NVisu)
       ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
       CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
-      ALLOCATE(Vdm_CLNGeo_NVisu_FV(0:NVisu_FV,0:NGeo))
-      CALL GetVandermonde(NGeo,NodeTypeVisu,NVisu_FV,NodeTypeVisuOut_FV,Vdm_CLNGeo_NVisu_FV)
     END IF
 
     ! Check if we need to reallocate the coordinate array
@@ -268,33 +254,24 @@ DO iArgs = 2,nArgs
       ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
       SDEALLOCATE(Coords_DG)
       ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-      SDEALLOCATE(Coords_NVisu_FV)
-      ALLOCATE(Coords_NVisu_FV(3,0:NVisu_FV,0:NVisu_FV,0:NVisu_FV,nElems))
-      SDEALLOCATE(Coords_FV)
-      ALLOCATE(Coords_FV(3,0:NVisu_FV,0:NVisu_FV,0:NVisu_FV,nElems))
     END IF
 
     ! Convert coordinates to visu grid
     DO iElem = 1,nElems
       CALL ChangeBasis3D(3,NGeo,NVisu,   Vdm_EQNgeo_NVisu,  NodeCoords(:,:,:,:,iElem),Coords_NVisu  (:,:,:,:,iElem))
-      CALL ChangeBasis3D(3,NGeo,NVisu_FV,Vdm_CLNGeo_NVisu_FV,NodeCoords(:,:,:,:,iElem),Coords_Nvisu_FV(:,:,:,:,iElem))
     END DO
-    SDEALLOCATE(Vdm_CLNGeo_NVisu_FV)
   END IF ! New mesh
 
   ! Check if we need to reallocate the solution array
   IF ((N_State.NE.N_State_old).OR.(nVar_State.NE.nVar_State_old).OR.(nElems.NE.nElems_old)) THEN
-    SDEALLOCATE(FV_Elems)
-    ALLOCATE(FV_Elems(nElems))
     SDEALLOCATE(U)
     ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
   END IF
 
   ! Read in solution
-  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
+  CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
 
-  FV_Elems=0
 
   ! check if additional elem data exists
   CALL DatasetExists(File_ID,'ElemData',elemDataFound)
@@ -309,16 +286,6 @@ DO iArgs = 2,nArgs
       ALLOCATE(ElemData_HDF5(1:nVarAdd_HDF5, nElems))
       CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5)
     END IF
-
-    ! read additional data (e.g. indicators etc)
-    DO iVarAdd=1,nVarAdd_HDF5
-      IF (TRIM(VarNamesAdd_HDF5(iVarAdd)).EQ."FV_Elems") THEN
-        FV_Elems=INT(ElemData_HDF5(iVarAdd,:))
-        EXIT
-      END IF 
-    END DO
-    nLocalElems_FV = SUM(FV_Elems)
-    nLocalElems_DG = nElems-nLocalElems_FV
   ELSE
     nVarAdd_HDF5=0
   END IF
@@ -335,47 +302,25 @@ DO iArgs = 2,nArgs
   IF ((nVar_State.NE.nVar_State_old).OR.(nElems.NE.nElems_old)) THEN
     SDEALLOCATE(U_Visu)
     ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
-    SDEALLOCATE(U_Visu_FV)
-    ALLOCATE(U_Visu_FV(nVar_State,0:NVisu_FV,0:NVisu_FV,0:NVisu_FV,nElems))
   END IF
 
   ! Interpolate solution to visu grid
   iDG = 0
-  iFV = 0
   DO iElem = 1,nElems
-    IF (FV_Elems(iElem).EQ.0) THEN
-      iDG = iDG + 1
-      CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
-      Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
-    ELSE
-      iFV = iFV + 1
-      DO k=0,N_State; DO j=0,N_State; DO i=0,N_State
-        DO iVar=1,PP_nVar
-          U_Visu_FV(iVar, i*2:i*2+1, j*2:j*2+1, k*2:k*2+1, iFV) = U(iVar,i,j,k,iElem)
-        END DO ! iVar=1,PP_nVar
-      END DO; END DO; END DO! i,j,k=0,N_State
-      Coords_FV(:,:,:,:,iFV) = Coords_Nvisu_FV(:,:,:,:,iElem)
-    END IF
+    iDG = iDG + 1
+    CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
+    Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
   END DO
 
   ! Write solution to vtk
-!#if FV_ENABLED                            
-!  FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DG',OutputTime))//'.vtu'
-!#else
   FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
-!#endif
   Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
   U_Visu_p => U_Visu(:,:,:,:,1:iDG)
   CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
-  FileString_FV=TRIM(TIMESTAMP(TRIM(ProjectName)//'_FV',OutputTime))//'.vtu'  
-  Coords_FV_p => Coords_FV(:,:,:,:,1:iFV)
-  U_Visu_FV_p => U_Visu_FV(:,:,:,:,1:iFV)
-  CALL WriteDataToVTK(nVar_State,NVisu_FV,iFV,StrVarNames,Coords_FV_p,U_Visu_FV_p,TRIM(FileString_FV),dim=3,DGFV=1)
-                      
   IF (MPIRoot) THEN
     ! write multiblock file
     FileString_multiblock=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtm'
-    CALL WriteVTKMultiBlockDataSet(FileString_multiblock,FileString_DG,FileString_FV)
+    CALL WriteVTKMultiBlockDataSet(FileString_multiblock,FileString_DG)
   END IF
 
   ! Save parameters of this state to later check if we need to reinitialize variables
