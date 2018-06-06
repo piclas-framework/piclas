@@ -97,7 +97,6 @@ USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
-USE MOD_Particle_Boundary_Vars,ONLY:nAdaptiveBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
@@ -295,13 +294,6 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
-IF (nAdaptiveBC.GT.0) THEN
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
-    CALL CloseDataFile()
-  END IF
-END IF
 IF(OutPutSource) THEN
   ! output of pure current and density
   ! not scaled with epsilon0 and c_corr
@@ -331,6 +323,7 @@ END IF
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
+CALL WriteAdaptiveInfoToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
@@ -1251,6 +1244,80 @@ END IF ! DSMC%WallModel.EQ.3
 
 
 END SUBROUTINE WriteSurfStateToHDF5
+
+
+SUBROUTINE WriteAdaptiveInfoToHDF5(FileName)
+!===================================================================================================================================
+!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: H5_Name
+CHARACTER(LEN=255)             :: SpecID
+INTEGER                        :: nVar
+INTEGER                        :: iElem,iVar,iSpec
+REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
+!===================================================================================================================================
+! first check if adaptive boundaries are defined 
+IF (nAdaptiveBC.LE.0) RETURN
+
+nVar = 4
+iVar = 1
+ALLOCATE(StrVarNames(nVar*nSpecies))
+DO iSpec=1,nSpecies
+  WRITE(SpecID,'(I3.3)') iSpec
+  StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'-VeloX'
+  StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
+  StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
+  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  iVar = iVar + nVar
+END DO
+
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF
+
+! rewrite and save arrays for AdaptiveData
+ALLOCATE(AdaptiveData(nVar,nElems,nSpecies))
+AdaptiveData = 0.
+DO iElem = 1,nElems
+  AdaptiveData(1,iElem,:) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
+  AdaptiveData(2,iElem,:) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
+  AdaptiveData(3,iElem,:) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
+  AdaptiveData(4,iElem,:) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+END DO
+
+WRITE(H5_Name,'(A)') 'AdaptiveInfo'
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=3,&
+                nValGlobal=(/nVar,nGlobalElems,nSpecies/),&
+                nVal=      (/nVar,nElems      ,nSpecies/),&
+                offset=    (/0   ,offsetElem  ,0       /),&
+                collective=.TRUE.,  RealArray=AdaptiveData)
+CALL CloseDataFile()
+SDEALLOCATE(StrVarNames)
+SDEALLOCATE(AdaptiveData)
+
+END SUBROUTINE WriteAdaptiveInfoToHDF5
 #endif /*PARTICLES*/
 
 

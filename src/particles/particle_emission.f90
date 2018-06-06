@@ -3684,8 +3684,7 @@ LOGICAL               :: r0inside, intersecExists(2,2)
 REAL                  :: corners(2,4),atan2Shift,rmin,rmax
 INTEGER               :: FileID
 LOGICAL               :: OutputSurfaceFluxLinked
-CHARACTER(LEN=255),ALLOCATABLE   :: VarNamesAdd_HDF5(:),VarNames_Adaptive(:,:)
-REAL,ALLOCATABLE      :: ElemData_HDF5(:,:)
+REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
 INTEGER               :: nVarAdd_HDF5, iElem, iVar
 !===================================================================================================================================
@@ -4145,64 +4144,23 @@ DEALLOCATE(TmpMapToBC &
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
   ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
-  ALLOCATE(VarNames_Adaptive(1:DSMC_NVARS,1:nSpecies))
-  DO iSpec = 1,nSpecies
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    VarNames_Adaptive(DSMC_VELOX,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_x'
-    VarNames_Adaptive(DSMC_VELOY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_y'
-    VarNames_Adaptive(DSMC_VELOZ,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Velo_z'
-    VarNames_Adaptive(DSMC_TEMPX,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
-    VarNames_Adaptive(DSMC_TEMPY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
-    VarNames_Adaptive(DSMC_TEMPZ,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Temp_x'
-    VarNames_Adaptive(DSMC_DENSITY,iSpec) = 'Adaptive-Value-Spec'//TRIM(hilf)//'-Density'
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOX,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOY,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_VELOZ,iSpec),RealArray=Adaptive_MacroVal(DSMC_VELOX,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPX,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPX,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPY,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPY,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_TEMPZ,iSpec),RealArray=Adaptive_MacroVal(DSMC_TEMPZ,1:nElems,iSpec))
-    CALL AddToElemData(ElementOut,VarNames_Adaptive(DSMC_DENSITY,iSpec),RealArray=Adaptive_MacroVal(DSMC_DENSITY,1:nElems,iSpec))
-  END DO
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
   IF (DoRestart) THEN
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     ! read local ParticleInfo from HDF5
     CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
-      !read local ElemInfo from HDF5
-      CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
-      nVarAdd_HDF5=HSize(1)
-      ALLOCATE(VarNamesAdd_HDF5(nVarAdd_HDF5))
-      CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd_HDF5,StrArray=VarNamesAdd_HDF5)
-      ALLOCATE(ElemData_HDF5(1:nVarAdd_HDF5,1:nElems))
-      ElemData_HDF5=0.
-      CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,nElems))
-      DO iSpec = 1,nSpecies
-        DO iElem = 1,nElems
-          DO iVar = 1,nVarAdd_HDF5
-            IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOX,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_VELOX,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOY,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_VELOY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_VELOZ,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_VELOZ,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPX,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_TEMPX,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPY,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_TEMPY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_TEMPZ,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_TEMPZ,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            ELSE IF (TRIM(VarNamesAdd_HDF5(iVar)).EQ.TRIM(VarNames_Adaptive(DSMC_DENSITY,iSpec))) THEN
-              Adaptive_MacroVal(DSMC_DENSITY,iElem,iSpec) = ElemData_HDF5(iVar,iElem)
-            END IF
-          END DO
-        END DO
+      ALLOCATE(ElemData_HDF5(1:4,1:nElems,1:nSpecies))
+      CALL ReadArray('AdaptiveInfo',3,(/4, nElems,nSpecies/),offsetElem,2,RealArray=ElemData_HDF5(:,:,:))
+      DO iElem = 1,nElems
+        Adaptive_MacroVal(DSMC_VELOX,iElem,:) = ElemData_HDF5(1,iElem,:)
+        Adaptive_MacroVal(DSMC_VELOY,iElem,:) = ElemData_HDF5(2,iElem,:)
+        Adaptive_MacroVal(DSMC_VELOZ,iElem,:) = ElemData_HDF5(3,iElem,:)
+        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,iElem,:)
       END DO
       SDEALLOCATE(ElemData_HDF5)
-      SDEALLOCATE(VarNamesAdd_HDF5)
-      SDEALLOCATE(VarNames_Adaptive)
     END IF
     CALL CloseDataFile()
   ELSE
