@@ -387,7 +387,7 @@ iter_loc=0
 tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
 tEndDiff=tEnd-time            ! dito for end time
 dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
-CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+CALL PerformAnalyze(0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 
 #ifdef PARTICLES
@@ -596,7 +596,7 @@ DO !iter_t=0,MaxIter
   END IF
 #if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
   ! calling the analyze routines
-  CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+  CALL PerformAnalyze(tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 #endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
@@ -700,7 +700,7 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(132("="))')
 #endif /*IMPA && PARTICLE*/
       ! Analyze for output
-      CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
+      CALL PerformAnalyze(tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file
@@ -733,7 +733,7 @@ DO !iter_t=0,MaxIter
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
       CALL LoadBalance(PerformLoadBalance)
       IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
-          CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+          CALL PerformAnalyze(tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
       IF(PerformLoadBalance) THEN
         ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
         !CALL InitTimeStep() ! re-calculate time step after load balance is performed
@@ -945,7 +945,7 @@ CALL DivCleaningDamping_Pois()
 ! calling the analyze routines
 ! Analysis is called in first RK-stage of NEXT iteration, however, the iteration count is performed AFTER the time step,
 ! hence, this is the correct iteration for calling the analysis routines.
-CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+CALL PerformAnalyze(tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
 #if USE_LOADBALANCE
@@ -4836,7 +4836,7 @@ END IF
 CALL HDG(time,U,iter)
 
 ! calling the analyze routines
-CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+CALL PerformAnalyze(tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
