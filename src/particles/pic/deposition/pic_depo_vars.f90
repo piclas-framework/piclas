@@ -103,6 +103,8 @@ TYPE tLastAnalyzeSurfCollis
   CHARACTER(LEN=256)                  :: DSMCSurfCollisRestartFile
   INTEGER                             :: NumberOfBCs            ! Nbr of BC to be analyzed (def.: 1)
   INTEGER, ALLOCATABLE                :: BCs(:)                 ! BCs to be analyzed (def.: 0 = all)
+  INTEGER                             :: NbrOfSpeciesForDtCalc  ! Number of species used for SFResample-dt (def.: 1)
+  INTEGER, ALLOCATABLE                :: SpeciesForDtCalc(:)    ! Species used for SFResample-dt (def.: 0 = all)
 END TYPE
 TYPE(tLastAnalyzeSurfCollis)          :: LastAnalyzeSurfCollis
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)

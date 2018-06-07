@@ -610,6 +610,7 @@ CASE('shape_function','shape_function_simple')
     IF (LastAnalyzeSurfCollis%Restart) THEN
       LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile = GETSTR('PIC-SFResampleRestartFile','dummy')
     END IF
+    !-- BCs
     LastAnalyzeSurfCollis%NumberOfBCs = GETINT('PIC-SFResampleNumberOfBCs','1')
     SDEALLOCATE(LastAnalyzeSurfCollis%BCs)
     ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs),STAT=ALLOCSTAT)
@@ -627,6 +628,26 @@ CASE('shape_function','shape_function_simple')
         IF (iBC.NE.LastAnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
       END DO
       LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',LastAnalyzeSurfCollis%NumberOfBCs,hilf2)
+    END IF
+    !-- spec for dt-calc
+    LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc = GETINT('PIC-SFResampleNbrOfSpeciesForDtCalc','1')
+    SDEALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc)
+    ALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc(1:LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%SpeciesForDtCalc!')
+    END IF
+    IF (LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc.EQ.1) THEN !already allocated
+      LastAnalyzeSurfCollis%SpeciesForDtCalc = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',1,'0') ! 0 means all...
+    ELSE
+      hilf2=''
+      DO iBC=1,LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc !build default string: 0,0,0,...
+        WRITE(UNIT=hilf,FMT='(I0)') 0
+        hilf2=TRIM(hilf2)//TRIM(hilf)
+        IF (iBC.NE.LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc) hilf2=TRIM(hilf2)//','
+      END DO
+      LastAnalyzeSurfCollis%SpeciesForDtCalc &
+        = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc,hilf2)
     END IF
   END IF
 

@@ -3158,7 +3158,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
   SDEALLOCATE(LastAnalyzeSurfCollis%Species)
   ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
   ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
-  LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
+  LastAnalyzeSurfCollis%pushTimeStep = -HUGE(LastAnalyzeSurfCollis%pushTimeStep)
 #ifdef MPI
   IF (BCTotalNumberMPF.GT.0) THEN
     ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
@@ -3199,7 +3199,9 @@ IF (SFResampleAnalyzeSurfCollis) THEN
       END IF
       LastAnalyzeSurfCollis%WallState(:,counter) = recvbuf2(counter2+1:counter2+6)
       LastAnalyzeSurfCollis%Species(counter) = INT(recvbuf2(counter2+7))
-      LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
+      IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
+          ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
+        LastAnalyzeSurfCollis%pushTimeStep = MIN( ABS(LastAnalyzeSurfCollis%pushTimeStep) &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
     DEALLOCATE(sendbuf2 &
@@ -3224,14 +3226,17 @@ IF (SFResampleAnalyzeSurfCollis) THEN
     END IF
     LastAnalyzeSurfCollis%WallState(:,counter) = AnalyzeSurfCollis%Data(counter2,1:6)
     LastAnalyzeSurfCollis%Species(counter) = AnalyzeSurfCollis%Spec(counter2)
-    LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
+    IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
+        ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
+      LastAnalyzeSurfCollis%pushTimeStep = MIN( ABS(LastAnalyzeSurfCollis%pushTimeStep) &
       , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
   END DO
 #endif
   IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
     CALL Abort(&
       __STAMP__,&
-      'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
+      'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!',&
+      999,LastAnalyzeSurfCollis%pushTimeStep)
   ELSE
     LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
     LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)

@@ -190,6 +190,10 @@ CALL prms%CreateIntOption(      'PIC-SFResampleNumberOfBCs' ,        'TODO-DEFIN
                                                                                  'Number of BC to be analyzed', '1')
 CALL prms%CreateIntOption(      'PIC-SFResamplePartNumberReduced'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'Max. allowed number of parts to be saved', '0')
+CALL prms%CreateIntOption(      'PIC-SFResampleNbrOfSpeciesForDtCalc' ,        'TODO-DEFINE-PARAMETER\n'//&
+                                                                                 'Number of species used for SFResample-dt', '1')
+CALL prms%CreateIntArrayOption( 'PIC-SFResampleSpeciesForDtCalc',        'TODO-DEFINE-PARAMETER\n'//&
+                                                                                 'Species used for SFResample-dt (def.: 0 = all)')
 CALL prms%CreateLogicalOption(  'PIC-SFResampleRestart'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                                      'Read-in old DSMCSurfCollis-file for restart'&
                                                             , '.FALSE.')
