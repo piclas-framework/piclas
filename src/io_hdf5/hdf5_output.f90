@@ -322,8 +322,8 @@ END IF
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-CALL WriteSurfStateToHDF5(FileName)
 CALL WriteAdaptiveInfoToHDF5(FileName)
+CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
@@ -1303,22 +1303,22 @@ IF(MPIRoot)THEN
 END IF
 
 ! rewrite and save arrays for AdaptiveData
-ALLOCATE(AdaptiveData(nVar,nElems,nSpecies))
+ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
 DO iElem = 1,nElems
-  AdaptiveData(1,iElem,:) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
-  AdaptiveData(2,iElem,:) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
-  AdaptiveData(3,iElem,:) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,iElem,:) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+  AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
+  AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
+  AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
+  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=3,&
-                nValGlobal=(/nVar,nGlobalElems,nSpecies/),&
-                nVal=      (/nVar,nElems      ,nSpecies/),&
-                offset=    (/0   ,offsetElem  ,0       /),&
-                collective=.TRUE.,  RealArray=AdaptiveData)
+                nValGlobal=(/nVar,nSpecies,nGlobalElems/),&
+                nVal=      (/nVar,nSpecies,nElems      /),&
+                offset=    (/0   ,0       ,offsetElem  /),&
+                collective=.false.,  RealArray=AdaptiveData)
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)

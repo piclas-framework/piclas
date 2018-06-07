@@ -4152,13 +4152,13 @@ IF(nAdaptiveBC.GT.0)THEN
     CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
-      ALLOCATE(ElemData_HDF5(1:4,1:nElems,1:nSpecies))
-      CALL ReadArray('AdaptiveInfo',3,(/4, nElems,nSpecies/),offsetElem,2,RealArray=ElemData_HDF5(:,:,:))
+      ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
+      CALL ReadArray('AdaptiveInfo',3,(/4, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
       DO iElem = 1,nElems
-        Adaptive_MacroVal(DSMC_VELOX,iElem,:) = ElemData_HDF5(1,iElem,:)
-        Adaptive_MacroVal(DSMC_VELOY,iElem,:) = ElemData_HDF5(2,iElem,:)
-        Adaptive_MacroVal(DSMC_VELOZ,iElem,:) = ElemData_HDF5(3,iElem,:)
-        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,iElem,:)
+        Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
+        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
     END IF
@@ -4798,9 +4798,9 @@ __STAMP__&
             ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
-            ElemPartDensity = Adaptive_MacroVal(7,ElemID,iSpec)
+            ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
             pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
-            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
             !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
             !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
           CASE(3) ! pressure outlet (pressure defined)
@@ -4809,7 +4809,9 @@ __STAMP__&
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux!')
           END SELECT
-          VeloVec = Adaptive_MacroVal(1:3,ElemID,iSpec)
+          VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+          VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+          VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
           VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
           IF (ABS(VeloIC).GT.0.) THEN
             VeloVecIC = VeloVec / VeloIC
@@ -5407,7 +5409,7 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
     T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
     pressure = PartBound%AdaptivePressure(Species(FractNbr)%Surfaceflux(iSF)%BC)
-    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
     !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
     !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
   CASE(3) ! pressure outlet (pressure defined)
@@ -5416,7 +5418,9 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux velocities!')
   END SELECT
-  VeloVec = Adaptive_MacroVal(1:3,ElemID,FractNbr)
+  VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,FractNbr)
+  VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,FractNbr)
+  VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,FractNbr)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
