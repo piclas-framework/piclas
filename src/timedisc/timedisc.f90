@@ -3384,7 +3384,8 @@ USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,ElemBaryNGeo
+USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo
 USE MOD_Particle_Mesh,           ONLY:PartInElemCheck
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_Globals_Vars,            ONLY:EpsMach
