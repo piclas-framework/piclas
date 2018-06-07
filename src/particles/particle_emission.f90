@@ -5000,19 +5000,24 @@ __STAMP__&
                   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
                       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
                     IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+                      ! first check if global linked list is initialized and initialize if neccessary
                       IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
-                        ALLOCATE(currentSurfFluxPart)
-                        firstSurfFluxPart => currentSurfFluxPart
+                        ALLOCATE(firstSurfFluxPart)
+                        currentSurfFluxPart => firstSurfFluxPart
                         IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                           Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                           Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                         END IF
+                      ! check if local linked list is created, while global linked list already exists 
+                      ! initialize if neccessary
                       ELSE IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
                         currentSurfFluxPart => firstSurfFluxPart
                         IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                           Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                           Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                         END IF
+                      ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
+                      ! create linke to next surfflux-part from current list
                       ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                         IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
                           ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
@@ -5020,6 +5025,8 @@ __STAMP__&
                         currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                      ! surfaceflux has already list but new particle is being inserted
+                      ! create linke to next surfflux-part from current list
                       ELSE
                         IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
                           ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
@@ -5027,6 +5034,7 @@ __STAMP__&
                         currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
+                      ! save index and sideinfo for current to be inserted particle
                       currentSurfFluxPart%PartIdx = ParticleIndexNbr
                       IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
                         IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
