@@ -615,13 +615,14 @@ __STAMP__&
   IF (BGGas%BGGasSpecies.NE.0) THEN
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%initialParticleNumber.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ConstantPressure.NE.0. &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%PartDensity.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ParticleEmission.NE.0 ) CALL abort(&
+      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0) CALL abort(&
 __STAMP__&
 ,'BGG species can be used ONLY for BGG!')
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
+      SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
+    END IF
     IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
       .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
