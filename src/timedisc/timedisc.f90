@@ -1414,7 +1414,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1554,7 +1554,7 @@ REAL                  :: tLBStart
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroVolumeValues ) THEN
+            WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
