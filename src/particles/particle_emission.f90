@@ -4610,7 +4610,7 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 ! load balance
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
-TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart => NULL()
+TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -5000,18 +5000,9 @@ __STAMP__&
                   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
                       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
                     IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-                      ! first check if global linked list is initialized and initialize if neccessary
-                      IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
-                        ALLOCATE(firstSurfFluxPart)
-                        currentSurfFluxPart => firstSurfFluxPart
-                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-                        END IF
-                      ! check if local linked list is created, while global linked list already exists 
-                      ! initialize if neccessary
-                      ELSE IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
-                        currentSurfFluxPart => firstSurfFluxPart
+                      ! first check if linked list is initialized and initialize if neccessary
+                      IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
+                        ALLOCATE(currentSurfFluxPart)
                         IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                           Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                           Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
@@ -5019,19 +5010,19 @@ __STAMP__&
                       ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
                       ! create linke to next surfflux-part from current list
                       ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       ! surfaceflux has already list but new particle is being inserted
                       ! create linke to next surfflux-part from current list
                       ELSE
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
                       ! save index and sideinfo for current to be inserted particle
@@ -5334,11 +5325,11 @@ __STAMP__&
                 ! sample values
                 CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
                     (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
-                currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
 #endif /*USE_LOADBALANCE*/
-                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%nextSurfFluxPart)) THEN
+                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%next)) THEN
                   currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
                   EXIT
                 END IF

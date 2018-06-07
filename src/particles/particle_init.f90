@@ -2821,7 +2821,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(tSurfFluxPart),POINTER :: current,tmp
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -2861,14 +2860,6 @@ SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
-current => firstSurfFluxPart
-DO WHILE (associated(current))
-  DEALLOCATE(current%SideInfo)
-  tmp => current%nextSurfFluxPart
-  DEALLOCATE(current)
-  NULLIFY(current)
-  current => tmp
-END DO
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)
