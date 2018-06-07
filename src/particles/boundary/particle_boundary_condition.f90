@@ -780,7 +780,17 @@ END IF !IsAuxBC
 #if defined(IMPA)
 IF(iStage.GT.0)THEN
   IF(RK_inflow(iStage).EQ.0)THEN
-    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    ! this is the stage, where the time level C_iStage < C_iStage-1
+    ! hence, the position is actual outside of the mesh and the 
+    ! particle is entering the domain (because of going from stage
+    ! 2 to stage 3, the particle is leaving, sign change in tracking)
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+    ! hence, we perform an evil hack and beam the particle on the intersection point 
+    ! this ensures, that the particle is located within the mesh....
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+    PartTrajectory          = 0.
+    lengthPartTrajectory    = 0.
     RETURN
   END IF
 END IF
