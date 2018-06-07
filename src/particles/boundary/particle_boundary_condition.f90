@@ -778,9 +778,11 @@ ELSE
 END IF !IsAuxBC
 
 #if defined(IMPA)
-IF(RK_inflow(iStage).EQ.0)THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  RETURN
+IF(iStage.GT.0)THEN
+  IF(RK_inflow(iStage).EQ.0)THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+    RETURN
+  END IF
 END IF
 #endif
 
@@ -901,6 +903,7 @@ END IF
 
 #ifdef IMPA
 ! reconstruct of the path-length between the two RK-Stages
+deltaPos=lengthPartTrajectory/dt
 IF(PartIsImplicit(PartID))THEN
   deltaPos(1:3)=ESDIRK_a(iStage,iStage)*R_PartXK(1:3,PartID)
   IF(iStage.GT.2)THEN
@@ -913,10 +916,12 @@ IF(PartIsImplicit(PartID))THEN
     END DO ! iCoutner=1,iStage-1
   END IF
 ELSE
-  deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
-  DO iCounter=1,iStage-2
-    deltaPos(1:3) = deltaPos(1:3) + (ERK_a(iStage,iCounter)-ERK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
-  END DO ! iCounter=1,iStage-1
+  IF(iStage.GE.2)THEN
+    deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+    DO iCounter=1,iStage-2
+      deltaPos(1:3) = deltaPos(1:3) + (ERK_a(iStage,iCounter)-ERK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
+    END DO ! iCounter=1,iStage-1
+  END IF
 END IF
 deltaPos=deltaPos*dt
 lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
@@ -1074,9 +1079,9 @@ IF(iStage.GT.0)THEN
     DO iCounter=1,iStage-2
       DeltaP(1:3)=DeltaP(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
     END DO ! iCoutner=1,iStage-1
-    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt*dtFrac
+    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt *dtFrac
     ! compute particle position AFTER reflection
-    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt*(1.-dtFrac)
+    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt *(1.-dtFrac)
     ! recompute missing particle path
     PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
