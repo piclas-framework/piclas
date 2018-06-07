@@ -919,8 +919,8 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
       StrVarNames(11)='BulkTemperature'
       StrVarNames(12)='BulkDOF'
     END IF
-!   CALL abort(__STAMP__,&
-!       'Attributes for LD are not implemented! Add Attributes!',999,999.)
+  ELSE IF (usevMPF) THEN
+      StrVarNames( 8)='MPF'
   END IF
 
   IF(MPIRoot)THEN

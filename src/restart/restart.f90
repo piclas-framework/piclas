@@ -211,7 +211,7 @@ USE MOD_HDG,                     ONLY:RestartHDG
 USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesMass
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES) || (PP_HDG)
-USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists
+USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,GetDataProps,nDims,HSize
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -234,16 +234,18 @@ INTEGER                  :: iElem
 REAL                     :: StartT,EndT
 #endif /*MPI*/
 #ifdef PARTICLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames_HDF5(:)
 INTEGER                  :: FirstElemInd,LastelemInd,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
 INTEGER,PARAMETER        :: PartIntSize=2        !number of entries in each line of PartInt
-INTEGER                  :: PartDataSize         !number of entries in each line of PartData
+INTEGER                  :: PartDataSize,PartDataSize_HDF5 !number of entries in each line of PartData
 INTEGER                  :: locnPart,offsetnPart
 INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
-LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists
+LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
 REAL                     :: det(6,2)
 INTEGER                  :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE     :: VibQuantData(:,:)
@@ -464,37 +466,117 @@ __STAMP__&
   END IF
 
 #ifdef PARTICLES
-  IF (useDSMC) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN !int ener + 3, vmpf +1
+  IF(useDSMC.AND.(.NOT.(useLD)))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       PartDataSize=11
-    ELSE IF ((CollisMode.GT.1).AND.((usevMPF) .OR. (DSMC%ElectronicModel)) ) THEN ! int ener + 2 and vmpf +1
-                                                                                  ! or int ener + 3 and no vmpf
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
+      StrVarNames(11)='MPF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
       PartDataSize=10
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='MPF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+      PartDataSize=10
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
     ELSE IF (CollisMode.GT.1) THEN
       PartDataSize=9 !int ener + 2
-    ELSE IF ( usevMPF) THEN 
-      PartDataSize=8 ! vMPF + 1
-    ELSE 
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+    ELSE IF (usevMPF) THEN
+      PartDataSize=8 !+ 1 vmpf
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='MPF'
+    ELSE
       PartDataSize=7 !+ 0
+      ALLOCATE(StrVarNames(PartDataSize))
     END IF
   ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
-                                                                             ! or int energ +3 but no vmpf +1
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
+      StrVarNames(11)='MPF'
+      StrVarNames(12)='BulkVelocityX'
+      StrVarNames(13)='BulkVelocityY'
+      StrVarNames(14)='BulkVelocityZ'
+      StrVarNames(15)='BulkTemperature'
+      StrVarNames(16)='BulkDOF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
       PartDataSize=15
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='MPF'
+      StrVarNames(11)='BulkVelocityX'
+      StrVarNames(12)='BulkVelocityY'
+      StrVarNames(13)='BulkVelocityZ'
+      StrVarNames(14)='BulkTemperature'
+      StrVarNames(15)='BulkDOF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+      PartDataSize=15
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
+      StrVarNames(11)='BulkVelocityX'
+      StrVarNames(12)='BulkVelocityY'
+      StrVarNames(13)='BulkVelocityZ'
+      StrVarNames(14)='BulkTemperature'
+      StrVarNames(15)='BulkDOF'
     ELSE IF (CollisMode.GT.1) THEN
       PartDataSize=14!int ener + 2
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='BulkVelocityX'
+      StrVarNames(11)='BulkVelocityY'
+      StrVarNames(12)='BulkVelocityZ'
+      StrVarNames(13)='BulkTemperature'
+      StrVarNames(14)='BulkDOF'
     ELSE IF (usevMPF) THEN
       PartDataSize=13!+ 1 vmpf
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='MPF'
+      StrVarNames( 9)='BulkVelocityX'
+      StrVarNames(10)='BulkVelocityY'
+      StrVarNames(11)='BulkVelocityZ'
+      StrVarNames(12)='BulkTemperature'
+      StrVarNames(13)='BulkDOF'
     ELSE
       PartDataSize=12 !+ 0
+      ALLOCATE(StrVarNames(PartDataSize))
+      StrVarNames( 8)='BulkVelocityX'
+      StrVarNames( 9)='BulkVelocityY'
+      StrVarNames(10)='BulkVelocityZ'
+      StrVarNames(11)='BulkTemperature'
+      StrVarNames(12)='BulkDOF'
     END IF
   ELSE IF (usevMPF) THEN
     PartDataSize=8 !vmpf +1
+    ALLOCATE(StrVarNames(PartDataSize))
+    StrVarNames( 8)='MPF'
   ELSE
     PartDataSize=7
-  END IF  
+    ALLOCATE(StrVarNames(PartDataSize))
+  END IF
+  StrVarNames(1)='ParticlePositionX'
+  StrVarNames(2)='ParticlePositionY'
+  StrVarNames(3)='ParticlePositionZ'
+  StrVarNames(4)='VelocityX'
+  StrVarNames(5)='VelocityY'
+  StrVarNames(6)='VelocityZ'
+  StrVarNames(7)='Species'
 
   IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     MaxQuantNum = 0
@@ -520,6 +602,22 @@ __STAMP__&
     offsetnPart=PartInt(FirstElemInd,ELEM_FirstPartInd)
     CALL DatasetExists(File_ID,'PartData',PartDataExists)
     IF(PartDataExists)THEN
+      ! Read in parameters from the State file
+      CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
+      PartDataSize_HDF5 = INT(HSize(1),4)
+      ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
+      CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
+      IF (PartDataSize_HDF5.NE.PartDataSize) THEN
+        changedVars=.TRUE.
+      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.StrVarNames)) THEN
+        changedVars=.TRUE.
+      ELSE
+        changedVars=.FALSE.
+      END IF
+      IF (changedVars) THEN
+        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file!!!'
+        STOP "not implemented yet!"
+      END IF
       ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
       CALL ReadArray('PartData',2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
                              !xfer_mode_independent=.TRUE.)
