@@ -367,6 +367,9 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXa'  &
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
                                 , 'with DoScat=F: MEX const. factor '//&
                                 '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
+                                , 'with DoScat=F: No TLU-File needed '//&
+                                '(def.: )', '0' , numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
