@@ -1164,10 +1164,6 @@ __STAMP__&
       CALL abort(__STAMP__,&
               'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
     END IF
-    IF (BGGas%BGGasDensity.EQ.0) THEN
-      CALL abort(__STAMP__,&
-        'ERROR: Background gas density is not defined. Set Particles-DSMCBackgroundGasDensity (real number density) !')
-    END IF
     IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
       CALL abort(__STAMP__,&
         'ERROR: Electrons as background gas are not yet available!!')
