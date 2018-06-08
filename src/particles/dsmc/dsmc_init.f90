@@ -614,66 +614,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-  IF (BGGas%BGGasSpecies.NE.0) THEN
-    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0) CALL abort(&
-__STAMP__&
-,'BGG species can be used ONLY for BGG!')
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
-      SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
-      Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
-      Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
-    END IF
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.GT.0 &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID .GT.0 &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.GT.0 ) THEN
-      !-- from MacroRestartFile (inner DOF not yet implemented!):
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
-__STAMP__&
-,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
-__STAMP__&
-,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
-        CALL abort(&
-__STAMP__&
-,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
-        CALL abort(&
-__STAMP__&
-,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-      END IF
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVib)) CALL abort(&
-!__STAMP__&
-!,'ElemTVib not defined in Init0 for BGG from MacroRestartFile!')
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRot)) CALL abort(&
-!__STAMP__&
-!,'ElemTRot not defined in Init0 for BGG from MacroRestartFile!')
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElec)) CALL abort(&
-!__STAMP__&
-!,'ElemTElec not defined in Init0 for BGG from MacroRestartFile!')
-    ELSE
-      !-- constant values (some from init0)
-      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
-      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
-__STAMP__&
-,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
-      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-__STAMP__&
-,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-    END IF
-  END IF !BGGas%BGGasSpecies.NE.0
+  !...moved to InitializeVariables!!!
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff

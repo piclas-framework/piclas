@@ -1026,7 +1026,7 @@ USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
+USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC, BGGas
 USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
@@ -2683,6 +2683,56 @@ IF (nCollectChargesBCs .GT. 0) THEN
     CollectCharges(iCC)%ChargeDist = GETREAL('PIC-CollectCharges'//TRIM(hilf)//'-ChargeDist','0.')
   END DO !iCC
 END IF !nCollectChargesBCs .GT. 0
+
+!-- reading BG Gas stuff
+!   (moved here from dsmc_init for switching off the initial emission)
+IF (useDSMC) THEN
+  BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
+  IF (BGGas%BGGasSpecies.NE.0) THEN
+    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0) CALL abort(&
+__STAMP__&
+,'BGG species can be used ONLY for BGG!')
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
+      SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
+    END IF
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
+      !-- from MacroRestartFile (inner DOF not yet implemented!):
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
+__STAMP__&
+,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
+__STAMP__&
+,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
+        CALL abort(&
+__STAMP__&
+,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
+        CALL abort(&
+__STAMP__&
+,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+      END IF
+    ELSE
+      !-- constant values (some from init0)
+      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
+      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
+__STAMP__&
+,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
+      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
+__STAMP__&
+,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+    END IF
+  END IF !BGGas%BGGasSpecies.NE.0
+END IF !useDSMC
 
 
 END SUBROUTINE InitializeVariables
