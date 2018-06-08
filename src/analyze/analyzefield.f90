@@ -149,7 +149,7 @@ END SUBROUTINE AnalyzeField
 #endif /*NOT PARTICLES*/
 
 #if (PP_nVar>=6)
-SUBROUTINE CalcPoyntingIntegral(t,doProlong)
+SUBROUTINE CalcPoyntingIntegral(doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
@@ -168,7 +168,6 @@ USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)          :: t
 LOGICAL,INTENT(IN),OPTIONAL :: doProlong
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -335,7 +334,7 @@ END DO ! iElems
 #endif /* MPI */
 
 ! output callling
-CALL OutputPoyntingInt(t,Sabs(:)) 
+CALL OutputPoyntingInt(Sabs(:)) 
 
 END SUBROUTINE CalcPoyntingIntegral
 #endif
@@ -414,11 +413,12 @@ END SUBROUTINE PoyntingVectorDielectric
 
 
 #if (PP_nVar>=6)
-SUBROUTINE OutputPoyntingInt(t,Sabs)
+SUBROUTINE OutputPoyntingInt(Sabs)
 !===================================================================================================================================
 ! Output of PoyntingVector Integral to *csv vile
 !===================================================================================================================================
 ! MODULES
+USE MOD_TimeDisc_Vars,ONLY: time
 USE MOD_Analyze_Vars ,ONLY: nPoyntingIntPlanes,PosPoyntingInt
 USE MOD_Restart_Vars ,ONLY: DoRestart
 USE MOD_Globals      ,ONLY: FILEEXISTS
@@ -429,7 +429,7 @@ USE MOD_Globals      ,ONLY: FILEEXISTS
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t, Sabs(nPoyntingIntPlanes)
+REAL,INTENT(IN)     :: Sabs(nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -466,7 +466,7 @@ IF(.NOT.isOpen)THEN
   END IF
 END IF
 ! write data to file
-WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') t
+WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') time
 DO iPlane=1,nPoyntingIntPlanes
   WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
   WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') Sabs(iPlane)

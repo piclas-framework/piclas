@@ -517,7 +517,7 @@ IF (CalcPoyntingInt) THEN
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
-    CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+    CALL CalcPoyntingIntegral(doProlong=.TRUE.)
   ELSE
      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
 #if defined(LSERK)
@@ -525,27 +525,27 @@ IF (CalcPoyntingInt) THEN
       IF(iter.GT.1)THEN
         ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
         ! is triggered with prolong-to-face, which would else be missing    
-        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(time,doProlong=.FALSE.)
-        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(doProlong=.FALSE.)
+        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(doProlong=.TRUE.)
       END IF
     ELSE
       ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
       ! is triggered with prolong-to-face, which would else be missing    
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(time,doProlong=.FALSE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(doProlong=.FALSE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(doProlong=.TRUE.)
     END IF
 #else
     IF(.NOT.LastIter)THEN
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(doProlong=.TRUE.)
     END IF
 #endif
   END IF ! ForceAnalyze
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+  IF(LastIter) CALL CalcPoyntingIntegral(doProlong=.TRUE.)
 #else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(time,doProlong=.TRUE.)
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(doProlong=.TRUE.)
 #endif
 #endif
 #if USE_LOADBALANCE
