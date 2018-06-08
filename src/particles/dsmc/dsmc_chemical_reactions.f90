@@ -825,7 +825,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair)
+SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
 !===================================================================================================================================
 ! simple charge exchange interaction     
 ! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
@@ -839,12 +839,20 @@ SUBROUTINE simpleCEX(iReac, iPair)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES                                                                                
   INTEGER, INTENT(IN)           :: iPair, iReac
+  LOGICAL, INTENT(IN), OPTIONAL :: resetRHS_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: React1Inx, React2Inx
+  LOGICAL                       :: resetRHS
 !===================================================================================================================================
+
+  IF (PRESENT(resetRHS_opt)) THEN
+    resetRHS=resetRHS_opt
+  ELSE
+    resetRHS=.TRUE.
+  END IF
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
     React1Inx = Coll_pData(iPair)%iPart_p1
@@ -856,14 +864,17 @@ SUBROUTINE simpleCEX(iReac, iPair)
   ! change species
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,2)
-  ! deltaV particle 1
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
-  ! deltaV particle 2
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+
+  IF (resetRHS) THEN
+    ! deltaV particle 1
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
+    ! deltaV particle 2
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+  END IF
 
 END SUBROUTINE simpleCEX
 

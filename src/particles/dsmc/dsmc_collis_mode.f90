@@ -209,7 +209,7 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     CALL RANDOM_NUMBER(uRan3)
     iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
     IF (P_CEX.GT.uRan3) THEN
-      CALL simpleCEX(iReac, iPair)
+      CALL simpleCEX(iReac, iPair, resetRHS_opt=.FALSE.)
     ELSE
       CALL simpleMEX(iReac, iPair)
     END IF
