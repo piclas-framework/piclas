@@ -646,8 +646,8 @@ __STAMP__&
           END IF
         END DO
       END IF
-      ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
-      CALL ReadArray('PartData',2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
+      ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize_HDF5))
+      CALL ReadArray('PartData',2,(/locnPart,PartDataSize_HDF5/),offsetnPart,1,RealArray=PartData)!,&
                              !xfer_mode_independent=.TRUE.)
 
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
@@ -698,7 +698,8 @@ __STAMP__&
             ELSE
               CALL Abort(&
 __STAMP__&
-,"resetting inner DOF for molecules is not implemented yet!")
+,"resetting inner DOF for molecules is not implemented yet!"&
+,SpecDSMC(PartSpecies(iPart))%InterID , PartData(offsetnPart+iLoop,7))
             END IF
           ELSE IF (usevMPF) THEN
             PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
