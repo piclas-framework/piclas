@@ -2690,8 +2690,7 @@ IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0) CALL abort(&
+      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
 __STAMP__&
 ,'BGG species can be used ONLY for BGG!')
     IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN

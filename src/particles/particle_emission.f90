@@ -3638,6 +3638,7 @@ USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
+USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
@@ -3793,6 +3794,13 @@ DO iSpec=1,nSpecies
   END IF
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
+  IF (useDSMC) THEN
+    IF (BGGas%BGGasSpecies.EQ.iSpec) THEN
+      IF (Species(iSpec)%nSurfacefluxBCs.GT.0 .OR. nAdaptiveBC.GT.0) CALL abort(&
+__STAMP__&
+, 'SurfaceFlux or AdaptiveBCs are not implemented for the BGG-species!')
+    END IF
+  END IF
   ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive
   IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0)) THEN
     Species(iSpec)%nSurfacefluxBCs = nAdaptiveBC
