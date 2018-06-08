@@ -3158,7 +3158,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
   SDEALLOCATE(LastAnalyzeSurfCollis%Species)
   ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
   ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
-  LastAnalyzeSurfCollis%pushTimeStep = -HUGE(LastAnalyzeSurfCollis%pushTimeStep)
+  LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
 #ifdef MPI
   IF (BCTotalNumberMPF.GT.0) THEN
     ALLOCATE(sendbuf2(1:AnalyzeSurfCollis%Number(nSpecies+1)*8))
@@ -3201,7 +3201,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
       LastAnalyzeSurfCollis%Species(counter) = INT(recvbuf2(counter2+7))
       IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
           ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
-        LastAnalyzeSurfCollis%pushTimeStep = MIN( ABS(LastAnalyzeSurfCollis%pushTimeStep) &
+        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
     DEALLOCATE(sendbuf2 &
@@ -3228,7 +3228,7 @@ IF (SFResampleAnalyzeSurfCollis) THEN
     LastAnalyzeSurfCollis%Species(counter) = AnalyzeSurfCollis%Spec(counter2)
     IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
         ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
-      LastAnalyzeSurfCollis%pushTimeStep = MIN( ABS(LastAnalyzeSurfCollis%pushTimeStep) &
+      LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
       , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
   END DO
 #endif
@@ -3248,7 +3248,8 @@ IF (SFResampleAnalyzeSurfCollis) THEN
     IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
       CALL Abort(&
         __STAMP__,&
-        'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
+        'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',&
+        LastAnalyzeSurfCollis%PartNumberDepo,r_SF/LastAnalyzeSurfCollis%pushTimeStep)
     END IF
   END IF
 END IF !SFResampleAnalyzeSurfCollis

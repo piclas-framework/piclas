@@ -1338,7 +1338,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     SDEALLOCATE(LastAnalyzeSurfCollis%Species)
     ALLOCATE(LastAnalyzeSurfCollis%WallState(6,LastAnalyzeSurfCollis%PartNumberSamp))
     ALLOCATE(LastAnalyzeSurfCollis%Species(LastAnalyzeSurfCollis%PartNumberSamp))
-    LastAnalyzeSurfCollis%pushTimeStep = -HUGE(LastAnalyzeSurfCollis%pushTimeStep)
+    LastAnalyzeSurfCollis%pushTimeStep = HUGE(LastAnalyzeSurfCollis%pushTimeStep)
 
     ! Add particle to list
     counter2 = 0
@@ -1410,7 +1410,7 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       LastAnalyzeSurfCollis%Species(counter) = iSpec
       IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
           ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
-        LastAnalyzeSurfCollis%pushTimeStep = MIN( ABS(LastAnalyzeSurfCollis%pushTimeStep) &
+        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
 
@@ -1430,7 +1430,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
         CALL Abort(&
           __STAMP__,&
-          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
+          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',&
+          LastAnalyzeSurfCollis%PartNumberDepo,r_SF/LastAnalyzeSurfCollis%pushTimeStep)
       END IF
     END IF
   END IF !TotalNumberMPF.GT.0
