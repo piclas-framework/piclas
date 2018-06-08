@@ -83,9 +83,12 @@ USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
-#if IMPA
+#ifdef IMPA
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
 #endif
+#ifdef ROS
+USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inflow,nRKStages ! required for BCs
+#endif 
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -95,7 +98,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if defined(IMPA) || defined(ROS)
 INTEGER                   :: iCounter
 REAL                      :: rtmp
 #endif
@@ -118,7 +121,17 @@ DoDisplayEmissionWarnings= GETLOGICAL('DoDisplayEmissionWarning','T')
 IterDisplayStep = IterDisplayStepUser
 IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
 
-#if IMPA
+#ifdef ROS
+RK_inflow(2)=RK_C(2)
+rTmp=RK_c(2)
+DO iCounter=3,nRKStages
+  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
+  rTmp=MAX(rTmp,RK_c(iCounter))
+  IF(RK_c(iCounter).GT.1.) RK_inflow(iCounter)=0.
+END DO ! iCounter=2,nRKStages-1
+#endif
+
+#ifdef IMPA
 ! get time increment between current and next RK stage
 DO iCounter=2,nRKStages-1
   RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
@@ -3456,7 +3469,7 @@ dt_inv=dt_inv/dt
 tRatio = 1.
 
 ! ! ! sanity check
-! print*,'RK_gamma',RK_gamma
+! ! print*,'RK_gamma',RK_gamma
 ! DO istage=2,nRKStages
 !   DO iCounter=1,nRKStages
 !     print*,'a',iStage,iCounter,RK_a(iStage,iCounter)
@@ -3470,7 +3483,10 @@ tRatio = 1.
 ! DO iCounter=1,nRKStages
 !   print*,'b',iStage,iCounter,RK_b(iCounter)
 ! END DO
-! STOP
+! time level of stage
+! DO istage=2,nRKStages
+!  print*,'aa',SUM(RK_A(iStage,:))*RK_gamma,RK_c
+! END DO
 
 #ifdef PARTICLES
 #if USE_LOADBALANCE

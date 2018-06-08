@@ -202,7 +202,7 @@ __STAMP__,&
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
-#if IMPA
+#ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
 #endif /*IMPA*/
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
@@ -643,7 +643,7 @@ USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 USE MOD_Particle_Vars,          ONLY:PEM
-USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a,dt_inv,RK_g,nRKStages
+USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a,dt_inv,RK_g,nRKStages,RK_inflow
 USE MOD_Particle_Vars,          ONLY:PartLorentzType,PartDtFrac,DoSurfaceFlux
 USE MOD_Equation_Vars,          ONLY:c2_inv
 #endif /*ROS*/
@@ -800,7 +800,22 @@ IF(iStage.GT.0)THEN
     RETURN
   END IF
 END IF
-#endif
+#endif /*IMPA*/
+#if defined(ROS)
+IF(iStage.GT.0)THEN
+  !IF(iStage.GT.2)THEN
+  IF(RK_inflow(iStage).EQ.0)THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+    ! hence, we perform an evil hack and beam the particle on the intersection point 
+    ! this ensures, that the particle is located within the mesh....
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+    PartTrajectory          = 0.
+    lengthPartTrajectory    = 0.
+    RETURN
+  END IF
+END IF
+#endif /*ROS*/
 
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
@@ -1119,6 +1134,7 @@ END IF
 
 
 #if defined(ROS)
+LorentzFacInv=alpha/LengthPartTrajectory
 IF(iStage.GT.0)THEN
   ! reconstruct of the path-length between the two RK-Stages
   deltaPos(1:3)=RK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
@@ -1126,11 +1142,12 @@ IF(iStage.GT.0)THEN
     deltaPos(1:3) = deltaPos(1:3) + (RK_a(iStage,iCounter)-RK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
   END DO ! iCounter=1,iStage-1
   lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+  dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
 ELSE
   ! dummy value, not required for the final stage (iStage=0) is  u^n+1 = u^n + sum_i b(i)*F(u_i)
   lengthRK=lengthPartTrajectory
+  dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
 END IF
-dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
 
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
@@ -1178,7 +1195,9 @@ IF(iStage.GT.0)THEN
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                            +PartTrajectory(2)*PartTrajectory(2) &
                            +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  IF(.NOT.ALMOSTZERO(lengthPartTrajectory))THEN
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+  END IF
   ! set lastElement for tracing
   IF(.NOT.DoRefMapping)THEN
     PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)

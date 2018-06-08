@@ -384,14 +384,11 @@ REAL,PARAMETER  :: RK3_b1=   0.5
 REAL,PARAMETER  :: RK3_b2=   0.5
 REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #endif
-#if IMPA
+#ifdef IMPA
 ! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dt_old
-#endif
-#ifdef ROS
-REAL             :: dt_inv, dt_old
-#endif /*ROSENBROCK RK*/
+#endif /*IMPA*/
 #if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2
 ! Bassi-Paper
@@ -598,6 +595,9 @@ REAL,PARAMETER  :: RK_b5= 2.8734065276094680e0
 REAL,PARAMETER  :: RK_b6= 3.8766099456208400e1
 REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4,RK_b5,RK_b6/)
 #endif
-
+#ifdef ROS
+REAL            :: dt_inv, dt_old
+REAL            :: RK_inflow(2:nRKStages) ! required for boundary conditions
+#endif /*ROSENBROCK RK*/
 !===================================================================================================================================
 END MODULE MOD_TimeDisc_Vars
