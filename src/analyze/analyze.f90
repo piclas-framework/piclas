@@ -799,12 +799,12 @@ CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
 ! particle analyze
 IF (DoAnalyze)  THEN
   IF(forceAnalyze)THEN
-    CALL CodeAnalyzeOutput(time)
+    CALL CodeAnalyzeOutput()
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(time) 
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput()
   END IF
   IF(LastIter)THEN
-    CALL CodeAnalyzeOutput(time) 
+    CALL CodeAnalyzeOutput()
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
@@ -825,13 +825,14 @@ END IF
 END SUBROUTINE PerformAnalyze
 
 #ifdef CODE_ANALYZE
-SUBROUTINE CodeAnalyzeOutput(TIME)
+SUBROUTINE CodeAnalyzeOutput()
 !===================================================================================================================================
 ! output of code_analyze stuff: costly analyze routines for sanity checks and debugging
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_TimeDisc_Vars           ,ONLY:time
 USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
 USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
 USE MOD_Restart_Vars            ,ONLY:DoRestart
