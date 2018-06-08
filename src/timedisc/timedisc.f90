@@ -256,7 +256,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
@@ -326,12 +326,9 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-#ifdef MPI
-LOGICAL                      :: PerformLoadBalance
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
@@ -661,7 +658,7 @@ DO !iter_t=0,MaxIter
 #endif
 #if USE_LOADBALANCE
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
-    CALL ComputeElemLoad(PerformLoadBalance,time)
+    CALL ComputeElemLoad()
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
@@ -775,7 +772,7 @@ DO !iter_t=0,MaxIter
           RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
           RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
         END IF
-        CALL LoadBalance(PerformLoadBalance)
+        CALL LoadBalance()
         IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
         !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
@@ -1441,7 +1438,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1581,7 +1578,7 @@ REAL                  :: tLBStart
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroVolumeValues ) THEN
+            WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
