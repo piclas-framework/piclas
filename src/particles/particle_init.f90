@@ -239,6 +239,9 @@ CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
                                 , 'Number of different initial particle placements for Species [$]', '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Reset'  &
+                                , 'Flag for resetting species distribution with init during restart' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                 , '[TODO-DEFINE-PARAMETER]\n'//&
                                   'Particle Charge (without MPF) of species[$] dim' &
@@ -1037,6 +1040,7 @@ USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*ROS*/
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
+USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1355,6 +1359,8 @@ __STAMP__&
 END IF
 
 ! initialize macroscopic restart
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
@@ -1369,6 +1375,13 @@ ALLOCATE(Species(1:nSpecies))
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
+#ifdef MPI
+  IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+    SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
+#ifdef MPI
+  END IF
+#endif /*MPI*/
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1425,6 +1438,16 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
+#ifdef MPI
+        IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+          IF(.NOT.SpecReset(iSpec)) THEN
+            SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
+          END IF
+          SpecReset(iSpec)=.TRUE.
+#ifdef MPI
+        END IF
+#endif /*MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
@@ -2798,7 +2821,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(tSurfFluxPart),POINTER :: current,tmp
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -2837,14 +2859,7 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
-current => firstSurfFluxPart
-DO WHILE (associated(current))
-  DEALLOCATE(current%SideInfo)
-  tmp => current%nextSurfFluxPart
-  DEALLOCATE(current)
-  NULLIFY(current)
-  current => tmp
-END DO
+SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)
