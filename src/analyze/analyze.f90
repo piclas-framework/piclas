@@ -271,7 +271,7 @@ IF(MPIroot) THEN
 END IF
 END SUBROUTINE CalcError
 
-SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
+SUBROUTINE AnalyzeToFile(CalcTime,L_2_Error)
 !===================================================================================================================================
 ! Writes the L2-error norms to file.
 !===================================================================================================================================
@@ -279,15 +279,14 @@ SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars
+USE MOD_TimeDisc_Vars ,ONLY:time, iter
 USE MOD_Globals_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                :: TIME                         ! physical time
 REAL,INTENT(IN)                :: CalcTime                     ! computational time
-INTEGER(KIND=8),INTENT(IN)     :: iter                         ! number of timesteps
 REAL,INTENT(IN)                :: L_2_Error(PP_nVar)           ! L2 error norms
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -496,7 +495,7 @@ IF(forceAnalyze.OR.Output)THEN
     CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
     CALL CalcError(L_2_Error)
-    IF (time.GE.tEnd) CALL AnalyzeToFile(time,CalcTime,iter,L_2_Error)
+    IF (time.GE.tEnd) CALL AnalyzeToFile(CalcTime,L_2_Error)
   END IF
   IF(MPIroot) THEN
     WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
