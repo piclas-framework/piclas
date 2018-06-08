@@ -104,7 +104,7 @@ SUBROUTINE DSMC_Scat_Col(iPair, iElem)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_part_tools,             ONLY : DiceUnitVector
-  USE MOD_DSMC_ChemReact,         ONLY : simpleCEX
+  USE MOD_DSMC_ChemReact,         ONLY : simpleCEX, simpleMEX
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -207,9 +207,11 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Decision concerning CEX 
     P_CEX = 0.5
     CALL RANDOM_NUMBER(uRan3)
+    iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
     IF (P_CEX.GT.uRan3) THEN
-     iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-     CALL simpleCEX(iReac, iPair)
+      CALL simpleCEX(iReac, iPair)
+    ELSE
+      CALL simpleMEX(iReac, iPair)
     END IF
     
   ELSE
@@ -1086,7 +1088,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Abort
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
   USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, PEM, usevMPF
-  USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, CalcReactionProb
+  USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_vmpf_collision,         ONLY : AtomRecomb_vMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -2519,6 +2521,7 @@ __STAMP__&
 #endif
         ELSE
           CALL DSMC_Elastic_Col(iPair, iElem)
+          CALL simpleMEX(iReac, iPair)
         END IF
       END IF !ChemReac%DoScat(iReac)
       RelaxToDo = .FALSE.
