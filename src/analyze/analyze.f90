@@ -619,27 +619,27 @@ IF (DoAnalyze)  THEN
   ! analyze field
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
-    CALL AnalyzeField(time)
+    CALL AnalyzeField()
   ELSE
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
       IF(iter.GT.1)THEN
         ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
         IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
            .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeField(time)
+           CALL AnalyzeField()
       END IF
     ELSE
       ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
       IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeField(time)
+         CALL AnalyzeField()
     END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeField(time)
+  IF(LastIter) CALL AnalyzeField()
 #else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(time)
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField()
 #endif
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
