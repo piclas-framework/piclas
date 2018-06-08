@@ -791,6 +791,12 @@ IF(iStage.GT.0)THEN
     PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
     PartTrajectory          = 0.
     lengthPartTrajectory    = 0.
+    IF(PartIsImplicit(PartID))THEN
+      ! we have to stop the particle
+      PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
+      PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
+      PartDeltaX(1:6,PartID) = 0.
+    END IF
     RETURN
   END IF
 END IF
@@ -912,30 +918,26 @@ END IF
 #endif  /*LSERK*/
 
 #ifdef IMPA
-! reconstruct of the path-length between the two RK-Stages
-deltaPos=lengthPartTrajectory/dt
+! reconstruct of the path-length to get the correct timing
+! the intersection point is computed by comparing the distance between 
+! |Intersectionpoint-PartStateN| to |SUM dt F|
 IF(PartIsImplicit(PartID))THEN
   deltaPos(1:3)=ESDIRK_a(iStage,iStage)*R_PartXK(1:3,PartID)
-  IF(iStage.GT.2)THEN
-    DO iCounter=1,iStage-1
-      deltaPos(1:3) = deltaPos(1:3) + (ESDIRK_a(iStage,iCounter)-ESDIRK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
-    END DO ! iCoutner=1,iStage-1
-  ELSE
-    DO iCounter=1,iStage-1
-      deltaPos(1:3) = deltaPos(1:3) + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
-    END DO ! iCoutner=1,iStage-1
-  END IF
+  DO iCounter=1,iStage-1
+    deltaPos(1:3) = deltaPos(1:3) + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+  END DO ! iCounter=1,iStage-1
 ELSE
-  IF(iStage.GE.2)THEN
-    deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
-    DO iCounter=1,iStage-2
-      deltaPos(1:3) = deltaPos(1:3) + (ERK_a(iStage,iCounter)-ERK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
-    END DO ! iCounter=1,iStage-1
-  END IF
+  deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+  DO iCounter=1,iStage-2
+    deltaPos(1:3) = deltaPos(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+  END DO ! iCounter=1,iStage-1
 END IF
 deltaPos=deltaPos*dt
 lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
-dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
+! LastPartPos is already at the intersection point
+deltaPos=LastPartPos(PartID,1:3)-PartStateN(PartID,1:3)
+dtFrac=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+dtFrac=dtFrac / lengthRK
 
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
@@ -1021,7 +1023,7 @@ IF(iStage.GT.0)THEN
     ! 5a1)
     ! PartXK(1:6,PartID)   =   PartState(PartID,1:6)
     ! 5a2)
-    ! ! more baseline assuption form:
+    ! more baseline assuption form:
     PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
     ! rotate velocity vector
     PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
@@ -1039,7 +1041,7 @@ IF(iStage.GT.0)THEN
     ! this is the deltaX if the set PartXK at the wall = LastPartPos
     ! 7a2)
     PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
-    !!! the velocity/impulse change can be interpreted as the difference between these positions....
+    ! the velocity/impulse change can be interpreted as the difference between these positions....
     IF(Symmetry)THEN
       PartDeltaX(4:6,PartID)=PartDeltaX(4:6,PartID)-2.*DOT_PRODUCT(PartDeltaX(4:6,PartID),n_loc)*n_loc
     ELSE
