@@ -17,6 +17,10 @@ INTERFACE simpleCEX
   MODULE PROCEDURE simpleCEX
 END INTERFACE
 
+INTERFACE simpleMEX
+  MODULE PROCEDURE simpleMEX
+END INTERFACE
+
 INTERFACE CalcReactionProb
   MODULE PROCEDURE CalcReactionProb
 END INTERFACE
@@ -29,7 +33,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_Chemistry, simpleCEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
+PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
 !===================================================================================================================================
 
 CONTAINS
@@ -862,6 +866,49 @@ SUBROUTINE simpleCEX(iReac, iPair)
   DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
 
 END SUBROUTINE simpleCEX
+
+
+SUBROUTINE simpleMEX(iReac, iPair)
+!===================================================================================================================================
+! simple momentum exchange interaction     
+! ION(v1) + ATOM(v2) -> ION2(v1') + ATOM(v2')
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,               ONLY : abort
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData !, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: React1Inx, React2Inx
+!===================================================================================================================================
+
+  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+    React1Inx = Coll_pData(iPair)%iPart_p1
+    React2Inx = Coll_pData(iPair)%iPart_p2
+  ELSE
+    React2Inx = Coll_pData(iPair)%iPart_p1
+    React1Inx = Coll_pData(iPair)%iPart_p2
+  END IF
+  ! change species of educt-ion to product-ion
+  IF (Species(PartSpecies(React1Inx))%ChargeIC.NE.0. .AND. Species(PartSpecies(React2Inx))%ChargeIC.EQ.0.) THEN
+    PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,2)
+  ELSE IF (Species(PartSpecies(React2Inx))%ChargeIC.NE.0. .AND. Species(PartSpecies(React1Inx))%ChargeIC.EQ.0.) THEN
+    PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,1)
+  ELSE
+    CALL abort(&
+     __STAMP__&
+      ,'ERROR in simpleMEX: one of the products must be an ion!')
+  END IF
+
+END SUBROUTINE simpleMEX
 
 
 SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
