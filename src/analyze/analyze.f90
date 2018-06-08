@@ -20,10 +20,6 @@ INTERFACE InitAnalyze
   MODULE PROCEDURE InitAnalyze
 END INTERFACE
 
-INTERFACE CalcError
-  MODULE PROCEDURE CalcError
-END INTERFACE
-
 INTERFACE FinalizeAnalyze
   MODULE PROCEDURE FinalizeAnalyze
 END INTERFACE
@@ -33,7 +29,7 @@ INTERFACE PerformAnalyze
 END INTERFACE
 
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
+PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
 PUBLIC::DefineParametersAnalyze
 
@@ -185,13 +181,14 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE CalcError(Time,L_2_Error)
+SUBROUTINE CalcError(L_2_Error)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_TimeDisc_Vars,  ONLY:time
 USE MOD_Mesh_Vars,      ONLY:Elem_xGP,sJ
 USE MOD_Equation_Vars,  ONLY:IniExactFunc
 USE MOD_Analyze_Vars,   ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
@@ -202,7 +199,6 @@ USE MOD_ChangeBasis,    ONLY:ChangeBasis3D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: L_2_Error(PP_nVar)   !< L2 error of the solution
@@ -499,7 +495,7 @@ END IF
 IF(forceAnalyze.OR.Output)THEN
     CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
-    CALL CalcError(time,L_2_Error)
+    CALL CalcError(L_2_Error)
     IF (time.GE.tEnd) CALL AnalyzeToFile(time,CalcTime,iter,L_2_Error)
   END IF
   IF(MPIroot) THEN
