@@ -398,6 +398,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
 USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_TimeDisc_Vars          ,ONLY: time, iter
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif
@@ -416,7 +417,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 #endif
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars          ,ONLY: dt, time, iter
+USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
