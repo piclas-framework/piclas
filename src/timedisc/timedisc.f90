@@ -2057,7 +2057,7 @@ END SUBROUTINE TimeStepByEulerImplicit
 
 
 #if IMPA
-SUBROUTINE TimeStepByImplicitRK(t)
+SUBROUTINE TimeStepByImplicitRK()
 !===================================================================================================================================
 ! IMEX time integrator
 ! ESDIRK for particles
@@ -2146,7 +2146,6 @@ USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3290,7 +3289,7 @@ END SUBROUTINE TimeStepByImplicitRK
 
 
 #if ROS
-SUBROUTINE TimeStepByRosenbrock(t)
+SUBROUTINE TimeStepByRosenbrock()
 !===================================================================================================================================
 ! Rosenbrock-Method
 ! from: Kaps. 1979
@@ -3376,7 +3375,6 @@ USE MOD_Precond_Vars,            ONLY:UpdatePrecondLB
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4147,7 +4145,7 @@ END SUBROUTINE TimeStepByRosenbrock
 
 
 #if (PP_TimeDiscMethod==200)
-SUBROUTINE TimeStepByEulerStaticExp(t)
+SUBROUTINE TimeStepByEulerStaticExp()
 !===================================================================================================================================
 ! Static (using 4 or 8 variables, depending on compiled equation system (maxwell or electrostatic):
 ! Field is propagated until steady, then particle is moved
@@ -4188,7 +4186,6 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: rk, iLoop
