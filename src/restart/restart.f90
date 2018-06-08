@@ -249,7 +249,7 @@ LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists,VibQuant
 REAL                     :: det(6,2)
 INTEGER                  :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE     :: VibQuantData(:,:)
-INTEGER                  :: MaxQuantNum, iPolyatMole, iSpec, iPart, iLoop
+INTEGER                  :: MaxQuantNum, iPolyatMole, iSpec, iPart, iLoop, iVar
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -269,7 +269,8 @@ INTEGER                  :: Indx, Indy, UsedSiteMapPos, nVar, nfreeArrayindeces,
 INTEGER                  :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                  :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
 INTEGER                  :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
-LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree
+LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL,ALLOCATABLE      :: readVarFromState(:)
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
@@ -466,6 +467,7 @@ __STAMP__&
   END IF
 
 #ifdef PARTICLES
+  implemented=.FALSE.
   IF(useDSMC.AND.(.NOT.(useLD)))THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       PartDataSize=11
@@ -487,6 +489,7 @@ __STAMP__&
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
     ELSE IF (CollisMode.GT.1) THEN
+      implemented=.TRUE.
       PartDataSize=9 !int ener + 2
       ALLOCATE(StrVarNames(PartDataSize))
       StrVarNames( 8)='Vibrational'
@@ -577,6 +580,8 @@ __STAMP__&
   StrVarNames(5)='VelocityY'
   StrVarNames(6)='VelocityZ'
   StrVarNames(7)='Species'
+  ALLOCATE(readVarFromState(PartDataSize))
+  readVarFromState=.TRUE.
 
   IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     MaxQuantNum = 0
@@ -616,7 +621,30 @@ __STAMP__&
       END IF
       IF (changedVars) THEN
         SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file!!!'
-        STOP "not implemented yet!"
+        IF (.NOT.implemented) CALL Abort(&
+__STAMP__&
+,"not implemented yet!")
+        readVarFromState=.FALSE.
+        DO iVar=1,PartDataSize_HDF5
+          IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
+            readVarFromState(iVar)=.TRUE.
+          ELSE
+            CALL Abort(&
+__STAMP__&
+,"not associated VarNamesParticles in HDF5!")
+          END IF
+        END DO
+        DO iVar=1,PartDataSize
+          IF (.NOT.readVarFromState(iVar)) THEN
+            IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+            ELSE
+              CALL Abort(&
+__STAMP__&
+,"not associated VarNamesParticles to be reset!")
+            END IF
+          END IF
+        END DO
       END IF
       ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
       CALL ReadArray('PartData',2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
@@ -658,8 +686,20 @@ __STAMP__&
             PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
             PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
           ELSE IF (CollisMode.GT.1) THEN
-            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
-            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            IF (readVarFromState(8).AND.readVarFromState(9)) THEN
+              PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+              PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            ELSE IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.1 .OR. &
+                     SpecDSMC(PartSpecies(iPart))%InterID.EQ.10 .OR. &
+                     SpecDSMC(PartSpecies(iPart))%InterID.EQ.15 ) THEN
+              !- setting inner DOF to 0 for atoms
+              PartStateIntEn(iPart,1)=0.
+              PartStateIntEn(iPart,2)=0.
+            ELSE
+              CALL Abort(&
+__STAMP__&
+,"resetting inner DOF for molecules is not implemented yet!")
+            END IF
           ELSE IF (usevMPF) THEN
             PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
           END IF
