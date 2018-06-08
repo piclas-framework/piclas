@@ -151,7 +151,6 @@ USE MOD_Globals
 USE MOD_Restart_Vars,   ONLY : DoRestart
 USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
-USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
@@ -4615,9 +4614,9 @@ TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+    PartsEmitted = 0
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
     END IF
@@ -5435,6 +5434,7 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
+  VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
   T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
   projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
@@ -5473,7 +5473,7 @@ __STAMP__&
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-    IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
+    IF (ALMOSTZERO(VeloIC*projFak)) THEN
       ! Rayleigh distri
       envelope = 0
     ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
