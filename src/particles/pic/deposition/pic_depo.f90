@@ -657,26 +657,7 @@ CASE('shape_function_1d')
   DoSFEqui = GETLOGICAL('PIC-shapefunction-equi','F')
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
-  SELECT CASE(alpha_sf)
-  CASE(2)
-    w_sf=16.*r_sf/15.
-  CASE(3)
-    w_sf=32.*r_sf/35.
-  CASE(4)
-    w_sf=256.*r_sf/315.
-  CASE(5)
-    w_sf=512.*r_sf/693.
-  CASE(6)
-    w_sf=2048.*r_sf/3003.
-  CASE(7)
-    w_sf=4096.*r_sf/6435.
-  CASE(8)
-    w_sf=65536.*r_sf/109395.
-  CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,' Correct 1D weight not precomputed!')
-  END SELECT
+  w_sf = SQRT(PI)*R_sf*GAMMA(REAL(alpha_sf+1))/GAMMA(REAL(alpha_sf)+1.5)
 
   IF(sf1d_dir.EQ.1)THEN
     w_sf=w_sf*(GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
