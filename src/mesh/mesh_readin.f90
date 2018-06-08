@@ -628,12 +628,12 @@ END DO
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is build
 CornerNodeIDswitch(1)=1
 CornerNodeIDswitch(2)=(Ngeo+1)
-CornerNodeIDswitch(3)=(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(4)=(Ngeo+1)**2
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
 CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
 CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
-CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
-CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
 
 !assign nodes and get physical coordinates to Node pointers (new procedure compared to old mapping due to new meshformat)
 DO iElem=FirstElemInd,LastElemInd

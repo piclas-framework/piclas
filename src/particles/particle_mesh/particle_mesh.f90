@@ -400,12 +400,12 @@ CHARACTER(LEN=255) :: FileString
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
-NodeMap(:,1)=(/1,3,4,2/)
+NodeMap(:,1)=(/1,4,3,2/)
 NodeMap(:,2)=(/1,2,6,5/)
-NodeMap(:,3)=(/2,4,8,6/)
-NodeMap(:,4)=(/4,3,7,8/)
-NodeMap(:,5)=(/1,5,7,3/)
-NodeMap(:,6)=(/5,6,8,7/)
+NodeMap(:,3)=(/2,3,7,6/)
+NodeMap(:,4)=(/3,4,8,7/)
+NodeMap(:,5)=(/1,5,8,4/)
+NodeMap(:,6)=(/5,6,7,8/)
 ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
          GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
          GEO%NodeCoords(1:3,1:nNodes),         &
