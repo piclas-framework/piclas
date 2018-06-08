@@ -123,6 +123,7 @@ __STAMP__&
     ALLOCATE(ChemReac%ELb(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 
     DoScat = .false.
     DO iReac = 1, ReadInNumOfReact
@@ -144,8 +145,8 @@ __STAMP__&
         DoScat = .true.
         ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')        ! Passen diese Zeilen so?
         ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
-        ChemReac%TLU_FileName               = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName','0'))
-        IF(TRIM(ChemReac%TLU_FileName).EQ.'0') THEN
+        ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName','0'))
+        IF(TRIM(ChemReac%TLU_FileName(iReac)).EQ.'0') THEN
           CALL abort(__STAMP__,&
             'Input Error: No file containing table lookup data for scattering simulation has been found.')
         END IF 
@@ -1187,7 +1188,7 @@ INTEGER                       :: N_b, N_E
 DOUBLE PRECISION              :: real1, real2
 !===================================================================================================================================
 
-OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName),STATUS='old',ACTION='READ',IOSTAT=io_error1)
+OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName(ChemReac%NumOfReact)),STATUS='old',ACTION='READ',IOSTAT=io_error1)
 IF ( io_error1 .EQ. 0) THEN
   !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
   iLine=0
