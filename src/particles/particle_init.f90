@@ -1453,10 +1453,12 @@ DO iSpec = 1, nSpecies
           MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC(1:3,1:nElems))
+          ! negative temperature can lead to NAN velocities if in those areas particles are inserted given by either other 
+          ! macro-file or by init value --> leads to NANs in crela2 --> always max(0.,macroval)
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemPartDensityFileID
@@ -1485,7 +1487,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTRotFileID
@@ -1494,7 +1496,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTElecFileID
@@ -1503,7 +1505,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID))
           END DO
         END IF
       END IF
