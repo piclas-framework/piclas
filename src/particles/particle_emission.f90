@@ -4143,6 +4143,7 @@ DEALLOCATE(TmpMapToBC &
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
   ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
+  Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
   IF (DoRestart) THEN
@@ -4162,8 +4163,6 @@ IF(nAdaptiveBC.GT.0)THEN
       SDEALLOCATE(ElemData_HDF5)
     END IF
     CALL CloseDataFile()
-  ELSE
-    Adaptive_MacroVal(:,:,:)=0
   END IF
 END IF
 
