@@ -210,7 +210,7 @@ USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh                   ,ONLY: SwapMesh
 USE MOD_Filter                 ,ONLY: Filter
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: RecordPoints,WriteRPToHDF5
+USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum 

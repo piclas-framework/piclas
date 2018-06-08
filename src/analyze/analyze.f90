@@ -563,10 +563,10 @@ IF(RP_onProc) THEN
   IF(RPSkip)THEN
     RPSkip=.FALSE.
   ELSE
-    CALL RecordPoints(iter,time,forceAnalyze,Output)
+    CALL RecordPoints(forceAnalyze,Output)
   END IF
 #else
-  CALL RecordPoints(iter,time,forceAnalyze,Output)
+  CALL RecordPoints(forceAnalyze,Output)
 #endif /*LSERK*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
