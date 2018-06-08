@@ -842,7 +842,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY:rTotalBezierNewton
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: Time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -905,7 +904,7 @@ IF (DoAnalyze) THEN
 #ifdef MPI
    IF(MPIROOT)THEN
 #endif    /* MPI */
-     WRITE(unit_index,104,ADVANCE='NO') Time
+     WRITE(unit_index,104,ADVANCE='NO') time
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') rBoundingBoxChecks
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
