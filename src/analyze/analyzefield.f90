@@ -50,14 +50,13 @@ PUBLIC:: AnalyzeField
 CONTAINS
 
 #ifndef PARTICLES
-SUBROUTINE AnalyzeField()
+SUBROUTINE AnalyzeField(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_TimeDisc_Vars         ,ONLY: time
 USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
@@ -66,6 +65,7 @@ USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+REAL,INTENT(IN)     :: Time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
