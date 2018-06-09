@@ -3625,7 +3625,7 @@ USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp
+                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
@@ -3767,6 +3767,7 @@ DoSurfaceFlux=.FALSE.
 
 ! auxiliary arrays for defining all Adaptive_BCs
 IF (nAdaptiveBC.GT.0) THEN
+  AdaptiveWeightFac = GETREAL('Part-AdaptiveWeightingFactor','0.001')
   ALLOCATE(Adaptive_BC_Map(1:nAdaptiveBC))
   Adaptive_BC_Map(:)=0
   ALLOCATE(Adaptive_Found_Flag(1:nAdaptiveBC))
@@ -6144,6 +6145,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal,BoltzmannConst
+USE MOD_Particle_Vars,          ONLY:AdaptiveWeightFac
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
@@ -6160,7 +6162,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ElemID, AdaptiveElemID, i, iSpec
-REAL                          :: Theta, TVib_TempFac
+REAL                          :: TVib_TempFac
 REAL, ALLOCATABLE             :: Source(:,:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
@@ -6200,8 +6202,6 @@ END DO
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-Theta=0.001
-
 !DO iElem = 1,nElems
 !IF(.NOT.IsTracingBCElem(iElem))CYCLE
 DO AdaptiveElemID = 1,nElems
@@ -6213,53 +6213,53 @@ DO iSpec = 1,nSpecies
   ! write timesample particle values of bc elements in global macrovalues of bc elements
   IF (Source(11,AdaptiveElemID,iSpec).GT.0.0) THEN
     ! compute flow velocity
-    Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
-        + Theta*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
+    Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
     ! compute flow Temperature
-    Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
-      + Theta*Species(iSpec)%MassIC/ BoltzmannConst &
+    Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
+      + AdaptiveWeightFac*Species(iSpec)%MassIC/ BoltzmannConst &
       * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
       - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
     ! compute density
-    Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + Theta*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+    Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
               IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + Theta*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + AdaptiveWeightFac*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               END IF
             ELSE
               TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
                 *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
               IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + Theta*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + AdaptiveWeightFac*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
               END IF
             END IF
           ELSE                                            ! TSHO-model
-            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-              + Theta*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
               , Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),SpecDSMC(iSpec)%MaxVibQuant)
           END IF
-          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
-              + Theta*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
+          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
           IF (DSMC%ElectronicModel) THEN
-            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
-              + Theta*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
+            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
           END IF
         END IF
       END IF
     END IF
   ELSE
-    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
+    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
   END IF
 END DO
 #if USE_LOADBALANCE
