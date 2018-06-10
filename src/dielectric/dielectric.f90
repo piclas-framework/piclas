@@ -393,7 +393,7 @@ ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
 #endif /*MPI*/
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
-IF(MINVAL(Dielectric_Master).LE.0.0)THEN
+IF(MINVAL(Dielectric_Master).LT.0.0)THEN
   CALL abort(&
   __STAMP__&
   ,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
