@@ -234,7 +234,7 @@ IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
 IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
-  CASE(4,41)
+  CASE(4,40,41)
     xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
@@ -597,6 +597,8 @@ CASE(4) ! Dipole
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
   END IF
   
+CASE(40) ! Dipole without initial condition
+  resu(1:8) = 0.
 CASE(5) ! Initialization of TE waves in a circular waveguide
   ! Book: Springer
   ! Elektromagnetische Feldtheorie fuer Ingenieure und Physicker
@@ -921,22 +923,22 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY: abort
-USE MOD_Globals_Vars,      ONLY: PI
+USE MOD_Globals           ,ONLY: abort
+USE MOD_Globals_Vars      ,ONLY: PI
 USE MOD_PreProc
-USE MOD_Equation_Vars,     ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
+USE MOD_Equation_Vars     ,ONLY: eps0,c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,      ONLY: PartSource,DoDeposition
-USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric!DielectricEpsR_inv
+USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric 
 #if IMPA
-USE MOD_LinearSolver_Vars, ONLY:ExplicitPartSource
+USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,         ONLY: Elem_xGP                  ! for shape function: xyz position of the Gauss points
+USE MOD_Mesh_Vars         ,ONLY: Elem_xGP                                                                      
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-USE MOD_Equation_Vars,     ONLY: DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,     ONLY: sdtCFLOne!, RK_B, iStage  
-USE MOD_DG_Vars,           ONLY: U
+USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne                                                                     
+USE MOD_DG_Vars           ,ONLY: U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -950,11 +952,12 @@ REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
-REAL                            :: r                                                 ! for Dipole
+REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 #ifdef PARTICLES
 REAL                            :: PartSourceLoc(1:4)
 #endif
+REAL                            :: coeff_loc
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
@@ -1019,6 +1022,18 @@ CASE(4) ! Dipole
         Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
         Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
+      END IF
+    END DO; END DO; END DO
+  END DO
+CASE(40) ! Dipole without initial condition
+  coeff_loc = 1.0e-11 ! amplitude scaling
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+      IF (shapefunc(r) .GT. 0 ) THEN
+        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+    ! dipole should be neutral
+        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff_loc* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
