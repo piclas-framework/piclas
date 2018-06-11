@@ -68,9 +68,6 @@ CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified n
 CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
 
 CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
-CALL prms%CreateLogicalOption(  'DoDisplayEmissionWarning', 'TODO-DEFINE-PARAMETER\ndisplays the following warning:'//&
-                                                         '"WARNING in ParticleEmission_parallel: Fraction Nbr X matched'//&
-                                                        ' only X particles, when __ particles were required!"', '.TRUE.')
 
 END SUBROUTINE DefineParametersTimeDisc
 
@@ -82,7 +79,7 @@ SUBROUTINE InitTimeDisc()
 USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
-USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
+USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser
 #ifdef IMPA
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
 #endif
@@ -117,7 +114,6 @@ CALL fillCFL_DFL()
 ! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed, might be changed dependent on Particle-dt)
 DoDisplayIter=.FALSE.
 IterDisplayStepUser = GETINT('IterDisplayStep','1')
-DoDisplayEmissionWarnings= GETLOGICAL('DoDisplayEmissionWarning','T')
 IterDisplayStep = IterDisplayStepUser
 IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
 
@@ -229,7 +225,7 @@ SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,SimulationTime
+USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,dt_Min
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
@@ -321,15 +317,17 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: tFuture,tZero
-INTEGER(KIND=8)              :: nAnalyze
-INTEGER                      :: iAnalyze
-REAL                         :: tEndDiff, tAnalyzeDiff
+REAL                         :: tNextAnalyze             !> time of next analyze output
+REAL                         :: tZero                    !> initial time of current simulation (zero or restarttime)
+INTEGER(KIND=8)              :: iAnalyze                 !> number of past analyze_dts
+REAL                         :: tEndDiff                 !> difference between simulation time and simulation end time
+REAL                         :: tAnalyzeDiff             !> difference between simulation time and next analyze time
+INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitBoltzplatz call for PID calculation
+REAL                         :: WallTimeStart            !> wall time of simulation start
+REAL                         :: WallTimeEnd              !> wall time of simulation end
 #if (PP_TimeDiscMethod==201)
 REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
-INTEGER(KIND=8)              :: iter_loc
-REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample
@@ -358,7 +356,6 @@ iter_macsurfvalout=0
 IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 tZero=time
-nAnalyze=1
 iAnalyze=1
 tAnalyze=MIN(tZero+Analyze_dt,tEnd)
 
@@ -369,7 +366,7 @@ SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalElems*(PP_N+1)**3/nProcessors)
 
 ! Determine next analyze time, since it will be written into output file
-tFuture=MIN(time+Analyze_dt,tEnd)
+tNextAnalyze=MIN(time+Analyze_dt,tEnd)
 !Evaluate Gradients to get Potential in case of Restart and Poisson Calc
 #ifdef PP_POIS
 IF(DoRestart) CALL EvalGradient()
@@ -405,9 +402,9 @@ END IF
 !#endif /*MPI*/
 !#endif
 CALL InitTimeStep() ! Initial time step calculation
-CalcTimeStart=BOLTZPLATZTIME()
+WallTimeStart=BOLTZPLATZTIME()
 iter=0
-iter_loc=0
+iter_PID=0
 
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
@@ -426,9 +423,9 @@ IF(DoWriteStateToHDF5)THEN
 !  #ifdef PARTICLES
 !    CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
 !  #endif /*PARTICLES*/
-  CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tNextAnalyze)
 #if USE_QDS_DG
-  IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+  IF(DoQDS) CALL WriteQDSToHDF5(time,tNextAnalyze)
 #endif /*USE_QDS_DG*/
 END IF
 
@@ -546,7 +543,7 @@ DO !iter_t=0,MaxIter
     ,'Error in tEndDiff or tAnalyzeDiff!')
   END IF
 
-  IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tFuture)
+  IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tNextAnalyze)
 
 #ifndef PP_HDG
   IF(DoPML)THEN
@@ -614,7 +611,7 @@ DO !iter_t=0,MaxIter
 #endif
   ! calling the analyze routines
   iter=iter+1
-  iter_loc=iter_loc+1
+  iter_PID=iter_PID+1
   time=time+dt
   IF(MPIroot) THEN
     IF(DoDisplayIter)THEN
@@ -639,12 +636,12 @@ DO !iter_t=0,MaxIter
     ELSE
       finalIter=.FALSE.
     END IF
-    CalcTimeEnd=BOLTZPLATZTIME()
+    WallTimeEnd=BOLTZPLATZTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
-      SimulationTime = CalcTimeEnd-StartTime
-      SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-RestartWallTime)*nProcessors/3600.) ! in [s] / [CPUh]
-      PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+      WallTime = WallTimeEnd-StartTime
+      SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-RestartWallTime)*nProcessors/3600.) ! in [s] / [CPUh]
+      PID=(WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 #ifdef MPI
 #if !defined(LSERK) && !defined(IMPA) && !defined(ROS)
@@ -661,12 +658,12 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
     ! future time
-    nAnalyze=nAnalyze+1
-    tFuture=tZero+REAL(nAnalyze)*Analyze_dt
+    iAnalyze=iAnalyze+1
+    tNextAnalyze=tZero+REAL(iAnalyze)*Analyze_dt
 #if USE_LOADBALANCE
-    IF(iAnalyze.EQ.nSkipAnalyze .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #else
-    IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+    IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
       IF(CountNbOfLostParts)THEN
@@ -683,9 +680,9 @@ DO !iter_t=0,MaxIter
 #endif /*PARICLES*/
       IF(MPIroot)THEN
         ! simulation time per CPUh efficiency in [s]/[CPUh]
-        !SimulationEfficiency = (time-RestartTime)/((CalcTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
+        !SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
         ! Get calculation time per DOF
-        !PID=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+        !PID=(WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
         CALL DATE_AND_TIME(values=TimeArray) ! get System time
         WRITE(UNIT_StdOut,'(132("-"))')
         WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
@@ -737,25 +734,21 @@ DO !iter_t=0,MaxIter
 !  #ifdef PARTICLES
 !          CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !just for writing actual number into HDF5 (not for loadbalance!)
 !  #endif /*PARTICLES*/
-        CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+        CALL WriteStateToHDF5(TRIM(MeshFile),time,tNextAnalyze)
 #if USE_QDS_DG
-        IF(DoQDS) CALL WriteQDSToHDF5(time,tFuture)
+        IF(DoQDS) CALL WriteQDSToHDF5(time,tNextAnalyze)
 #endif /*USE_QDS_DG*/
       END IF
-      IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tFuture)
+      IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tNextAnalyze)
 #ifndef PP_HDG
       ! Write state to file
 #endif /*PP_HDG*/
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
-!#ifdef MPI
-      IF(iAnalyze.EQ.nSkipAnalyze) iAnalyze=0
-!#endif /*MPI*/
     SWRITE(UNIT_StdOut,'(132("-"))')
     END IF
-    iAnalyze=iAnalyze+1
-    iter_loc=0
-    tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
+    iter_PID=0
+    tAnalyze=tZero+REAL(iAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #if USE_LOADBALANCE
     IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
@@ -767,10 +760,10 @@ DO !iter_t=0,MaxIter
           RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
         END IF
         CALL LoadBalance()
-        IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
+        IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
         !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-        ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
+        ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tNextAnalyze) ! not sure if required
       END IF
     ELSE
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
@@ -780,11 +773,10 @@ DO !iter_t=0,MaxIter
       DoInitialAutoRestart=.FALSE.
       LoadBalanceSample = tmp_LoadBalanceSample
       tAnalyze=Analyze_dt
-      nAnalyze=1
       iAnalyze=1
     END IF
 #endif /*USE_LOADBALANCE*/
-    CalcTimeStart=BOLTZPLATZTIME()
+    WallTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t

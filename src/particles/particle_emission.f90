@@ -695,7 +695,7 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings, iter, IterDisplayStep, DoDisplayIter
+USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
 USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping, TriaTracking
@@ -2157,24 +2157,20 @@ __STAMP__&
 #endif
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
-        IF(DoDisplayEmissionWarnings)THEN
-          SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-          SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          SWRITE(UNIT_StdOut,'(I0,A)') sumOfMatchedParticles, ' particles reached the domain when'
-          SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
-        END IF
+        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+        SWRITE(UNIT_StdOut,'(I0,A)') sumOfMatchedParticles, ' particles reached the domain when'
+        SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
       END IF
     ELSE
       ! add number of matching error to particle emission to fit 
       ! number of added particles
       Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-        IF(DoDisplayEmissionWarnings)THEN
-          SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-          SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
-          SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
-        END IF
+        SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+        SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+        SWRITE(UNIT_StdOut,'(A,I0,A)')'matched only ', sumOfMatchedParticles, ' particles'
+        SWRITE(UNIT_StdOut,'(A,I0,A)')'when ', NbrOfParticle, ' particles were required!'
       ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
        IF(DoDisplayIter)THEN
@@ -2193,10 +2189,8 @@ __STAMP__&
 !          'selected timedisk does not allow num of inserted part .gt. required')
 #endif
       ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-        !IF(DoDisplayEmissionWarnings)THEN
-        !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-        !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-        !END IF
+      !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+      !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
       END IF
     END IF
 #ifdef MPI

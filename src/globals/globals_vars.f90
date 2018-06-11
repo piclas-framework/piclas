@@ -10,7 +10,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                         :: SimulationTime                        !> Wall time needed by a simulation (is not reset by 
+REAL                         :: WallTime                              !> Wall time needed by a simulation (is not reset by 
                                                                       !> performing a load balance step, only by user restart)
 REAL                         :: InitializationWallTime                !> Wall time needed to initialize a simulation (or
                                                                       !> re-initialize a simulation by performing a load balance 
