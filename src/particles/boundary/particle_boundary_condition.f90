@@ -200,7 +200,7 @@ __STAMP__,&
             END IF ! CalcPartBalance
             PDM%ParticleInside(iPart) = .FALSE.
             alpha=-1.
-#if IMPA
+#ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
 #endif /*IMPA*/
           ELSE IF (adsorbindex.EQ.0) THEN ! inelastic reflection
@@ -635,13 +635,17 @@ USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 USE MOD_TimeDisc_Vars,          ONLY:RK_inc,RK_inflow
 USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
 USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a
+USE MOD_Particle_Vars,          ONLY:PartLorentzType
+USE MOD_Equation_Vars,          ONLY:c2_inv
 #endif /*IMPA*/
 #ifdef ROS
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
 USE MOD_Particle_Vars,          ONLY:PEM
-USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a
+USE MOD_TimeDisc_Vars,          ONLY:iStage,RK_a,dt_inv,RK_g,nRKStages,RK_inflow
+USE MOD_Particle_Vars,          ONLY:PartLorentzType,PartDtFrac,DoSurfaceFlux
+USE MOD_Equation_Vars,          ONLY:c2_inv
 #endif /*ROS*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -672,9 +676,15 @@ REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID, locBCID
 LOGICAL                              :: Symmetry, IsAuxBC
 #if defined(IMPA) || defined(ROS)
-INTEGER                              :: iCounter
+INTEGER                              :: iCounter,iStage2
 REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
+REAL                                 :: dtFrac ! (used for recomputation of previsous positions
+REAL                                 :: LorentzFacInv
+REAL                                 :: deltaPos(1:3),lengthRK
 #endif /*IMPA and ROS*/
+#if defined(ROS)
+REAL                                 :: dt_inv_loc
+#endif /* ROS*/
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -766,6 +776,47 @@ ELSE
     IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
   END IF
 END IF !IsAuxBC
+
+#if defined(IMPA)
+IF(iStage.GT.0)THEN
+  IF(RK_inflow(iStage).EQ.0)THEN
+    ! this is the stage, where the time level C_iStage < C_iStage-1
+    ! hence, the position is actual outside of the mesh and the 
+    ! particle is entering the domain (because of going from stage
+    ! 2 to stage 3, the particle is leaving, sign change in tracking)
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+    ! hence, we perform an evil hack and beam the particle on the intersection point 
+    ! this ensures, that the particle is located within the mesh....
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+    PartTrajectory          = 0.
+    lengthPartTrajectory    = 0.
+    IF(PartIsImplicit(PartID))THEN
+      ! we have to stop the particle
+      PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
+      PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
+      PartDeltaX(1:6,PartID) = 0.
+    END IF
+    RETURN
+  END IF
+END IF
+#endif /*IMPA*/
+#if defined(ROS)
+IF(iStage.GT.0)THEN
+  !IF(iStage.GT.2)THEN
+  IF(RK_inflow(iStage).EQ.0)THEN
+    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+    ! hence, we perform an evil hack and beam the particle on the intersection point 
+    ! this ensures, that the particle is located within the mesh....
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+    PartTrajectory          = 0.
+    lengthPartTrajectory    = 0.
+    RETURN
+  END IF
+END IF
+#endif /*ROS*/
+
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 
@@ -781,19 +832,8 @@ v_old = PartState(PartID,4:6)
 ! new velocity vector 
 !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
 v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-#if IMPA
-! here, we turn the velocity 
-IF(RK_inflow(iStage).GT.0)THEN
-PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                             (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
-ELSE
-  PartState(PartID,4:6)  =-SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 - WallVelo
-END IF
-#else
 PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
                          (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
-#endif
 
 IF (.NOT.IsAuxBC) THEN
 ! Wall sampling Macrovalues
@@ -857,13 +897,17 @@ __STAMP__&
 END IF
 END IF !.NOT.IsAuxBC
 
+! set particle position on face
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+
+#if !defined(IMPA) &&  !defined(ROS)
+! compute moved particle || rest of movement
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
-!lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+#endif
   
 #if defined(LSERK) || (PP_TimeDiscMethod==509)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -891,6 +935,27 @@ END IF
 #endif  /*LSERK || (PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
+! reconstruct of the path-length to get the correct timing
+! the intersection point is computed by comparing the distance between 
+! |Intersectionpoint-PartStateN| to |SUM dt F|
+IF(PartIsImplicit(PartID))THEN
+  deltaPos(1:3)=ESDIRK_a(iStage,iStage)*R_PartXK(1:3,PartID)
+  DO iCounter=1,iStage-1
+    deltaPos(1:3) = deltaPos(1:3) + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+  END DO ! iCounter=1,iStage-1
+ELSE
+  deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+  DO iCounter=1,iStage-2
+    deltaPos(1:3) = deltaPos(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+  END DO ! iCounter=1,iStage-1
+END IF
+deltaPos=deltaPos*dt
+lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+! LastPartPos is already at the intersection point
+deltaPos=LastPartPos(PartID,1:3)-PartStateN(PartID,1:3)
+dtFrac=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+dtFrac=dtFrac / lengthRK
+
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
 RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
@@ -904,59 +969,188 @@ RotationMat(3,2) = RotationMat(2,3)
 RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
 
 IF(iStage.GT.0)THEN
-  ! rotate the velocity vectors and acceleration change
+  ! 1) rotate the acceleration depending if it is a symmetric or perfectly reflective wall 
+  !    Why is there actually a difference between symmetric and PR walls?
   DO iCounter=1,iStage-1
-    PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
-    PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+    IF(Symmetry)THEN
+      PartStage(PartID,4:6,iCounter)=PartStage(PartID,4:6,iCounter)-2.*DOT_PRODUCT(PartStage(PartID,4:6,iCounter),n_loc)*n_loc
+    ELSE
+      PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+    END IF
   END DO ! iCoutner=1,iStage-1
   IF(PartIsImplicit(PartID))THEN
-    ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
-    ! new value, which is not yet computed, hence, convergence issues...
-    ! we are using the value of the last iteration under the assumption, that this 
-    ! value may be close enough
-    ! if still trouble in convergence, the exact position should be used :(
+    ! We require the acceleration from the final particle position, which is unknown. This value is approximated
+    ! by R_PartXK, under the assumption, that the value of the last Newton step is close enough.
+    ! 1b) Rotate the function and position of the old state
     R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
-    R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
-    DeltaP=0.
+    IF(Symmetry)THEN
+      R_PartXK(4:6,PartID)=R_PartXK(4:6,PartID)-2.*DOT_PRODUCT(R_PartXK(4:6,PartID),n_loc)*n_loc
+    ELSE
+      R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+    END IF
+    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
+    DeltaP(4:6)=ESDIRK_A(iStage,iStage)*R_PartXK(4:6,PartID)
     DO iCounter=1,iStage-1
-      DeltaP=DeltaP + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-    END DO
-    DeltaP=DeltaP*dt + ESDIRK_A(iStage,iStage)*dt*R_PartXK(1:6,PartID)
-    ! recompute the old position at t^n
-    PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
-    ! next, recompute PartQ instead of shifting...
+      DeltaP(4:6)=DeltaP(4:6)+ ESDIRK_A(iStage,iCounter)*PartStage(PartID,4:6,iCounter)
+    END DO ! iCounter=1,iStage-1
+    PartStateN(PartID,4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
+    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
+    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
+      LorentzFacInv=1.0+DOT_PRODUCT(PartStateN(PartID,4:6),PartStateN(PartID,4:6))*c2_inv      
+      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6)*LorentzFacInv
+      DO iStage2=2,iStage-1
+        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStage(PartID,4:6,1)
+        DO iCounter=2,iStage2
+          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+        END DO ! iCounter=1,iStage2-1
+        ! new momentum at iStage=2
+        DeltaP(4:6)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
+        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+        PartStage(PartID,1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
+      END DO ! iStage2,2,iStage
+    ELSE ! PartStateN(4:6) is the velocity
+      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6) 
+      DO iStage2=2,iStage-1
+        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStage(PartID,4:6,1)
+        DO iCounter=2,iStage2
+          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+        END DO ! iCounter=1,iStage2-1
+        ! new velocity during iStage=2
+        PartStage(PartID,1:3,iStage2)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+      END DO ! iStage2,2,iStage
+    END IF
+    ! 4) recompute the initial position at t^n and the position after the reflection at t^n+dt*C(iState)
+    DeltaP(1:3)=ESDIRK_A(iStage,iStage)*R_PartXK(1:3,PartID)
+    DO iCounter=1,iStage-1
+      DeltaP(1:3)=DeltaP(1:3) + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+    END DO ! iCoutner=1,iStage-1
+    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt*dtFrac
+    ! compute particle position AFTER reflection
+    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt*(1.-dtFrac)
+    ! recompute PartQ
     DeltaP = ESDIRK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
     DO iCounter=1,iStage-2
       DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
     END DO ! iCounter=1,iStage-2
     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+    ! 5) Open Issue: what is now PartXK,F_PartXK,Norm_PartXK, etc???
     ! rotate PartXK do not roate...
-    ! move particle on face, which is wrong, but Armijo method now does not required 
-    ! to back-rotate all RK stages AFTER reflection is rejected
+    ! 5a1)
+    ! PartXK(1:6,PartID)   =   PartState(PartID,1:6)
+    ! 5a2)
+    ! more baseline assuption form:
     PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
     ! rotate velocity vector
     PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
-    !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
+    ! recompute missing particle path
+    ! 6) compute particle displacement
+    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                             +PartTrajectory(2)*PartTrajectory(2) &
+                             +PartTrajectory(3)*PartTrajectory(3) )
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
     ! new change in part-position is length of rest of tracing
+    ! there is no need of an Armijo rule after the reflection...., because it would be brainfuck
+    ! 7a1)
+    ! PartDeltaX(1:6,PartID) = 0.
+    ! this is the deltaX if the set PartXK at the wall = LastPartPos
+    ! 7a2)
     PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
-    !PartDeltaX(1:3,PartID)=MATMUL(RotationMat,PartDeltaX(1:3,PartID))
-    PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    ! the velocity/impulse change can be interpreted as the difference between these positions....
+    IF(Symmetry)THEN
+      PartDeltaX(4:6,PartID)=PartDeltaX(4:6,PartID)-2.*DOT_PRODUCT(PartDeltaX(4:6,PartID),n_loc)*n_loc
+    ELSE
+      PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+    END IF
     ! set lastElement for tracing
     IF(.NOT.DoRefMapping)THEN
       PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
     END IF
   ELSE
     ! explicit particle
-    DeltaP=0.
-    DO iCounter=1,iStage-1
-      DeltaP = DeltaP + ERK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-    END DO
-    PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
+    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
+    DeltaP(4:6)=ERK_a(iStage,iStage-1)*PartStage(PartID,4:6,iStage-1)
+    DO iCounter=1,iStage-2
+      DeltaP(4:6)=DeltaP(4:6)+ ERK_a(iStage,iCounter)*PartStage(PartID,4:6,iCounter)
+    END DO ! iCounter=1,iStage-1
+    PartStateN(PartID,4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
+    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
+    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
+      LorentzFacInv=1.0+DOT_PRODUCT(PartStateN(PartID,4:6),PartStateN(PartID,4:6))*c2_inv      
+      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6)*LorentzFacInv
+      DO iStage2=2,iStage-1
+        DeltaP(4:6) = ERK_a(iStage2,1)*PartStage(PartID,4:6,1)
+        DO iCounter=2,iStage2
+          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+        END DO ! iCounter=1,iStage2-1
+        ! new momentum at iStage=2
+        DeltaP(4:6)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
+        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+        PartStage(PartID,1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
+      END DO ! iStage2,2,iStage
+    ELSE ! PartStateN(4:6) is the velocity
+      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6) 
+      DO iStage2=2,iStage-1
+        DeltaP(4:6) = ERK_a(iStage2,1)*PartStage(PartID,4:6,1)
+        DO iCounter=2,iStage2
+          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+        END DO ! iCounter=1,iStage2-1
+        ! new velocity during iStage=2
+        PartStage(PartID,1:3,iStage2)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+      END DO ! iStage2,2,iStage
+    END IF
+    ! 4) recompute the initial position at t^n
+    DeltaP(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+    DO iCounter=1,iStage-2
+      DeltaP(1:3)=DeltaP(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+    END DO ! iCoutner=1,iStage-1
+    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt *dtFrac
+    ! compute particle position AFTER reflection
+    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt *(1.-dtFrac)
+    ! recompute missing particle path
+    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                             +PartTrajectory(2)*PartTrajectory(2) &
+                             +PartTrajectory(3)*PartTrajectory(3) )
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+    ! set lastElement for tracing
+    IF(.NOT.DoRefMapping)THEN
+      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+    END IF
   END IF
+ELSE 
+  ! only explicit particles 
+  ! compute moved particle || rest of movement
+  ! required for the final stage (iStage=0) is  u^n+1 = u^n + sum_i b(i)*F(u_i)
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
 END IF
 #endif /*IMPA*/
 
+
 #if defined(ROS)
+LorentzFacInv=alpha/LengthPartTrajectory
+IF(iStage.GT.0)THEN
+  ! reconstruct of the path-length between the two RK-Stages
+  deltaPos(1:3)=RK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+  DO iCounter=1,iStage-2
+    deltaPos(1:3) = deltaPos(1:3) + (RK_a(iStage,iCounter)-RK_a(iStage-1,iCounter))*PartStage(PartID,1:3,iCounter)
+  END DO ! iCounter=1,iStage-1
+  lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+  dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
+ELSE
+  ! dummy value, not required for the final stage (iStage=0) is  u^n+1 = u^n + sum_i b(i)*F(u_i)
+  lengthRK=lengthPartTrajectory
+  dtFrac=((lengthRK-lengthPartTrajectory)+alpha)/lengthRK
+END IF
+
 ! rotate the Runge-Kutta coefficients into the new system 
 ! this rotation is a housholder rotation
 RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
@@ -970,36 +1164,86 @@ RotationMat(3,2) = RotationMat(2,3)
 RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
 
 IF(iStage.GT.0)THEN
-  ! rotate the velocity vectors and acceleration change
+  ! iStage in [2-nRKStages] 
+  ! -> during each update to compute k_iStage
+  ! iStage = 0
+  ! -> for update from t^n to t^n+1
+  ! similar to IMPA
+  ! 1) rotate the acceleration depending if it is a symmetric or perfectly reflective wall 
+  !    Why is there actually a difference between symmetric and PR walls?
   DO iCounter=1,iStage-1
     PartStage(PartID,1:3,iCounter)=MATMUL(RotationMat,PartStage(PartID,1:3,iCounter))
-    PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
-  END DO ! iCoutner=1,iStage-1
-  ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
-  ! new value, which is not yet computed, hence, convergence issues...
-  ! we are using the value of the last iteration under the assumption, that this 
-  ! value may be close enough
-  DeltaP=0.
-  DO iCounter=1,iStage-1
-    DeltaP=DeltaP + RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-  END DO
-  DeltaP=DeltaP + RK_a(iStage,iStage)*R_PartXK(1:6,PartID)
-  ! recompute the old position at t^n
-  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
-  ! next, rotate PartQ instead of shifting...
-  PartQ(1:3,PartID)=MATMUL(RotationMat,PartQ(1:3,PartID))
-  PartQ(4:6,PartID)=MATMUL(RotationMat,PartQ(4:6,PartID))
-  ! if still trouble in convergence, the exact position should be used :(
-  R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
-  R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
-  ! rotate PartXK do not roate...
-  ! move particle on face, which is wrong, but Armijo method now does not required 
-  ! to back-rotate all RK stages AFTER reflection is rejected
-  PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
-  ! rotate velocity vector
-  PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
-  !PartXK(1:3,PartID)=MATMUL(RotationMat,PartXK(1:3,PartID))
-  ! new change in part-position is length of rest of tracing
+    IF(Symmetry)THEN
+      PartStage(PartID,4:6,iCounter)=PartStage(PartID,4:6,iCounter)-2.*DOT_PRODUCT(PartStage(PartID,4:6,iCounter),n_loc)*n_loc
+    ELSE
+      PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+    END IF
+  END DO ! iCoutner=1,iStage
+
+  ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
+  DeltaP(1:6)=RK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+  DO iCounter=1,iStage-2
+    DeltaP(1:6)=DeltaP(1:6)+ RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO ! iCounter=1,iStage-1
+  ! old position
+  PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - dtFrac* DeltaP(1:3)
+  ! new position
+  PartState (PartID,1:3) = LastPartPos(PartID,1:3) + (1.-dtFrac)* DeltaP(1:3)
+  ! old velocity
+  PartStateN(PartID,4:6) = PartState(PartID,4:6)  - DeltaP(4:6)
+
+  ! 3) compute trajectory
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  IF(.NOT.ALMOSTZERO(lengthPartTrajectory))THEN
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+  END IF
+  ! set lastElement for tracing
+  IF(.NOT.DoRefMapping)THEN
+    PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+  END IF
+  ! 4) compute contribution of 1/dt* sum_j=1^iStage-1 c(i,j) = diag(gamma)-gamma^inv
+  PartQ(1:6,PartID) = RK_g(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+  DO iCounter=1,iStage-2
+    PartQ(1:6,PartID) = PartQ(1:6,PartID) +RK_g(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+  END DO ! iCounter=1,iStage-2
+  IF(DoSurfaceFlux)THEN
+    dt_inv_loc=dt_inv/PartDtFrac(PartID)
+  ELSE
+    dt_inv_loc=dt_inv
+  END IF
+  PartQ(1:6,PartID) = dt_inv_loc*PartQ(1:6,PartID)
+  ! 5) partxk - caution, do not consider the change in the velocity
+  PartXK(1:6,PartID)   = PartStateN(PartID,1:6) ! which is partstateN
+  ! 6) function of PartXK
+  ! 6a-1) only rotation
+  !R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
+  ! 6a-2) considering the force and LorentzPush
+  IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
+    LorentzFacInv=1.0+DOT_PRODUCT(PartStateN(PartID,4:6),PartStateN(PartID,4:6))*c2_inv      
+    LorentzFacInv=1.0/SQRT(LorentzFacInv)
+    R_PartXK(1:3,PartID) = PartStateN(PartID,4:6)*LorentzFacInv
+  ELSE ! PartStateN(4:6) is the velocity
+    R_PartXK(1:3,PartID) = PartStateN(PartID,4:6) 
+  END IF
+  ! 6b) acceleration at one
+  IF(Symmetry)THEN
+    R_PartXK(4:6,PartID)=R_PartXK(4:6,PartID)-2.*DOT_PRODUCT(R_PartXK(4:6,PartID),n_loc)*n_loc
+  ELSE
+    R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+  END IF
+  ! set lastElement for tracing
+  IF(.NOT.DoRefMapping)THEN
+    PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+  END IF
+ELSE ! iStage = 1
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
   ! set lastElement for tracing
   IF(.NOT.DoRefMapping)THEN
     PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)

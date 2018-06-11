@@ -229,6 +229,7 @@ __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 DO i = 1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
     ! of particles
