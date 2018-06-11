@@ -251,7 +251,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
 !USE MOD_LoadBalance            ,ONLY: LoadMeasure
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
@@ -318,12 +318,9 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-#ifdef MPI
-LOGICAL                      :: PerformLoadBalance
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
 LOGICAL                      :: NoPartInside
@@ -642,7 +639,7 @@ DO !iter_t=0,MaxIter
 #endif
 #if USE_LOADBALANCE
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
-    CALL ComputeElemLoad(PerformLoadBalance,time)
+    CALL ComputeElemLoad()
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
     UpdatePrecondLB=PerformLoadBalance
@@ -750,17 +747,17 @@ DO !iter_t=0,MaxIter
 #if USE_LOADBALANCE
     IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
-      CALL LoadBalance(PerformLoadBalance)
-      IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
+        IF(PerformLoadBalance) THEN
+          ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
+          !CALL InitTimeStep() ! re-calculate time step after load balance is performed
+          RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
+          RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
+        END IF
+        CALL LoadBalance()
+        IF(PerformLoadBalance .AND. iAnalyze.NE.nSkipAnalyze) &
           CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
-      IF(PerformLoadBalance) THEN
-        ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
-        !CALL InitTimeStep() ! re-calculate time step after load balance is performed
-        RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
-        RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
-      END IF
-      !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
-      ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
+        !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
+        ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
       END IF
     ELSE
       ElemTime=0. ! nullify ElemTime before measuring the time in the next cycle
@@ -1414,7 +1411,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1554,7 +1551,7 @@ REAL                  :: tLBStart
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroVolumeValues ) THEN
+            WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -4817,6 +4814,7 @@ iStage=1
 #ifdef PARTICLES
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 !Time=t
+tStage=t
 RKdtFrac = RK_c(2)
 RKdtFracTotal=RKdtFrac
 
@@ -4866,7 +4864,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 END IF
 #endif /*PARTICLES*/
 
-CALL HDG(t,U,iter)
+CALL HDG(tStage,U,iter)
 
 ! calling the analyze routines
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
@@ -5027,7 +5025,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  CALL HDG(t,U,iter)
+  CALL HDG(tStage,U,iter)
 
 #ifdef PARTICLES
   ! set last data already here, since surfaceflux moved before interpolation

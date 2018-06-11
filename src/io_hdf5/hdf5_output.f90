@@ -322,6 +322,7 @@ END IF
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
+CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
@@ -1003,7 +1004,7 @@ INTEGER                        :: sendbuf(1),recvbuf(1)
 INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
 INTEGER                        :: iSurfPart, iSurf_glob, iSurf_loc, iSpec, nVar
 INTEGER                        :: iOffset, UsedSiteMapPos, SideID, SurfSideID, PartBoundID
-INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart
+INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart, iVar
 INTEGER                        :: Coordinations          !number of PartInt and PartData coordinations
 INTEGER                        :: SurfPartIntSize        !number of entries in each line of PartInt
 INTEGER                        :: SurfPartDataSize       !number of entries in each line of PartData
@@ -1043,14 +1044,16 @@ ELSE
   nVar = 1
 END IF
 ALLOCATE(StrVarNames(nVar*nSpecies))
+iVar = 1
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
-  StrVarNames(iSpec)   = 'Spec'//TRIM(SpecID)//'_Coverage'
+  StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'_Coverage'
   IF (DSMC%WallModel.EQ.3) THEN
-    StrVarNames(iSpec+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
-    StrVarNames(iSpec+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
-    StrVarNames(iSpec+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
+    StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
+    StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
+    StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
   END IF
+  iVar = iVar + nVar
 END DO
 
 #ifdef MPI
@@ -1178,18 +1181,22 @@ IF (DSMC%WallModel.EQ.3) THEN
 
   ! set names and write attributes in hdf5 files
   ALLOCATE(StrVarNames(SurfPartIntSize*Coordinations))
+  iVar = 1
   DO iCoord=1,Coordinations
     WRITE(CoordID,'(I3.3)') iCoord
-    StrVarNames(iCoord)='Coord'//TRIM(CoordID)//'_nSites'
-    StrVarNames(iCoord+1)='Coord'//TRIM(CoordID)//'_FirstSurfPartID'
-    StrVarNames(iCoord+2)='Coord'//TRIM(CoordID)//'_LastSurfPartID'
+    StrVarNames(iVar)='Coord'//TRIM(CoordID)//'_nSites'
+    StrVarNames(iVar+1)='Coord'//TRIM(CoordID)//'_FirstSurfPartID'
+    StrVarNames(iVar+2)='Coord'//TRIM(CoordID)//'_LastSurfPartID'
+    iVar = iVar + 3
   END DO
 
   ALLOCATE(StrVarNamesData(SurfPartDataSize*Coordinations))
+  iVar = 1
   DO iCoord=1,Coordinations
     WRITE(CoordID,'(I3.3)') iCoord
-    StrVarNamesData(iCoord)='Coord'//TRIM(CoordID)//'_SiteMapPosition'
-    StrVarNamesData(iCoord+1)='Coord'//TRIM(CoordID)//'_Species'
+    StrVarNamesData(iVar)='Coord'//TRIM(CoordID)//'_SiteMapPosition'
+    StrVarNamesData(iVar+1)='Coord'//TRIM(CoordID)//'_Species'
+    iVar = iVar + 2
   END DO
 #ifdef MPI
   IF(SurfCOMM%MPIOutputRoot)THEN
@@ -1243,6 +1250,80 @@ END IF ! DSMC%WallModel.EQ.3
 
 
 END SUBROUTINE WriteSurfStateToHDF5
+
+
+SUBROUTINE WriteAdaptiveInfoToHDF5(FileName)
+!===================================================================================================================================
+!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
+USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255)             :: H5_Name
+CHARACTER(LEN=255)             :: SpecID
+INTEGER                        :: nVar
+INTEGER                        :: iElem,iVar,iSpec
+REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
+!===================================================================================================================================
+! first check if adaptive boundaries are defined 
+IF (nAdaptiveBC.LE.0) RETURN
+
+nVar = 4
+iVar = 1
+ALLOCATE(StrVarNames(nVar*nSpecies))
+DO iSpec=1,nSpecies
+  WRITE(SpecID,'(I3.3)') iSpec
+  StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'-VeloX'
+  StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
+  StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
+  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  iVar = iVar + nVar
+END DO
+
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF
+
+! rewrite and save arrays for AdaptiveData
+ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
+AdaptiveData = 0.
+DO iElem = 1,nElems
+  AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
+  AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
+  AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
+  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+END DO
+
+WRITE(H5_Name,'(A)') 'AdaptiveInfo'
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=3,&
+                nValGlobal=(/nVar,nSpecies,nGlobalElems/),&
+                nVal=      (/nVar,nSpecies,nElems      /),&
+                offset=    (/0   ,0       ,offsetElem  /),&
+                collective=.false.,  RealArray=AdaptiveData)
+CALL CloseDataFile()
+SDEALLOCATE(StrVarNames)
+SDEALLOCATE(AdaptiveData)
+
+END SUBROUTINE WriteAdaptiveInfoToHDF5
 #endif /*PARTICLES*/
 
 

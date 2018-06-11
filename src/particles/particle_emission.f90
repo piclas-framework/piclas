@@ -148,9 +148,9 @@ SUBROUTINE InitializeParticleEmission()
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF
+USE MOD_Restart_Vars,   ONLY : DoRestart
+USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
-USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
@@ -183,7 +183,6 @@ DO i=1, nSpecies
   IF (EmType6) EXIT
 END DO
 IF (.NOT.EmType6) DSMC%OutputMeshSamp=.false.
-IF (.NOT.DoRestart) THEN
 !   CALL Deposition()
 !   IF (MESH%t.GE.PIC%DelayTime) PIC%ParticleTreatmentMethod='standard'
   ! for the case of particle insertion per time, the inserted particle number for the current time must
@@ -193,140 +192,141 @@ IF (.NOT.DoRestart) THEN
 !  END DO
 !ELSE
 ! Do insanity check of max. particle number compared to the number that is to be inserted for certain insertion types
-  insertParticles = 0
-  DO i=1,nSpecies
-    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
-        IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
-#ifdef MPI
-          insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
-#else
-          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
-#endif
-        ELSE
-          insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
-        END IF
-      ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
-           .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+insertParticles = 0
+DO i=1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+      IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
         insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
         insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
 #endif
+      ELSE
+        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
       END IF
-    END DO
-  END DO
-  IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+    ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+         .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
 #ifdef MPI
-    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
-    WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+      insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
-    WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
-    WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+      insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
 #endif
-    CALL abort(&
+    END IF
+  END DO
+END DO
+IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+#ifdef MPI
+  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
+  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
+#else
+  WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
+  WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
+#endif
+  CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
-  END IF
-  DO i = 1,nSpecies
-    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
-      ! of particles
-      !!!Here could be added a check for geometrically overlapping Inits and same Usefor-Flags!!!
-      !IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
-      !  WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
-      !  WRITE(*,*) 'OR the standard initialisation, not both!'
-      !  STOP
-      !END IF
-      IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
-           (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
-        CALL abort(&
+END IF
+DO i = 1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
+    ! of particles
+    !!!Here could be added a check for geometrically overlapping Inits and same Usefor-Flags!!!
+    !IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
+    !  WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
+    !  WRITE(*,*) 'OR the standard initialisation, not both!'
+    !  STOP
+    !END IF
+    IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
+         (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
+      CALL abort(&
 __STAMP__&
 ,' particle pressure not moved to picasso!')
-        IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
-          CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-        ELSE !emission type 6 (constant pressure outflow)
-          CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+      IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
+        CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
+        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+      ELSE !emission type 6 (constant pressure outflow)
+        CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+      END IF
+      CALL SetParticleChargeAndMass(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (useDSMC) THEN
+        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+          NbrOfParticle = PDM%maxParticleNumber
         END IF
-        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-        IF (useDSMC) THEN
-          IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-            NbrOfParticle = PDM%maxParticleNumber
+        iPart = 1
+        DO WHILE (iPart .le. NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) THEN
+            PDM%PartInit(PositionNbr) = iInit
           END IF
-          iPart = 1
-          DO WHILE (iPart .le. NbrOfParticle)
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) THEN
-              PDM%PartInit(PositionNbr) = iInit
-            END IF
-            iPart = iPart + 1
-          END DO
-        END IF
-        !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-        CALL UpdateNextFreePosition()
-      ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
-        IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
+          iPart = iPart + 1
+        END DO
+      END IF
+      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      CALL UpdateNextFreePosition()
+    ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
+      IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
 __STAMP__&
 ,' Integer of initial particle number larger than max integer size: ',HUGE(1))
-        NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
+      NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
 #ifdef MPI
-        CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
-        CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
-        CALL SetParticlePosition(i,iInit,NbrOfParticle)
+      CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif /*MPI*/
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-        SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
-        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-        IF (useDSMC) THEN
-          IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-            NbrOfParticle = PDM%maxParticleNumber
-          END IF
-          iPart = 1
-          DO WHILE (iPart .le. NbrOfParticle)
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .ne. 0) THEN
-              PDM%PartInit(PositionNbr) = iInit
-            END IF
-            iPart = iPart + 1
-          END DO
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
+      CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
+      CALL SetParticleChargeAndMass(i,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (useDSMC) THEN
+        IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+          NbrOfParticle = PDM%maxParticleNumber
         END IF
-        !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-        CALL UpdateNextFreePosition()
-        ! constant pressure condition
-        IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-          CALL abort(&
+        iPart = 1
+        DO WHILE (iPart .le. NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) THEN
+            PDM%PartInit(PositionNbr) = iInit
+          END IF
+          iPart = iPart + 1
+        END DO
+      END IF
+      !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      CALL UpdateNextFreePosition()
+      ! constant pressure condition
+      IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+        CALL abort(&
 __STAMP__&
 ,' particle pressure not moved in picasso!')
-          CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
-          IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
-            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-            IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+        CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
+        IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
+          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
+          IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
 #ifdef MPI
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
-            CALL SetParticlePosition(i,iInit,NbrOfParticle)
+          CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
-            CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
-            CALL SetParticleChargeAndMass(i,NbrOfParticle)
-            IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-            !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-            PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-            CALL UpdateNextFreePosition()
-          END IF
+          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
+          CALL SetParticleChargeAndMass(i,NbrOfParticle)
+          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+          CALL UpdateNextFreePosition()
         END IF
-      END IF ! not Emissiontype 4
-    END DO !inits
-  END DO ! species
-END IF ! not restart
+      END IF
+    END IF ! not Emissiontype 4
+  END DO !inits
+END DO ! species
 
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
 DO i = 1,PDM%ParticleVecLength
@@ -3630,13 +3630,15 @@ USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, Boltzmann
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems
+USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_IO_HDF5,                            ONLY:AddToElemData,ElementOut
+USE MOD_IO_HDF5
+USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3682,6 +3684,9 @@ LOGICAL               :: r0inside, intersecExists(2,2)
 REAL                  :: corners(2,4),atan2Shift,rmin,rmax
 INTEGER               :: FileID
 LOGICAL               :: OutputSurfaceFluxLinked
+REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
+LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
+INTEGER               :: nVarAdd_HDF5, iElem, iVar
 !===================================================================================================================================
 
 #ifdef MPI
@@ -4138,9 +4143,30 @@ DEALLOCATE(TmpMapToBC &
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
-  ALLOCATE(Adaptive_MacroVal(1:10,1:nElems,1:nSpecies))
+  ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
+  ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
+  AdaptiveInitDone = .FALSE.
+  IF (DoRestart) THEN
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    ! read local ParticleInfo from HDF5
+    CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
+    IF(AdaptiveDataExists)THEN
+      AdaptiveInitDone = .TRUE.
+      ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
+      CALL ReadArray('AdaptiveInfo',3,(/4, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+      DO iElem = 1,nElems
+        Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
+        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,:,iElem)
+      END DO
+      SDEALLOCATE(ElemData_HDF5)
+    END IF
+    CALL CloseDataFile()
+  END IF
 END IF
+
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
@@ -4334,21 +4360,29 @@ __STAMP__&
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF
         IF (.NOT.noAdaptive) THEN
-          ! initialize velocity, trans_temperature and density of macrovalues
-          FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
-          IF (FileID.EQ.0) THEN
-            Adaptive_MacroVal(1:3,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-                * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
-            Adaptive_MacroVal(4:6,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-            Adaptive_MacroVal(7,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-          ELSE
-            Adaptive_MacroVal(1,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(2,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(3,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(4,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(5,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(6,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
-            Adaptive_MacroVal(7,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+          IF (.NOT.AdaptiveInitDone) THEN
+            ! initialize velocity, trans_temperature and density of macrovalues
+            FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            IF (FileID.EQ.0) THEN
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+                  * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+            ELSE
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+            END IF
           END IF
         END IF
       END DO ! iSide
@@ -4575,14 +4609,14 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 ! load balance
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
-TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart => NULL()
+TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+    PartsEmitted = 0
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
     END IF
@@ -4763,9 +4797,9 @@ __STAMP__&
             ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
-            ElemPartDensity = Adaptive_MacroVal(7,ElemID,iSpec)
+            ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
             pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
-            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
             !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
             !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
           CASE(3) ! pressure outlet (pressure defined)
@@ -4774,7 +4808,9 @@ __STAMP__&
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux!')
           END SELECT
-          VeloVec = Adaptive_MacroVal(1:3,ElemID,iSpec)
+          VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+          VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+          VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
           VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
           IF (ABS(VeloIC).GT.0.) THEN
             VeloVecIC = VeloVec / VeloIC
@@ -4963,33 +4999,32 @@ __STAMP__&
                   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
                       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
                     IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-                      IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
+                      ! first check if linked list is initialized and initialize if neccessary
+                      IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
                         ALLOCATE(currentSurfFluxPart)
-                        firstSurfFluxPart => currentSurfFluxPart
                         IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                           Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                           Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                         END IF
-                      ELSE IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
-                        currentSurfFluxPart => firstSurfFluxPart
-                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-                        END IF
+                      ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
+                      ! create linke to next surfflux-part from current list
                       ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                      ! surfaceflux has already list but new particle is being inserted
+                      ! create linke to next surfflux-part from current list
                       ELSE
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
+                      ! save index and sideinfo for current to be inserted particle
                       currentSurfFluxPart%PartIdx = ParticleIndexNbr
                       IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
                         IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
@@ -5289,11 +5324,11 @@ __STAMP__&
                 ! sample values
                 CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
                     (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
-                currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
 #endif /*USE_LOADBALANCE*/
-                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%nextSurfFluxPart)) THEN
+                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%next)) THEN
                   currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
                   EXIT
                 END IF
@@ -5372,7 +5407,7 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
     T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
     pressure = PartBound%AdaptivePressure(Species(FractNbr)%Surfaceflux(iSF)%BC)
-    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
     !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
     !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
   CASE(3) ! pressure outlet (pressure defined)
@@ -5381,7 +5416,9 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux velocities!')
   END SELECT
-  VeloVec = Adaptive_MacroVal(1:3,ElemID,FractNbr)
+  VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,FractNbr)
+  VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,FractNbr)
+  VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,FractNbr)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
@@ -5397,6 +5434,7 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
+  VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
   T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
   projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
@@ -5435,7 +5473,7 @@ __STAMP__&
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-    IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
+    IF (ALMOSTZERO(VeloIC*projFak)) THEN
       ! Rayleigh distri
       envelope = 0
     ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
