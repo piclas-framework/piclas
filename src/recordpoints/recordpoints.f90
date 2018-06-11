@@ -327,7 +327,7 @@ USE MOD_RecordPoints_Vars,ONLY:l_xi_RP,l_eta_RP,l_zeta_RP,nRP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: t
+REAL,INTENT(IN)                :: t
 LOGICAL,INTENT(IN)             :: forceSampling,Output ! force sampling (e.g. first/last timestep)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
