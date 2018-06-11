@@ -158,6 +158,8 @@ CALL CountAndCreateMappings('Dielectric',&
                             DisplayInfo=.TRUE.)
 
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
+! for HDG the volume field is not used, only for output in .h5 file for checking if the region is used correctly
+! because in HDG only a constant profile is implemented
 CALL SetDielectricVolumeProfile()
 
 #ifndef PP_HDG
@@ -171,7 +173,7 @@ CALL SetDielectricVolumeProfile()
          'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
   END IF
   CALL SetDielectricFaceProfile_HDG()
-  IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
+  !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
     ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
     IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
@@ -181,7 +183,7 @@ CALL SetDielectricVolumeProfile()
     END IF
     ! get the axial electric field strength in x-direction of the dielectric sphere setup
     Dielectric_E_0 = GETREAL('Dielectric_E_0','1.')
-  END IF
+  !END IF
 #endif /*PP_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
@@ -244,6 +246,26 @@ END IF
 DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems) = 1./& ! 1./(EpsR*MuR)
                                                                  (DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems)*&
                                                                   DielectricMu( 0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
+
+! check if MPI local values differ for HDG only (variable dielectric values are not implemented)
+#ifdef PP_HDG
+IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricEps(:,:,:,:)),MINVAL(DielectricEps(:,:,:,:)),1e-8))THEN
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
+    RealInfoOpt=MAXVAL(DielectricEps(:,:,:,:))-MINVAL(DielectricEps(:,:,:,:)))
+  END IF
+END IF
+IF(.NOT.ALMOSTEQUALRELATIVE(MAXVAL(DielectricMu(:,:,:,:)),MINVAL(DielectricMu(:,:,:,:)),1e-8))THEN
+  IF(nDielectricElems.GT.0)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
+    RealInfoOpt=MAXVAL(DielectricMu(:,:,:,:))-MINVAL(DielectricMu(:,:,:,:)))
+  END IF
+END IF
+#endif /*PP_HDG*/
 END SUBROUTINE SetDielectricVolumeProfile
 
 
@@ -371,7 +393,7 @@ ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
 #endif /*MPI*/
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
-IF(MINVAL(Dielectric_Master).LE.0.0)THEN
+IF(MINVAL(Dielectric_Master).LT.0.0)THEN
   CALL abort(&
   __STAMP__&
   ,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
@@ -384,7 +406,7 @@ END SUBROUTINE SetDielectricFaceProfile
 #ifdef PP_HDG
 SUBROUTINE SetDielectricFaceProfile_HDG()
 !===================================================================================================================================
-! set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master"
+! set the dielectric factor EpsR for each face DOF in the array "chitens" (constant. on the diagonal matrix)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -400,34 +422,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLE,Dielectric_dummy_Master2S
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master 
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave  
-!   REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem   
-!   #ifdef MPI
-!   REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
-!   REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2 
-!   #endif /*MPI*/
-!   INTEGER                                                  :: iElem,I,J,iSide
 INTEGER :: i,j,k,iElem
 INTEGER :: p,q,flip,locSideID,SideID
-!REAL    :: Face_xGP(3,0:PP_N,0:PP_N)
 REAL    :: Invdummy(3,3)
 !===================================================================================================================================
-IF(.NOT.mpiroot)THEN
-  CALL abort(&
-       __STAMP__,&
-       'dielectric HDG not implemented for MPI!')
-END IF
-
 DO iElem=1,PP_nElems
   ! cycle the loop if no dielectric element is connected to the side
   IF(.NOT.isDielectricElem(iElem)) CYCLE
 
   !compute field on Gauss-Lobatto points (continuous!)
   DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
-    !CALL calcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
-    CALL calcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    CALL CalcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
   END DO; END DO; END DO !i,j,k
 
   DO locSideID=1,6
@@ -435,8 +441,8 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
     IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
       DO q=0,PP_N; DO p=0,PP_N
-        !CALL calcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
-        CALL calcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
       END DO; END DO !p, q
     END IF
   END DO !locSideID

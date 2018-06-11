@@ -231,7 +231,7 @@ END IF
 END SUBROUTINE SelectImplicitParticles
 
 
-SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In,AbortTol_In)
+SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 !===================================================================================================================================
 ! Allocate global variable 
 !===================================================================================================================================
@@ -272,6 +272,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
 REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)           :: Mode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 LOGICAL                      :: opt
@@ -388,16 +389,12 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 DoNewton=.FALSE.
+Mode=0
 IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #ifdef MPI
 !set T if at least 1 proc has to do newton
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
-
-!#ifdef MPI
-!!set T if at least 1 proc has to do newton
-!CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
-!#endif /*MPI*/
 
 IF(DoPrintConvInfo)THEN
   ! newton per particle 
@@ -412,6 +409,11 @@ IF(DoPrintConvInfo)THEN
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
   SWRITE(UNIT_StdOut,'(A,I0)') ' Initial particle number in newton: ',Counter
+END IF
+
+IF(.NOT.DoNewton)THEN
+  Mode=1
+  RETURN
 END IF
 
 AbortCritLinSolver=0.999
@@ -471,13 +473,13 @@ END DO
 IF(DoPrintConvInfo)THEN
   IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
     SWRITE(UNIT_stdOut,'(A,2x,I10,2x,I10)') ' PartNewton-not done!',nInnerPartNewton,Counter
-    DO iPart=1,PDM%ParticleVecLength
-      IF(DoPartInNewton(iPart))THEN
-        SWRITE(UNIT_stdOut,'(A20,2x,I10)') ' Failed Particle: ',iPart
-        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(iPart,1:6)
-        SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' Relative Norm:   ', Norm_F_PartXK(iPart)/Norm_F_PartX0(iPart)
-      END IF ! ParticleInside
-    END DO ! iPart
+!    DO iPart=1,PDM%ParticleVecLength
+!      IF(DoPartInNewton(iPart))THEN
+!        SWRITE(UNIT_stdOut,'(A20,2x,I10)') ' Failed Particle: ',iPart
+!        SWRITE(UNIT_stdOut,'(A20,6(2x,E24.12))') ' Failed Position: ',PartState(iPart,1:6)
+!        SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' Relative Norm:   ', Norm_F_PartXK(iPart)/Norm_F_PartX0(iPart)
+!      END IF ! ParticleInside
+!    END DO ! iPart
   ELSE
     SWRITE(UNIT_stdOut,'(A20,2x,I10,2x,I10)') ' PartNewton:',nInnerPartNewton,Counter
   END IF

@@ -727,6 +727,7 @@ SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
+SDEALLOCATE(GEO%CharLength)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(GEO%TFIBGM)
@@ -2723,8 +2724,14 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)
 ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+END IF
+ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
 END IF
 usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 IF(usevMPF) THEN
@@ -2741,8 +2748,9 @@ DO iElem=1,nElems
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   GEO%Volume(iElem) = 0.
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem) = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+    GEO%Volume(iElem)     = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
+  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
 END DO
 
 GEO%LocalVolume=SUM(GEO%Volume)

@@ -186,7 +186,7 @@ USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC, VibQuantsPar, PolyatomMolDSMC, SpecDSMC
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues
@@ -247,7 +247,7 @@ LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists,VibQuant
 REAL                     :: det(6,2)
 INTEGER                  :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE     :: VibQuantData(:,:)
-INTEGER                  :: MaxQuantNum, iPolyatMole, iSpec, iPart
+INTEGER                  :: MaxQuantNum, iPolyatMole, iSpec, iPart, iLoop
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -375,11 +375,11 @@ IF(DoRestart)THEN
     IF(DG_SolutionUExists)THEN
       CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     ELSE
-      CALL abort(&
-__STAMP__&
-,' DG_SolutionU does not exist in restart-file!')
-      !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
-      !CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      ! CALL abort(&
+      !     __STAMP__&
+      !     ,' DG_SolutionU does not exist in restart-file!')
+      ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
+      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     END IF
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
     IF(DG_SolutionLambdaExists)THEN
@@ -529,116 +529,120 @@ __STAMP__&
         IF (.NOT.VibQuantDataExists) CALL abort(&
   __STAMP__&
   ,' Restart file does not contain "VibQuantData" in restart file for reading of polyatomic data')
-        ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum)) 
+        ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
         CALL ReadArray('VibQuantData',2,(/locnPart,MaxQuantNum/),offsetnPart,1,IntegerArray=VibQuantData)
         !+1 is real number of necessary vib quants for the particle
       END IF
 
-      IF (locnPart.GT.0) THEN
-        PartState(1:locnPart,1)   = PartData(offsetnPart+1:offsetnPart+locnPart,1)
-        PartState(1:locnPart,2)   = PartData(offsetnPart+1:offsetnPart+locnPart,2)
-        PartState(1:locnPart,3)   = PartData(offsetnPart+1:offsetnPart+locnPart,3)
-        PartState(1:locnPart,4)   = PartData(offsetnPart+1:offsetnPart+locnPart,4)
-        PartState(1:locnPart,5)   = PartData(offsetnPart+1:offsetnPart+locnPart,5)
-        PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
-        PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
+      iPart=0
+      DO iLoop = 1,locnPart
+        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
+        iPart = iPart +1
+        PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
+        PartState(iPart,2)   = PartData(offsetnPart+iLoop,2)
+        PartState(iPart,3)   = PartData(offsetnPart+iLoop,3)
+        PartState(iPart,4)   = PartData(offsetnPart+iLoop,4)
+        PartState(iPart,5)   = PartData(offsetnPart+iLoop,5)
+        PartState(iPart,6)   = PartData(offsetnPart+iLoop,6)
+        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7))
         IF (useDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,11)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
           ELSE IF (CollisMode.GT.1) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
           ELSE IF (usevMPF) THEN
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
           END IF
         ELSE IF (useLD) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,16)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
+            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,12)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,13)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,14)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,15)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,16)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,10)
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,12)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,13)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,14)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,15)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateIntEn(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,12)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,13)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,14)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,15)
           ELSE IF (CollisMode.GT.1) THEN
-            PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
+            PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateIntEn(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,10)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,12)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,13)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,14)
           ELSE IF (usevMPF) THEN
-            PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+            PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,9)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,10)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,12)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,13)
           ELSE
-            PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-            PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-            PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-            PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-            PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,12)  
+            PartStateBulkValues(iPart,1)=PartData(offsetnPart+iLoop,8)
+            PartStateBulkValues(iPart,2)=PartData(offsetnPart+iLoop,9)
+            PartStateBulkValues(iPart,3)=PartData(offsetnPart+iLoop,10)
+            PartStateBulkValues(iPart,4)=PartData(offsetnPart+iLoop,11)
+            PartStateBulkValues(iPart,5)=PartData(offsetnPart+iLoop,12)
           END IF
         ELSE IF (usevMPF) THEN
-          PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8) 
+          PartMPF(iPart)=PartData(offsetnPart+iLoop,8)
         END IF
 
-        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN    
-          DO iPart = 1 ,locnPart     
-            IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-              iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-              IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-              ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-              VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)= &
-                  VibQuantData(offsetnPart+iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-            END IF
+        IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+          IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
+            iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+            IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+            ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)= &
+                VibQuantData(offsetnPart+iLoop,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+          END IF
+        END IF
+
+        PDM%ParticleInside(iPart) = .TRUE.
+      END DO
+      iPart = 0
+      DO iElem=FirstElemInd,LastElemInd
+        IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
+          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 , PartInt(iElem,ELEM_LastPartInd) -offsetnPart
+            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
+            iPart = iPart +1
+            PEM%Element(iPart)  = iElem-offsetElem
+            PEM%LastElement(iPart)  = iElem-offsetElem
           END DO
         END IF
-
-        DO iElem=FirstElemInd,LastElemInd
-          IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-            PEM%Element(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
-                                   PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
-            PEM%LastElement(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 : &
-                                   PartInt(iElem,ELEM_LastPartInd) -offsetnPart)  = iElem-offsetElem
-          END IF
-        END DO
-        PDM%ParticleInside(1:locnPart) = .TRUE.
-      END IF
+      END DO
       DEALLOCATE(PartData)
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
         DEALLOCATE(VibQuantData)
@@ -646,7 +650,7 @@ __STAMP__&
     END IF
     DEALLOCATE(PartInt)
 
-    PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
+    PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
     SWRITE(UNIT_stdOut,*)' DONE!' 
     DO i=1,nSpecies

@@ -191,7 +191,7 @@ USE MOD_HDG,                     ONLY:HDG
 USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 #endif /*PP_HDG*/
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
@@ -233,10 +233,10 @@ REAL,INTENT(INOUT)         :: coeff
 REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff,Norm_Diff_old, Delta_Norm_R0,Delta_Norm_Rel0 
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
-INTEGER                    :: nFullNewtonIter
+INTEGER                    :: nFullNewtonIter,Mode
 #ifdef PARTICLES
 INTEGER                    :: iPart,iCounter
-REAL                       :: tmpFac
+REAL                       :: tmpFac, relToleranceOld
 INTEGER                    :: AdaptIterRelaxation
 #if USE_LOADBALANCE
 REAL                       :: tLBStart
@@ -345,9 +345,12 @@ Norm_R=Norm_R0
 !Norm_Diff=HUGE(1.0)
 !Norm_Diff_old=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Norm_R0:         ',Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_R0:   ',Delta_Norm_R0
-  WRITE(UNIT_stdOut,'(A18,E24.12)') ' Delta_Norm_Rel0: ',Delta_Norm_Rel0
+  WRITE(UNIT_stdOut,'(A22       )') ' ----------------------'
+  WRITE(UNIT_stdOut,'(A22       )') ' Init Newton'
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0:           ',Norm_R0
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Norm_R0 per DOF    ',Norm_R0*nDOFGlobalMPI_inv
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort NormRelative ',Norm_R*eps_FullNewton
+  WRITE(UNIT_stdOut,'(A22,E24.12)') ' Abort per DOF      ',1e-12
 END IF
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=fulletamax !0.9999
@@ -368,7 +371,13 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ! hence, this decrease should be still linear (cause the particle newton is a outer iteration)
     IF(nFullNewtonIter.EQ.1)THEN
       relTolerance=etaMax
+#ifdef PARTICLES
+      relToleranceOld=relTolerance
+#endif /*PARTICLES*/
     ELSE
+#ifdef PARTICLES
+      relToleranceOld=relTolerance
+#endif /*PARTICLES*/
       etaA=FullgammaEW*Norm_R*Norm_R/(Norm_Rold*Norm_Rold) ! here the square
       !SWRITE(*,*) 'etaA ', etaA
       etaB=MIN(etaMax,etaA)
@@ -404,7 +413,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         !SWRITE(*,*) 'etaA ', etaA
         etaB=MIN(etaMax,etaA)
         !SWRITE(*,*) 'etaB ', etaB
-        Criterion  =FullGammaEW*relTolerance    ! here the square
+        Criterion  =FullGammaEW*relToleranceOld    ! here the square
         !SWRITE(*,*) 'criterion ', Criterion
         IF(DoPrintConvInfo)THEN
           SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' EW-Criterion     :', Criterion
@@ -417,7 +426,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
         relTolerancePart=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
       ELSE
         ! Default new tolerance
-        relTolerancePart=relTolerance
+        relTolerancePart=SQRT(relTolerance) ! eisenstat walker is decreasing quadratic, hence,
+                                            ! for a frozen field only linear decrease required
       END IF
     ELSE
       relTolerancePart=SQRT(eps2PartNewton)
@@ -436,7 +446,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     IF(DoPrintConvInfo)THEN
       SWRITE(UNIT_stdOut,'(A20,E24.12)')           ' PartNewton-Tol   :', relTolerancePart
     END IF
-    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+    CALL ParticleNewton(tstage,coeff,Mode,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
                        ,AbortTol_In=relTolerancePart)
     !END IF
     ! particle relaxation betweeen old and new position
@@ -702,45 +712,47 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   ! detect convergence, fancy, extended list of convergence detection with wide range of 
   ! parameters
   ! OLD
-  Norm_Diff_old=Norm_Diff
-  Norm_Diff=Norm_Rold-Norm_R
-  ! IF((Norm_R.LT.Norm_R0*Eps_FullNewton).OR.
-  IF(ABS(Norm_Diff).LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
-  ! IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
+  ! Norm_Diff_old=Norm_Diff
+  ! Norm_Diff=Norm_Rold-Norm_R
+  ! ! IF((Norm_R.LT.Norm_R0*Eps_FullNewton).OR.
+  ! IF(ABS(Norm_Diff).LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
+  ! IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  ! ! IF(Norm_R.LT.1e-14) IsConverged=.TRUE.
+  ! ! IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
+  ! ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps_FullNewton)) IsConverged=.TRUE.
+  ! IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+
+  ! ! relative norm
+  ! IF(Norm_R.LT.Norm_R0*Eps_FullNewton) IsConverged=.TRUE.
+  ! ! absolute norm
+  ! IF(Norm_R.LT.Eps_FullNewton) IsConverged=.TRUE.
+  ! ! some additional norms
+  ! IF(Delta_Norm_R.LT.eps_FullNewton) IsConverged=.TRUE.
   ! IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
-  ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*SQRT(Eps_FullNewton)) IsConverged=.TRUE.
-  IF(ABS(Norm_Diff).LT.1e-14) IsConverged=.TRUE.
+  ! IF(Delta_Norm_Rel.LT.5.*Norm_R0*Eps_FullNewton)IsConverged=.TRUE.
 
-  ! relative norm
-  IF(Norm_R.LT.Norm_R0*Eps_FullNewton) IsConverged=.TRUE.
   ! absolute norm
-  IF(Norm_R.LT.Eps_FullNewton) IsConverged=.TRUE.
-  ! some additional norms
-  IF(Delta_Norm_R.LT.eps_FullNewton) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.eps_FullNewton) IsConverged=.TRUE.
-  IF(Delta_Norm_Rel.LT.5.*Norm_R0*Eps_FullNewton)IsConverged=.TRUE.
-
+  IF(Norm_R*nDOFGlobalMPI_inv.LT.1e-12) IsConverged=.TRUE.
+  !IF(Norm_R*nDOFGlobalMPI_inv.LT.eps_FullNewton) IsConverged=.TRUE.
+  ! relative norm
+  IF(Norm_R.LT.Norm_R0*eps_FullNewton) IsConverged=.TRUE.
 
   IF(DoPrintConvInfo.AND.MPIRoot)THEN
     WRITE(UNIT_StdOut,'(A20,I0)')               ' Piccardi-iter    ',nFullNewtonIter
     WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Tolerance        ',Eps_FullNewton
     WRITE(UNIT_StdOut,'(A20,E24.15,2x,E24.15)') ' Norm , Norm_0    ',Norm_R, Norm_R0
     WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm / Norm_0    ',Norm_R/ Norm_R0
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_R     ',Delta_Norm_R
-    WRITE(UNIT_stdOut,'(A20,E24.12)')           ' Delta_Norm_Rel   ',Delta_Norm_Rel
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff        ',Norm_Diff
-    !WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm_Diff/Norm_0 ',Norm_Diff/Norm_R0
+    WRITE(UNIT_StdOut,'(A20,E24.15)')           ' Norm per DOF     ',Norm_R*nDOFGlobalMPI_inv
   END IF 
 
-  IF(nFullNewtonIter.GT.5)THEN
-    IF(ALMOSTZERO(Norm_Diff_old+Norm_Diff))THEN
-      SWRITE(UNIT_StdOut,'(A20)') ' Convergence problem '
-      SWRITE(UNIT_StdOut,'(A20,I10)')    ' Iteration          ', nFullNewtonIter
-      SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Old     Norm-Diff: ', Norm_Diff_old
-      SWRITE(UNIT_StdOut,'(A20,E24.15)') ' Current Norm_Diff: ', Norm_Diff
-    END IF
+#ifdef PARTICLES
+  ! check for particle simulations without a field update:
+  ! If all particles are converged and no further particle Newton iteration is required,
+  ! the method has to detect convergence because the norm will not change.
+  IF(.NOT.DoFieldUpdate)THEN 
+    IF(Mode.EQ.1) IsConverged=.TRUE.
   END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
   IF(DoPartRelaxation)THEN
@@ -763,14 +775,16 @@ END DO ! funny pseudo Newton for all implicit
 !IF(PartRelaxationFac0.NE.0) DoPartRelaxation=.TRUE.
 
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-!IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
-!  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
-!  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
-!  IF(MPIRoot) CALL abort(&
-! __STAMP__&
-!   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
-!END IF
+IF(DoPrintConvInfo)THEN
+  IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+    SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
+    SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
+    SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R per DOF               : ',Norm_R*nDOFGlobalMPI_inv
+    IF(MPIRoot) CALL abort(&
+   __STAMP__&
+     ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
+  END IF
+END IF
 
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 
