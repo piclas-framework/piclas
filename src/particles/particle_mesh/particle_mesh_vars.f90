@@ -109,7 +109,6 @@ INTEGER                                  :: FIBGMCellPadding(1:3)
 
 TYPE tNodeToElem
   INTEGER, ALLOCATABLE                   :: ElemID(:)
-  REAL   , ALLOCATABLE                   :: Dist(:)
 END TYPE
 
 TYPE tGeometry
@@ -164,12 +163,13 @@ TYPE tGeometry
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
+  !INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
   INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
                                                                               ! From element sides to node IDs
   INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
-  TYPE(tNodeToElem), POINTER             :: NodeToElem(:) =>NULL()
+  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToElem(:)
   INTEGER, ALLOCATABLE                   :: NumNeighborElems(:)
-  TYPE(tNodeToElem), POINTER             :: ElemToNeighElems(:) =>NULL()
+  TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)
                                                                               ! From element sides to node IDs
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
