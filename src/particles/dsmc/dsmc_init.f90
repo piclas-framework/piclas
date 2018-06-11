@@ -84,6 +84,8 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
+CALL prms%CreateRealOption(     'Particles-DSMC-veloMinColl-Spec[$]' , 'min velo magn. for spec allowed to perform collision' , '0.' &
+                                          , numberedmulti=.TRUE.)
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -437,6 +439,11 @@ IMPLICIT NONE
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
+  ALLOCATE(DSMC%veloMinColl(nSpecies))
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    DSMC%veloMinColl(iSpec) = GETREAL('Particles-DSMC-veloMinColl-Spec'//TRIM(hilf),'0.')
+  END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 ! Partition functions are calculated for each species during initialization and stored for values starting with the
@@ -1396,6 +1403,7 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
+SDEALLOCATE(DSMC%veloMinColl)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN

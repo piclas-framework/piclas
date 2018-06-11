@@ -187,6 +187,7 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
+  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif

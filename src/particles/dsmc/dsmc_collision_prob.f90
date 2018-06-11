@@ -30,7 +30,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, usevMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, usevMPF, PartState
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo       ! da muss noch was getan werden (s.u.)
   USE MOD_TimeDisc_Vars,          ONLY : dt
 !  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
@@ -330,6 +330,10 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 __STAMP__&
 ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
+  IF ( SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p1,4:6),PartState(Coll_pData(iPair)%iPart_p1,4:6)))&
+    .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p1)) .OR. &
+       SQRT(DOT_PRODUCT(PartState(Coll_pData(iPair)%iPart_p2,4:6),PartState(Coll_pData(iPair)%iPart_p2,4:6)))&
+    .LT.DSMC%veloMinColl(PartSpecies(Coll_pData(iPair)%iPart_p2))) Coll_pData(iPair)%Prob = 0.
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
     IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
     CALL Abort(&
