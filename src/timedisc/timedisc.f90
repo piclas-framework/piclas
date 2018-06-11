@@ -64,9 +64,12 @@ USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
-#if IMPA
+#ifdef IMPA
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
 #endif
+#ifdef ROS
+USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inflow,nRKStages ! required for BCs
+#endif 
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -76,7 +79,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (PP_TimeDiscMethod==120) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+#if defined(IMPA) || defined(ROS)
 INTEGER                   :: iCounter
 REAL                      :: rtmp
 #endif
@@ -99,7 +102,17 @@ DoDisplayEmissionWarnings= GETLOGICAL('DoDisplayEmissionWarning','T')
 IterDisplayStep = IterDisplayStepUser
 IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
 
-#if IMPA
+#ifdef ROS
+RK_inflow(2)=RK_C(2)
+rTmp=RK_c(2)
+DO iCounter=3,nRKStages
+  RK_inflow(iCounter)=MAX(RK_c(iCounter)-MAX(RK_c(iCounter-1),rTmp),0.)
+  rTmp=MAX(rTmp,RK_c(iCounter))
+  IF(RK_c(iCounter).GT.1.) RK_inflow(iCounter)=0.
+END DO ! iCounter=2,nRKStages-1
+#endif
+
+#ifdef IMPA
 ! get time increment between current and next RK stage
 DO iCounter=2,nRKStages-1
   RK_inc(iCounter)=RK_c(iCounter+1)-RK_c(iCounter)
@@ -1389,7 +1402,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1529,7 +1542,7 @@ REAL                  :: tLBStart
     CALL UpdateNextFreePosition()
   ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
             (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroVolumeValues ) THEN
+            WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
@@ -3356,7 +3369,8 @@ USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,ElemBaryNGeo
+USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo
 USE MOD_Particle_Mesh,           ONLY:PartInElemCheck
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_Globals_Vars,            ONLY:EpsMach
@@ -3426,7 +3440,7 @@ dt_inv=dt_inv/dt
 tRatio = 1.
 
 ! ! ! sanity check
-! print*,'RK_gamma',RK_gamma
+! ! print*,'RK_gamma',RK_gamma
 ! DO istage=2,nRKStages
 !   DO iCounter=1,nRKStages
 !     print*,'a',iStage,iCounter,RK_a(iStage,iCounter)
@@ -3440,7 +3454,10 @@ tRatio = 1.
 ! DO iCounter=1,nRKStages
 !   print*,'b',iStage,iCounter,RK_b(iCounter)
 ! END DO
-! STOP
+! time level of stage
+! DO istage=2,nRKStages
+!  print*,'aa',SUM(RK_A(iStage,:))*RK_gamma,RK_c
+! END DO
 
 #ifdef PARTICLES
 #if USE_LOADBALANCE

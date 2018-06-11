@@ -151,7 +151,6 @@ USE MOD_Globals
 USE MOD_Restart_Vars,   ONLY : DoRestart
 USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
-USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
@@ -230,6 +229,7 @@ __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 DO i = 1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
     ! of particles
@@ -4144,6 +4144,7 @@ DEALLOCATE(TmpMapToBC &
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
   ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
+  Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
   IF (DoRestart) THEN
@@ -4163,8 +4164,6 @@ IF(nAdaptiveBC.GT.0)THEN
       SDEALLOCATE(ElemData_HDF5)
     END IF
     CALL CloseDataFile()
-  ELSE
-    Adaptive_MacroVal(:,:,:)=0
   END IF
 END IF
 
@@ -4615,9 +4614,9 @@ TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+    PartsEmitted = 0
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
     END IF
@@ -5435,6 +5434,7 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
+  VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
   T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
   projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
@@ -5473,7 +5473,7 @@ __STAMP__&
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-    IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
+    IF (ALMOSTZERO(VeloIC*projFak)) THEN
       ! Rayleigh distri
       envelope = 0
     ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
