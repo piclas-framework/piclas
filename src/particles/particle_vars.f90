@@ -282,6 +282,9 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
+                                                                             ! instantaneous values with those
+                                                                             ! of previous iterations
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
                                                                              ! saved for daptive surfaceflux
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
