@@ -90,6 +90,8 @@ SUBROUTINE DSMC_main()
       DSMC%CollProbMeanCount = 0
       DSMC%CollSepDist = 0.0
       DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0
+      DSMC%MCSoverMFP = 0.0
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (ChemReac%NumOfReact.GT.0) THEN
@@ -152,8 +154,7 @@ SUBROUTINE DSMC_main()
               DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
             END IF
             ! mean collision separation distance of actual collisions
-            IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) &
-                                                                            + DSMC%CollSepDist / REAL(DSMC%CollSepCount)
+            IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0
