@@ -127,6 +127,9 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       END IF
     END IF
     Xi_Vib_old = Xi_Vib
+  ELSE  
+    Xi_Vib_old = 0.0
+    TVib = 0.0
   END IF
   Xi_rot = SpecDSMC(1)%Xi_Rot
   TRot = 2.*ERot/(Xi_rot*nPart*BoltzmannConst)
@@ -924,6 +927,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
     VibFrac = nPart*(1.-VibExp)
   ELSE
     VibFrac = 0.0
+    Xi_vib = 0.0
   END IF
   TEqui_Old = 0.0 
   TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
@@ -955,7 +959,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
       VibFrac = nPart*(1.-VibExp)
     END IF
     TEqui_Old = TEqui
-    TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
+    TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib*VibFrac)
   END DO
 ! print*, betaR/(rotrelaxfreq*dt*correctFacRot), betaV/(vibrelaxfreq*dt*correctFac)
 END SUBROUTINE CalcTEqui
