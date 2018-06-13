@@ -826,20 +826,30 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 
   DO iLoop = 1,4
     DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      CALL RANDOM_NUMBER(iRan)
-      iQuant(iDOF) = INT(iRan*iMaxQuant(iDOF))
-      tempProb = SpecDSMC(iSpec)%EZeroPoint
-      DO iDOF2 = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        tempProb = tempProb + iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
-        IF(iDOF2.NE.iDOF) NormProb = NormProbZero - iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
-      END DO
-      CALL RANDOM_NUMBER(iRan2)
-      DO WHILE ((iRan2.GT.((Ec-tempProb)/NormProb)**FakXi).OR.(Ec-tempProb.LT.0.0))
-        tempProb = tempProb - iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+      DO
         CALL RANDOM_NUMBER(iRan)
         iQuant(iDOF) = INT(iRan*iMaxQuant(iDOF))
-        tempProb = tempProb  + iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+        tempProb = SpecDSMC(iSpec)%EZeroPoint
+        DO iDOF2 = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          tempProb = tempProb + iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
+          IF(iDOF2.NE.iDOF) NormProb = NormProbZero - iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
+        END DO
         CALL RANDOM_NUMBER(iRan2)
+        IF ((Ec-tempProb).GE.0.0) THEN
+          IF ((iRan2.GT.((Ec-tempProb)/NormProb)**FakXi)) THEN
+            DO
+              tempProb = tempProb - iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+              CALL RANDOM_NUMBER(iRan)
+              iQuant(iDOF) = INT(iRan*iMaxQuant(iDOF))
+              tempProb = tempProb  + iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+              CALL RANDOM_NUMBER(iRan2)
+              IF ((Ec-tempProb).GE.0.0) THEN
+                IF ((iRan2.LE.((Ec-tempProb)/NormProb)**FakXi)) EXIT
+              END IF
+            END DO
+          END IF
+          IF ((iRan2.LE.((Ec-tempProb)/NormProb)**FakXi)) EXIT
+        END IF
       END DO
     END DO
   END DO
