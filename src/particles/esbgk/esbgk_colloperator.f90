@@ -926,6 +926,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
     VibExp = exp(-vibrelaxfreq*dt/correctFac) 
     VibFrac = nPart*(1.-VibExp)
   ELSE
+    VibExp = 0.0
     VibFrac = 0.0
     Xi_vib = 0.0
   END IF
@@ -933,7 +934,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
   TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
   DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     IF ((TRot-TEqui).LT.1E-3) THEN
-      RotExp = 0.
+      RotExp = exp(-rotrelaxfreq*dt/correctFacRot) 
     ELSE
       betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
       IF (-betaR.GT.0.0) THEN
@@ -947,7 +948,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
     RotFrac = nPart*(1.-RotExp)
     IF(BGKDoVibRelaxation) THEN
       IF ((TVib-TEqui).LT.1E-3) THEN
-        VibExp = 0.
+        VibExp = exp(-vibrelaxfreq*dt/correctFac) 
       ELSE
         betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
         IF (-betaV.GT.0.0) THEN
@@ -1026,7 +1027,7 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
   TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
   DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     IF ((TRot-TEqui).LT.1E-3) THEN
-      RotExp = 0.
+      RotExp = exp(-rotrelaxfreq*dt/correctFacRot) 
     ELSE
       betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
       IF (-betaR.GT.0.0) THEN
@@ -1040,7 +1041,7 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
     RotFrac = nPart*(1.-RotExp)
     IF(BGKDoVibRelaxation) THEN
       IF ((TVib-TEqui).LT.1E-3) THEN
-        VibExp = 0.
+        VibExp = exp(-vibrelaxfreq*dt/correctFac) 
       ELSE
         betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
         IF (-betaV.GT.0.0) THEN
