@@ -282,6 +282,8 @@ IF (useDSMC) THEN
   END IF
 END IF
 
+! if calcwalsample is called with emission_opt (from particle emission eg. evaporation, desorption) than collision counter are not
+! added to sampwall and surfcollis analyzes
 IF (PRESENT(emission_opt)) THEN
   IF (.NOT.emission_opt) THEN
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
@@ -316,7 +318,7 @@ IF (PRESENT(emission_opt)) THEN
       END IF
     END IF
   END IF
-ELSE
+ELSE ! no emission_opt present, so definitely not called from emission and counters are added
   !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
