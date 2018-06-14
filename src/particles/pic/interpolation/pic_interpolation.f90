@@ -67,14 +67,31 @@ useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
 
 ! Variable external field 
 useVariableExternalField = .FALSE.
-FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')
-IF (FileNameVariableExternalField.EQ.'none') THEN
-  FileNameVariableExternalField=GETSTR('PIC-variableexternalField','none')
+FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
+IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
+  FileNameVariableExternalField=GETSTR('PIC-variableexternalField','none') ! new variable name (overwrites the old)
 END IF
-IF (FileNameVariableExternalField.NE.'none') THEN
+IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
   useVariableExternalField = .TRUE.
   CALL ReadVariableExternalField()
 END IF
+
+#ifdef CODE_ANALYZE
+DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
+IF(DoInterpolationAnalytic)THEN
+  AnalyticInterpolationType = GETSTR('PIC-AnalyticInterpolation-Type','none')
+  SELECT CASE(TRIM(AnalyticInterpolationType))
+  CASE('vugt_2018')
+    B_0   = GETREAL('AnalyticInterpolation_B_0','1.0')
+    l_inv = GETREAL('AnalyticInterpolation_l','1.0') ! read the length
+    l_inv = 1./l_inv                                 ! invert the length for calculation
+  CASE DEFAULT
+    CALL abort(&
+        __STAMP__ &
+        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(AnalyticInterpolationType)//'" in pic_init.f90')
+  END SELECT
+END IF
+#endif /*CODE_ANALYZE*/
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
@@ -107,35 +124,38 @@ SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM,PartPosGauss
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifndef PP_HDG
-USE MOD_DG_Vars,                 ONLY:U
+USE MOD_DG_Vars                ,ONLY: U
 #endif
-USE MOD_PIC_Vars!,      ONLY: 
-USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
-USE MOD_PICInterpolation_Vars,   ONLY:InterpolationElemLoop
-USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
-USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
+USE MOD_PIC_Vars
+USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,GaussBorder
+USE MOD_Eval_xyz               ,ONLY: Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
 #ifdef PP_POIS
-USE MOD_Equation_Vars,           ONLY:E
+USE MOD_Equation_Vars          ,ONLY: E
 #endif
 #ifdef PP_HDG
 #if PP_nVar==1
-USE MOD_Equation_Vars,        ONLY:E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars,        ONLY:B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars,        ONLY:B,E
+USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*PP_HDG*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 #endif /*HDG-LSERK*/
 #ifdef MPI
-! only required for shape function??
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPIExchange
+! only required for shape function??  only required for shape function??
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif 
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType,B_0,l_inv
+#endif /* CODE_ANALYZE */
 
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -184,35 +204,48 @@ IF(firstPart.GT.lastPart) RETURN
 IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-    CALL InterpolateFieldToSingleParticle(iPart,FieldAtparticle(iPart,1:6))
+    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
   END DO
   RETURN
 END IF
 
-IF(useVariableExternalField) THEN ! used curved external Bz
-  FieldAtParticle(firstPart:lastPart,:) = 0.
-  FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-  FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-  FieldAtParticle(firstPart:lastPart,3) = externalField(3)
+FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
+#ifdef CODE_ANALYZE
+IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
+  SELECT CASE(TRIM(AnalyticInterpolationType))
+  CASE('vugt_2018')
+    DO iPart = firstPart, LastPart
+      FieldAtParticle(iPart,6) = B_0*EXP(PartState(iPart,1)*l_inv)
+      WRITE (*,*) "FieldAtParticle(iPart,6) =", FieldAtParticle(iPart,6)
+    END DO
+  END SELECT
+ELSE ! use variable or fixed external field
+#endif /*CODE_ANALYZE*/
+  IF(useVariableExternalField) THEN ! used curved external Bz
+    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
+    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
+    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-  FieldAtParticle(firstPart:lastPart,5) = externalField(5)
+    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
+    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
 #endif
-  ! Bz field strength at particle position
-  DO iPart = firstPart, LastPart
-    FieldAtparticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
-  END DO
-ELSE ! useVariableExternalField
-  FieldAtParticle(firstPart:lastPart,:) = 0.
-  FieldAtParticle(firstPart:lastPart,1) = externalField(1)
-  FieldAtParticle(firstPart:lastPart,2) = externalField(2)
-  FieldAtParticle(firstPart:lastPart,3) = externalField(3)
+    ! Bz field strength at particle position
+    DO iPart = firstPart, LastPart
+      FieldAtParticle(iPart,6) = InterpolateVariableExternalField(PartState(iPart,3))
+    END DO
+  ELSE ! useVariableExternalField
+    FieldAtParticle(firstPart:lastPart,1) = externalField(1)
+    FieldAtParticle(firstPart:lastPart,2) = externalField(2)
+    FieldAtParticle(firstPart:lastPart,3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(firstPart:lastPart,4) = externalField(4)
-  FieldAtParticle(firstPart:lastPart,5) = externalField(5)
-  FieldAtParticle(firstPart:lastPart,6) = externalField(6)
+    FieldAtParticle(firstPart:lastPart,4) = externalField(4)
+    FieldAtParticle(firstPart:lastPart,5) = externalField(5)
+    FieldAtParticle(firstPart:lastPart,6) = externalField(6)
 #endif
-END IF ! use constant external field
+  END IF ! use constant external field
+#ifdef CODE_ANALYZE
+END IF
+#endif /*CODE_ANALYZE*/
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   SELECT CASE(TRIM(InterpolationType))
@@ -601,7 +634,7 @@ IF(useVariableExternalField) THEN ! used Variable external Bz
   FieldAtParticle(5) = externalField(5)
 #endif
   ! Bz field strength at particle position
-  FieldAtparticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
+  FieldAtParticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
 ELSE ! useVariableExternalField
   FieldAtParticle(:) = 0.
   FieldAtParticle(1) = externalField(1)
@@ -972,8 +1005,8 @@ END SUBROUTINE ReadVariableExternalField
 
 PURE FUNCTION InterpolateVariableExternalField(Pos)
 !===================================================================================================================================
-! interpolates Variable external field to z position
-! NO z-values smaller than VariableExternalField(1,1) are allowed!
+!> Interpolates the variable external field to the z-position
+!> NO z-values smaller than VariableExternalField(1,1) are allowed!
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
@@ -982,13 +1015,13 @@ USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,VariableExte
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: Pos ! partilce z position
+REAL,INTENT(IN)          :: Pos                               !< particle z-position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: InterpolateVariableExternalField  ! Bz
+REAL                     :: InterpolateVariableExternalField  !< Bz (magnetic field in z-direction)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                  :: iPos
+INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
 !===================================================================================================================================
 iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
 IF(iPos.GE.nIntPoints)THEN ! particle outside of range (greater -> use constant value)

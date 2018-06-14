@@ -35,7 +35,10 @@ INTEGER                 :: nIntPoints                    !< number of all interp
 
 #ifdef CODE_ANALYZE
 LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebraic functions for the field at the
-!                                                                      !< particle position
+!                                                        !< particle position
+CHARACTER(LEN=256)      :: AnalyticInterpolationType     !< Type of AnalyticInterpolation-Method
+REAL                    :: B_0                           !< coefficient of the magnetostatic field
+REAL                    :: l_inv                         !< inverse of the "gradient length"
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 END MODULE MOD_PICInterpolation_Vars

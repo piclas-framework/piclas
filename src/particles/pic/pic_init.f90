@@ -32,6 +32,15 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC")
 
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption(  'PIC-DoInterpolationAnalytic'   , "Use an analytic/algebraic function for PIC interpolation "//&
+                                                                  "(ifdef CODE_ANALYZE)",&
+                                                                  '.FALSE.')
+CALL prms%CreateStringOption(   'PIC-AnalyticInterpolation-Type', "Type of AnalyticInterpolation-Method for calculating the "//&
+                                                                  "EM field's value for the particle (ifdef CODE_ANALYZE)",'none')
+CALL prms%CreateRealOption(     'AnalyticInterpolation_B_0'     , "coefficient of the magnetostatic field", '1.')
+CALL prms%CreateRealOption(     'AnalyticInterpolation_l'       , "inverse of the gradient length", '1.')
+#endif /*CODE_ANALYZE*/
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Type of Interpolation-Method to calculate"//&
                                                                 " the EM field's value for the particle", 'particle_position')
