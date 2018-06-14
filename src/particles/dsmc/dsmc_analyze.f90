@@ -1718,25 +1718,19 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   IF (DSMC%CalcQualityFactors) THEN
     DO iElem=1,nElems
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
-      IF ((DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem).GT.0).AND.(DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem).GT.0)) THEN
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) &
-                              / CalcMeanFreePath((DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies)/REAL(DSMC%SampNum)), &
-                              DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem), &
-                              GEO%Volume(iElem), SpecDSMC(1)%omegaVHS, DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem))
-      END IF
       IF(WriteMacroVolumeValues) THEN
-        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / iter_macvalout
-        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / iter_macvalout
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) / iter_macvalout
+        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(iter_macvalout)
+        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(iter_macvalout)
+        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(iter_macvalout)
       ELSE
         IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / iter
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / iter
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) / iter
+          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(iter)
+          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(iter)
+          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(iter)
         ELSE
           DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
           DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
         END IF
       END IF
     !END DO; END DO; END DO
