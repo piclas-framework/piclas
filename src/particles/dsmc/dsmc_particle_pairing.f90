@@ -344,10 +344,10 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-  SpecPartNum = 0
+SpecPartNum = 0
+nPart = PEM%pNumber(iElem)
 
-  nPart = PEM%pNumber(iElem)
-
+IF (nPart.GT.0) THEN
   NULLIFY(TreeNode)
 
   ALLOCATE(TreeNode)
@@ -398,6 +398,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
   DEALLOCATE(TreeNode%iPartIndx_Node) 
   DEALLOCATE(TreeNode)
+END IF !nPart > 0
 
 END SUBROUTINE DSMC_pairing_octree
 
