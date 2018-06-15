@@ -396,8 +396,8 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    ENDIF()
    # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
-  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}    -O3 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O3 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}    -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays")
    # add flags only for compiling not linking!
    SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
