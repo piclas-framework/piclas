@@ -11,6 +11,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance                              ! DoLoadBalance
+LOGICAL                             :: PerformLoadBalance=.FALSE.                 ! Flag if loadbalance is performed in current iter
 INTEGER                             :: LoadBalanceSample                          ! Number of samples for loadbalance
 LOGICAL                             :: PerformLBSample                            ! Flag for enabling time measurement in current
                                                                                   ! timestep (automatically set depending on LB

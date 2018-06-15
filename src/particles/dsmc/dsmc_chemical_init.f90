@@ -76,6 +76,7 @@ __STAMP__&
    ChemReac%NumOfReact = 2 * ChemReac%NumOfReact
   END IF
   ChemEnergySum = 0.
+  SWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
   !---------------------------------------------------------------------------------------------------------------------------------
   IF (ChemReac%NumOfReact.GT.0) THEN
     ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))

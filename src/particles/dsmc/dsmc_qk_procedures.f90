@@ -649,7 +649,7 @@ ReactionProb = nPartNode/Volume * Species(PartSpecies(iPart_p3))%MacroParticleFa
   IF ( DSMC%ReservoirRateStatistic ) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
   END IF
-# endif
+#endif
 
 CALL RANDOM_NUMBER(iRan)
 !ReactionProb=0.0
@@ -662,7 +662,7 @@ IF (ReactionProb.GT.iRan) THEN
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
-# endif
+#endif
 
     ! Relative velocity square between mean velocity of pseudo molecule AB and X
 !    CRela2X = ((PartState(Coll_pData(iPair)%iPart_p1,4) + PartState(Coll_pData(iPair)%iPart_p2,4))/2 - PartState(iPart_p3,4))**2&
@@ -703,7 +703,7 @@ IF (ReactionProb.GT.iRan) THEN
   IF ( DSMC%ReservoirRateStatistic ) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reactionrate coeficient
   END IF
-# endif
+#endif
   RelaxToDo = .FALSE.
 !enach = 0.5* Species(PartSpecies(PartReac1))%MassIC &
 !  * ((PartState(PartReac1,4)+DSMC_RHS(PartReac1,1))**2+(PartState(PartReac1,5) &

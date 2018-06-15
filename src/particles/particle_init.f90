@@ -56,6 +56,8 @@ IMPLICIT NONE
 CALL prms%SetSection("Particle")
 
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
+CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
+                                                                ' instantaneous values with those of previous iterations.', '0.001')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -239,6 +241,9 @@ CALL prms%SetSection("Particle Species")
 ! species inits
 CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
                                 , 'Number of different initial particle placements for Species [$]', '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Reset'  &
+                                , 'Flag for resetting species distribution with init during restart' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                 , '[TODO-DEFINE-PARAMETER]\n'//&
                                   'Particle Charge (without MPF) of species[$] dim' &
@@ -1037,6 +1042,7 @@ USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*ROS*/
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
+USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1355,6 +1361,8 @@ __STAMP__&
 END IF
 
 ! initialize macroscopic restart
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
@@ -1369,6 +1377,13 @@ ALLOCATE(Species(1:nSpecies))
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
+#ifdef MPI
+  IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+    SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
+#ifdef MPI
+  END IF
+#endif /*MPI*/
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1425,15 +1440,27 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
+#ifdef MPI
+        IF(.NOT.PerformLoadBalance) THEN
+#endif /*MPI*/
+          IF(.NOT.SpecReset(iSpec)) THEN
+            SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
+          END IF
+          SpecReset(iSpec)=.TRUE.
+#ifdef MPI
+        END IF
+#endif /*MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTemperatureIC(1:3,1:nElems))
+          ! negative temperature can lead to NAN velocities if in those areas particles are inserted given by either other 
+          ! macro-file or by init value --> leads to NANs in crela2 --> always max(0.,macroval)
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID)
-            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(1,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(2,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
+            Species(iSpec)%Init(iInit)%ElemTemperatureIC(3,iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemPartDensityFileID
@@ -1462,7 +1489,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTVib(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTVib(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TVIB,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTRotFileID
@@ -1471,7 +1498,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTRot(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTRot(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TROT,iElem,iSpec,FileID))
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemTElecFileID
@@ -1480,7 +1507,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemTElec(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemTElec(iElem) = MAX(0.,MacroRestartData_tmp(DSMC_TELEC,iElem,iSpec,FileID))
           END DO
         END IF
       END IF
@@ -2075,20 +2102,23 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
-       IF (PartBound%AdaptiveMacroRestartFileID(iPartBound).EQ.0) THEN
-         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-       ELSE
+       IF (nMacroRestartFiles.GT.0) THEN
+         PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+       END IF
+       FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
+       IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+         MacroRestartFileUsed(FileID) = .TRUE.
          IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
            PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
            IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
 __STAMP__&
 ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
          END IF
-         MacroRestartFileUsed(PartBound%AdaptiveMacroRestartFileID(iPartBound)) = .TRUE.
+       ELSE
+         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
        END IF
        PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
        IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&
@@ -2798,7 +2828,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(tSurfFluxPart),POINTER :: current,tmp
 !===================================================================================================================================
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -2837,14 +2866,7 @@ SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
 SDEALLOCATE(Species)
-current => firstSurfFluxPart
-DO WHILE (associated(current))
-  DEALLOCATE(current%SideInfo)
-  tmp => current%nextSurfFluxPart
-  DEALLOCATE(current)
-  NULLIFY(current)
-  current => tmp
-END DO
+SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
 SDEALLOCATE(PartBound%SourceBoundName)

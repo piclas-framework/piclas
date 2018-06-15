@@ -38,6 +38,11 @@ For informations about the regressioncheck see [REGGIE.md](REGGIE.md).
 
 For informations about the compiler-flag see [COMPILER.md](COMPILER.md).
 
+## Arbitrary Particle Distribution 
+
+For an easy guide to arbitrary particle distributions during an initial emission see [PDFINIT.md](PDFINIT.md).
+
+
 ## Used libraries
 
 Boltzplatz uses several external libraries as well as auxilliary functions from open source projects, including:

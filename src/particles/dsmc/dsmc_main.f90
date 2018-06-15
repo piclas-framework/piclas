@@ -36,7 +36,7 @@ SUBROUTINE DSMC_main()
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, BoltzmannConst, WriteMacroVolumeValues
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, BoltzmannConst, WriteMacroVolumeValues, WriteMacroSurfaceValues
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
   USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
@@ -49,7 +49,6 @@ SUBROUTINE DSMC_main()
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
 #endif
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
-  USE MOD_Particle_Vars,         ONLY : WriteMacroVolumeValues
   USE MOD_Restart_Vars,          ONLY : RestartTime
 #endif
 #if USE_LOADBALANCE
@@ -91,6 +90,8 @@ SUBROUTINE DSMC_main()
       DSMC%CollProbMeanCount = 0
       DSMC%CollSepDist = 0.0
       DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0
+      DSMC%MCSoverMFP = 0.0
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (ChemReac%NumOfReact.GT.0) THEN
@@ -153,8 +154,7 @@ SUBROUTINE DSMC_main()
               DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
             END IF
             ! mean collision separation distance of actual collisions
-            IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) &
-                                                                            + DSMC%CollSepDist / REAL(DSMC%CollSepCount)
+            IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0
@@ -171,9 +171,9 @@ SUBROUTINE DSMC_main()
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles 
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas 
 #if (PP_TimeDiscMethod==42)
-  IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues)) THEN
+  IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else
-  IF (.NOT.WriteMacroVolumeValues) THEN
+  IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
 #endif
     IF(UseQCrit) THEN
       ! Use QCriterion (Burt,Boyd) for steady - state detection

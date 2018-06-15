@@ -100,7 +100,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
 ! calculated with ParticleMPIWeight 
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-IF (ParticleMPIWeight.LE.0.0) THEN
+IF (ParticleMPIWeight.LT.0.0) THEN
   CALL abort(&
       __STAMP__&
       ,' ERROR: Particle weight cannot be negative!')
@@ -141,7 +141,7 @@ END SUBROUTINE InitLoadBalance
 
 
 #if USE_LOADBALANCE
-SUBROUTINE ComputeElemLoad(PerformLoadbalance,time)
+SUBROUTINE ComputeElemLoad()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -149,11 +149,12 @@ SUBROUTINE ComputeElemLoad(PerformLoadbalance,time)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold
+USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
@@ -167,10 +168,8 @@ USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
-REAL ,INTENT(IN)             :: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)           :: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iElem
@@ -304,7 +303,7 @@ END SUBROUTINE ComputeElemLoad
 #endif /*USE_LOADBALANCE*/
 
 
-SUBROUTINE LoadBalance(PerformLoadBalance)
+SUBROUTINE LoadBalance()
 !===================================================================================================================================
 ! routine perfoming the load balancing stuff
 !===================================================================================================================================
@@ -320,12 +319,11 @@ USE MOD_PICDepo_Vars     ,ONLY: DepositionType
 USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance
+USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)   :: PerformLoadBalance
 !REAL,INTENT(IN)      :: Currentimbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
