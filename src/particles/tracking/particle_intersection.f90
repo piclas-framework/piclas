@@ -1076,31 +1076,33 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3) ! double intersection leaves and entries element
-        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(2)
-            xitild=xi(2)
-            etatild=eta(2)
-          ELSE
+!        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(2)
+!            xitild=xi(2)
+!            etatild=eta(2)
+!          ELSE
             alpha=-1.0
             xitild=0.
             etatild=0.
             isHit=.FALSE.
-          END IF
-        ELSE
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(1)
-            xitild=xi(1)
-            etatild=eta(1)
-          ELSE
-            alpha=-1.0
-            xitild=0.
-            etatild=0.
-            isHit=.FALSE.
-          END IF
-        END IF
+!          END IF
+!        ELSE
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(1)
+!            xitild=xi(1)
+!            etatild=eta(1)
+!          ELSE
+!            alpha=-1.0
+!            xitild=0.
+!            etatild=0.
+!            isHit=.FALSE.
+!          END IF
+!        END IF
       END SELECT
     END IF
 #ifdef MPI
