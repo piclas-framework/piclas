@@ -53,6 +53,7 @@ SUBROUTINE setLocalSideIDs()
 USE MOD_Globals
 USE MOD_Mesh_Vars,          ONLY:tElem,tSide
 USE MOD_Mesh_Vars,          ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
+USE MOD_Mesh_ReadIn,        ONLY: INVMAP
 #ifdef PP_HDG
 #ifdef MPI
 USE MOD_Mesh_Vars,          ONLY: offsetSide
@@ -1204,54 +1205,5 @@ j=nA-i
 A(k:k+nA-i)=part1(i:nA)
 END SUBROUTINE DoMerge
 
-
-FUNCTION INVMAP(ID,nIDs,ArrID)
-!===================================================================================================================================
-!> find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
-!> if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                :: ID            !< ID to search for
-INTEGER, INTENT(IN)                :: nIDs          !< size of ArrID
-INTEGER, INTENT(IN)                :: ArrID(nIDs)   !< 1D array of IDs
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER                            :: INVMAP        !< index of ID in NodeMap array
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                            :: i,maxSteps,low,up,mid
-!===================================================================================================================================
-INVMAP=0
-maxSteps=INT(LOG(REAL(nIDs))*1.4426950408889634556)+1    !1/LOG(2.)=1.4426950408889634556
-low=1
-up=nIDs
-IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
-  !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
-  INVMAP=-1  ! not in the range!
-  RETURN
-END IF
-IF(ID.EQ.ArrID(low))THEN
-  INVMAP=low
-ELSEIF(ID.EQ.ArrID(up))THEN
-  INVMAP=up
-ELSE
-  !bisection
-  DO i=1,maxSteps
-    mid=(up-low)/2+low
-    IF(ID .EQ. ArrID(mid))THEN
-      INVMAP=mid                     !index found!
-      EXIT
-    ELSEIF(ID .GT. ArrID(mid))THEN ! seek in upper half
-      low=mid
-    ELSE
-      up=mid
-    END IF
-  END DO
-END IF
-END FUNCTION INVMAP 
 
 END MODULE MOD_Prepare_Mesh
