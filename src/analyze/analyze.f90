@@ -396,7 +396,7 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputNorms
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
@@ -504,6 +504,7 @@ IF(forceAnalyze.OR.Output)THEN
     IF (t.GE.tEnd) CALL AnalyzeToFile(t,CalcTime,iter,L_2_Error)
   END IF
   IF(MPIroot) THEN
+    OutputNorms=.TRUE.
     WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',t
     IF (t.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')

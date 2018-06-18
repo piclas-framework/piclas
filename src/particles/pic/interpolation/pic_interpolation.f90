@@ -216,7 +216,6 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
   CASE('vugt_2018')
     DO iPart = firstPart, LastPart
       FieldAtParticle(iPart,6) = B_0*EXP(PartState(iPart,1)*l_inv)
-      WRITE (*,*) "FieldAtParticle(iPart,6) =", FieldAtParticle(iPart,6)
     END DO
   END SELECT
 ELSE ! use variable or fixed external field

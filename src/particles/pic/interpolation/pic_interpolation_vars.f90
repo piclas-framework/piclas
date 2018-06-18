@@ -39,6 +39,7 @@ LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebra
 CHARACTER(LEN=256)      :: AnalyticInterpolationType     !< Type of AnalyticInterpolation-Method
 REAL                    :: B_0                           !< coefficient of the magnetostatic field
 REAL                    :: l_inv                         !< inverse of the "gradient length"
+REAL                    :: L_2_Error_Part(1:6)           !< L2 error for the particle state
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 END MODULE MOD_PICInterpolation_Vars
