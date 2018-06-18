@@ -105,7 +105,7 @@ USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 USE MOD_Mappings,               ONLY:InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitTriaParticleGeometry
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitParticleGeometry
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
@@ -290,6 +290,9 @@ CALL fillMeshInfo()
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitParticleMesh()
+IF (TriaTracking) THEN
+  CALL InitParticleGeometry()
+END IF
 #endif
 
 ! dealloacte pointers
@@ -405,9 +408,6 @@ CALL BuildElementOrigin()
 #ifdef PARTICLES
 ! init element volume
 CALL InitElemVolumes()
-IF (TriaTracking) THEN
-  CALL InitTriaParticleGeometry()
-END IF
 #endif
 DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)

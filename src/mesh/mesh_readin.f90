@@ -20,7 +20,7 @@ IMPLICIT NONE
 !> @{
 INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
 INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position, 
-INTEGER,PARAMETER    :: ELEM_Zone=2           
+INTEGER,PARAMETER    :: ELEM_Zone=2
 INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
 INTEGER,PARAMETER    :: ELEM_LastSideInd=4
 INTEGER,PARAMETER    :: ELEM_FirstNodeInd=5
@@ -38,12 +38,24 @@ INTEGER,PARAMETER    :: SIDE_Flip=4
 INTEGER,PARAMETER    :: SIDE_BCID=5
 !> @}
 
+INTEGER,ALLOCATABLE  :: NodeInfo(:)
+INTEGER,ALLOCATABLE  :: NodeMap(:)
+INTEGER              :: nNodeIDs
+
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 INTERFACE ReadMesh
   MODULE PROCEDURE ReadMesh
 END INTERFACE
 
-PUBLIC::ReadMesh
+INTERFACE Qsort1Int
+  MODULE PROCEDURE Qsort1Int
+END INTERFACE
+
+INTERFACE INVMAP
+  MODULE PROCEDURE INVMAP
+END INTERFACE
+
+PUBLIC::ReadMesh,Qsort1Int,INVMAP
 !===================================================================================================================================
 
 CONTAINS
@@ -169,15 +181,15 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,          ONLY:tElem,tSide
 USE MOD_Mesh_Vars,          ONLY:NGeo,NGeoTree
 USE MOD_Mesh_Vars,          ONLY:NodeCoords,TreeCoords
-USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees
+USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
 USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
 USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides
 USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
 USE MOD_Mesh_Vars,          ONLY:useCurveds
 USE MOD_Mesh_Vars,          ONLY:BoundaryType
 USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
-USE MOD_Mesh_Vars,          ONLY:Elems
-USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
+USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
+USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
 #ifdef MPI
 USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -211,16 +223,20 @@ TYPE(tSide),POINTER            :: aSide,bSide
 REAL,ALLOCATABLE               :: NodeCoordsTmp(:,:,:,:,:)
 INTEGER,ALLOCATABLE            :: ElemInfo(:,:),SideInfo(:,:)
 INTEGER                        :: BCindex
-INTEGER                        :: iElem,ElemID,nNodes
+INTEGER                        :: iElem,ElemID
+INTEGER                        :: iNode,jNode,iNodeP,NodeID
+INTEGER                        :: offsetNodeID
+REAL   ,ALLOCATABLE            :: NodeCoords_indx(:,:)
+INTEGER                        :: CornerNodeIDswitch(8)
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
-INTEGER                        :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
+INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics 
-INTEGER                        :: ReduceData(10)
+INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
 #ifdef MPI
-INTEGER                        :: ReduceData_glob(10)
+INTEGER                        :: ReduceData_glob(11)
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
@@ -432,6 +448,7 @@ CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray=El
 
 DO iElem=FirstElemInd,LastElemInd
   iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
+  iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
   Elems(iElem)%ep=>GETNEWELEM()
   aElem=>Elems(iElem)%ep
   aElem%Ind    = iElem
@@ -587,11 +604,57 @@ DO iElem=FirstElemInd,LastElemInd
   END DO !iLocSide
 END DO !iElem
 
-DEALLOCATE(ElemInfo,SideInfo)
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
+
+!read local Node Info from data file 
+offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
+nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
+FirstNodeInd=offsetNodeID+1
+LastNodeInd=offsetNodeID+nNodeIDs
+ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
+CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray=NodeInfo)
+ALLOCATE(NodeCoords_indx(3,nNodeIDs))
+CALL ReadArray('NodeCoords',2,(/3,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
+
+CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
+LOGWRITE(*,*)'MIN,MAX,SIZE of NodeMap',MINVAL(NodeMap),MAXVAL(NodeMap),SIZE(NodeMap,1)
+
+ALLOCATE(Nodes(1:nNodes)) ! pointer list, entry is known by INVMAP(i,nNodes,NodeMap)
+DO iNode=1,nNodes
+  NULLIFY(Nodes(iNode)%np)
+END DO
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is build
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(Ngeo+1)
+CornerNodeIDswitch(3)=(Ngeo+1)**2
+CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+!assign nodes and get physical coordinates to Node pointers (new procedure compared to old mapping due to new meshformat)
+DO iElem=FirstElemInd,LastElemInd
+  aElem=>Elems(iElem)%ep
+  !iNode=ElemInfo(ELEM_FirstNodeInd,iElem) !first index -1 in NodeInfo
+  DO jNode=1,8
+    iNode = ElemInfo(ELEM_FirstNodeInd,iElem)+CornerNodeIDswitch(jNode)
+    NodeID=ABS(NodeInfo(iNode))       !global, unique NodeID
+    iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
+    IF(iNodeP.LE.0) STOP 'Problem in INVMAP'
+    IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
+      ALLOCATE(Nodes(iNodeP)%np)
+      Nodes(iNodeP)%np%ind = NodeID
+      Nodes(iNodeP)%np%x   = NodeCoords_indx(:,iNode-offsetNodeID)
+    END IF
+    aElem%Node(jNode)%np=>Nodes(iNodeP)%np
+  END DO
+  CALL createSides(aElem)
+END DO
+DEALLOCATE(NodeCoords_indx)
 
 ! get physical coordinates
 IF(useCurveds)THEN
@@ -612,7 +675,6 @@ ELSE
   DEALLOCATE(NodeCoordsTmp)
   NGeo=1
 ENDIF
-nNodes=nElems*(NGeo+1)**3
 
 !! IJK SORTING --------------------------------------------
 !!read local ElemInfo from data file
@@ -655,6 +717,7 @@ ELSE
   nTrees=0
 END IF
 
+DEALLOCATE(ElemInfo,SideInfo,NodeInfo,NodeMap)
 
 CALL CloseDataFile()
 
@@ -763,6 +826,7 @@ DEALLOCATE(MPISideCount)
 ReduceData(1)=nElems
 ReduceData(2)=nSides
 ReduceData(3)=nNodes
+ReduceData(11)=nNodeIDs
 ReduceData(4)=nInnerSides
 ReduceData(5)=nPeriodicSides
 ReduceData(6)=nBCSides
@@ -772,18 +836,19 @@ ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
 
 #ifdef MPI
-CALL MPI_REDUCE(ReduceData,ReduceData_glob,10,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(ReduceData,ReduceData_glob,11,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 ReduceData=ReduceData_glob
 #endif /*MPI*/
 
 IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes | ',ReduceData(3) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides        | ',ReduceData(2)-ReduceData(7)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC | ',ReduceData(6) !nBCSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI | ',ReduceData(7)/2 !nMPISides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar | ',ReduceData(9) !nMortarSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',ReduceData(9) !nMortarSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
@@ -795,6 +860,97 @@ END IF
 
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
+
+
+SUBROUTINE GetNodeMap()
+!===================================================================================================================================
+! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ... 
+! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
+!===================================================================================================================================
+! MODULES
+USE MOD_mesh_vars,ONLY:nNodes
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: temp(nNodeIDs+1),i,nullpos
+!===================================================================================================================================
+temp(1)=0
+temp(2:nNodeIDs+1)=NodeInfo
+!sort
+CALL Qsort1Int(temp)
+nullpos=INVMAP(0,nNodeIDs+1,temp)
+!count unique entries
+nNodes=1
+DO i=nullpos+2,nNodeIDs+1
+  IF(temp(i).NE.temp(i-1)) nNodes = nNodes+1
+END DO
+!associate unique entries
+ALLOCATE(NodeMap(nNodes))
+nNodes=1
+NodeMap(1)=temp(nullpos+1)
+DO i=nullpos+2,nNodeIDs+1
+  IF(temp(i).NE.temp(i-1)) THEN
+    nNodes = nNodes+1
+    NodeMap(nNodes)=temp(i)
+  END IF
+END DO
+END SUBROUTINE GetNodeMap
+
+
+FUNCTION INVMAP(ID,nIDs,ArrID)
+!===================================================================================================================================
+! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
+! if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                :: ID            ! ID to search for
+INTEGER, INTENT(IN)                :: nIDs          ! size of ArrID
+INTEGER, INTENT(IN)                :: ArrID(nIDs)   ! 1D array of IDs
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                            :: INVMAP               ! index of ID in NodeMap array
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: i,maxSteps,low,up,mid
+!===================================================================================================================================
+INVMAP=0
+maxSteps=INT(LOG(REAL(nIDs))*1.4426950408889634556)+1    !1/LOG(2.)=1.4426950408889634556
+low=1
+up=nIDs
+IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
+  !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
+  INVMAP=-1  ! not in the range!
+  RETURN
+END IF 
+IF(ID.EQ.ArrID(low))THEN
+  INVMAP=low
+ELSEIF(ID.EQ.ArrID(up))THEN
+  INVMAP=up
+ELSE
+  !bisection
+  DO i=1,maxSteps
+    mid=(up-low)/2+low
+    IF(ID .EQ. ArrID(mid))THEN
+      INVMAP=mid                     !index found!
+      EXIT
+    ELSEIF(ID .GT. ArrID(mid))THEN ! seek in upper half
+      low=mid
+    ELSE
+      up=mid
+    END IF
+  END DO
+END IF
+END FUNCTION INVMAP
+
 
 #ifdef MPI
 FUNCTION ELEMIPROC(ElemID)
@@ -842,5 +998,82 @@ END IF
 END FUNCTION ELEMIPROC 
 #endif /* MPI */
 
+RECURSIVE SUBROUTINE Qsort1Int(A)
+!===================================================================================================================================
+! QuickSort for integer array A
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)            :: A(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: marker
+!===================================================================================================================================
+IF(SIZE(A).GT.1) THEN
+  CALL Partition1Int(A,marker)
+  CALL Qsort1Int(A(:marker-1))
+  CALL Qsort1Int(A(marker:))
+END IF
+RETURN
+END SUBROUTINE Qsort1Int
+
+
+
+SUBROUTINE Partition1Int(A,marker)
+!===================================================================================================================================
+! Neeeded by QuickSort
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)            :: A(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)              :: marker
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: i,j
+INTEGER                          :: temp,x
+!===================================================================================================================================
+x= A(1)
+i= 0
+j= SIZE(A)+1
+DO
+  j=j-1
+  DO
+    IF(A(j).LE.x) EXIT
+    j=j-1
+  END DO
+  i=i+1
+  DO
+    IF(A(i).GE.x) EXIT
+    i=i+1
+  END DO
+  IF(i.LT.j)THEN
+    ! exchange A(i) and A(j)
+    temp=A(i)
+    A(i)=A(j)
+    A(j)=temp
+  ELSEIF(i.EQ.j)THEN
+    marker=i+1
+    RETURN
+  ELSE
+    marker=i
+    RETURN
+  ENDIF
+END DO
+RETURN
+END SUBROUTINE Partition1Int
 
 END MODULE MOD_Mesh_ReadIn
