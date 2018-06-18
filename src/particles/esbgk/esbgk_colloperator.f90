@@ -131,6 +131,9 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       END IF
     END IF
     Xi_Vib_old = Xi_Vib
+  ELSE  
+    Xi_Vib_old = 0.0
+    TVib = 0.0
   END IF
   Xi_rot = SpecDSMC(1)%Xi_Rot
   TRot = 2.*ERot/(Xi_rot*nPart*BoltzmannConst)
@@ -910,7 +913,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  REAL                    :: LowerTemp, UpperTemp, TEqui_Old, betaR, betaV, RotFrac, VibFrac
+  REAL                    :: LowerTemp, UpperTemp, TEqui_Old, betaR, betaV, RotFrac, VibFrac, TEqui_Old2
   REAL                    :: eps_prec=1.0E-0
   REAL                    :: correctFac, correctFacRot, maxexp, Xi_rel
 !===================================================================================================================================
@@ -927,29 +930,39 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
     VibExp = exp(-vibrelaxfreq*dt/correctFac) 
     VibFrac = nPart*(1.-VibExp)
   ELSE
+    VibExp = 0.0
     VibFrac = 0.0
+    Xi_vib = 0.0
   END IF
   TEqui_Old = 0.0 
   TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
   DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
-    betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
-    IF (-betaR.GT.0.0) THEN
-      RotExp = 1.
-    ELSE IF (betaR.GT.maxexp) THEN
-      RotExp = 0.
+    IF (ABS(TRot-TEqui).LT.1E-3) THEN
+      RotExp = exp(-rotrelaxfreq*dt/correctFacRot) 
     ELSE
-      RotExp = exp(-betaR) 
+      betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
+      IF (-betaR.GT.0.0) THEN
+        RotExp = 0.
+      ELSE IF (betaR.GT.maxexp) THEN
+        RotExp = 0.
+      ELSE
+        RotExp = exp(-betaR) 
+      END IF
     END IF
     RotFrac = nPart*(1.-RotExp)
     IF(BGKDoVibRelaxation) THEN
-      betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
-      IF (-betaV.GT.0.0) THEN
-        VibExp = 1.
-  !      VibExp = exp(-betaV) 
-      ELSE IF (betaV.GT.maxexp) THEN
-        VibExp = 0.
+      IF (ABS(TVib-TEqui).LT.1E-3) THEN
+        VibExp = exp(-vibrelaxfreq*dt/correctFac) 
       ELSE
-        VibExp = exp(-betaV) 
+        betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
+        IF (-betaV.GT.0.0) THEN
+          VibExp = 0.
+    !      VibExp = exp(-betaV) 
+        ELSE IF (betaV.GT.maxexp) THEN
+          VibExp = 0.
+        ELSE
+          VibExp = exp(-betaV) 
+        END IF
       END IF
       IF ((SpecDSMC(1)%CharaTVib/TEqui).GT.maxexp) THEN
         Xi_Vib = 0.0
@@ -959,7 +972,19 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
       VibFrac = nPart*(1.-VibExp)
     END IF
     TEqui_Old = TEqui
-    TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
+    TEqui_Old2 = TEqui
+    TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib*VibFrac)
+    IF(BGKDoVibRelaxation) THEN
+      DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+        IF ((SpecDSMC(1)%CharaTVib/TEqui).GT.maxexp) THEN
+          Xi_Vib = 0.0
+        ELSE
+          Xi_vib = 2.*SpecDSMC(1)%CharaTVib/TEqui/(EXP(SpecDSMC(1)%CharaTVib/TEqui)-1.)
+        END IF
+        TEqui_Old2 = TEqui
+        TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib) / (3.*(nPart-1.)+2.*RotFrac+Xi_vib*VibFrac)
+      END DO
+    END IF
   END DO
 ! print*, betaR/(rotrelaxfreq*dt*correctFacRot), betaV/(vibrelaxfreq*dt*correctFac)
 END SUBROUTINE CalcTEqui
@@ -987,7 +1012,7 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
 !-----------------------------------------------------------------------------------------------------------------------------------
   REAL                    :: LowerTemp, UpperTemp, TEqui_Old, betaR, betaV, RotFrac, VibFrac, Xi_Rot
   REAL                    :: eps_prec=1.0
-  REAL                    :: correctFac, correctFacRot, maxexp
+  REAL                    :: correctFac, correctFacRot, maxexp, TEqui_Old2
   INTEGER                 :: iDOF, iPolyatMole
 !===================================================================================================================================
 
@@ -1012,29 +1037,39 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
     VibExp = exp(-vibrelaxfreq*dt/correctFac) 
     VibFrac = nPart*(1.-VibExp)
   ELSE
+    VibExp = 0.0
     VibFrac = 0.0
+    Xi_vib_DOF = 0.0
   END IF
   TEqui_Old = 0.0 
   TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
   DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
-    betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
-    IF (-betaR.GT.0.0) THEN
-      RotExp = 1.
-    ELSE IF (betaR.GT.maxexp) THEN
-      RotExp = 0.
+    IF (ABS(TRot-TEqui).LT.1E-3) THEN
+      RotExp = exp(-rotrelaxfreq*dt/correctFacRot) 
     ELSE
-      RotExp = exp(-betaR) 
+      betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dt/correctFacRot
+      IF (-betaR.GT.0.0) THEN
+        RotExp = 0.
+      ELSE IF (betaR.GT.maxexp) THEN
+        RotExp = 0.
+      ELSE
+        RotExp = exp(-betaR) 
+      END IF
     END IF
     RotFrac = nPart*(1.-RotExp)
     IF(BGKDoVibRelaxation) THEN
-      betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
-      IF (-betaV.GT.0.0) THEN
-        VibExp = 1.
-  !      VibExp = exp(-betaV) 
-      ELSE IF (betaV.GT.maxexp) THEN
-        VibExp = 0.
+      IF (ABS(TVib-TEqui).LT.1E-3) THEN
+        VibExp = exp(-vibrelaxfreq*dt/correctFac) 
       ELSE
-        VibExp = exp(-betaV) 
+        betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dt/correctFac
+        IF (-betaV.GT.0.0) THEN
+          VibExp = 0.
+    !      VibExp = exp(-betaV) 
+        ELSE IF (betaV.GT.maxexp) THEN
+          VibExp = 0.
+        ELSE
+          VibExp = exp(-betaV) 
+        END IF
       END IF
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         IF ((PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui).LT.maxexp) THEN
@@ -1047,8 +1082,24 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
       VibFrac = nPart*(1.-VibExp)
     END IF
     TEqui_Old = TEqui
+    TEqui_Old2 = TEqui
     TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)  &
             / (3.*(nPart-1.)+2.*RotFrac+SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))*VibFrac)
+    IF(BGKDoVibRelaxation) THEN
+      DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          IF ((PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui).LT.maxexp) THEN
+            Xi_vib_DOF(iDOF) = 2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui &
+                                        /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui)-1.)
+          ELSE
+            Xi_vib_DOF(iDOF) = 0.0
+          END IF
+        END DO
+        TEqui_Old2 = TEqui
+        TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)  &
+            / (3.*(nPart-1.)+2.*RotFrac+SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))*VibFrac)
+      END DO
+    END IF
   END DO
 
 
