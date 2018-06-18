@@ -2073,8 +2073,8 @@ END IF
 IF (BGKSampAdapFac) THEN
   StrVarNames(nVarCount+1) ='BGKAdaptFac'
   StrVarNames(nVarCount+2) ='HeatFlux_X'
-  StrVarNames(nVarCount+3) ='HeatFlux_X'
-  StrVarNames(nVarCount+4) ='HeatFlux_X'
+  StrVarNames(nVarCount+3) ='HeatFlux_Y'
+  StrVarNames(nVarCount+4) ='HeatFlux_Z'
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
