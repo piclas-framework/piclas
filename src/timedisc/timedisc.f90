@@ -401,7 +401,7 @@ CALL PerformAnalyze(time,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 
 #ifdef PARTICLES
-IF(DoImportIMDFile) CALL WriteIMDStateToHDF5(time) ! write IMD particles to state file (and TTM if it exists)
+IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
 IF(DoWriteStateToHDF5)THEN 
 !  #ifdef PARTICLES
