@@ -52,11 +52,7 @@ SUBROUTINE QDS_InitDG
 ! MODULES
 USE MOD_PreProc
 USE MOD_QDS_DG_Vars
-#ifdef PARTICLES
-USE MOD_Particle_Vars,      ONLY:BoltzmannConst
-#else
 USE MOD_Globals_Vars,       ONLY:BoltzmannConst
-#endif
 USE MOD_Globals,            ONLY:abort,UNIT_stdOut,mpiroot
 USE MOD_ReadInTools,        ONLY:GETLOGICAL
 USE MOD_Mesh_Vars,          ONLY:nSides
@@ -318,11 +314,7 @@ SUBROUTINE QDSReCalculateDGValues()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,       ONLY:PI
-#ifdef PARTICLES
-USE MOD_Particle_Vars,      ONLY:BoltzmannConst
-#else
-USE MOD_Globals_Vars,       ONLY:BoltzmannConst
-#endif
+!USE MOD_Globals_Vars,       ONLY:BoltzmannConst
 USE MOD_PreProc
 USE MOD_QDS_DG_Vars,        ONLY:QDSSpeciesMass,UQDS,GaussHermitWeiAbs,QDSMacroValues,nQDSElems,QDSSpecDOF
 USE MOD_Mesh_Vars,          ONLY:sJ
@@ -411,11 +403,7 @@ SUBROUTINE QDSCalculateMacroValues()
 !===================================================================================================================================
 ! MODULES
 USE MOD_QDS_DG_Vars 
-#ifdef PARTICLES
-USE MOD_Particle_Vars,      ONLY:BoltzmannConst
-#else
 USE MOD_Globals_Vars,       ONLY:BoltzmannConst
-#endif
 !USE MOD_QDS_DG_Vars,           ONLY : QDS_Species
 USE MOD_QDS_DG_Vars,           ONLY : QDSSpeciesMass
 USE MOD_PreProc

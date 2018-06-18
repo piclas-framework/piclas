@@ -386,7 +386,7 @@ SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_Globals_Vars,          ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
@@ -2640,7 +2640,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, PartMPF, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVib, CalcTelec, CalcTVibPoly
@@ -3513,11 +3513,11 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals_Vars           ,ONLY:BoltzmannConst
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronTemperatureCell
 USE MOD_Particle_Vars          ,ONLY:PDM,PEM
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
