@@ -1170,7 +1170,7 @@ ELSE !
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit) 
   ELSE
-    SWRITE(UNIT_StdOut,'(A)')"ElemTimeStatistics.csv does not exist. Cannot write load balance info!"
+    SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
   END IF
 END IF
 END SUBROUTINE WriteElemTimeStatistics
