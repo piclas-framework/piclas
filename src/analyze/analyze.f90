@@ -508,7 +508,8 @@ IF(forceAnalyze.OR.Output)THEN
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,CalcTime,L_2_Error)
   END IF
   IF(MPIroot) THEN
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim OutputTime  : ',OutputTime
+    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
       WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
