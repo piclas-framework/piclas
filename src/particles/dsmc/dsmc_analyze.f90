@@ -1511,7 +1511,7 @@ CALL LBPauseTime(LB_DSMC,tLBStart)
 END SUBROUTINE DSMCHO_data_sampling
 
 
-SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
+SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVar_BGKAdap,nVarloc,DSMC_MacroVal)
 !===================================================================================================================================
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
@@ -1524,12 +1524,14 @@ USE MOD_Particle_Vars      ,ONLY: Species, BoltzmannConst, nSpecies, WriteMacroV
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
+USE MOD_ESBGK_Vars         ,ONLY: BGKSampAdapFac, ElemSplitCells
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc
-REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems)
+INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_BGKAdap
+REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_BGKAdap, &
+      0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1738,6 +1740,20 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         END IF
       END IF
     !END DO; END DO; END DO
+    END DO
+  END IF
+  ! write dsmc quality values
+  IF (BGKSampAdapFac) THEN
+    DO iElem=1,nElems
+      IF (ElemSplitCells(iElem)%AdapFac(4).GT.0.0) THEN
+        DSMC_MacroVal(nVar+nVar_quality+1,kk,ll,mm,iElem) = (ElemSplitCells(iElem)%AdapFac(1)**2. &
+          + ElemSplitCells(iElem)%AdapFac(2)**2. + ElemSplitCells(iElem)%AdapFac(3)**2.)**(1./3.)/ElemSplitCells(iElem)%AdapFac(4)
+      ELSE
+        DSMC_MacroVal(nVar+nVar_quality+1,kk,ll,mm,iElem) = 0.0
+      END IF
+      DSMC_MacroVal(nVar+nVar_quality+2,kk,ll,mm,iElem) = ElemSplitCells(iElem)%AdapFac(1)
+      DSMC_MacroVal(nVar+nVar_quality+3,kk,ll,mm,iElem) = ElemSplitCells(iElem)%AdapFac(2)
+      DSMC_MacroVal(nVar+nVar_quality+4,kk,ll,mm,iElem) = ElemSplitCells(iElem)%AdapFac(3)
     END DO
   END IF
   ! fill remaining node values with calculated values
@@ -1977,6 +1993,7 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_ESBGK_Vars         ,ONLY: BGKSampAdapFac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1991,7 +2008,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
+INTEGER                        :: nVal, nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVar_BGKAdap
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -2010,7 +2027,12 @@ IF (DSMC%CalcQualityFactors) THEN
 ELSE
   nVar_quality=0
 END IF
-ALLOCATE(StrVarNames(1:nVar+nVar_quality))
+IF (BGKSampAdapFac) THEN
+  nVar_BGKAdap=4
+ELSE
+  nVar_BGKAdap=0
+END IF
+ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_BGKAdap))
 nVarCount=0
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
@@ -2046,37 +2068,46 @@ IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
+  nVarCount=nVarCount+3
+END IF
+IF (BGKSampAdapFac) THEN
+  StrVarNames(nVarCount+1) ='BGKAdaptFac'
+  StrVarNames(nVarCount+2) ='HeatFlux_X'
+  StrVarNames(nVarCount+3) ='HeatFlux_X'
+  StrVarNames(nVarCount+4) ='HeatFlux_X'
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCHOState',OutputTime))//'.h5'
 ! PO:
 ! excahnge PP_N through Nout
-IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality+nVar_BGKAdap, &
+      StrVarNames,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_BGKAdap,0:HODSMC%nOutputDSMC, & 
+        0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
   ,' Cannot allocate output array DSMC_MacroVal array!')
 END IF
-CALL DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
+CALL DSMCHO_output_calc(nVar,nVar_quality,nVar_BGKAdap,nVarloc,DSMC_MacroVal)
 
 IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   CALL WriteArrayToHDF5(DataSetName='ElemData', rank=2,&
-                    nValGlobal=(/nVar+nVar_quality,nGlobalElems/),&
-                    nVal=      (/nVar+nVar_quality,PP_nElems/),&
+                    nValGlobal=(/nVar+nVar_quality+nVar_BGKAdap,nGlobalElems/),&
+                    nVal=      (/nVar+nVar_quality+nVar_BGKAdap,PP_nElems/),&
                     offset=    (/0,     offsetElem/),&
                     collective=.false.,  RealArray=DSMC_MacroVal(:,1,1,1,:))
 ELSE
   CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                    nValGlobal=(/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
-                    nVal=      (/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,PP_nElems/),&
+                    nValGlobal=(/nVar+nVar_quality+nVar_BGKAdap,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
+                    nVal=      (/nVar+nVar_quality+nVar_BGKAdap,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,PP_nElems/),&
                     offset=    (/0,      0,     0,     0,     offsetElem/),&
                     collective=.false.,  RealArray=DSMC_MacroVal)
 END IF

@@ -52,6 +52,7 @@ CALL prms%CreateIntOption(      'Particles-BGKAveragingLength'  ,  'TODO-DEFINE-
 CALL prms%CreateLogicalOption(  'Particles-BGKUseQuantVibEn',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateRealOption(     'Particles-BGKAcceleration'  ,     'TODO-DEFINE-PARAMETER', '-9.81')
 CALL prms%CreateLogicalOption(  'Particles-BGK-DoBGKCellSplitting',       'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-BGK-SampAdapFac',       'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-BGK-DoVibRelaxation',       'TODO-DEFINE-PARAMETER','.FALSE.')
 
 END SUBROUTINE DefineParametersBGK
@@ -115,14 +116,21 @@ IF (BGKDoAveraging) CALL BGK_init_Averaging()
 BGKAcceleration = GETREAL('Particles-BGKAcceleration','-9.81')
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation','.TRUE.')
 DoBGKCellSplitting = GETLOGICAL('Particles-BGK-DoBGKCellSplitting','.FALSE.')
-!IF (DoBGKCellSplitting) THEN
-!  DoBGKCellAdaptation = .FALSE.
-!  ALLOCATE(ElemSplitCells(nElems))
-!  CALL DefineElementOrientation()
-!  DO iElem = 1, nElems
-!    ElemSplitCells(iElem)%Splitnum(1:3) = (/1,1,1/)
-!  END DO
-!!END IF
+BGKSampAdapFac = GETLOGICAL('Particles-BGK-SampAdapFac','.FALSE.')
+IF (DoBGKCellSplitting.OR.BGKSampAdapFac) ALLOCATE(ElemSplitCells(nElems))
+IF (BGKSampAdapFac) THEN
+  DO iElem = 1, nElems
+    ALLOCATE(ElemSplitCells(iElem)%AdapFac(4))
+    ElemSplitCells(iElem)%AdapFac = 0.0
+  END DO
+END IF
+IF (DoBGKCellSplitting) THEN
+  DoBGKCellAdaptation = .FALSE.
+  CALL DefineElementOrientation()
+  DO iElem = 1, nElems
+    ElemSplitCells(iElem)%Splitnum(1:3) = (/1,1,1/)
+  END DO
+END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
@@ -171,85 +179,81 @@ END SUBROUTINE ESBGK_BuildTransGaussNumsEnCon
 
 
 
-!SUBROUTINE DefineElementOrientation()
-!!===================================================================================================================================
-!!> description
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-!USE MOD_part_MPFtools      ,ONLY: MapToGeo
-!USE MOD_Mesh_Vars          ,ONLY: nElems
-!USE MOD_Equation_Vars      ,ONLY: Pi
-!USE MOD_ESBGK_Vars         ,ONLY: ElemSplitCells
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!REAL      :: Vec(3), P(3,8), ResVec1(3,3), ResVec2(3,3), DiffVec(3,3), MinVec(3), MaxDir(3), angle(3,3), vecmag(3)
-!INTEGER   :: iElem, iNode, ii, jj, firstDir1, firstDir2
-!!===================================================================================================================================
-!DO iElem = 1, nElems
-!  DO iNode = 1, 8
-!    P(1:3, iNode) = GEO%NodeCoords(1:3, GEO%ElemToNodeID(iNode, iElem))
-!  END DO
-!  Vec(1:3) = (/-0.99,0.,0./)
-!  ResVec1(1:3,1) = MapToGeo(Vec,P)
-!  Vec(1:3) = (/0.99,0.,0./)
-!  ResVec2(1:3,1) = MapToGeo(Vec,P)
-!  Vec(1:3) = (/0.,-0.99,0./)
-!  ResVec1(1:3,2) = MapToGeo(Vec,P)
-!  Vec(1:3) = (/0.,0.99,0./)
-!  ResVec2(1:3,2) = MapToGeo(Vec,P)
-!  Vec(1:3) = (/0.,0.,-0.99/)
-!  ResVec1(1:3,3) = MapToGeo(Vec,P)
-!  Vec(1:3) = (/0.,0.,0.99/)
-!  ResVec2(1:3,3) = MapToGeo(Vec,P)
-!
-!  DO ii=1,3; DO jj=1,3
-!    DiffVec(ii,jj) = ResVec1(ii,jj)-ResVec2(ii,jj)
-!  END DO; END DO
-!  DO ii=1,3
-!    vecmag(ii) = SQRT(DiffVec(1,ii)*DiffVec(1,ii)+DiffVec(2,ii)*DiffVec(2,ii)+DiffVec(3,ii)*DiffVec(3,ii))
-!  END DO
-!  DO ii=1,3; DO jj=1,3
-!    angle(ii,jj) = ACOS(DiffVec(ii,jj)/ vecmag(jj))
-!    IF (angle(ii,jj).GT.Pi/2.) THEN
-!      angle(ii,jj) = Pi - angle(ii,jj)
-!    END IF
-!  END DO; END DO
-!
-!  DO ii=1,3
-!    MinVec(ii) = MINVAL(angle(:,ii))
-!  END DO
-!  firstDir1 = MINLOC(MinVec,1)
-!  firstDir2 = MINLOC(angle(:,firstDir1),1)
-!  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-!  DO ii=1,3
-!    angle(ii,firstDir1) = 1000
-!    angle(firstDir2,ii) = 1000
-!  END DO
-!  DO ii=1,3
-!    MinVec(ii) = MINVAL(angle(:,ii))
-!  END DO
-!  firstDir1 = MINLOC(MinVec,1)
-!  firstDir2 = MINLOC(angle(:,firstDir1),1)
-!  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-!  DO ii=1,3
-!    angle(ii,firstDir1) = 1000
-!    angle(firstDir2,ii) = 1000
-!  END DO
-!  DO ii=1,3
-!    MinVec(ii) = MINVAL(angle(:,ii))
-!  END DO
-!  firstDir1 = MINLOC(MinVec,1)
-!  firstDir2 = MINLOC(angle(:,firstDir1),1)
-!  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-!END DO
-!END SUBROUTINE DefineElementOrientation
+SUBROUTINE DefineElementOrientation()
+!===================================================================================================================================
+!> description
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: nElems,NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Globals_Vars       ,ONLY: Pi
+USE MOD_ESBGK_Vars         ,ONLY: ElemSplitCells
+USE MOD_Eval_xyz,                    ONLY:Eval_XYZ_Poly
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL      :: Vec(3), P(3,8), ResVec1(3,3), ResVec2(3,3), DiffVec(3,3), MinVec(3), MaxDir(3), angle(3,3), vecmag(3)
+INTEGER   :: iElem, iNode, ii, jj, firstDir1, firstDir2
+!===================================================================================================================================
+DO iElem = 1, nElems
+  Vec(1:3) = (/-0.99,0.,0./)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,1))
+  Vec(1:3) = (/0.99,0.,0./)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,1))
+  Vec(1:3) = (/0.,-0.99,0./)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,2))
+  Vec(1:3) = (/0.,0.99,0./)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,2))
+  Vec(1:3) = (/0.,0.,-0.99/)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,3))
+  Vec(1:3) = (/0.,0.,0.99/)
+  CALL Eval_xyz_Poly(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,3))
+
+  DO ii=1,3; DO jj=1,3
+    DiffVec(ii,jj) = ResVec1(ii,jj)-ResVec2(ii,jj)
+  END DO; END DO
+  DO ii=1,3
+    vecmag(ii) = SQRT(DiffVec(1,ii)*DiffVec(1,ii)+DiffVec(2,ii)*DiffVec(2,ii)+DiffVec(3,ii)*DiffVec(3,ii))
+  END DO
+  DO ii=1,3; DO jj=1,3
+    angle(ii,jj) = ACOS(DiffVec(ii,jj)/ vecmag(jj))
+    IF (angle(ii,jj).GT.Pi/2.) THEN
+      angle(ii,jj) = Pi - angle(ii,jj)
+    END IF
+  END DO; END DO
+
+  DO ii=1,3
+    MinVec(ii) = MINVAL(angle(:,ii))
+  END DO
+  firstDir1 = MINLOC(MinVec,1)
+  firstDir2 = MINLOC(angle(:,firstDir1),1)
+  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
+  DO ii=1,3
+    angle(ii,firstDir1) = 1000
+    angle(firstDir2,ii) = 1000
+  END DO
+  DO ii=1,3
+    MinVec(ii) = MINVAL(angle(:,ii))
+  END DO
+  firstDir1 = MINLOC(MinVec,1)
+  firstDir2 = MINLOC(angle(:,firstDir1),1)
+  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
+  DO ii=1,3
+    angle(ii,firstDir1) = 1000
+    angle(firstDir2,ii) = 1000
+  END DO
+  DO ii=1,3
+    MinVec(ii) = MINVAL(angle(:,ii))
+  END DO
+  firstDir1 = MINLOC(MinVec,1)
+  firstDir2 = MINLOC(angle(:,firstDir1),1)
+  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
+END DO
+END SUBROUTINE DefineElementOrientation
 
 
 SUBROUTINE BGK_init_Averaging()

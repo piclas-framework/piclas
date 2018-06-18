@@ -34,7 +34,9 @@ REAL                                           :: BGKAcceleration
 LOGICAL                         	       :: BGKDoVibRelaxation
 
 LOGICAL                                        :: DoBGKCellSplitting
+LOGICAL                                        :: BGKSampAdapFac
 TYPE tElemSplitCells
+  REAL, ALLOCATABLE                            :: AdapFac(:)
   REAL, ALLOCATABLE                            :: SplitCellVolumes(:,:,:)
   INTEGER                                      :: Splitnum(3)
   INTEGER                                      :: CellOrientation(3)

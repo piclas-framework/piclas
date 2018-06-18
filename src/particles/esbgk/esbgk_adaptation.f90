@@ -391,84 +391,86 @@ END DO
 END SUBROUTINE AddESBGKOctreeNode
 
 
-!SUBROUTINE ESBGKSplitCells(iElem)
-!!===================================================================================================================================
-!!> description
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Globals
-!USE MOD_Particle_Vars      ,ONLY: PartState, PEM, GEO
-!USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
-!USE MOD_ESBGK_Vars         ,ONLY: BGKMinPartPerCell, ElemSplitCells
-!USE MOD_part_MPFtools      ,ONLY: GeoCoordToMap
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT VARIABLES
-!INTEGER, INTENT(IN)          :: iElem
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! OUTPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                      :: iPart, iLoop
-!INTEGER, ALLOCATABLE         :: iPartIndx_SplitCell(:,:,:,:), PartNum_SplitCell(:,:,:),  iPartIndx(:)
-!REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:,:,:), MappedPartStates(:,:)
-!INTEGER                      :: PosX, PosY, PosZ, nPart
-!REAL                         :: vBulk(3)
-!!===================================================================================================================================
-!nPart = PEM%pNumber(iElem)
-!IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
-!  RETURN
-!END IF
-!IF(nPart.GE.(2.*BGKMinPartPerCell)) THEN
-!  ALLOCATE(iPartIndx_SplitCell(nPart, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
-!        ElemSplitCells(iElem)%Splitnum(3)+1))
-!  ALLOCATE(vBulk_SplitCell(3, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
-!        ElemSplitCells(iElem)%Splitnum(3)+1))
-!  ALLOCATE(PartNum_SplitCell(ElemSplitCells(iElem)%Splitnum(1)+1, ElemSplitCells(iElem)%Splitnum(2)+1, &
-!        ElemSplitCells(iElem)%Splitnum(3)+1))
-!  ALLOCATE(MappedPartStates(nPart, 1:3))
-!  iPartIndx_SplitCell = 0
-!  PartNum_SplitCell = 0
-!  vBulk_SplitCell= 0.0
-!
-!  CALL CalcSplitCellVolumes(iElem)
-!
-!  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-!  DO iLoop = 1, nPart
+SUBROUTINE ESBGKSplitCells(iElem)
+!===================================================================================================================================
+!> description
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars      ,ONLY: PartState, PEM
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_ESBGK_Vars         ,ONLY: BGKMinPartPerCell, ElemSplitCells
+USE MOD_Eval_xyz               ,ONLY: Eval_XYZ_ElemCheck
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: iPart, iLoop
+INTEGER, ALLOCATABLE         :: iPartIndx_SplitCell(:,:,:,:), PartNum_SplitCell(:,:,:),  iPartIndx(:)
+REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:,:,:), MappedPartStates(:,:)
+INTEGER                      :: PosX, PosY, PosZ, nPart
+REAL                         :: vBulk(3)
+!===================================================================================================================================
+nPart = PEM%pNumber(iElem)
+IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
+  RETURN
+END IF
+IF(nPart.GE.(2.*BGKMinPartPerCell)) THEN
+  ALLOCATE(iPartIndx_SplitCell(nPart, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
+        ElemSplitCells(iElem)%Splitnum(3)+1))
+  ALLOCATE(vBulk_SplitCell(3, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
+        ElemSplitCells(iElem)%Splitnum(3)+1))
+  ALLOCATE(PartNum_SplitCell(ElemSplitCells(iElem)%Splitnum(1)+1, ElemSplitCells(iElem)%Splitnum(2)+1, &
+        ElemSplitCells(iElem)%Splitnum(3)+1))
+  ALLOCATE(MappedPartStates(nPart, 1:3))
+  iPartIndx_SplitCell = 0
+  PartNum_SplitCell = 0
+  vBulk_SplitCell= 0.0
+
+  CALL CalcSplitCellVolumes(iElem)
+
+  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+  DO iLoop = 1, nPart
+    CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),MappedPartStates(iLoop,1:3),iElem)
 !    CALL GeoCoordToMap(PartState(iPart,1:3), MappedPartStates(iLoop,1:3), iElem)
-!    PosX = INT((MappedPartStates(iLoop,1)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(1)+1.)) + 1
-!    PosY = INT((MappedPartStates(iLoop,2)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(2)+1.)) + 1
-!    PosZ = INT((MappedPartStates(iLoop,3)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(3)+1.)) + 1
-!    PartNum_SplitCell(PosX, PosY, PosZ) = PartNum_SplitCell(PosX, PosY, PosZ) + 1
-!    iPartIndx_SplitCell(PartNum_SplitCell(PosX, PosY, PosZ), PosX, PosY, PosZ) = iPart
-!    vBulk_SplitCell(1:3, PosX, PosY, PosZ)  =  vBulk_SplitCell(1:3, PosX, PosY, PosZ) + PartState(iPart,4:6)
-!    iPart = PEM%pNext(iPart)
-!  END DO
-!
-!  DO PosX = 1, ElemSplitCells(iElem)%Splitnum(1)+1; DO PosY = 1, ElemSplitCells(iElem)%Splitnum(2)+1
-!   DO PosZ = 1, ElemSplitCells(iElem)%Splitnum(3)+1
-!    IF (PartNum_SplitCell(PosX, PosY, PosZ).GE.2) THEN
-!        vBulk_SplitCell(1:3,PosX, PosY, PosZ) = vBulk_SplitCell(1:3,PosX, PosY, PosZ) /PartNum_SplitCell(PosX, PosY, PosZ)
-!        CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(PosX, PosY, PosZ),PosX, PosY, PosZ), &
-!                PartNum_SplitCell(PosX, PosY, PosZ), iElem, ElemSplitCells(iElem)%SplitCellVolumes(PosX, PosY, PosZ), &
-!                vBulk_SplitCell(1:3,PosX, PosY, PosZ))
-!    END IF
-!  END DO; END DO; END DO
-!ELSE
-!  ALLOCATE(iPartIndx(nPart))
-!  vBulk = 0.0
-!  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-!  DO iLoop = 1, nPart
-!    iPartIndx(iLoop) = iPart
-!    vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
-!    iPart = PEM%pNext(iPart)
-!  END DO
-!  vBulk(1:3) = vBulk(1:3) / nPart
-!  CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk(1:3))
-!END IF
-!
-!END SUBROUTINE ESBGKSplitCells
+    PosX = INT((MappedPartStates(iLoop,1)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(1)+1.)) + 1
+    PosY = INT((MappedPartStates(iLoop,2)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(2)+1.)) + 1
+    PosZ = INT((MappedPartStates(iLoop,3)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(3)+1.)) + 1
+    PartNum_SplitCell(PosX, PosY, PosZ) = PartNum_SplitCell(PosX, PosY, PosZ) + 1
+    iPartIndx_SplitCell(PartNum_SplitCell(PosX, PosY, PosZ), PosX, PosY, PosZ) = iPart
+    vBulk_SplitCell(1:3, PosX, PosY, PosZ)  =  vBulk_SplitCell(1:3, PosX, PosY, PosZ) + PartState(iPart,4:6)
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  DO PosX = 1, ElemSplitCells(iElem)%Splitnum(1)+1; DO PosY = 1, ElemSplitCells(iElem)%Splitnum(2)+1
+   DO PosZ = 1, ElemSplitCells(iElem)%Splitnum(3)+1
+    IF (PartNum_SplitCell(PosX, PosY, PosZ).GE.2) THEN
+        vBulk_SplitCell(1:3,PosX, PosY, PosZ) = vBulk_SplitCell(1:3,PosX, PosY, PosZ) /PartNum_SplitCell(PosX, PosY, PosZ)
+        CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(PosX, PosY, PosZ),PosX, PosY, PosZ), &
+                PartNum_SplitCell(PosX, PosY, PosZ), iElem, ElemSplitCells(iElem)%SplitCellVolumes(PosX, PosY, PosZ), &
+                vBulk_SplitCell(1:3,PosX, PosY, PosZ))
+    END IF
+  END DO; END DO; END DO
+ELSE
+  ALLOCATE(iPartIndx(nPart))
+  vBulk = 0.0
+  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+  DO iLoop = 1, nPart
+    iPartIndx(iLoop) = iPart
+    vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+    iPart = PEM%pNext(iPart)
+  END DO
+  vBulk(1:3) = vBulk(1:3) / nPart
+  CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk(1:3))
+END IF
+
+END SUBROUTINE ESBGKSplitCells
 
 integer function lcm(a,b)
 integer:: a,b

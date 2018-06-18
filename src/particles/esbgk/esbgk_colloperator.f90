@@ -34,7 +34,7 @@ USE MOD_TimeDisc_Vars ,ONLY: dt, TEnd, Time
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_ESBGK_Vars    ,ONLY: SpecESBGK, ESBGKTempCorrectFact, ESBGKModel, BGKCollModel, BGKUnifiedCes
 USE MOD_ESBGK_Vars    ,ONLY: BGKDiffEn, BGKTest, BGKDiffEn2, BGKDiffEn3, BGKDiffEn4, BGKAveragingLength, BGKDoAveraging
-USE MOD_ESBGK_Vars    ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation
+USE MOD_ESBGK_Vars    ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, ElemSplitCells, BGKSampAdapFac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -90,13 +90,17 @@ DO iLoop = 1, nPart
     END DO
     u0i(1:3) = u0i(1:3) + V_rel(1:3)
   END IF
-  IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4)) u2i(1:3) = u2i(1:3) + V_rel(1:3)*vmag2
+  IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4).OR.BGKSampAdapFac) u2i(1:3) = u2i(1:3) + V_rel(1:3)*vmag2
   OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) Evib = Evib + PartStateIntEn(iPartIndx_Node(iLoop),1) - SpecDSMC(1)%EZeroPoint
     ERot = ERot + PartStateIntEn(iPartIndx_Node(iLoop),2)
   END IF
 END DO
+IF (BGKSampAdapFac) THEN
+  ElemSplitCells(iElem)%AdapFac(1:3) = ElemSplitCells(iElem)%AdapFac(1:3) + u2i(1:3)
+  ElemSplitCells(iElem)%AdapFac(4) = ElemSplitCells(iElem)%AdapFac(4) + u2 
+END IF
 u2i = u2i/nPart
 u2 = u2/nPart
 u0ij = u0ij/nPart
