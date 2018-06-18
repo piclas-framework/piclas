@@ -965,7 +965,8 @@ REAL                :: tLBStart
       CALL CalcPotentialEnergy(WEl,WMag)
     END IF
   END IF
-  IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
+  !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
+  IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MPI Communication for values which are not YET communicated
@@ -2226,10 +2227,9 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartMPF, usevMPF, PDM,Species,PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PartMPF, usevMPF, PDM,PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec,nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas
-USE MOD_Particle_Mesh_Vars    ,ONLY: Geo
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 #ifdef MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -3078,93 +3078,224 @@ END IF
 END SUBROUTINE WriteEletronicTransition
 #endif
 
-SUBROUTINE TrackingParticlePosition(time)
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
+
+!  SUBROUTINE TrackingParticlePosition(time)
+!  !===================================================================================================================================
+!  ! Initializes variables necessary for analyse subroutines
+!  !===================================================================================================================================
+!  ! MODULES
+!  USE MOD_Globals
+!  USE MOD_Preproc
+!  USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
+!  USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+!  USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
+!  USE MOD_Equation_Vars         ,ONLY: c2_inv
+!  #endif
+!  ! IMPLICIT VARIABLE HANDLING
+!  IMPLICIT NONE
+!  !-----------------------------------------------------------------------------------------------------------------------------------
+!  ! INPUT VARIABLES
+!  REAL,INTENT(IN)                :: time
+!  !-----------------------------------------------------------------------------------------------------------------------------------
+!  ! OUTPUT VARIABLES
+!  !-----------------------------------------------------------------------------------------------------------------------------------
+!  ! LOCAL VARIABLES
+!  INTEGER            :: i,iunit,iPartState
+!  CHARACTER(LEN=60) :: TrackingFilename!,hilf
+!  LOGICAL            :: fexist
+!  REAL               :: diffPos,diffVelo
+!  !===================================================================================================================================
+!  
+!  !WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
+!  !TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
+!  TrackingFilename = ('ParticlePosition.csv')
+!  
+!  INQUIRE(FILE = TrackingFilename, EXIST=fexist)
+!  IF(.NOT.fexist) THEN 
+!   IF(PartMPI%MPIRoot)THEN
+!     OPEN(NEWUNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
+!     !CALL FLUSH (iunit)
+!      ! writing header
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'gamma', ' '
+!  #endif
+!      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'Element '
+!      CLOSE(iunit)
+!    END IF
+!  ELSE
+!    OPEN(NEWUNIT=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')
+!    !CALL FLUSH (iunit)
+!    DO i=1,PDM%ParticleVecLength
+!      IF (PDM%ParticleInside(i)) THEN
+!        WRITE(iunit,104,ADVANCE='NO') TIME
+!        WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!        WRITE(iunit,'(I12)',ADVANCE='NO') i
+!        DO iPartState=1,6
+!          WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!          WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
+!        END DO
+!  #if defined(LSERK) || defined(IMPA) || defined(ROS)
+!          WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!          WRITE(iunit,104,ADVANCE='NO') 1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv))
+!  #endif
+!        WRITE(iunit,'(A1)',ADVANCE='NO') ','
+!        WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
+!        WRITE(iunit,'(A)') ' '
+!       END IF
+!    END DO
+!    CLOSE(iunit)
+!  END IF
+!  IF (printDiff) THEN
+!    diffPos=0.
+!    diffVelo=0.
+!    IF (time.GE.printDiffTime) THEN
+!      printDiff=.FALSE.
+!      DO iPartState=1,3
+!        diffPos=diffPos+(printDiffVec(iPartState)-PartState(1,iPartState))**2
+!        diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(1,iPartState+3))**2
+!      END DO
+!      WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
+!    END IF
+!  END IF
+!  104    FORMAT (e25.14)
+!  
+!  END SUBROUTINE TrackingParticlePosition
+
+
+!----------------------------------------------------------------------------------------------------------------------------------!
+!> Write particle info to ParticlePosition.csv file
+!----------------------------------------------------------------------------------------------------------------------------------!
+SUBROUTINE WriteParticleTrackingData(time,iter)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Globals          ,ONLY: abort
+
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars         ,ONLY: c2_inv
 #endif
-! IMPLICIT VARIABLE HANDLING
+!----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                :: time
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! INPUT / OUTPUT VARIABLES 
+REAL,INTENT(IN)            :: time
+INTEGER(KIND=8),INTENT(IN) :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,iunit,iPartState
-CHARACTER(LEN=60) :: TrackingFilename!,hilf
-LOGICAL            :: fexist
-REAL               :: diffPos,diffVelo
-!===================================================================================================================================
-
-iunit=GETFREEUNIT()
-!WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
-!TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
-TrackingFilename = ('ParticlePosition.csv')
-
-INQUIRE(FILE = TrackingFilename, EXIST=fexist)
-IF(.NOT.fexist) THEN 
- IF(PartMPI%MPIRoot)THEN
-   iunit=GETFREEUNIT()
-   OPEN(UNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
-   !CALL FLUSH (iunit)
-    ! writing header
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+CHARACTER(LEN=22),PARAMETER              :: outfile='ParticlePosition.csv'
+INTEGER                                  :: ioUnit,I
+CHARACTER(LEN=50)                        :: formatStr
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'gamma', ' '
+INTEGER,PARAMETER                        :: nOutputVar=10
+#else
+INTEGER,PARAMETER                        :: nOutputVar=9
 #endif
-    WRITE(iunit,'(A1)',ADVANCE='NO') ','
-    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'Element '
-    CLOSE(iunit)
-  END IF
-ELSE
-  iunit=GETFREEUNIT()
-  OPEN(unit=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')
-  !CALL FLUSH (iunit)
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'time',     &
+    'PartNum',  &
+    'PartPosX', &
+    'PartPosY', &
+    'PartPosZ', &
+    'PartVelX', &
+    'PartVelY', &
+    'PartVelZ', &
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+    'gamma',    &
+#endif
+    'Element'/)
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                      :: tmpStr2 
+CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+LOGICAL                                  :: FileExist,CreateFile
+REAL                                     :: diffPos,diffVelo
+INTEGER                                  :: iPartState
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created
+CreateFile=.TRUE.
+IF(iter.GT.0)CreateFile=.FALSE.                             ! don't create new file if this is not the first iteration
+IF((DoRestart).AND.(FILEEXISTS(outfile)))CreateFile=.FALSE. ! don't create new file if this is a restart and the file already exists
+!                                                           ! assume continued simulation and old load balance data is still needed
+
+! check if new file with header is to be created
+INQUIRE(FILE = outfile, EXIST=FileExist)
+IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
+
+! create file with header
+IF(CreateFile) THEN 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+  tmpStr=""
+  DO I=1,nOutputVar
+    WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO I=1,nOutputVar
+    IF(I.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  CLOSE(ioUnit) 
+END IF
+
+! Print info to file
+IF(FILEEXISTS(outfile))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-      WRITE(iunit,104,ADVANCE='NO') TIME
-      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-      WRITE(iunit,'(I12)',ADVANCE='NO') i
-      DO iPartState=1,6
-        WRITE(iunit,'(A1)',ADVANCE='NO') ','
-        WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
-      END DO
+      WRITE(tmpStr2,formatStr)&
+          " ",time, &                                                                     ! time
+          delimiter,REAL(i), &                                                            ! PartNum
+          delimiter,PartState(i,1), &                                                     ! PartPosX
+          delimiter,PartState(i,2), &                                                     ! PartPosY
+          delimiter,PartState(i,3), &                                                     ! PartPosZ
+          delimiter,PartState(i,4), &                                                     ! PartVelX
+          delimiter,PartState(i,5), &                                                     ! PartVelY
+          delimiter,PartState(i,6), &                                                     ! PartVelZ
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-        WRITE(iunit,'(A1)',ADVANCE='NO') ','
-        WRITE(iunit,104,ADVANCE='NO') 1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv))
+          delimiter,1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv)), & ! gamma
 #endif
-      WRITE(iunit,'(A1)',ADVANCE='NO') ','
-      WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
-      WRITE(iunit,'(A)') ' '
-     END IF
+          delimiter,REAL(PEM%Element(i))                                                  ! Element
+      WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+    END IF
   END DO
-  CLOSE(iunit)
+  CLOSE(ioUnit) 
+ELSE
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
 END IF
+
+! printDiff
 IF (printDiff) THEN
   diffPos=0.
   diffVelo=0.
@@ -3177,9 +3308,7 @@ IF (printDiff) THEN
     WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
   END IF
 END IF
-104    FORMAT (e25.14)
-
-END SUBROUTINE TrackingParticlePosition
+END SUBROUTINE WriteParticleTrackingData
 
 Function CalcEkinPart(iPart)
 !===================================================================================================================================
@@ -3403,7 +3532,7 @@ SUBROUTINE CalculateIonizationCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,usevMPF,PartMPF
 USE MOD_Preproc                ,ONLY:PP_nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3511,7 +3640,6 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronTemperatureCell
 USE MOD_Particle_Vars          ,ONLY:PDM,PEM,BoltzmannConst
@@ -3692,7 +3820,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem 
 !===================================================================================================================================
 
 ! electron density
