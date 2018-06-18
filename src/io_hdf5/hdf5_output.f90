@@ -1545,9 +1545,9 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 USE MOD_Globals
 USE MOD_Globals_Vars,      ONLY:ProjectName
 USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
-#ifdef MPI
+#if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars,       ONLY:DoQDS
 #endif /*USE_QDS_DG*/
@@ -1566,9 +1566,9 @@ CHARACTER(LEN=255)       :: InputFile,NextFile
 !===================================================================================================================================
 IF(.NOT.MPIRoot) RETURN
 
-#ifdef MPI
+#if USE_LOADBALANCE
 IF(DoLoadBalance.AND.nLoadBalance.GT.0) RETURN
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 
 WRITE(UNIT_stdOut,'(a)')' DELETING OLD HDF5 FILES...'
 IF (.NOT.PRESENT(FlushTime_In)) THEN
