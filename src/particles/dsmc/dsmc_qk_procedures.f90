@@ -40,8 +40,9 @@ SUBROUTINE QK_dissociation(iPair,iReac,RelaxToDo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY: PartSpecies 
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE                                                                                    !
@@ -104,7 +105,7 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
@@ -256,8 +257,9 @@ SUBROUTINE QK_exchange(iPair,iReac,RelaxToDo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : PartSpecies
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -445,7 +447,8 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac,RelaxToDo)
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
-USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : PartSpecies
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -510,7 +513,8 @@ USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIn
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars,              ONLY: DSMC
 #endif
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 USE MOD_Globals_Vars,           ONLY: Pi

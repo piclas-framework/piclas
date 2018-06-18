@@ -386,10 +386,11 @@ SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_Preproc
 USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies
 USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
@@ -2401,8 +2402,9 @@ SUBROUTINE CalcTransTemp(NumSpec, Temp)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
 USE MOD_Preproc
-USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies, PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 #if (PP_TimeDiscMethod==1000)
 USE MOD_LD_Vars               ,ONLY: BulkValues
@@ -2638,7 +2640,8 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, PartMPF, usevMPF
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVib, CalcTelec, CalcTVibPoly
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -3513,7 +3516,8 @@ SUBROUTINE CalculateElectronTemperatureCell()
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronTemperatureCell
-USE MOD_Particle_Vars          ,ONLY:PDM,PEM,BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY:PDM,PEM
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3621,8 +3625,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell
-USE MOD_Globals_Vars           ,ONLY:ElectronCharge
-USE MOD_Particle_Vars          ,ONLY:BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY:ElectronCharge, BoltzmannConst
 USE MOD_Equation_Vars          ,ONLY:Eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

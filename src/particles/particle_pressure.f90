@@ -44,10 +44,10 @@ SUBROUTINE ParticlePressureIni()
 ! Initialization of constant pressure emission types
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars
   USE MOD_Globals
   USE MOD_Preproc
-  USE MOD_Globals_Vars
+  USE MOD_Globals_Vars,            ONLY:BoltzmannConst, Pi
+  USE MOD_Particle_Vars
   USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
   USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
@@ -1210,6 +1210,7 @@ SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
 ! Performs constant pressure calculations
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_Particle_Vars
 #ifdef MPI
   USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
@@ -1358,6 +1359,7 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
 ! Checks how many particles are inside including their temperature/energy
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals_Vars,         ONLY: BoltzmannConst, Pi
   USE MOD_Particle_Vars
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

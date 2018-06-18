@@ -526,7 +526,7 @@ REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: abort
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -585,7 +585,7 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 !> Calculation of the electronic temperature (zero-point search)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -644,7 +644,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -819,9 +819,10 @@ SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1520,7 +1521,8 @@ USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC,
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Vars      ,ONLY: Species, BoltzmannConst, nSpecies, WriteMacroVolumeValues
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime

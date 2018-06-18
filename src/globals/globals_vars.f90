@@ -31,9 +31,7 @@ CHARACTER(LEN=255),PARAMETER :: ProgramName    = 'Boltzplatz'         !> name of
 CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DEFINE-PARAMETER
 CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file
-#ifndef PARTICLES
 REAL, PARAMETER              :: BoltzmannConst=1.380648813E-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
-#endif
 !===================================================================================================================================
 
 !CONTAINS

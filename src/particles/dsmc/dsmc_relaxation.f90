@@ -25,7 +25,8 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, PartMPF, usevMPF, PEM
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartMPF, usevMPF, PEM
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -90,8 +91,9 @@ SUBROUTINE SetMeanVibQua()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas, PolyatomMolDSMC
-  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, nSpecies
+  USE MOD_Particle_Vars,         ONLY : nSpecies
   USE MOD_DSMC_Analyze,          ONLY : CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -153,7 +155,7 @@ SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -193,7 +195,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC, ChemReac, Coll_pData, DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

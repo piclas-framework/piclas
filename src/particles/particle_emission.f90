@@ -689,10 +689,11 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_Particle_Vars,         ONLY:IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_Particle_Vars,         ONLY:DoPoissonRounding,DoTimeDepInflow
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
+USE MOD_Particle_Vars,         ONLY:Species,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
@@ -2223,6 +2224,7 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_Timedisc_Vars,         ONLY:dt
 USE MOD_Equation_Vars,         ONLY:c,c2
@@ -3223,7 +3225,8 @@ SUBROUTINE ParticleInsertingPressureOut_Sampling(iSpec, iInit, iElem, ElemSamp, 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,BoltzmannConst,usevMPF,PartMPF,PDM
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,usevMPF,PartMPF,PDM
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_TimeDisc_Vars,         ONLY : iter
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO
@@ -3328,7 +3331,8 @@ SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species!, DoZigguratSampling
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3431,7 +3435,8 @@ SUBROUTINE CalcVelocity_emmert(FractNbr, iInit, Vec3D)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species!, DoZigguratSampling
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species!, DoZigguratSampling
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3616,10 +3621,10 @@ SUBROUTINE InitializeParticleSurfaceflux()
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY: PI
+USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
+USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
@@ -4514,7 +4519,7 @@ SUBROUTINE ParticleSurfaceflux()
 USE MOD_Particle_MPI_Vars,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars          , ONLY: PI
+USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Timedisc_Vars         , ONLY : iter
 #endif
@@ -5345,7 +5350,7 @@ SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,iSample,jSample,iSide,BCSideID,
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : PI
+USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
@@ -5823,6 +5828,7 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
 USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,             ONLY : nElems
@@ -5926,7 +5932,8 @@ FUNCTION SYNGE(velabs, temp, mass, BK2)
 ! Maxwell-Juettner distribution according to Synge Book p.48
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Globals_Vars,   ONLY: BoltzmannConst
+
 USE MOD_Equation_Vars,  ONLY: c_inv,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5950,7 +5957,7 @@ FUNCTION QUASIREL(velabs, temp, mass)
 ! discard gamma in the prefactor, maintain it in the computation of the energy
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Globals_Vars,  ONLY: BoltzmannConst
 USE MOD_Equation_Vars,  ONLY: c_inv,c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5975,7 +5982,7 @@ FUNCTION DEVI(mass, temp, gamma)
 ! derivative to find max of function
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Globals_Vars,  ONLY: BoltzmannConst
 USE MOD_Equation_Vars,  ONLY: c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6136,9 +6143,10 @@ SUBROUTINE AdaptiveBCAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
-USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal,BoltzmannConst
+USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec

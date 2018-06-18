@@ -86,9 +86,10 @@ SUBROUTINE LD_output_calc()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Timedisc_Vars,          ONLY : time
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
-  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species,  usevMPF
+  USE MOD_Particle_Vars,          ONLY : nSpecies, Species,  usevMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_Analyze,           ONLY : WriteDSMCToHDF5, CalcTVib
   USE MOD_LD_Vars,                ONLY : LD_Residual, LD_CalcResidual
