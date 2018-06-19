@@ -5133,10 +5133,6 @@ __STAMP__&
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-<<<<<<< HEAD
-=======
-IF (time.GE.DelayTime) THEN ! removed .OR.(iter.EQ.0) because particles have not moved
->>>>>>> e1f270206d9c818b55c52b88d8ece31972d23fdb
 #ifdef MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
