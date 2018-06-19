@@ -388,7 +388,6 @@ LOGICAL                                  :: DoSurfaceFlux                     ! 
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
-LOGICAL                                  :: FindNeighbourElems=.FALSE.
 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart

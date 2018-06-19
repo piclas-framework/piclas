@@ -309,7 +309,7 @@ END DO
 END SUBROUTINE InitRPBasis
 
 
-SUBROUTINE RecordPoints(iter,t,forceSampling,Output)
+SUBROUTINE RecordPoints(t,forceSampling,Output)
 !===================================================================================================================================
 ! Interpolate solution at time t to recordpoint positions and fill output buffer 
 !===================================================================================================================================
@@ -317,7 +317,7 @@ SUBROUTINE RecordPoints(iter,t,forceSampling,Output)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars          ,ONLY:U
-USE MOD_Timedisc_Vars,    ONLY:dt
+USE MOD_Timedisc_Vars,    ONLY:dt, iter
 USE MOD_TimeDisc_Vars    ,ONLY:tAnalyze
 USE MOD_Analyze_Vars     ,ONLY:Analyze_dt
 USE MOD_RecordPoints_Vars,ONLY:RP_Data,RP_ElemID
@@ -327,7 +327,6 @@ USE MOD_RecordPoints_Vars,ONLY:l_xi_RP,l_eta_RP,l_zeta_RP,nRP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)     :: iter
 REAL,INTENT(IN)                :: t
 LOGICAL,INTENT(IN)             :: forceSampling,Output ! force sampling (e.g. first/last timestep)
 !-----------------------------------------------------------------------------------------------------------------------------------

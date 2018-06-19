@@ -3637,6 +3637,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3933,7 +3934,7 @@ __STAMP__&
       END IF !.NOT.VeloIsNormal
     ELSE !Adaptive
       Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = Species(iSpec)%Init(0)%velocityDistribution
-      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0) THEN
+      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 .OR. nMacroRestartFiles.EQ.0) THEN
         Species(iSpec)%Surfaceflux(iSF)%VeloIC                = Species(iSpec)%Init(0)%VeloIC
         Species(iSpec)%Surfaceflux(iSF)%VeloVecIC             = Species(iSpec)%Init(0)%VeloVecIC
       END IF
@@ -3942,7 +3943,7 @@ __STAMP__&
     END IF
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .OR. .NOT.noAdaptive) THEN
       !--- normalize VeloVecIC
-      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0) THEN
+      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 .OR. nMacroRestartFiles.EQ.0) THEN
         IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
           Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
             /SQRT(DOT_PRODUCT(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC))
@@ -3970,7 +3971,7 @@ __STAMP__&
       sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
         + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
       IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 &
-          .OR. PartBound%AdaptiveType(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.1) THEN
+          .OR. PartBound%AdaptiveType(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.1 .OR. nMacroRestartFiles.EQ.0) THEN
         Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
         Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Surfaceflux(iSF)%PressureFraction &
           * PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC) &
@@ -4362,25 +4363,35 @@ __STAMP__&
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
             END IF! .NOT.VeloIsNormal
-            IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
-              IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-                ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                            ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
-                DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
-                  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                     ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
-                    = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
-                END DO; END DO; END DO
-              END IF !.NOT.VeloIsNormal
-            END IF
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+            IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+              ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                          ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
+              DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                   ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
+                  = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
+              END DO; END DO; END DO
+            END IF !.NOT.VeloIsNormal
+          END IF
+        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         IF (.NOT.noAdaptive) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
             FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
-            IF (FileID.EQ.0) THEN
+            IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+            ELSE
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
@@ -4391,14 +4402,6 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-            ELSE
-              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
             END IF
           END IF
         END IF

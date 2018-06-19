@@ -185,7 +185,9 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       ! Determination of the maximum MCS/MFP for the cell
-      DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      IF (DSMC%CollSepCount.GT.0 .AND. DSMC%MeanFreePath.GT.0.0) THEN
+        DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      END IF
     END IF
   END IF
 
@@ -344,10 +346,10 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-  SpecPartNum = 0
+SpecPartNum = 0
+nPart = PEM%pNumber(iElem)
 
-  nPart = PEM%pNumber(iElem)
-
+IF (nPart.GT.1) THEN
   NULLIFY(TreeNode)
 
   ALLOCATE(TreeNode)
@@ -398,6 +400,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
   DEALLOCATE(TreeNode%iPartIndx_Node) 
   DEALLOCATE(TreeNode)
+END IF !nPart > 0
 
 END SUBROUTINE DSMC_pairing_octree
 
@@ -507,17 +510,19 @@ __STAMP__&
   NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
 
   DO iLoop = 1, 8
-    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-    IF(PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin) THEN
-      ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+    IF (PartNumChildNode(iLoop).GT.1) THEN
       SpecPartNum = 0
       DO iPart = 1, PartNumChildNode(iLoop)
         SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) = &
           SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) + 1
       END DO
+      DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVolumeTemp(iLoop))
+    END IF
+    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+    IF(PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin) THEN
+      ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
       ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
       ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVolumeTemp(iLoop))
       IF((DSMC%MeanFreePath.LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
                                                                .OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
         NULLIFY(TreeNode%ChildNode)
@@ -919,7 +924,9 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       ! Determination of the maximum MCS/MFP for the cell
-      DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      IF (DSMC%CollSepCount.GT.0 .AND. DSMC%MeanFreePath.GT.0.0) THEN
+        DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      END IF
     END IF
   END IF
 
