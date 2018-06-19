@@ -1463,7 +1463,7 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
