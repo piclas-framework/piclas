@@ -434,7 +434,10 @@ INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: WEl, WMag, NumSpec(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum, MeanFreePath
+REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+REAL                :: MeanFreePath
+#endif
 #ifdef MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
 REAL                :: sumMeanCollProb
@@ -975,15 +978,11 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
   END IF
 #ifdef CODE_ANALYZE
   IF(DoInterpolationAnalytic)THEN
-    CALL CalcAnalyticalParticleState(time,PartStateAnalytic) 
     CALL CalcErrorParticle(time,iter,PartStateAnalytic)
     IF(PartMPI%MPIRoot.AND.DoAnalyze.AND.OutputNorms) THEN
-      !WRITE(formatStr,'(A5,I1,A9)')'(A13,',6,'E21.14E3)'
-      !WRITE(UNIT_StdOut,formatStr)' L_Part_2  : ',L_2_Error_Part  ! this name is printed because it cannot start with "L_2..."
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
+      WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
       WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
       WRITE(UNIT_StdOut,formatStr)' L_Part_2  : ',L_2_Error_Part
-      !read*
       OutputNorms=.FALSE.
     END IF
   END IF
@@ -3893,28 +3892,26 @@ IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 END SUBROUTINE CalculatePartElemData
 
 #ifdef CODE_ANALYZE
+!===================================================================================================================================
+!> Calculate the analytical position and velocity depending on the pre-defined function
+!===================================================================================================================================
 SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic)
-!===================================================================================================================================
-! Calculate the analytical position and velocity depending on the pre-defined function
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_PreProc
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: t
+REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER :: regime=3     ! set this globally ! 
-REAL    :: P=2          ! set this globally !
-REAL    :: Theta_0=0.   ! set this globally ?
+!REAL    :: p
 REAL    :: gamma_0
 REAL    :: phi_0
 REAL    :: Theta
@@ -3922,19 +3919,23 @@ REAL    :: Theta
 PartStateAnalytic=0. ! default
 
 ! select the analytical solution
-SELECT CASE(TRIM(AnalyticInterpolationType))
-CASE('vugt_2018')
-  SELECT CASE(regime)
+SELECT CASE(AnalyticInterpolationType)
+CASE(1)
+  SELECT CASE(AnalyticInterpolationSubType)
   CASE(1,2)
-    stop "not implemented XYZ222"
   CASE(3)
+    ASSOCIATE( p       => AnalyticInterpolationP , &
+               Theta_0 => 0.d0                   )
     gamma_0 = SQRT(p*p-1.)
+    ! phase shift
     phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
+    ! angle
     Theta   = 2.*ATAN( SQRT((p-1)/(p+1)) * TAN(0.5*gamma_0*t - phi_0) ) + 2*Pi*REAL(NINT((t*gamma_0)/(2*Pi) - phi_0/Pi))
     ! x-pos
     PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
     ! y-pos
     PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+    END ASSOCIATE
     !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
     !read*
   END SELECT
@@ -3943,30 +3944,37 @@ END SELECT
 END SUBROUTINE CalcAnalyticalParticleState
 
 
+!===================================================================================================================================
+!> Calculates "running" L_2 norms
+!> running means: use the old L_2 error from the previous iteration in order to determine the L_2 error over time (wall time)
+!> L_2(t) = SQRT( ( L_2(t-1)^2 * (iter-1) + delta(t)^2 ) / iter )
+!>
+!> t     : simulation time
+!> L_2   : error norm
+!> delta : difference numerical to analytical solution
+!> iter  : simulation iteration counter
+!===================================================================================================================================
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
-!===================================================================================================================================
-! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
-!===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_PreProc
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)    :: iter
-REAL,INTENT(IN)               :: t
-REAL,INTENT(IN)               :: PartStateAnalytic(1:6)   !< analytic position and velocity
+INTEGER(KIND=8),INTENT(IN)    :: iter                     !< simulation iteration counter
+REAL,INTENT(IN)               :: t                        !< simulation time
+REAL,INTENT(INOUT)            :: PartStateAnalytic(1:6)   !< analytic position and velocity
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: i,j
-CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
-! depending on the iteration counter, set the L2 error (re-use the value in the next loop)
+! Get analytic particle position
+CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
+
+! Depending on the iteration counter, set the L_2 error (re-use the value in the next loop)
 IF(iter.LT.1)THEN ! first iteration
   L_2_Error_Part(1:6) = 0
 ELSE
@@ -3980,7 +3988,6 @@ ELSE
     END IF
   END DO
 END IF
-!WRITE (*,*) "iter,L_2 =", iter,L_2_Error_Part
 
 END SUBROUTINE CalcErrorParticle
 #endif /*CODE_ANALYZE*/

@@ -36,9 +36,16 @@ INTEGER                 :: nIntPoints                    !< number of all interp
 #ifdef CODE_ANALYZE
 LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebraic functions for the field at the
 !                                                        !< particle position
-CHARACTER(LEN=256)      :: AnalyticInterpolationType     !< Type of AnalyticInterpolation-Method
-REAL                    :: B_0                           !< coefficient of the magnetostatic field
-REAL                    :: l_inv                         !< inverse of the "gradient length"
+
+INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
+!                                                        !< 1: magnetostatic field: B = B_z = B_0 * EXP(x/l)
+!                                                        !< 
+
+INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the analytic interpolation method (in combination with
+!                                                        !< AnalyticInterpolationType)
+
+REAL                    :: AnalyticInterpolationP        !< parameter "p" for AnalyticInterpolationType = 1
+
 REAL                    :: L_2_Error_Part(1:6)           !< L2 error for the particle state
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================

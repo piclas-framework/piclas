@@ -47,9 +47,8 @@ USE MOD_PICInterpolation_Vars
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT
-!REAL                      :: P(3,8), T(3,3), T_inv(3,3)
-!INTEGER                   :: iNode, Elem
 REAL                      :: scaleExternalField
+CHARACTER(LEN=20)         :: tempStr
 !===================================================================================================================================
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
@@ -79,16 +78,16 @@ END IF
 #ifdef CODE_ANALYZE
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
 IF(DoInterpolationAnalytic)THEN
-  AnalyticInterpolationType = GETSTR('PIC-AnalyticInterpolation-Type','none')
-  SELECT CASE(TRIM(AnalyticInterpolationType))
-  CASE('vugt_2018')
-    B_0   = GETREAL('AnalyticInterpolation_B_0','1.0')
-    l_inv = GETREAL('AnalyticInterpolation_l','1.0') ! read the length
-    l_inv = 1./l_inv                                 ! invert the length for calculation
+  AnalyticInterpolationType = GETINT('PIC-AnalyticInterpolation-Type','0')
+  SELECT CASE(AnalyticInterpolationType)
+  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType','0')
+    AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP','1.0')
   CASE DEFAULT
+    WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
         __STAMP__ &
-        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(AnalyticInterpolationType)//'" in pic_init.f90')
+        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_init.f90')
   END SELECT
 END IF
 #endif /*CODE_ANALYZE*/
@@ -154,7 +153,7 @@ USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif 
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType,B_0,l_inv
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -212,10 +211,10 @@ END IF
 FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
-  SELECT CASE(TRIM(AnalyticInterpolationType))
-  CASE('vugt_2018')
+  SELECT CASE(AnalyticInterpolationType)
+  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
     DO iPart = firstPart, LastPart
-      FieldAtParticle(iPart,6) = B_0*EXP(PartState(iPart,1)*l_inv)
+      FieldAtParticle(iPart,6) = EXP(PartState(iPart,1)) ! "B_0" and "l" are dropped here
     END DO
   END SELECT
 ELSE ! use variable or fixed external field
