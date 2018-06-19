@@ -982,15 +982,15 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
     IF(PartMPI%MPIRoot.AND.DoAnalyze.AND.OutputNorms) THEN
       WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
       WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L_Part_2  : ',L_2_Error_Part
+      WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
       OutputNorms=.FALSE.
     END IF
   END IF
-  IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter,PartStateAnalytic) ! new function
-#else
+  IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
+#endif /*CODE_ANALYZE*/
   !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
   IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
-#endif /*CODE_ANALYZE*/
+  ! get velocities
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MPI Communication for values which are not YET communicated
@@ -3203,12 +3203,11 @@ END SUBROUTINE WriteEletronicTransition
 !  
 !  END SUBROUTINE TrackingParticlePosition
 
-
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Write particle info to ParticlePosition.csv file
 !> time, pos, velocity, gamma, element
 !----------------------------------------------------------------------------------------------------------------------------------!
-SUBROUTINE WriteParticleTrackingData(time,iter,PartStateAnalytic)
+SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3226,16 +3225,15 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 REAL,INTENT(IN)                  :: time
 INTEGER(KIND=8),INTENT(IN)       :: iter
-REAL(KIND=8),INTENT(IN),OPTIONAL :: PartStateAnalytic(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=22),PARAMETER              :: outfile='ParticlePosition.csv'
+CHARACTER(LEN=20),PARAMETER              :: outfile='ParticlePosition.csv'
 INTEGER                                  :: ioUnit,I
-CHARACTER(LEN=150)                        :: formatStr
+CHARACTER(LEN=150)                       :: formatStr
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
-INTEGER,PARAMETER                        :: nOutputVar=16
+INTEGER,PARAMETER                        :: nOutputVar=10
 #else
-INTEGER,PARAMETER                        :: nOutputVar=15
+INTEGER,PARAMETER                        :: nOutputVar=9
 #endif
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time',     &
@@ -3249,12 +3247,6 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
     'gamma',    &
 #endif
-    'PartPosX_Analytic', &
-    'PartPosY_Analytic', &
-    'PartPosZ_Analytic', &
-    'PartVelX_Analytic', &
-    'PartVelY_Analytic', &
-    'PartVelZ_Analytic', &
     'Element'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2 
@@ -3262,17 +3254,9 @@ CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 LOGICAL                                  :: FileExist,CreateFile
 REAL                                     :: diffPos,diffVelo
 INTEGER                                  :: iPartState
-REAL                                     :: PartStateAnalytic_loc(1:6)
 !===================================================================================================================================
 ! only the root shall write this file
 IF(.NOT.MPIRoot)RETURN
-
-
-IF(.NOT.PRESENT(PartStateAnalytic))THEN
-  PartStateAnalytic_loc=0.
-ELSE
-  PartStateAnalytic_loc=PartStateAnalytic
-END IF
 
 ! check if file is to be created
 CreateFile=.TRUE.
@@ -3326,12 +3310,6 @@ IF(FILEEXISTS(outfile))THEN
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
           delimiter,1./SQRT(1-(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6))*c2_inv)), & ! gamma
 #endif
-          delimiter,PartStateAnalytic_loc(1), &                                           ! PartPosX analytic solution
-          delimiter,PartStateAnalytic_loc(2), &                                           ! PartPosY analytic solution
-          delimiter,PartStateAnalytic_loc(3), &                                           ! PartPosZ analytic solution
-          delimiter,PartStateAnalytic_loc(4), &                                           ! PartVelX analytic solution
-          delimiter,PartStateAnalytic_loc(5), &                                           ! PartVelY analytic solution
-          delimiter,PartStateAnalytic_loc(6), &                                           ! PartVelZ analytic solution
           delimiter,REAL(PEM%Element(i))                                                  ! Element
       WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     END IF
@@ -3355,6 +3333,103 @@ IF (printDiff) THEN
   END IF
 END IF
 END SUBROUTINE WriteParticleTrackingData
+
+
+!----------------------------------------------------------------------------------------------------------------------------------!
+!> Write analytic particle info to ParticlePositionAnalytic.csv file
+!> time, pos, velocity
+!----------------------------------------------------------------------------------------------------------------------------------!
+SUBROUTINE WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Globals          ,ONLY: abort
+USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+REAL,INTENT(IN)                  :: time
+INTEGER(KIND=8),INTENT(IN)       :: iter
+REAL(KIND=8),INTENT(IN)          :: PartStateAnalytic(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=28),PARAMETER              :: outfile='ParticlePositionAnalytic.csv'
+INTEGER                                  :: ioUnit,I
+CHARACTER(LEN=150)                       :: formatStr
+INTEGER,PARAMETER                        :: nOutputVar=7
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
+    'time',     &
+    'PartPosX_Analytic', &
+    'PartPosY_Analytic', &
+    'PartPosZ_Analytic', &
+    'PartVelX_Analytic', &
+    'PartVelY_Analytic', &
+    'PartVelZ_Analytic'/)
+CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
+CHARACTER(LEN=1000)                      :: tmpStr2 
+CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+LOGICAL                                  :: FileExist,CreateFile
+REAL                                     :: diffPos,diffVelo
+INTEGER                                  :: iPartState
+!===================================================================================================================================
+! only the root shall write this file
+IF(.NOT.MPIRoot)RETURN
+
+! check if file is to be created
+CreateFile=.TRUE.
+IF(iter.GT.0)CreateFile=.FALSE.                             ! don't create new file if this is not the first iteration
+IF((DoRestart).AND.(FILEEXISTS(outfile)))CreateFile=.FALSE. ! don't create new file if this is a restart and the file already exists
+!                                                           ! assume continued simulation and old load balance data is still needed
+
+! check if new file with header is to be created
+INQUIRE(FILE = outfile, EXIST=FileExist)
+IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
+
+! create file with header
+IF(CreateFile) THEN 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+  tmpStr=""
+  DO I=1,nOutputVar
+    WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO I=1,nOutputVar
+    IF(I.EQ.nOutputVar)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  CLOSE(ioUnit) 
+END IF
+
+! Print info to file
+IF(FILEEXISTS(outfile))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(tmpStr2,formatStr)&
+      " ",time, &                           ! time
+      delimiter,PartStateAnalytic(1), &     ! PartPosX analytic solution
+      delimiter,PartStateAnalytic(2), &     ! PartPosY analytic solution
+      delimiter,PartStateAnalytic(3), &     ! PartPosZ analytic solution
+      delimiter,PartStateAnalytic(4), &     ! PartVelX analytic solution
+      delimiter,PartStateAnalytic(5), &     ! PartVelY analytic solution
+      delimiter,PartStateAnalytic(6)        ! PartVelZ analytic solution
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  CLOSE(ioUnit) 
+ELSE
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+END IF
+
+END SUBROUTINE WriteParticleTrackingDataAnalytic
 
 Function CalcEkinPart(iPart)
 !===================================================================================================================================
