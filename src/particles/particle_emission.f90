@@ -4347,20 +4347,22 @@ __STAMP__&
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
               Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
             END IF! .NOT.VeloIsNormal
-            IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
-              IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-                ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                            ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
-                DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
-                  Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                     ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
-                    = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
-                END DO; END DO; END DO
-              END IF !.NOT.VeloIsNormal
-            END IF
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+            IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+              ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                          ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
+              DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
+                Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+                                                                   ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
+                  = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
+              END DO; END DO; END DO
+            END IF !.NOT.VeloIsNormal
+          END IF
+        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         IF (.NOT.noAdaptive) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
@@ -4369,9 +4371,9 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
             ELSE
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
