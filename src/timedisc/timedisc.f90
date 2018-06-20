@@ -284,7 +284,7 @@ IMPLICIT NONE
 REAL                         :: tZero                    !> initial time of current simulation (zero or restarttime)
 REAL                         :: tPreviousAnalyze         !> time of previous analyze. 
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
-INTEGER(KIND=8)              :: iAnalyze                 !> number of past analyze_dts
+INTEGER(KIND=8)              :: iAnalyze                 !> count number of next analyze
 REAL                         :: tEndDiff                 !> difference between simulation time and simulation end time
 REAL                         :: tAnalyzeDiff             !> difference between simulation time and next analyze time
 INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitBoltzplatz call for PID calculation
@@ -294,7 +294,8 @@ REAL                         :: WallTimeEnd              !> wall time of simulat
 REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 #if USE_LOADBALANCE
-INTEGER                      :: tmp_LoadBalanceSample
+INTEGER                      :: tmp_LoadBalanceSample    !> loadbalance sample saved until initial autorestart ist finished
+INTEGER                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
@@ -374,8 +375,23 @@ iter_PID=0
 tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
 tEndDiff=tEnd-time            ! dito for end time
 dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/)) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
-CALL PerformAnalyze(time,tenddiff=0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
+#if USE_LOADBALANCE
+IF (DoInitialAutoRestart) THEN
+  tmp_DoLoadBalance = DoLoadBalance
+  DoLoadBalance = .TRUE.
+  tmp_LoadbalanceSample = LoadBalanceSample
+  LoadBalanceSample = InitialAutoRestartSample
+  ! correction for first analyzetime due to auto initial restart
+  IF (MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt).LT.tAnalyze) THEN
+    tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt)
+    tAnalyzeDiff=tAnalyze-time
+    dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+  END IF
+END IF
+#endif /*USE_LOADBALANCE*/
+
+CALL PerformAnalyze(time,tenddiff=0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
@@ -470,17 +486,7 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*PARTICLES*/
 
-#if USE_LOADBALANCE
-  IF (DoInitialAutoRestart) THEN
-    tmp_LoadbalanceSample = LoadBalanceSample
-    LoadBalanceSample = InitialAutoRestartSample
-    tAnalyzeDiff=MINVAL((/tAnalyze-time,LoadBalanceSample*dt-time/))
-  ELSE
-#endif /*USE_LOADBALANCE*/
-    tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-#if USE_LOADBALANCE
-  END IF
-#endif /*USE_LOADBALANCE*/
+  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
   tEndDiff=tEnd-time            ! dito for end time
 
   !IF(time.LT.3e-8)THEN
@@ -493,7 +499,7 @@ DO !iter_t=0,MaxIter
 #if USE_LOADBALANCE
   IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
       .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
-      .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.
 #endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -620,8 +626,6 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
-    ! count analyze dts passed
-    iAnalyze=iAnalyze+1
 #if USE_LOADBALANCE
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #else
@@ -654,7 +658,7 @@ DO !iter_t=0,MaxIter
     END IF ! actual analyze is done
     iter_PID=0
 #if USE_LOADBALANCE
-    IF((DoLoadBalance.AND.PerformLBSample) .OR. (DoInitialAutoRestart.AND.PerformLBSample))THEN
+    IF((DoLoadBalance.AND.PerformLBSample))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
         IF(PerformLoadBalance) THEN
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
@@ -673,11 +677,14 @@ DO !iter_t=0,MaxIter
     END IF
     PerformLBSample=.FALSE.
     IF (DoInitialAutoRestart) THEN
-      DoInitialAutoRestart=.FALSE.
+      DoInitialAutoRestart = .FALSE.
+      DoLoadBalance = tmp_DoLoadBalance
       LoadBalanceSample = tmp_LoadBalanceSample
-      iAnalyze=1
+      iAnalyze=0
     END IF
 #endif /*USE_LOADBALANCE*/
+    ! count analyze dts passed
+    iAnalyze=iAnalyze+1
     tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
     WallTimeStart=BOLTZPLATZTIME()
   END IF !dt_analyze
