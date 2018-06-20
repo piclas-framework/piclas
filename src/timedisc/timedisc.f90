@@ -5457,6 +5457,7 @@ INTEGER                      :: TimeArray(8)              ! Array for system tim
 INTEGER                      :: nLostPartsTot
 #endif /*PARTICLES*/
 !===================================================================================================================================
+#ifdef PARTICLES
 IF(CountNbOfLostParts)THEN
 #ifdef MPI
   IF(MPIRoot) THEN
@@ -5468,6 +5469,7 @@ IF(CountNbOfLostParts)THEN
   nLostPartsTot=nLostParts
 #endif /*MPI*/
 END IF
+#endif /*PARICLES*/
 IF(MPIroot)THEN
   ! simulation time per CPUh efficiency in [s]/[CPUh]
   !SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-StartTime)*nProcessors/3600.) ! in [s] / [CPUh]
