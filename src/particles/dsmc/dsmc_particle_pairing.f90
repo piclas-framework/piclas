@@ -35,13 +35,14 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF
-  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
+  USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -180,6 +181,16 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       END IF
     END IF
   END DO
+
+  IF(DSMC%CalcQualityFactors) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      ! Determination of the maximum MCS/MFP for the cell
+      IF (DSMC%CollSepCount.GT.0 .AND. DSMC%MeanFreePath.GT.0.0) THEN
+        DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      END IF
+    END IF
+  END IF
+
   DEALLOCATE(Coll_pData)
 
 END SUBROUTINE FindNearestNeigh
@@ -332,16 +343,14 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iPart, iLoop, nPart, SpecPartNum(nSpecies)
-  REAL                          :: ApproxElemMid(1:3)
   TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-  SpecPartNum = 0
+SpecPartNum = 0
+nPart = PEM%pNumber(iElem)
 
-  nPart = PEM%pNumber(iElem)
-
+IF (nPart.GT.1) THEN
   NULLIFY(TreeNode)
-  ApproxElemMid(1:3)= 0.0
 
   ALLOCATE(TreeNode)
   ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
@@ -356,12 +365,12 @@ SUBROUTINE DSMC_pairing_octree(iElem)
               SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + 1
   END DO
 
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem))
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF((CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem)).LT.(GEO%CharLength(iElem))) &
-                                                                        .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+    IF((DSMC%MeanFreePath.LT.(GEO%CharLength(iElem))) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
       ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -391,6 +400,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
   DEALLOCATE(TreeNode%iPartIndx_Node) 
   DEALLOCATE(TreeNode)
+END IF !nPart > 0
 
 END SUBROUTINE DSMC_pairing_octree
 
@@ -500,18 +510,20 @@ __STAMP__&
   NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
 
   DO iLoop = 1, 8
-    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-    IF(PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin) THEN
-      ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+    IF (PartNumChildNode(iLoop).GT.1) THEN
       SpecPartNum = 0
       DO iPart = 1, PartNumChildNode(iLoop)
         SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) = &
           SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) + 1
       END DO
+      DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVolumeTemp(iLoop))
+    END IF
+    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+    IF(PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin) THEN
+      ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
       ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
       ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      IF((CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),           &
-                           NodeVolumeTemp(iLoop)).LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
+      IF((DSMC%MeanFreePath.LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
                                                                .OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
         NULLIFY(TreeNode%ChildNode)
         ALLOCATE(TreeNode%ChildNode)
@@ -542,7 +554,7 @@ __STAMP__&
           TreeNode%ChildNode%MidPoint(3) = 1.0
         END IF
         TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/REAL(2**(TreeNode%NodeDepth+1))
+                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/REAL(2.0**(TreeNode%NodeDepth+1))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
         IF (iLoop.EQ.1) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
@@ -798,8 +810,9 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, PartState, usevMPF, PartMPF
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas, DSMC
+  USE MOD_Particle_Vars,         ONLY : PartSpecies, nSpecies, PartState, usevMPF, PartMPF, WriteMacroVolumeValues
+  USE MOD_TimeDisc_Vars,         ONLY : TEnd, time
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -907,6 +920,16 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       END IF
     END IF
   END DO
+
+  IF(DSMC%CalcQualityFactors) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      ! Determination of the maximum MCS/MFP for the cell
+      IF (DSMC%CollSepCount.GT.0 .AND. DSMC%MeanFreePath.GT.0.0) THEN
+        DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+      END IF
+    END IF
+  END IF
+
   DEALLOCATE(Coll_pData)
   
 END SUBROUTINE FindStatisticalNeigh

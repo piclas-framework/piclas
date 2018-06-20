@@ -76,22 +76,22 @@ PnewX = PartState(iPart,1)
 PnewY = PartState(iPart,2)
 PnewZ = PartState(iPart,3)
 
-xNod = GEO%NodeCoords(1,1,iLocSide,Element)
-yNod = GEO%NodeCoords(2,1,iLocSide,Element)
-zNod = GEO%NodeCoords(3,1,iLocSide,Element)
+xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
 
 !---- Calculate normal vector:
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
 
-Vector1(1) = GEO%NodeCoords(1,Node1,iLocSide,Element) - xNod
-Vector1(2) = GEO%NodeCoords(2,Node1,iLocSide,Element) - yNod
-Vector1(3) = GEO%NodeCoords(3,Node1,iLocSide,Element) - zNod
+Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - xNod
+Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - yNod
+Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - zNod
 
-Vector2(1) = GEO%NodeCoords(1,Node2,iLocSide,Element) - xNod
-Vector2(2) = GEO%NodeCoords(2,Node2,iLocSide,Element) - yNod
-Vector2(3) = GEO%NodeCoords(3,Node2,iLocSide,Element) - zNod
+Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - xNod
+Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - yNod
+Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - zNod
 
 nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
 ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
@@ -692,94 +692,94 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
 #endif /*CODE_ANALYZE*/
 
 ! compute product with particle trajectory
-a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
-a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
-a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+!a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+!a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+!a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+!a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
 
-a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
-a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
-a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
-
-!IF((ABS(SideNormVec(1,SideID)).GE.ABS(SideNormVec(2,SideID))) .AND.(ABS(SideNormVec(1,SideID)).LE.ABS(SideNormVec(3,SideID))) &
-!  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
-!  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
-!  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
-!  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
-!  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
-!       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
-!  
-!  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
-!  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
-!  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
-!  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
-!       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
-!ELSE IF(ABS(SideNormVec(2,SideID)).LE.ABS(SideNormVec(3,SideID)) &
-!  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
-!  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
-!  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
-!  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
-!  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
-!       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
-!  
-!  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
-!  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
-!  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
-!  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
-!       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
-!ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
-!  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
-!  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
-!  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-!  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
-!       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
-!  
-!  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
-!  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
-!  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-!  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
-!       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
-!!if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
-!ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
-!  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
-!  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
-!  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
-!  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
-!       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
-!  
-!  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
-!  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
-!  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
-!  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
-!       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
-!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
-!  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
-!  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
-!  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
-!  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
-!       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
-!  
-!  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
-!  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
-!  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
-!  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
-!       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
-!ELSE
-!  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
-!  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
-!  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
-!  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
-!       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
-!  
-!  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
-!  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
-!  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
-!  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
-!       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
-!END IF
+!a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+!a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+!a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+!a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+!     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+!-- use the following instead of the previous lines, since otherwise coeffs can be cancelled out for trajectories with 0-components
+IF((ABS(SideNormVec(1,SideID)).GE.ABS(SideNormVec(2,SideID))) .AND.(ABS(SideNormVec(1,SideID)).LE.ABS(SideNormVec(3,SideID))) &
+  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
+  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
+  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
+  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
+ELSE IF(ABS(SideNormVec(2,SideID)).LE.ABS(SideNormVec(3,SideID)) &
+  .AND. .NOT.ALMOSTZERO(PartTrajectory(1)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
+ELSE IF(.NOT.ALMOSTZERO(PartTrajectory(3)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+!if PartTrajectory should be zero in largest component of SideNormVec, decide based on original check:
+ELSE IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
+  a1(1)= BilinearCoeff(2,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(2)
+  a1(2)= BilinearCoeff(2,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(2)
+  a1(3)= BilinearCoeff(2,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(2)
+  a1(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(1) - BilinearCoeff(1,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(1) - BilinearCoeff(1,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(1) - BilinearCoeff(1,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1) &
+       -(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3)
+ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(3,1)*PartTrajectory(2) - BilinearCoeff(2,1)*PartTrajectory(3)
+  a2(2)= BilinearCoeff(3,2)*PartTrajectory(2) - BilinearCoeff(2,2)*PartTrajectory(3)
+  a2(3)= BilinearCoeff(3,3)*PartTrajectory(2) - BilinearCoeff(2,3)*PartTrajectory(3)
+  a2(4)=(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2) &
+       -(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3)
+ELSE
+  a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+  a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+  a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+  a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+  
+  a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+  a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+  a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+  a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+       -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+END IF
 
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
@@ -1076,31 +1076,33 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3) ! double intersection leaves and entries element
-        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(2)
-            xitild=xi(2)
-            etatild=eta(2)
-          ELSE
+!        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(2)
+!            xitild=xi(2)
+!            etatild=eta(2)
+!          ELSE
             alpha=-1.0
             xitild=0.
             etatild=0.
             isHit=.FALSE.
-          END IF
-        ELSE
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(1)
-            xitild=xi(1)
-            etatild=eta(1)
-          ELSE
-            alpha=-1.0
-            xitild=0.
-            etatild=0.
-            isHit=.FALSE.
-          END IF
-        END IF
+!          END IF
+!        ELSE
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(1)
+!            xitild=xi(1)
+!            etatild=eta(1)
+!          ELSE
+!            alpha=-1.0
+!            xitild=0.
+!            etatild=0.
+!            isHit=.FALSE.
+!          END IF
+!        END IF
       END SELECT
     END IF
 #ifdef MPI

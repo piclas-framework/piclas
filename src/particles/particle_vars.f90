@@ -277,6 +277,9 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
+                                                                             ! instantaneous values with those
+                                                                             ! of previous iterations
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
                                                                              ! saved for daptive surfaceflux
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
@@ -380,7 +383,6 @@ LOGICAL                                  :: DoSurfaceFlux                     ! 
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
-LOGICAL                                  :: FindNeighbourElems=.FALSE.
 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart

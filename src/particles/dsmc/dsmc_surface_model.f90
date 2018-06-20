@@ -3025,7 +3025,7 @@ DO SurfSide=1,SurfMesh%nSides
           IF (Adsorption%RecombData(1,iSpec).LE.0) THEN
             Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
           ELSE
-            IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LT.0) THEN
+            IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LE.0) THEN
               Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
             ELSE
               Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) &

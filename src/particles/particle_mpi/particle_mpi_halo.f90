@@ -693,8 +693,8 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
+USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
@@ -714,7 +714,9 @@ INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: BezierControlPoints3D(:,:,:,:)
-  REAL,ALLOCATABLE          :: NodeCoords(:,:,:,:)
+  INTEGER,ALLOCATABLE       :: ElemToNodeID(:,:)
+  INTEGER,ALLOCATABLE       :: ElemSideNodeID(:,:,:)
+  REAL,ALLOCATABLE          :: NodeCoords(:,:)
   LOGICAL,ALLOCATABLE       :: ConcaveElemSide(:,:)
   REAL,ALLOCATABLE          :: XCL_NGeo (:,:,:,:,:)
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
@@ -732,6 +734,7 @@ TYPE tMPISideMessage
   REAL,ALLOCATABLE,DIMENSION(:,:)    :: SideSlabIntervals               ! intervalls beta1, beta2, beta3
   LOGICAL,ALLOCATABLE,DIMENSION(:)   :: BoundingBoxIsEmpty
   !INTEGER,ALLOCATABLE       :: PeriodicElemSide(:,:)
+  INTEGER                   :: nNodes                 ! number of nodes to send
   INTEGER                   :: nSides                 ! number of sides to send
   INTEGER                   :: nElems                 ! number of elems to send
   LOGICAL,ALLOCATABLE       :: curvedElem(:)
@@ -745,10 +748,10 @@ TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT
 INTEGER                     :: newSideID,haloSideID,newElemID
-LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
-INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
-INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip
-INTEGER                     :: nDoubleSides,tmpnSides,tmpnElems
+LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isNode(:),isDone(:)
+INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:), NodeIndex(:), HaloInc(:)
+INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip, iNode
+INTEGER                     :: nDoubleSides,tmpnSides,tmpnElems,tmpnNodes
 INTEGER                     :: datasize,datasize2,datasize3
 INTEGER                     :: tmpbcsides
 !===================================================================================================================================
@@ -765,6 +768,12 @@ IF (.NOT.ALLOCATED(isSide)) CALL abort(&
   ,'Could not allocate isSide')
 isSide(:) = .FALSE.
 
+ALLOCATE(isNode(1:nNodes))
+IF (.NOT.ALLOCATED(isNode)) CALL abort(&
+  __STAMP__&
+  ,'Could not allocate isNode')
+isNode(:) = .FALSE.
+
 ALLOCATE(ElemIndex(1:nElems))
 IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(&
   __STAMP__&
@@ -777,10 +786,17 @@ IF (.NOT.ALLOCATED(SideIndex)) CALL abort(&
   ,'Could not allocate SideIndex')
 SideIndex(:) = 0
 
+ALLOCATE(NodeIndex(1:nNodes))
+IF (.NOT.ALLOCATED(NodeIndex)) CALL abort(&
+  __STAMP__&
+  ,'Could not allocate NodeIndex')
+NodeIndex(:) = 0
+
 !--- First, count marker node indices (nNeighborhoodNodes are within eps distance of at least one MPI-neighbor's node)
 !--- For each MPI neighbor, identify the number of sides and elements to be sent
 SendMsg%nElems=0
 SendMsg%nSides=0
+SendMsg%nNodes=0
 !LOGWRITE(*,*)'nNeighborhoodNodes=',nNeighborhoodNodes
 
 ! 1) get number of elements and sides
@@ -819,6 +835,16 @@ DO iElem=1,nElems
         END IF ! not isSide
       END IF
     END DO ! ilocSide
+    IF (TriaTracking) THEN
+      !--- name nodes and update node-count
+      DO iNode=1,8
+        IF(.NOT.isNode(GEO%ElemToNodeID(iNode,iElem))) THEN
+          SendMsg%nNodes=SendMsg%nNodes+1
+          NodeIndex(GEO%ElemToNodeID(iNode,iElem)) = SendMsg%nNodes
+          isNode(GEO%ElemToNodeID(iNode,iElem))=.TRUE.
+        END IF
+      END DO
+    END IF
   END IF ! Element is marked to send
 END DO ! iElem
 
@@ -826,13 +852,17 @@ END DO ! iElem
 IF (PartMPI%MyRank.LT.iProc) THEN
   CALL MPI_SEND(SendMsg%nElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)
   CALL MPI_SEND(SendMsg%nSides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
+  CALL MPI_SEND(SendMsg%nNodes,1,MPI_INTEGER,iProc,1103,PartMPI%COMM,IERROR)
   CALL MPI_RECV(RecvMsg%nElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
   CALL MPI_RECV(RecvMsg%nSides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,MPISTATUS,IERROR)
+  CALL MPI_RECV(RecvMsg%nNodes,1,MPI_INTEGER,iProc,1103,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   CALL MPI_RECV(RecvMsg%nElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
   CALL MPI_RECV(RecvMsg%nSides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,MPISTATUS,IERROR)
+  CALL MPI_RECV(RecvMsg%nNodes,1,MPI_INTEGER,iProc,1103,PartMPI%COMM,MPISTATUS,IERROR)
   CALL MPI_SEND(SendMsg%nElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)
   CALL MPI_SEND(SendMsg%nSides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
+  CALL MPI_SEND(SendMsg%nNodes,1,MPI_INTEGER,iProc,1103,PartMPI%COMM,IERROR)
 END IF
 
 ! allocate send buffers for nodes, sides and elements for each MPI neighbor
@@ -927,29 +957,57 @@ IF (RecvMsg%nElems.GT.0) THEN
 END IF
 
 IF (TriaTracking) THEN
-  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
-    ALLOCATE(SendMsg%Nodecoords(1:3,1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (SendMsg%nElems.GT.0) THEN       ! ElemToNodeID
+    ALLOCATE(SendMsg%ElemToNodeID(1:8,1:SendMsg%nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-      ,'Could not allocate SendMsg%Nodecoords',SendMsg%nElems)
-    SendMsg%Nodecoords=0.
+      ,'Could not allocate SendMsg%ElemToNodeID',SendMsg%nElems)
+    SendMsg%ElemToNodeID=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
-    ALLOCATE(RecvMsg%NodeCoords(1:3,1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    ALLOCATE(RecvMsg%ElemToNodeID(1:8,1:RecvMsg%nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-      ,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nElems)
+      ,'Could not allocate RecvMsg%ElemToNodeID',RecvMsg%nElems)
+    RecvMsg%ElemToNodeID=0
+  END IF
+  IF (SendMsg%nElems.GT.0) THEN       ! ElemSideNodeID
+    ALLOCATE(SendMsg%ElemSideNodeID(1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%ElemSideNodeID',SendMsg%nElems)
+    SendMsg%ElemSideNodeID=0
+  END IF
+  IF (RecvMsg%nElems.GT.0) THEN
+    ALLOCATE(RecvMsg%ElemSideNodeID(1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%ElemSideNodeID',RecvMsg%nElems)
+    RecvMsg%ElemSideNodeID=0
+  END IF
+  IF (SendMsg%nNodes.GT.0) THEN       ! NodeCoords
+    ALLOCATE(SendMsg%Nodecoords(1:3,1:SendMsg%nNodes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate SendMsg%Nodecoords',SendMsg%nNodes)
+    SendMsg%Nodecoords=0.
+  END IF
+  IF (RecvMsg%nNodes.GT.0) THEN
+    ALLOCATE(RecvMsg%NodeCoords(1:3,1:RecvMsg%nNodes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nNodes)
     RecvMsg%NodeCoords=0.
   END IF
-  IF (SendMsg%nElems.GT.0) THEN       ! NodeCoords
-    ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (SendMsg%nElems.GT.0) THEN       ! ConcaveElemSide
+    ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate SendMsg%ConcaveElemSide',SendMsg%nElems)
     SendMsg%ConcaveElemSide=.FALSE.
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
-    ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate RecvMsg%ConcaveElemSide',RecvMsg%nElems)
@@ -1185,8 +1243,19 @@ DO iElem = 1,nElems
       SendMsg%ElemType(ElemIndex(iElem))=ElemType(iElem)
     END IF
     IF(TriaTracking)THEN
-      SendMsg%NodeCoords(:,:,:,ElemIndex(iElem))=GEO%Nodecoords(:,:,:,iElem)
       SendMsg%ConcaveElemSide(:,ElemIndex(iElem))=GEO%ConcaveElemSide(:,iElem)
+      DO iNode=1,8
+        IF(NodeIndex(GEO%ElemToNodeID(iNode,iElem)).GT.0) THEN
+          SendMsg%ElemToNodeID(iNode,ElemIndex(iElem))=NodeIndex(GEO%ElemToNodeID(iNode,iElem))
+        END IF
+      END DO
+      DO iLocSide = 1,6
+        DO iNode = 1,4
+          IF(NodeIndex(GEO%ElemSideNodeID(iNode,iLocSide,iElem)).GT.0) THEN
+            SendMsg%ElemSideNodeID(iNode,iLocSide,ElemIndex(iElem))=NodeIndex(GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+          END IF
+        END DO
+      END DO
     END IF
     SendMsg%ElemBaryNGeo(:,ElemIndex(iElem))=ElemBaryNGeo(:,iElem)
     DO iLocSide = 1,6
@@ -1209,6 +1278,13 @@ DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
     SendMsg%ElemToElemGlob(1:4,1:6,ElemIndex(iElem)) = &
             PartElemToElemGlob(1:4,1:6,iElem)
+  END IF
+END DO
+
+! coordinates of nodes to be sent
+DO iNode = 1,nNodes
+  IF (NodeIndex(iNode).NE.0) THEN
+    SendMsg%NodeCoords(:,NodeIndex(iNode))=GEO%Nodecoords(:,iNode)
   END IF
 END DO
 
@@ -1296,9 +1372,13 @@ IF (PartMPI%MyRank.LT.iProc) THEN
   END IF
   IF(TriaTracking)THEN
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemToNodeID,SendMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemSideNodeID,SendMsg%nElems*6*4,MPI_INTEGER,iProc,1115,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,IERROR)
+    IF (SendMsg%nNodes.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1355,9 +1435,13 @@ IF (PartMPI%MyRank.LT.iProc) THEN
   END IF
   IF(TriaTracking)THEN
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemToNodeID,RecvMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSideNodeID,RecvMsg%nElems*6*4,MPI_INTEGER,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nNodes.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1414,9 +1498,13 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   END IF
   IF(TriaTracking)THEN
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemToNodeID,RecvMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSideNodeID,RecvMsg%nElems*6*4,MPI_INTEGER,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nElems.GT.0) &
+        CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nNodes.GT.0) &
+        CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1469,9 +1557,13 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   END IF
   IF(TriaTracking)THEN
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nElems*3*4*6,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemToNodeID,SendMsg%nElems*8,MPI_INTEGER,iProc,1114,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemSideNodeID,SendMsg%nElems*6*4,MPI_INTEGER,iProc,1115,PartMPI%COMM,IERROR)
+    IF (SendMsg%nElems.GT.0) &
+        CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,IERROR)
+    IF (SendMsg%nNodes.GT.0) &
+        CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1542,7 +1634,7 @@ IF(DoRefMapping)THEN
     nTotalElems  =nTotalElems+RecvMsg%nElems
     !tmpnSides    =nTotalSides
     !IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
-    CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,tmpBCSides,nTotalBCSides)
+    CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,nOldBCSides=tmpBCSides,nTotalBCSides=nTotalBCSides)
 
     ! loop over all elements and add them
     DO iElem=1,RecvMsg%nElems
@@ -1643,10 +1735,12 @@ ELSE ! DoRefMappping=F
     END DO ! iHaloSide
     
     tmpnSides =nTotalSides
-    tmpnElems=nTotalElems
+    tmpnElems =nTotalElems
+    tmpnNodes =nTotalNodes
     nTotalSides=nTotalSides+RecvMsg%nSides-nDoubleSides
     nTotalElems=nTotalElems+RecvMsg%nElems
-    CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems)
+    nTotalNodes=nTotalNodes+RecvMsg%nNodes
+    CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,nOldNodes=tmpnNodes,nTotalNodes=nTotalNodes)
   
     !DO iElem=tmpnElems+1,nTotalElems
     DO iElem=1,RecvMsg%nElems
@@ -1695,7 +1789,17 @@ ELSE ! DoRefMappping=F
         ! build entry to PartElemToSide
         PartElemToSide(1,iLocSide,newElemId)=newSideID
         PartElemToSide(2,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
+        IF (TriaTracking) THEN
+          DO iNode = 1,4
+            GEO%ElemSideNodeID(iNode,ilocSide,newElemID) = tmpnNodes + RecvMsg%ElemSideNodeID(iNode,ilocSide,iElem)
+          END DO
+        END IF
       END DO ! ilocSide
+      IF (TriaTracking) THEN
+        DO iNode = 1,8
+          GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
+        END DO
+      END IF
       ! set native elemID
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
@@ -1706,13 +1810,18 @@ ELSE ! DoRefMappping=F
         ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       END IF
       IF (TriaTracking) THEN
-        GEO%NodeCoords(1:3,1:4,1:6,newElemID) = RecvMsg%NodeCoords(1:3,1:4,1:6,iElem)
-        GEO%ConcaveElemSide(1:6,newElemID) = RecvMsg%ConcaveElemSide(1:6,iElem)
+        GEO%ConcaveElemSide(1:6,newElemID)    = RecvMsg%ConcaveElemSide(1:6,iElem)
       END IF
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
       PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
     END DO ! iElem
+    IF (TriaTracking) THEN
+      DO iNode = 1,RecvMsg%nNodes
+        ! first, new NodeID=entry of RecvMsg+tmpnNodes
+        GEO%NodeCoords(:,tmpnNodes+iNode) = RecvMsg%NodeCoords(:,iNode)
+      END DO
+    END IF
     ! build rest: PartElemToElem, PartLocSideID
     DO iElem=PP_nElems+1,nTotalElems
       DO ilocSide=1,6
@@ -1734,7 +1843,7 @@ END IF
 END SUBROUTINE ExchangeHaloGeometry
 
 
-SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nOldBCSides,nTotalBCSides)
+SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nOldBCSides,nTotalBCSides,nOldNodes,nTotalNodes)
 !===================================================================================================================================
 ! resize the partilce mesh data
 !===================================================================================================================================
@@ -1756,6 +1865,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                 :: nOldSides,nOldElems,nTotalSides,nTotalElems
 INTEGER,INTENT(IN),OPTIONAL        :: nOldBCSides,nTotalBCSides
+INTEGER,INTENT(IN),OPTIONAL        :: nOldNodes,nTotalNodes
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1774,7 +1884,9 @@ INTEGER,ALLOCATABLE                :: DummySideType(:)
 REAL,ALLOCATABLE                   :: DummySideDistance(:)
 REAL,ALLOCATABLE                   :: DummySideNormVec(:,:)
 
-REAL,ALLOCATABLE                   :: DummyNodeCoords(:,:,:,:)
+INTEGER,ALLOCATABLE                :: DummyElemToNodeID(:,:)
+INTEGER,ALLOCATABLE                :: DummyElemSideNodeID(:,:,:)
+REAL,ALLOCATABLE                   :: DummyNodeCoords(:,:)
 LOGICAL,ALLOCATABLE                :: DummyConcaveElemSide(:,:)
 INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)
 INTEGER,ALLOCATABLE                :: DummyMortarType(:,:)
@@ -2119,19 +2231,47 @@ ELSE ! no mapping
 END IF
 
 IF (TriaTracking) THEN
+  ! Resize ElemToNodeID
+  ALLOCATE(DummyElemToNodeID(1:8,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyElemToNodeID)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyElemToNodeID')
+  DummyElemToNodeID(1:8,1:nOldElems) = GEO%ElemToNodeID(1:8,1:nOldElems)
+  DEALLOCATE(GEO%ElemToNodeID)
+  ALLOCATE(GEO%ElemToNodeID(1:8,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize reallocate GEO%ElemToNodeID')
+  GEO%ElemToNodeID=0
+  GEO%ElemToNodeID(1:8,1:nOldElems) = DummyElemToNodeID(1:8,1:nOldElems)
+  DEALLOCATE(DummyElemToNodeID)
+  ! Resize ElemSideNodeID
+  ALLOCATE(DummyElemSideNodeID(1:4,1:6,1:nOldElems))
+  IF (.NOT.ALLOCATED(DummyElemSideNodeID)) CALL abort(&
+__STAMP__&
+,'Could not allocate DummyElemSideNodeID')
+  DummyElemSideNodeID(1:4,1:6,1:nOldElems) = GEO%ElemSideNodeID(1:4,1:6,1:nOldElems)
+  DEALLOCATE(GEO%ElemSideNodeID)
+  ALLOCATE(GEO%ElemSideNodeID(1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'Could not resize reallocate GEO%ConcaveElemSide')
+  GEO%ElemSideNodeID=0
+  GEO%ElemSideNodeID(1:4,1:6,1:nOldElems) = DummyElemSideNodeID(1:4,1:6,1:nOldElems)
+  DEALLOCATE(DummyElemSideNodeID)
   ! Resize Nodecoords
-  ALLOCATE(DummyNodeCoords(1:3,1:4,1:6,1:nOldElems))
+  ALLOCATE(DummyNodeCoords(1:3,1:nOldNodes))
   IF (.NOT.ALLOCATED(DummyNodeCoords)) CALL abort(&
 __STAMP__&
 ,'Could not allocate DummyNodeCoords')
-  DummyNodeCoords(1:3,1:4,1:6,1:nOldElems) = GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems)
+  DummyNodeCoords(1:3,1:nOldNodes) = GEO%NodeCoords(1:3,1:nOldNodes)
   DEALLOCATE(GEO%NodeCoords)
-  ALLOCATE(GEO%NodeCoords(1:3,1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+  ALLOCATE(GEO%NodeCoords(1:3,1:nTotalNodes),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Could not resize reallocate GEO%NodeCoords')
   GEO%NodeCoords=0.
-  GEO%NodeCoords(1:3,1:4,1:6,1:nOldElems) = DummyNodeCoords(1:3,1:4,1:6,1:nOldElems)
+  GEO%NodeCoords(1:3,1:nOldNodes) = DummyNodeCoords(1:3,1:nOldNodes)
   DEALLOCATE(DummyNodeCoords)
   ! Resize ConcaveElemSides
   ALLOCATE(DummyConcaveElemSide(1:6,1:nOldElems))

@@ -54,6 +54,7 @@ INTEGER             :: nPartSides                                               
 INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
 INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
+INTEGER             :: nTotalNodes                                                        ! total nb. of nodes (my+halo)
 
 INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                                             ! number of local element boundary faces 
                                                                                           ! used for tracing (connected to element)
@@ -106,6 +107,10 @@ END TYPE
 
 INTEGER                                  :: FIBGMCellPadding(1:3)
 
+TYPE tNodeToElem
+  INTEGER, ALLOCATABLE                   :: ElemID(:)
+END TYPE
+
 TYPE tGeometry
   REAL                                   :: xminglob                          ! global minimum x coord of all nodes
   REAL                                   :: yminglob                          ! global minimum y coord of all nodes
@@ -157,15 +162,26 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
-  REAL, ALLOCATABLE                      :: NodeCoords(:,:,:,:)               ! Node Coordinates (1:nDim,1:nSideNodes,
-                                                                              ! 1:nLocSides,1:nTotalElems)
+  INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
+  !INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
+  INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
+                                                                              ! From element sides to node IDs
+  INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
+  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToElem(:)
+  INTEGER, ALLOCATABLE                   :: NumNeighborElems(:)
+  TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)
+                                                                              ! From element sides to node IDs
+  INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
+  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
 
 INTEGER                                  :: WeirdElems                        ! Number of Weird Elements (=Elements which are folded
                                                                               ! into themselves)
+LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
+                                                                              ! is build via nodes
 
 TYPE tBCElem
   INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element
