@@ -509,7 +509,8 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
     ! Calculation of the lowest required timestep in the cell
     IF(TEqui.GT.0.0) THEN
-      meanV = SQRT(vBulk(1)*vBulk(1)+vBulk(2)*vBulk(2)+vBulk(3)*vBulk(3)) + SQRT(8.*BoltzmannConst*TEqui/(Pi*Species(1)%MassIC))
+      meanV = SQRT(vBulkAll(1)*vBulkAll(1)+vBulkAll(2)*vBulkAll(2)+vBulkAll(3)*vBulkAll(3)) &
+              + SQRT(8.*BoltzmannConst*TEqui/(Pi*Species(1)%MassIC))
       IF(meanV.GT.0.0) THEN
         TimeStep = NodeVolume**(1./3.) / meanV
         DSMC%CollProbMax = MIN(DSMC%CollProbMax,TimeStep)
