@@ -384,14 +384,11 @@ REAL,PARAMETER  :: RK3_b1=   0.5
 REAL,PARAMETER  :: RK3_b2=   0.5
 REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #endif
-#if IMPA
+#ifdef IMPA
 ! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
 REAL               :: dt_old
-#endif
-#ifdef ROS
-REAL             :: dt_inv, dt_old
-#endif /*ROSENBROCK RK*/
+#endif /*IMPA*/
 #if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2
 ! Bassi-Paper
@@ -403,7 +400,7 @@ REAL,PARAMETER  :: RK_a(2:2,1:2) = RESHAPE( (/RK_a2(:)/),(/1,2/),ORDER =(/2,1/))
 REAL,PARAMETER  :: RK_g21=  0.
 REAL,PARAMETER  :: RK_g2(1:2) = (/RK_g21,      0./) 
 REAL,PARAMETER  :: RK_g(2:2,1:2) = RESHAPE( (/RK_g2(:)/),(/1,2/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_c2 = 2./3.
+REAL,PARAMETER  :: RK_c2 = SUM(RK_a2)*RK_gamma
 REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2/)
 REAL,PARAMETER  :: RK_b1= (1-1./(8.*RK_gamma))/RK_gamma
 REAL,PARAMETER  :: RK_b2= 1./(8.*RK_gamma**2)
@@ -426,8 +423,8 @@ REAL,PARAMETER  :: RK_g31= -RK_a21 *(1.+ RK_a21*(2.-1./(2.*RK_gamma))) ! -gamma^
 REAL,PARAMETER  :: RK_g32=  -RK_a21*(2.-1./(2.*RK_gamma)) ! -gamma^-1 * 2-1/(2*gamma)
 REAL,PARAMETER  :: RK_g3(1:nRKStages) = (/RK_g31,RK_g32,0./) 
 REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:) /),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
-REAL,PARAMETER  :: RK_c2 = 0.  ! wrong value
-REAL,PARAMETER  :: RK_c3 = 0.  ! wrong value
+REAL,PARAMETER  :: RK_c2 = SUM(RK_a2)*RK_gamma
+REAL,PARAMETER  :: RK_c3 = SUM(RK_a3)*RK_gamma
 REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2,RK_c3/)
 REAL,PARAMETER  :: RK_b1= RK_a21 *(1. + RK_a21*(2./3. - 1./(6.*RK_gamma)))
 REAL,PARAMETER  :: RK_b2= RK_a21 * (2./3. - 1./(6.*RK_gamma))
@@ -461,7 +458,10 @@ REAL,PARAMETER  :: RK_g43             =    -2./5.
 REAL,PARAMETER  :: RK_g4(1:nRKStages) = (/RK_g41, RK_g42,RK_g43,0./) 
 REAL,PARAMETER  :: RK_g(2:nRKStages,1:nRKStages) = RESHAPE( (/RK_g2(:), RK_g3(:), RK_g4(:)/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
 ! RK_b(i)
-REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4)/)
+REAL,PARAMETER  :: RK_c2 = SUM(RK_a2)*RK_gamma
+REAL,PARAMETER  :: RK_c3 = SUM(RK_a3)*RK_gamma
+REAL,PARAMETER  :: RK_c4 = SUM(RK_a4)*RK_gamma
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2,RK_c3,RK_c4/)
 REAL,PARAMETER  :: RK_b1= 19./9.
 REAL,PARAMETER  :: RK_b2= 0.5
 REAL,PARAMETER  :: RK_b3= 25./108.
@@ -517,7 +517,12 @@ REAL,PARAMETER  :: RK_g65             = -5.714285714285717e0
 REAL,PARAMETER  :: RK_g6(1:nRKStages) = (/RK_g61, RK_g62,RK_g63,RK_g64,RK_g65,0./) 
 REAL,PARAMETER::RK_g(2:nRKStages,1:nRKStages)=RESHAPE((/RK_g2,RK_g3,RK_g4,RK_g5,RK_g6/),(/nRKStages-1,nRKStages/),ORDER =(/2,1/))
 ! RK_b(i)
-REAL,PARAMETER  :: RK_c(2:nRKStages) = (/SUM(RK_a2),SUM(RK_a3),SUM(RK_a4),SUM(RK_a5),SUM(RK_a6)/)
+REAL,PARAMETER  :: RK_c2 = SUM(RK_a2)*RK_gamma
+REAL,PARAMETER  :: RK_c3 = SUM(RK_a3)*RK_gamma
+REAL,PARAMETER  :: RK_c4 = SUM(RK_a4)*RK_gamma
+REAL,PARAMETER  :: RK_c5 = SUM(RK_a5)*RK_gamma
+REAL,PARAMETER  :: RK_c6 = SUM(RK_a6)*RK_gamma
+REAL,PARAMETER  :: RK_c(2:nRKStages) = (/RK_c2,RK_c3,RK_c4,RK_c5,RK_c6/)
 REAL,PARAMETER  :: RK_b1= -7.170454962423024e0
 REAL,PARAMETER  :: RK_b2= -4.741636671481785e0
 REAL,PARAMETER  :: RK_b3= -1.631002631330971e1
@@ -590,6 +595,9 @@ REAL,PARAMETER  :: RK_b5= 2.8734065276094680e0
 REAL,PARAMETER  :: RK_b6= 3.8766099456208400e1
 REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4,RK_b5,RK_b6/)
 #endif
-
+#ifdef ROS
+REAL            :: dt_inv, dt_old
+REAL            :: RK_inflow(2:nRKStages) ! required for boundary conditions
+#endif /*ROSENBROCK RK*/
 !===================================================================================================================================
 END MODULE MOD_TimeDisc_Vars

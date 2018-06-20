@@ -329,9 +329,9 @@ __STAMP__&
 END IF
 
 IF (TriaTracking) THEN
-  xNod = GEO%NodeCoords(1,1,LocSideID,ElemID)
-  yNod = GEO%NodeCoords(2,1,LocSideID,ElemID)
-  zNod = GEO%NodeCoords(3,1,LocSideID,ElemID)
+  xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+  yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+  zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 ELSE
 ! -- .NOT.TriaTracking: GEO%NodeCoords do not exist -> build Points in same way (cf. InitTriaParticleGeometry in particle_surface.f90)
 ! -- but consider only the min/max of edges (i.e., 0,NGeo). This is required, since Vector1 and Vector2 must give the right nVec and
@@ -405,10 +405,6 @@ ELSE
       END DO ! p
     END DO ! q
   END SELECT
-  !GEO%NodeCoords(1:3,1,LocSideID,ElemID) = SideCoord(:,0,0)
-  !GEO%NodeCoords(1:3,2,LocSideID,ElemID) = SideCoord(:,1,0)
-  !GEO%NodeCoords(1:3,3,LocSideID,ElemID) = SideCoord(:,1,1)
-  !GEO%NodeCoords(1:3,4,LocSideID,ElemID) = SideCoord(:,0,1)
   xNod = SideCoord(1,0,0)
   yNod = SideCoord(2,0,0)
   zNod = SideCoord(3,0,0)
@@ -420,12 +416,12 @@ END IF
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
 IF (TriaTracking) THEN
-  Vector1(1) = GEO%NodeCoords(1,Node1,LocSideID,ElemID) - xNod
-  Vector1(2) = GEO%NodeCoords(2,Node1,LocSideID,ElemID) - yNod
-  Vector1(3) = GEO%NodeCoords(3,Node1,LocSideID,ElemID) - zNod
-  Vector2(1) = GEO%NodeCoords(1,Node2,LocSideID,ElemID) - xNod
-  Vector2(2) = GEO%NodeCoords(2,Node2,LocSideID,ElemID) - yNod
-  Vector2(3) = GEO%NodeCoords(3,Node2,LocSideID,ElemID) - zNod
+  Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
+  Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
+  Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
+  Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
+  Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
+  Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
 ELSE IF (TriNum.EQ.1) THEN
   Vector1 = SideCoord(:,1,0) - (/xNod,yNod,zNod/)
   Vector2 = SideCoord(:,1,1) - (/xNod,yNod,zNod/)

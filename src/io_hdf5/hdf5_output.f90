@@ -322,8 +322,8 @@ END IF
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-CALL WriteSurfStateToHDF5(FileName)
 CALL WriteAdaptiveInfoToHDF5(FileName)
+CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
@@ -1303,22 +1303,22 @@ IF(MPIRoot)THEN
 END IF
 
 ! rewrite and save arrays for AdaptiveData
-ALLOCATE(AdaptiveData(nVar,nElems,nSpecies))
+ALLOCATE(AdaptiveData(nVar,nSpecies,nElems))
 AdaptiveData = 0.
 DO iElem = 1,nElems
-  AdaptiveData(1,iElem,:) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
-  AdaptiveData(2,iElem,:) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
-  AdaptiveData(3,iElem,:) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,iElem,:) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+  AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
+  AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
+  AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
+  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=3,&
-                nValGlobal=(/nVar,nGlobalElems,nSpecies/),&
-                nVal=      (/nVar,nElems      ,nSpecies/),&
-                offset=    (/0   ,offsetElem  ,0       /),&
-                collective=.TRUE.,  RealArray=AdaptiveData)
+                nValGlobal=(/nVar,nSpecies,nGlobalElems/),&
+                nVal=      (/nVar,nSpecies,nElems      /),&
+                offset=    (/0   ,0       ,offsetElem  /),&
+                collective=.false.,  RealArray=AdaptiveData)
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)
@@ -2047,7 +2047,7 @@ END SUBROUTINE DistributedWriteArray
 
 
 #ifdef PARTICLES
-SUBROUTINE WriteIMDStateToHDF5(time)
+SUBROUTINE WriteIMDStateToHDF5()
 !===================================================================================================================================
 ! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
 !===================================================================================================================================
@@ -2056,7 +2056,6 @@ USE MOD_Globals
 USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Restart_Vars,          ONLY: DoRestart
-USE MOD_TTM_Vars,              ONLY: DoImportTTMFile
 #ifdef MPI
 USE MOD_MPI,                   ONLY:FinalizeMPI
 #endif /*MPI*/
@@ -2064,7 +2063,6 @@ USE MOD_MPI,                   ONLY:FinalizeMPI
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                  :: time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES      
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2073,13 +2071,7 @@ CHARACTER(LEN=255) :: tempStr
 REAL               :: t,tFuture,IMDtimestep
 INTEGER            :: iSTATUS,IMDanalyzeIter
 !===================================================================================================================================
-IF(DoRestart)THEN
-  !IF(DoImportTTMFile)THEN
-    !t=time
-    !CALL WriteTTMToHDF5(t)
-    !SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created.'
-  !END IF
-ELSE
+IF(.NOT.DoRestart)THEN
   IF(IMDTimeScale.GT.0.0)THEN
     SWRITE(UNIT_StdOut,'(A)')'   IMD: calc physical time in seconds for which the IMD *.chkpt file is defined.'
     ! calc physical time in seconds for which the IMD *.chkpt file is defined
@@ -2113,13 +2105,7 @@ ELSE
 
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    !IF(DoImportTTMFile)THEN
-      !SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created.'
-      !CALL WriteTTMToHDF5(t)
-      !SWRITE(UNIT_StdOut,'(A)')'   TTM field: StateFile (IMD TTM data) created. Terminating successfully!'
-    !ELSE 
-      SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-    !END IF
+    SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
 #ifdef MPI
     CALL FinalizeMPI()
     CALL MPI_FINALIZE(iERROR)

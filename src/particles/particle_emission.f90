@@ -152,7 +152,6 @@ USE MOD_Globals
 USE MOD_Restart_Vars,   ONLY : DoRestart
 USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
-USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
@@ -231,6 +230,7 @@ __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 DO i = 1,nSpecies
+  IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
     ! of particles
@@ -3627,7 +3627,8 @@ USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp
+                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 #endif
@@ -3769,6 +3770,7 @@ DoSurfaceFlux=.FALSE.
 
 ! auxiliary arrays for defining all Adaptive_BCs
 IF (nAdaptiveBC.GT.0) THEN
+  AdaptiveWeightFac = GETREAL('Part-AdaptiveWeightingFactor','0.001')
   ALLOCATE(Adaptive_BC_Map(1:nAdaptiveBC))
   Adaptive_BC_Map(:)=0
   ALLOCATE(Adaptive_Found_Flag(1:nAdaptiveBC))
@@ -3917,7 +3919,7 @@ __STAMP__&
       END IF !.NOT.VeloIsNormal
     ELSE !Adaptive
       Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = Species(iSpec)%Init(0)%velocityDistribution
-      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0) THEN
+      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 .OR. nMacroRestartFiles.EQ.0) THEN
         Species(iSpec)%Surfaceflux(iSF)%VeloIC                = Species(iSpec)%Init(0)%VeloIC
         Species(iSpec)%Surfaceflux(iSF)%VeloVecIC             = Species(iSpec)%Init(0)%VeloVecIC
       END IF
@@ -3926,7 +3928,7 @@ __STAMP__&
     END IF
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .OR. .NOT.noAdaptive) THEN
       !--- normalize VeloVecIC
-      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0) THEN
+      IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 .OR. nMacroRestartFiles.EQ.0) THEN
         IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
           Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
             /SQRT(DOT_PRODUCT(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC))
@@ -3954,7 +3956,7 @@ __STAMP__&
       sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) = sum_pressurefraction(iSF-Species(iSpec)%nSurfacefluxBCs) &
         + Species(iSpec)%Surfaceflux(iSF)%PressureFraction
       IF (PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.0 &
-          .OR. PartBound%AdaptiveType(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.1) THEN
+          .OR. PartBound%AdaptiveType(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.1 .OR. nMacroRestartFiles.EQ.0) THEN
         Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC       = PartBound%AdaptiveTemp(Species(iSpec)%Surfaceflux(iSF)%BC)
         Species(iSpec)%Surfaceflux(iSF)%PartDensity           = Species(iSpec)%Surfaceflux(iSF)%PressureFraction &
           * PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC) &
@@ -4145,6 +4147,7 @@ DEALLOCATE(TmpMapToBC &
 ! Allocate sampling of near adaptive boundary element values
 IF(nAdaptiveBC.GT.0)THEN
   ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
+  Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
   IF (DoRestart) THEN
@@ -4153,19 +4156,17 @@ IF(nAdaptiveBC.GT.0)THEN
     CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
-      ALLOCATE(ElemData_HDF5(1:4,1:nElems,1:nSpecies))
-      CALL ReadArray('AdaptiveInfo',3,(/4, nElems,nSpecies/),offsetElem,2,RealArray=ElemData_HDF5(:,:,:))
+      ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
+      CALL ReadArray('AdaptiveInfo',3,(/4, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
       DO iElem = 1,nElems
-        Adaptive_MacroVal(DSMC_VELOX,iElem,:) = ElemData_HDF5(1,iElem,:)
-        Adaptive_MacroVal(DSMC_VELOY,iElem,:) = ElemData_HDF5(2,iElem,:)
-        Adaptive_MacroVal(DSMC_VELOZ,iElem,:) = ElemData_HDF5(3,iElem,:)
-        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,iElem,:)
+        Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
+        Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
+        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
     END IF
     CALL CloseDataFile()
-  ELSE
-    Adaptive_MacroVal(:,:,:)=0
   END IF
 END IF
 
@@ -4365,7 +4366,15 @@ __STAMP__&
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
             FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
-            IF (FileID.EQ.0) THEN
+            IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+            ELSE
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
@@ -4376,14 +4385,6 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-            ELSE
-              Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPX,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPY,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MacroRestartData_tmp(DSMC_TEMPZ,ElemID,iSpec,FileID)
-              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
             END IF
           END IF
         END IF
@@ -4611,14 +4612,14 @@ REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nV
 ! load balance
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
-TYPE(tSurfFluxPart),POINTER :: currentSurfFluxPart => NULL()
+TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
+    PartsEmitted = 0
     IF (iSF .LE. Species(iSpec)%nSurfacefluxBCs) THEN
       noAdaptive=.TRUE.
-      PartsEmitted = 0
     ELSE
       noAdaptive=.FALSE.
     END IF
@@ -4799,9 +4800,9 @@ __STAMP__&
             ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
-            ElemPartDensity = Adaptive_MacroVal(7,ElemID,iSpec)
+            ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
             pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
-            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
             !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
             !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
           CASE(3) ! pressure outlet (pressure defined)
@@ -4810,7 +4811,9 @@ __STAMP__&
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux!')
           END SELECT
-          VeloVec = Adaptive_MacroVal(1:3,ElemID,iSpec)
+          VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+          VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+          VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
           VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
           IF (ABS(VeloIC).GT.0.) THEN
             VeloVecIC = VeloVec / VeloIC
@@ -4999,33 +5002,32 @@ __STAMP__&
                   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
                       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
                     IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-                      IF (.NOT. ASSOCIATED(firstSurfFluxPart)) THEN
+                      ! first check if linked list is initialized and initialize if neccessary
+                      IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
                         ALLOCATE(currentSurfFluxPart)
-                        firstSurfFluxPart => currentSurfFluxPart
                         IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                           Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                           Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                         END IF
-                      ELSE IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
-                        currentSurfFluxPart => firstSurfFluxPart
-                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-                        END IF
+                      ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
+                      ! create linke to next surfflux-part from current list
                       ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                      ! surfaceflux has already list but new particle is being inserted
+                      ! create linke to next surfflux-part from current list
                       ELSE
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%nextSurfFluxPart)) THEN
-                          ALLOCATE(currentSurfFluxPart%nextSurfFluxPart)
+                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                          ALLOCATE(currentSurfFluxPart%next)
                         END IF
-                        currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                        currentSurfFluxPart => currentSurfFluxPart%next
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
+                      ! save index and sideinfo for current to be inserted particle
                       currentSurfFluxPart%PartIdx = ParticleIndexNbr
                       IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
                         IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
@@ -5325,11 +5327,11 @@ __STAMP__&
                 ! sample values
                 CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
                     (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
-                currentSurfFluxPart => currentSurfFluxPart%nextSurfFluxPart
+                currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
 #endif /*USE_LOADBALANCE*/
-                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%nextSurfFluxPart)) THEN
+                IF (ASSOCIATED(currentSurfFluxPart,Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart%next)) THEN
                   currentSurfFluxPart => Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart
                   EXIT
                 END IF
@@ -5408,7 +5410,7 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
     T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
     pressure = PartBound%AdaptivePressure(Species(FractNbr)%Surfaceflux(iSF)%BC)
-    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(7,ElemID,:)))
+    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
     !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
     !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
   CASE(3) ! pressure outlet (pressure defined)
@@ -5417,7 +5419,9 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
 __STAMP__&
 ,'wrong adaptive type for Surfaceflux velocities!')
   END SELECT
-  VeloVec = Adaptive_MacroVal(1:3,ElemID,FractNbr)
+  VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,FractNbr)
+  VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,FractNbr)
+  VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,FractNbr)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
@@ -5433,6 +5437,7 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
+  VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
   T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
   projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
@@ -5471,7 +5476,7 @@ __STAMP__&
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-    IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*projFak)) THEN
+    IF (ALMOSTZERO(VeloIC*projFak)) THEN
       ! Rayleigh distri
       envelope = 0
     ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
@@ -6143,6 +6148,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal,BoltzmannConst
+USE MOD_Particle_Vars,          ONLY:AdaptiveWeightFac
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
@@ -6159,7 +6165,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ElemID, AdaptiveElemID, i, iSpec
-REAL                          :: Theta, TVib_TempFac
+REAL                          :: TVib_TempFac
 REAL, ALLOCATABLE             :: Source(:,:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
@@ -6199,8 +6205,6 @@ END DO
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-Theta=0.001
-
 !DO iElem = 1,nElems
 !IF(.NOT.IsTracingBCElem(iElem))CYCLE
 DO AdaptiveElemID = 1,nElems
@@ -6212,53 +6216,53 @@ DO iSpec = 1,nSpecies
   ! write timesample particle values of bc elements in global macrovalues of bc elements
   IF (Source(11,AdaptiveElemID,iSpec).GT.0.0) THEN
     ! compute flow velocity
-    Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
-        + Theta*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
+    Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
     ! compute flow Temperature
-    Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
-      + Theta*Species(iSpec)%MassIC/ BoltzmannConst &
+    Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
+      + AdaptiveWeightFac*Species(iSpec)%MassIC/ BoltzmannConst &
       * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
       - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
     ! compute density
-    Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + Theta*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+    Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
               IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + Theta*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + AdaptiveWeightFac*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               END IF
             ELSE
               TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
                 *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
               IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + Theta*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + AdaptiveWeightFac*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
               END IF
             END IF
           ELSE                                            ! TSHO-model
-            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-              + Theta*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
               , Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),SpecDSMC(iSpec)%MaxVibQuant)
           END IF
-          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
-              + Theta*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
+          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
           IF (DSMC%ElectronicModel) THEN
-            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
-              + Theta*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
+            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
+              + AdaptiveWeightFac*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
           END IF
         END IF
       END IF
     END IF
   ELSE
-    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-Theta)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
+    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
   END IF
 END DO
 #if USE_LOADBALANCE

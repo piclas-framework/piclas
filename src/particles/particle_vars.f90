@@ -222,13 +222,11 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE tSurfFluxPart
+TYPE tSurfFluxLink
   INTEGER                                :: PartIdx
   INTEGER,ALLOCATABLE                    :: SideInfo(:)
-  TYPE(tSurfFluxPart), POINTER           :: nextSurfFluxPart => null()
-END TYPE tSurfFluxPart
-
-TYPE(tSurfFluxPart), POINTER             :: firstSurfFluxPart => null()
+  TYPE(tSurfFluxLink), POINTER           :: next => null()
+END TYPE tSurfFluxLink
 
 TYPE typeSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
@@ -259,9 +257,9 @@ TYPE typeSurfaceflux
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
   REAL                                   :: PressureFraction
-  TYPE(tSurfFluxPart), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
+  TYPE(tSurfFluxLink), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
                                                                              ! used for linked list during sampling
-  TYPE(tSurfFluxPart), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
+  TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
 END TYPE
 
@@ -280,6 +278,9 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
+                                                                             ! instantaneous values with those
+                                                                             ! of previous iterations
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
                                                                              ! saved for daptive surfaceflux
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
@@ -383,7 +384,6 @@ LOGICAL                                  :: DoSurfaceFlux                     ! 
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
-LOGICAL                                  :: FindNeighbourElems=.FALSE.
 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart

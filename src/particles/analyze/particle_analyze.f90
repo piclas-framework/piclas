@@ -2368,7 +2368,8 @@ IF (CollisMode.GT.1) THEN
                             + Xi_Vib(iSpec)*IntTemp(iSpec,1) + Xi_Elec(iSpec)*IntTemp(iSpec,3)) &
                             / (3+SpecDSMC(iSpec)%Xi_Rot+Xi_Vib(iSpec)+Xi_Elec(iSpec))
       ELSE
-        TempTotal(iSpec) = Temp(iSpec)
+        IF(IntTemp(iSpec,3).GT.0.0) Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
+        TempTotal(iSpec) = (3*Temp(iSpec) + Xi_Elec(iSpec)*IntTemp(iSpec,3)) / (3+Xi_Elec(iSpec))
       END IF
       IF(nSpecAnalyze.GT.1)THEN
         TempTotal(nSpecAnalyze) = TempTotal(nSpecAnalyze) + TempTotal(iSpec)*NumSpec(iSpec)

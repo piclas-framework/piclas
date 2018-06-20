@@ -2236,18 +2236,18 @@ Vx = PartTrajectory(1)
 Vy = PartTrajectory(2)
 Vz = PartTrajectory(3)
 
-xNode(1) = GEO%NodeCoords(1,1,iLocSide,Element)
-yNode(1) = GEO%NodeCoords(2,1,iLocSide,Element)
-zNode(1) = GEO%NodeCoords(3,1,iLocSide,Element)
+xNode(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+yNode(1) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+zNode(1) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
 Ax(1) = xNode(1) - Px
 Ay(1) = yNode(1) - Py
 Az(1) = zNode(1) - Pz
 
 DO n = 2,3
  m = n+TriNum-1       ! m = true node number of the sides
- xNode(n) = GEO%NodeCoords(1,m,iLocSide,Element)
- yNode(n) = GEO%NodeCoords(2,m,iLocSide,Element)
- zNode(n) = GEO%NodeCoords(3,m,iLocSide,Element)
+ xNode(n) = GEO%NodeCoords(1,GEO%ElemSideNodeID(m,iLocSide,Element))
+ yNode(n) = GEO%NodeCoords(2,GEO%ElemSideNodeID(m,iLocSide,Element))
+ zNode(n) = GEO%NodeCoords(3,GEO%ElemSideNodeID(m,iLocSide,Element))
 
  Ax(n) = xNode(n) - Px
  Ay(n) = yNode(n) - Py
@@ -2304,14 +2304,14 @@ InElementCheck = .TRUE.
 !--- coords of first node:
 
 DO ind = 1,3
-  NodeCoord(ind,1) = GEO%NodeCoords(ind,1,iLocSide,Element)
+  NodeCoord(ind,1) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(1,iLocSide,Element))
 END DO
 
 !--- coords of other two nodes (depending on triangle):
 DO iNode = 2,3
   NodeNum = iNode + TriNum - 1
   DO ind = 1,3
-    NodeCoord(ind,iNode) = GEO%NodeCoords(ind,NodeNum,iLocSide,Element)
+    NodeCoord(ind,iNode) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(NodeNum,iLocSide,Element))
   END DO
 END DO
 
