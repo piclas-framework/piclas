@@ -18,7 +18,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ESBGK_octree_adapt!, ESBGKSplitCells
+PUBLIC :: ESBGK_octree_adapt, ESBGKSplitCells
 !===================================================================================================================================
 
 CONTAINS
@@ -402,6 +402,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_ESBGK_Vars         ,ONLY: BGKMinPartPerCell, ElemSplitCells
 USE MOD_Eval_xyz               ,ONLY: Eval_XYZ_ElemCheck
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, Time
+USE MOD_DSMC_Vars          ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -411,23 +413,34 @@ INTEGER, INTENT(IN)          :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iPart, iLoop
-INTEGER, ALLOCATABLE         :: iPartIndx_SplitCell(:,:,:,:), PartNum_SplitCell(:,:,:),  iPartIndx(:)
-REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:,:,:), MappedPartStates(:,:)
-INTEGER                      :: PosX, PosY, PosZ, nPart
+INTEGER                      :: iPart, iLoop, iCell
+INTEGER, ALLOCATABLE         :: iPartIndx_SplitCell(:,:), PartNum_SplitCell(:),  iPartIndx(:)
+REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:), MappedPartStates(:,:)
+INTEGER                      :: PosX, PosY, PosZ, nPart, TotalSubCells, iQual
 REAL                         :: vBulk(3)
+INTEGER, ALLOCATABLE         :: Map(:,:), MapInvers(:,:,:)
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
-IF(nPart.GE.(2.*BGKMinPartPerCell)) THEN
-  ALLOCATE(iPartIndx_SplitCell(nPart, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
-        ElemSplitCells(iElem)%Splitnum(3)+1))
-  ALLOCATE(vBulk_SplitCell(3, ElemSplitCells(iElem)%Splitnum(1)+1,  ElemSplitCells(iElem)%Splitnum(2)+1, &
-        ElemSplitCells(iElem)%Splitnum(3)+1))
-  ALLOCATE(PartNum_SplitCell(ElemSplitCells(iElem)%Splitnum(1)+1, ElemSplitCells(iElem)%Splitnum(2)+1, &
-        ElemSplitCells(iElem)%Splitnum(3)+1))
+TotalSubCells = (ElemSplitCells(iElem)%Splitnum(1)+1)*(ElemSplitCells(iElem)%Splitnum(2)+1)*(ElemSplitCells(iElem)%Splitnum(3)+1)
+IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
+  ALLOCATE(Map(TotalSubCells,3), &
+    MapInvers(ElemSplitCells(iElem)%Splitnum(1)+1,ElemSplitCells(iElem)%Splitnum(2)+1,ElemSplitCells(iElem)%Splitnum(3)+1))
+  iLoop = 1
+  DO PosX = 1, ElemSplitCells(iElem)%Splitnum(1)+1; DO PosY = 1, ElemSplitCells(iElem)%Splitnum(2)+1
+    DO PosZ = 1, ElemSplitCells(iElem)%Splitnum(3)+1
+    Map(iLoop,1) = PosX
+    Map(iLoop,2) = PosY
+    Map(iLoop,3) = PosZ
+    MapInvers(PosX, PosY, PosZ) = iLoop
+    iLoop = iLoop + 1
+  END DO; END DO; END DO
+
+  ALLOCATE(iPartIndx_SplitCell(nPart, TotalSubCells))
+  ALLOCATE(vBulk_SplitCell(3, TotalSubCells))
+  ALLOCATE(PartNum_SplitCell(TotalSubCells))
   ALLOCATE(MappedPartStates(nPart, 1:3))
   iPartIndx_SplitCell = 0
   PartNum_SplitCell = 0
@@ -439,24 +452,59 @@ IF(nPart.GE.(2.*BGKMinPartPerCell)) THEN
   DO iLoop = 1, nPart
     CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),MappedPartStates(iLoop,1:3),iElem)
 !    CALL GeoCoordToMap(PartState(iPart,1:3), MappedPartStates(iLoop,1:3), iElem)
+    MappedPartStates(iLoop,1) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,1))),MappedPartStates(iLoop,1))
+    MappedPartStates(iLoop,2) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,2))),MappedPartStates(iLoop,2))
+    MappedPartStates(iLoop,3) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,3))),MappedPartStates(iLoop,3))
     PosX = INT((MappedPartStates(iLoop,1)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(1)+1.)) + 1
     PosY = INT((MappedPartStates(iLoop,2)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(2)+1.)) + 1
     PosZ = INT((MappedPartStates(iLoop,3)+1.0)/2.0*(ElemSplitCells(iElem)%Splitnum(3)+1.)) + 1
-    PartNum_SplitCell(PosX, PosY, PosZ) = PartNum_SplitCell(PosX, PosY, PosZ) + 1
-    iPartIndx_SplitCell(PartNum_SplitCell(PosX, PosY, PosZ), PosX, PosY, PosZ) = iPart
-    vBulk_SplitCell(1:3, PosX, PosY, PosZ)  =  vBulk_SplitCell(1:3, PosX, PosY, PosZ) + PartState(iPart,4:6)
+    iCell = MapInvers(PosX, PosY, PosZ)
+    PartNum_SplitCell(iCell) = PartNum_SplitCell(iCell) + 1
+    iPartIndx_SplitCell(PartNum_SplitCell(iCell), iCell) = iPart
+    vBulk_SplitCell(1:3, iCell)  =  vBulk_SplitCell(1:3, iCell) + PartState(iPart,4:6)
     iPart = PEM%pNext(iPart)
   END DO
 
-  DO PosX = 1, ElemSplitCells(iElem)%Splitnum(1)+1; DO PosY = 1, ElemSplitCells(iElem)%Splitnum(2)+1
-   DO PosZ = 1, ElemSplitCells(iElem)%Splitnum(3)+1
-    IF (PartNum_SplitCell(PosX, PosY, PosZ).GE.2) THEN
-        vBulk_SplitCell(1:3,PosX, PosY, PosZ) = vBulk_SplitCell(1:3,PosX, PosY, PosZ) /PartNum_SplitCell(PosX, PosY, PosZ)
-        CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(PosX, PosY, PosZ),PosX, PosY, PosZ), &
-                PartNum_SplitCell(PosX, PosY, PosZ), iElem, ElemSplitCells(iElem)%SplitCellVolumes(PosX, PosY, PosZ), &
-                vBulk_SplitCell(1:3,PosX, PosY, PosZ))
+  iQual = 0
+
+  DO iCell = 1, TotalSubCells-1
+    IF (PartNum_SplitCell(iCell).LT.BGKMinPartPerCell) THEN
+      iPartIndx_SplitCell(PartNum_SplitCell(iCell+1)+1:PartNum_SplitCell(iCell+1) + PartNum_SplitCell(iCell),iCell +1) = &
+        iPartIndx_SplitCell(1:PartNum_SplitCell(iCell), iCell)
+      vBulk_SplitCell(1:3, iCell+1)  =  vBulk_SplitCell(1:3, iCell+1) + vBulk_SplitCell(1:3, iCell)
+      PartNum_SplitCell(iCell+1) = PartNum_SplitCell(iCell+1) + PartNum_SplitCell(iCell)
+      PartNum_SplitCell(iCell) = 0
+      iQual = iQual + 1
     END IF
-  END DO; END DO; END DO
+  END DO
+  IF (PartNum_SplitCell(TotalSubCells).LT.BGKMinPartPerCell) THEN
+    DO iCell = 1, TotalSubCells-1
+      IF (PartNum_SplitCell(iCell).GE.BGKMinPartPerCell) THEN
+        iPartIndx_SplitCell(PartNum_SplitCell(iCell)+1:PartNum_SplitCell(iCell) + PartNum_SplitCell(TotalSubCells),iCell) = &
+          iPartIndx_SplitCell(1:PartNum_SplitCell(TotalSubCells), TotalSubCells)
+        vBulk_SplitCell(1:3, iCell)  =  vBulk_SplitCell(1:3, iCell) + vBulk_SplitCell(1:3, TotalSubCells)
+        PartNum_SplitCell(iCell) = PartNum_SplitCell(iCell) + PartNum_SplitCell(TotalSubCells)
+        PartNum_SplitCell(TotalSubCells) = 0
+        iQual = iQual + 1
+      END IF
+    END DO
+  END IF
+
+  DO iCell = 1, TotalSubCells
+    IF (PartNum_SplitCell(iCell).GE.2) THEN
+        vBulk_SplitCell(1:3,iCell) = vBulk_SplitCell(1:3,iCell) /PartNum_SplitCell(iCell)
+        CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(iCell),iCell), &
+                PartNum_SplitCell(iCell), iElem, ElemSplitCells(iElem)%SplitCellVolumes(Map(iCell,1),Map(iCell,2),Map(iCell,3)), &
+                vBulk_SplitCell(1:3,iCell))
+    END IF
+  END DO
+
+  IF(DSMC%CalcQualityFactors) THEN
+    IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+      DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + (1.-REAL(iQual)/(REAL(TotalSubCells)-1.))
+    END IF
+  END IF
+
 ELSE
   ALLOCATE(iPartIndx(nPart))
   vBulk = 0.0
@@ -468,6 +516,13 @@ ELSE
   END DO
   vBulk(1:3) = vBulk(1:3) / nPart
   CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk(1:3))
+  IF (TotalSubCells.EQ.1) THEN
+    IF(DSMC%CalcQualityFactors) THEN
+      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + 1.
+      END IF
+    END IF
+  END IF
 END IF
 
 END SUBROUTINE ESBGKSplitCells

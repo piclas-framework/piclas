@@ -37,7 +37,7 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt!, ESBGKSplitCells
+USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt, ESBGKSplitCells
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_Restart_Vars       ,ONLY: RestartTime
@@ -71,10 +71,10 @@ IF (DoBGKCellAdaptation) THEN
       END IF
     END IF
   END DO
-!ELSE IF (DoBGKCellSplitting) THEN
-!  DO iElem = 1, nElems
-!    CALL ESBGKSplitCells(iElem)
-!  END DO
+ELSE IF (DoBGKCellSplitting) THEN
+  DO iElem = 1, nElems
+    CALL ESBGKSplitCells(iElem)
+  END DO
 ELSE
   DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)

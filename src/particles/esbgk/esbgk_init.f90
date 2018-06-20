@@ -128,7 +128,9 @@ IF (DoBGKCellSplitting) THEN
   DoBGKCellAdaptation = .FALSE.
   CALL DefineElementOrientation()
   DO iElem = 1, nElems
-    ElemSplitCells(iElem)%Splitnum(1:3) = (/1,1,1/)
+    ElemSplitCells(iElem)%Splitnum(ElemSplitCells(iElem)%CellOrientation(1)) = 2
+    ElemSplitCells(iElem)%Splitnum(ElemSplitCells(iElem)%CellOrientation(2)) = 0
+    ElemSplitCells(iElem)%Splitnum(ElemSplitCells(iElem)%CellOrientation(3)) = 0
   END DO
 END IF
 
