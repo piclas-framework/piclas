@@ -805,8 +805,9 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 ! Vibrational relaxation (multi-mode), using Gibbs sampling, faster than MH (1/3 for CO2, 1/2 for CH4 of comp duration)
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
