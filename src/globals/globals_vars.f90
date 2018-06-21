@@ -10,7 +10,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                         :: SimulationTime                        !> Wall time needed by a simulation (is not reset by 
+REAL                         :: WallTime                              !> Wall time needed by a simulation (is not reset by 
                                                                       !> performing a load balance step, only by user restart)
 REAL                         :: InitializationWallTime                !> Wall time needed to initialize a simulation (or
                                                                       !> re-initialize a simulation by performing a load balance 
@@ -31,9 +31,7 @@ CHARACTER(LEN=255),PARAMETER :: ProgramName    = 'Boltzplatz'         !> name of
 CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DEFINE-PARAMETER
 CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file
-#ifndef PARTICLES
 REAL, PARAMETER              :: BoltzmannConst=1.380648813E-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
-#endif
 !===================================================================================================================================
 
 !CONTAINS

@@ -409,8 +409,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface reconstruction (wallmodel 3)
 !===================================================================================================================================
-USE MOD_Globals_Vars,           ONLY : PlanckConst
-USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, BoltzmannConst, WriteMacroSurfaceValues
+USE MOD_Globals_Vars,           ONLY : PlanckConst, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars,              ONLY : BC
 USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound, SampWall, SurfMesh
@@ -950,8 +950,8 @@ SUBROUTINE CalcBackgndPartDesorb()
 !===================================================================================================================================
 !> Calculation of number of desorbing particles using surface reconstruction (wallmodel 3)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, BoltzmannConst, WriteMacroSurfaceValues
+USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC, SurfDistInfo, SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
@@ -2320,11 +2320,10 @@ SUBROUTINE AdjustReconstructMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_nu
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY: PlanckConst
+USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Particle_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
  IMPLICIT NONE
@@ -2958,8 +2957,8 @@ SUBROUTINE CalcDesorbProb()
 !===================================================================================================================================
 !> Calculcation of desorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst
-USE MOD_Particle_Vars          ,ONLY: nSpecies, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
@@ -3047,9 +3046,9 @@ SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: PlanckConst
+USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst, Species
+USE MOD_Particle_Vars ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3103,9 +3102,8 @@ SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)
 !> Calculation of Partitionfunction of activated complex (molecular desorption)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars  ,ONLY: PlanckConst
+USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst!, Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3156,9 +3154,8 @@ SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartiti
 !> Calculation of Partitionfunction of activated complex (dissociation at surface)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY : PlanckConst
+USE MOD_Globals_Vars,       ONLY : PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY : BoltzmannConst!, Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3213,9 +3210,9 @@ SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Result_Spec, Temp, 
 !> Calculation of Partitionfunction of activated complex (recombination for desorption)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY : PlanckConst
+USE MOD_Globals_Vars,       ONLY : PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY : BoltzmannConst, Species
+USE MOD_Particle_Vars,      ONLY : Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3271,9 +3268,9 @@ SUBROUTINE PartitionFuncAct_exch(Educt_Spec1, Educt_Spec2, Temp, VarPartitionFun
 !> Calculate Partitionfunction of activated complex (exchange reactions at surface)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY : PlanckConst
+USE MOD_Globals_Vars,       ONLY : PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY : BoltzmannConst, Species
+USE MOD_Particle_Vars,      ONLY : Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3329,9 +3326,8 @@ SUBROUTINE PartitionFuncSurf(iSpec, Temp, VarPartitionFuncSurf, CharaTemp, PartB
 !> Calculate partition function of adsorbates on surface for certain species at given partboundID
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars,       ONLY : PlanckConst
+USE MOD_Globals_Vars,       ONLY : PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC, Adsorption
-USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3386,9 +3382,10 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_vars ,ONLY: PartBound
-USE MOD_PARTICLE_Vars          ,ONLY: BoltzmannConst, nSpecies
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, SurfDistInfo, SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3665,9 +3662,9 @@ SUBROUTINE Set_TST_Factors(ReactionCase,a_f,b_f,PartID,ReactNum,PartBoundID)
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Basis         ,ONLY: GetInverse
-USE MOD_Globals_Vars  ,ONLY: PlanckConst
+USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: Adsorption
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst, PEM, PartSpecies
+USE MOD_Particle_Vars ,ONLY: PEM, PartSpecies
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -3724,9 +3721,9 @@ REAL FUNCTION CalcAdsorbReactProb(ReactionCase,PartID,NormalVelo,E_Activation,E_
 !> 3: eleay-rideal reaction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars   ,ONLY: PlanckConst
+USE MOD_Globals_Vars   ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Globals
-USE MOD_Particle_Vars  ,ONLY: PartSpecies, Species, BoltzmannConst!,PartState
+USE MOD_Particle_Vars  ,ONLY: PartSpecies, Species !,PartState
 USE MOD_DSMC_Vars      ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
 USE MOD_DSMC_Analyze   ,ONLY: CalcTVib, CalcTVibPoly
 !USE MOD_DSMC_ChemReact ,ONLY: gammainc
@@ -3900,8 +3897,9 @@ SUBROUTINE AnalyzePartitionTemp()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars          ,ONLY: Adsorption
-USE MOD_Particle_Vars      ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM
 USE MOD_Particle_Mesh_Vars ,ONLY: IsTracingBCElem
 USE MOD_Mesh_Vars          ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
