@@ -261,7 +261,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_PARTICLE_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 USE MOD_PARTICLE_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout, DSMC
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
@@ -681,6 +681,10 @@ DO !iter_t=0,MaxIter
       DoLoadBalance = tmp_DoLoadBalance
       LoadBalanceSample = tmp_LoadBalanceSample
       iAnalyze=0
+#ifdef PARTICLES
+      DSMC%SampNum=0
+      IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
+#endif /*PARTICLES*/
     END IF
 #endif /*USE_LOADBALANCE*/
     ! count analyze dts passed
