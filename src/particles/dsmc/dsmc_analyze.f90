@@ -424,12 +424,14 @@ IF(useDSMC)THEN
   IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
-ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-MacroSurfaceVal=0.
 IF(calcWallModel) THEN
+  ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
   MacroSurfaceSpecVal=0.
 ELSE
+  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
   MacroSurfaceSpecVal=0.
 END IF
@@ -454,6 +456,8 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &

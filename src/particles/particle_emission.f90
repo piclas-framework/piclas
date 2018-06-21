@@ -5037,7 +5037,7 @@ __STAMP__&
                         currentSurfFluxPart%SideInfo(3) = jSample
                       ELSE
                         IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1))
-                        currentSurfFluxPart%SideInfo(1) = iSide
+                        currentSurfFluxPart%SideInfo(1) = SurfMesh%SideIDToSurfID(SideID)
                       END IF
                     END IF ! reflective bc
                   END IF ! sampling is on (CalcSurfaceVal)
