@@ -118,7 +118,7 @@ END SUBROUTINE InitializeInterpolation
 
 SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 !===================================================================================================================================
-! interpolates field to particles
+! Calculates the electromagnetic fields at all the particle's positions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -217,6 +217,8 @@ IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field
       FieldAtParticle(iPart,6) = EXP(PartState(iPart,1)) ! "B_0" and "l" are dropped here
     END DO
   END SELECT
+  ! exit the subroutine after field determination
+  RETURN
 ELSE ! use variable or fixed external field
 #endif /*CODE_ANALYZE*/
   IF(useVariableExternalField) THEN ! used curved external Bz
@@ -566,7 +568,7 @@ END SUBROUTINE InterpolateFieldToParticle
 
 SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 !===================================================================================================================================
-! interpolates field to particles
+! Calculates the electromagnetic fields at the particle's position (single particle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -595,7 +597,9 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*HDG-LSERK*/
-
+#ifdef CODE_ANALYZE
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
+#endif /* CODE_ANALYZE */
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -622,28 +626,41 @@ NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before inte
 NotMappedSurfFluxParts=.FALSE.
 #endif /*HDG-LSERK*/
 FieldAtParticle=0.
-IF(useVariableExternalField) THEN ! used Variable external Bz
-  FieldAtParticle(:) = 0.
-  FieldAtParticle(1) = externalField(1)
-  FieldAtParticle(2) = externalField(2)
-  FieldAtParticle(3) = externalField(3)
+#ifdef CODE_ANALYZE
+IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
+  SELECT CASE(AnalyticInterpolationType)
+  CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+    FieldAtParticle(6) = EXP(PartState(PartID,1)) ! "B_0" and "l" are dropped here
+  END SELECT
+  ! exit the subroutine after field determination
+  RETURN
+ELSE ! use variable or fixed external field
+#endif /*CODE_ANALYZE*/
+  IF(useVariableExternalField) THEN ! used Variable external Bz
+    FieldAtParticle(:) = 0.
+    FieldAtParticle(1) = externalField(1)
+    FieldAtParticle(2) = externalField(2)
+    FieldAtParticle(3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(4) = externalField(4)
-  FieldAtParticle(5) = externalField(5)
+    FieldAtParticle(4) = externalField(4)
+    FieldAtParticle(5) = externalField(5)
 #endif
-  ! Bz field strength at particle position
-  FieldAtParticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
-ELSE ! useVariableExternalField
-  FieldAtParticle(:) = 0.
-  FieldAtParticle(1) = externalField(1)
-  FieldAtParticle(2) = externalField(2)
-  FieldAtParticle(3) = externalField(3)
+    ! Bz field strength at particle position
+    FieldAtParticle(6) = InterpolateVariableExternalField(PartState(PartID,3))
+  ELSE ! useVariableExternalField
+    FieldAtParticle(:) = 0.
+    FieldAtParticle(1) = externalField(1)
+    FieldAtParticle(2) = externalField(2)
+    FieldAtParticle(3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(4) = externalField(4)
-  FieldAtParticle(5) = externalField(5)
-  FieldAtParticle(6) = externalField(6)
+    FieldAtParticle(4) = externalField(4)
+    FieldAtParticle(5) = externalField(5)
+    FieldAtParticle(6) = externalField(6)
 #endif
-END IF ! use constant external field
+  END IF ! use constant external field
+#ifdef CODE_ANALYZE
+END IF
+#endif /*CODE_ANALYZE*/
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   field(1:6)=0.
