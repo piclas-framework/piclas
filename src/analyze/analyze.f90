@@ -695,9 +695,9 @@ END IF
 
 ! write surface data for DSMC macroscopic values 
 IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides 
       SampWall(iSide)%State=0.
