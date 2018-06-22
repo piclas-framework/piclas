@@ -284,6 +284,7 @@ IMPLICIT NONE
 REAL                         :: tZero                    !> initial time of current simulation (zero or restarttime)
 REAL                         :: tPreviousAnalyze         !> time of previous analyze. 
                                                          !> Used for Nextfile info written into previous file if greater tAnalyze
+REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze. 
 INTEGER(KIND=8)              :: iAnalyze                 !> count number of next analyze
 REAL                         :: tEndDiff                 !> difference between simulation time and simulation end time
 REAL                         :: tAnalyzeDiff             !> difference between simulation time and next analyze time
@@ -322,6 +323,8 @@ iAnalyze=1
 ! Determine analyze time
 tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
 tPreviousAnalyze=RestartTime
+! first average analyze is not written at start but at first tAnalyze
+tPreviousAverageAnalyze=tAnalyze
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
@@ -510,7 +513,7 @@ DO !iter_t=0,MaxIter
     ,'Error in tEndDiff or tAnalyzeDiff!')
   END IF
 
-  IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
+  IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
 #ifndef PP_HDG
   IF(DoPML)THEN
@@ -647,13 +650,14 @@ DO !iter_t=0,MaxIter
         IF(DoQDS) CALL WriteQDSToHDF5(time,tPreviousAnalyze)
 #endif /*USE_QDS_DG*/
       END IF
-      IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAnalyze)
+      IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
 #ifndef PP_HDG
       ! Write state to file
 #endif /*PP_HDG*/
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
       tPreviousAnalyze=tAnalyze
+      tPreviousAverageAnalyze=tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
     END IF ! actual analyze is done
     iter_PID=0
