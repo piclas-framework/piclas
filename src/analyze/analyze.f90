@@ -476,6 +476,7 @@ REAL                          :: CalcTime
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+LOGICAL                       :: DoPerformAnalyze
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -491,6 +492,18 @@ LastIter=.FALSE.
 IF(PRESENT(LastIter_in))THEN
   IF(LastIter_in) LastIter=.TRUE.
 END IF
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Determine if an analyze step is to be performed
+!----------------------------------------------------------------------------------------------------------------------------------
+DoPerformAnalyze=.FALSE.
+IF(MOD(iter,PartAnalyzeStep).EQ.0) DoPerformAnalyze=.TRUE.
+IF(.NOT.DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.TRUE.
+IF(Output)                         DoPerformAnalyze=.TRUE.
+IF(LastIter)                       DoPerformAnalyze=.TRUE.
+IF(forceAnalyze)                   DoPerformAnalyze=.TRUE.
+
+
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -586,34 +599,37 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (DoAnalyze)  THEN
 #ifdef PARTICLES 
+  IF(DoPerformAnalyze) CALL AnalyzeParticles(t)
   ! particle analyze
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
-    CALL AnalyzeParticles(t)
-  ELSE
-    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-#if defined(IMPA) || defined(ROS)
-      IF(iter.GE.1)THEN
-#else
-      IF(iter.GT.1)THEN
-#endif
-        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeParticles(t)
-      END IF
-    ELSE
-      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeParticles(t)
-   END IF
-  END IF
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeParticles(t)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
-#endif
+!   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
+!     ! initial analysis is only performed for NO restart
+!     CALL AnalyzeParticles(t)
+!   ELSE
+!     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+!     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+! #if defined(IMPA) || defined(ROS)
+!       IF(iter.GE.1)THEN
+! #else
+!       IF(iter.GT.1)THEN
+! #endif
+!         IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+!            .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+!            CALL AnalyzeParticles(t)
+!       END IF
+!     ELSE
+!       IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+!          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+!          CALL AnalyzeParticles(t)
+!    END IF
+!   END IF
+! #if defined(LSERK)
+!   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
+!   IF(LastIter) CALL AnalyzeParticles(t)
+! #else
+!   WRITE (*,*) "OUTPUT =", OUTPUT
+!   WRITE (*,*) "MOD(iter,PartAnalyzeStep) =", MOD(iter,PartAnalyzeStep)
+!   IF((LastIter.OR.OUTPUT) .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(t)
+! #endif
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
