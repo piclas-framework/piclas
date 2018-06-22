@@ -816,24 +816,8 @@ IF(iStage.GT.0)THEN
   END IF
 END IF
 #endif /*ROS*/
-
-! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
-v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-
-!epsReflect=epsilontol*lengthPartTrajectory
-!IF((DOT_PRODUCT(v_aux,v_aux)).GT.epsReflect)THEN
-
-! particle position is exact at face
-! LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
-!  particle is located eps in interior
-PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
 v_old = PartState(PartID,4:6)
-
-! new velocity vector 
-!v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                         (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
+PartState(PartID,4:6)=PartState(PartID,4:6)-2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc + WallVelo
 
 IF (.NOT.IsAuxBC) THEN
 ! Wall sampling Macrovalues
@@ -857,9 +841,9 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
     SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
                                         * (v_old(1) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
     SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                        * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+                                        * (v_old(2) - PartState(PartID,5)) * Species(PartSpecies(PartID))%MacroParticleFactor
     SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                        * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+                                        * (v_old(3) - PartState(PartID,6)) * Species(PartSpecies(PartID))%MacroParticleFactor
   !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
 !       IF (.NOT.CalcSurfCollis%OnlySwaps) THEN
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
@@ -899,6 +883,9 @@ END IF !.NOT.IsAuxBC
 
 ! set particle position on face
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+
+PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
 
 #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
