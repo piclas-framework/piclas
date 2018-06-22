@@ -42,7 +42,7 @@ TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI fo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                             :: nSkipAnalyze                               ! Skip Analyze-Dt
+INTEGER(KIND=8)                     :: nSkipAnalyze                               ! Skip Analyze-Dt
 REAL                                :: ParticleMPIWeight
 REAL                                :: DeviationThreshold                         ! threshold for load-balancing
 LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file

@@ -571,7 +571,8 @@ SUBROUTINE DeleteParticlesMPF(FinPartNum, Temp, SpecNum, SpecID)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars, ONLY : PartState, vMPF_oldEngSum, vMPF_oldMomSum ,Species, PartMPF, PDM, &
-                                  BoltzmannConst, PartStatevMPFSpec, vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPF_relativistic
+                                  PartStatevMPFSpec, vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPF_relativistic
+  USE MOD_Globals_Vars,          ONLY: BoltzmannConst
   USE MOD_Equation_Vars, ONLY : c2
 #if (PP_TimeDiscMethod==300)
   USE MOD_FPFlow_Vars,  ONLY : FPInnerVelos, vMPF_oldEngSumRot,vMPF_oldEngSumVib, vMPF_oldMomSumVib, vMPF_oldMomSumRot
@@ -1158,7 +1159,8 @@ SUBROUTINE SetNewTemp(PartIndx, Temp, iPart)                                    
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF, BoltzmannConst
+  USE MOD_Particle_Vars,         ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -1238,8 +1240,8 @@ SUBROUTINE SetNewTemp_2(Temp, NewPartNum)                                       
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF, PartStatevMPFSpec, &
-                                 BoltzmannConst
+  USE MOD_Particle_Vars,         ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, PartMPF, PartStatevMPFSpec
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !

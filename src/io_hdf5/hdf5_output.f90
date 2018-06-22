@@ -29,6 +29,10 @@ INTERFACE GenerateFileSkeleton
   MODULE PROCEDURE GenerateFileSkeleton 
 END INTERFACE
 
+INTERFACE GenerateNextFileInfo
+  MODULE PROCEDURE GenerateNextFileInfo
+END INTERFACE
+
 INTERFACE WriteTimeAverage
   MODULE PROCEDURE WriteTimeAverage
 END INTERFACE
@@ -82,7 +86,7 @@ PUBLIC :: WriteIMDStateToHDF5
 
 CONTAINS
 
-SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,FutureTime)
+SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
 ! Subroutine to write the solution U to HDF5 format
 ! Is used for postprocessing and for restart
@@ -118,7 +122,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,16 +161,19 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
 #ifdef PP_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime)
 #endif /*PP_HDG*/
-
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('State',MeshFileName,OutputTime,PreviousTime)
+END IF
 
 ! Reopen file and write DG solution
 #ifdef MPI
@@ -1350,7 +1357,7 @@ END SUBROUTINE WriteAdaptiveInfoToHDF5
 #endif /*PARTICLES*/
 
 
-SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,FutureTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
 !==================================================================================================================================
 !> Subroutine to write time averaged data and fluctuations HDF5 format
 !==================================================================================================================================
@@ -1366,7 +1373,7 @@ CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName                                 !
 CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !< Average variable names
 CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
 REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
-REAL,INTENT(IN),OPTIONAL       :: FutureTime                                   !< Time of next output
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime                                 !< Time of previous output
 REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
 REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
 REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
@@ -1383,12 +1390,17 @@ IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
 END IF
 
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',MeshFileName,OutputTime,PreviousTime)
+END IF
+
 ! Write timeaverages ---------------------------------------------------------------------------------------------------------------
 IF(nVar_Avg.GT.0)THEN
   ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FutureTime)
+    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -1410,7 +1422,7 @@ END IF
 IF(nVar_Fluc.GT.0)THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FutureTime)
+    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -1509,6 +1521,45 @@ CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_C
 END SUBROUTINE GenerateFileSkeleton
 
 
+SUBROUTINE GenerateNextFileInfo(TypeString,MeshFileName,OutputTime,PreviousTime)
+!===================================================================================================================================
+!> Subroutine that opens the prvious written file on root processor and writes the necessary nextfile info
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars,ONLY: ProjectName
+USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
+USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
+USE MOD_Interpolation_Vars, ONLY:NodeType
+#ifdef INTEL 
+USE IFPORT,                 ONLY:SYSTEM
+#endif
+!USE MOD_PreProcFlags
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: TypeString
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
+REAL,INTENT(IN)                :: OutputTime
+REAL,INTENT(IN)                :: PreviousTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName,MeshFile255
+!===================================================================================================================================
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),PreviousTime))//'.h5'
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+
+MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
+CALL CloseDataFile()
+
+END SUBROUTINE GenerateNextFileInfo
+
+
 SUBROUTINE FlushHDF5(FlushTime_In)
 !===================================================================================================================================
 ! Deletes all HDF5 output files, beginning from time Flushtime
@@ -1517,9 +1568,9 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 USE MOD_Globals
 USE MOD_Globals_Vars,      ONLY:ProjectName
 USE MOD_HDF5_Input,        ONLY:GetHDF5NextFileName
-#ifdef MPI
+#if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 #if USE_QDS_DG
 USE MOD_QDS_DG_Vars,       ONLY:DoQDS
 #endif /*USE_QDS_DG*/
@@ -1538,9 +1589,9 @@ CHARACTER(LEN=255)       :: InputFile,NextFile
 !===================================================================================================================================
 IF(.NOT.MPIRoot) RETURN
 
-#ifdef MPI
+#if USE_LOADBALANCE
 IF(DoLoadBalance.AND.nLoadBalance.GT.0) RETURN
-#endif /*MPI*/
+#endif /*USE_LOADBALANCE*/
 
 WRITE(UNIT_stdOut,'(a)')' DELETING OLD HDF5 FILES...'
 IF (.NOT.PRESENT(FlushTime_In)) THEN
@@ -2399,7 +2450,7 @@ END SUBROUTINE WriteDielectricGlobalToHDF5
 
 
 #if USE_QDS_DG
-SUBROUTINE WriteQDSToHDF5(OutputTime,FutureTime)
+SUBROUTINE WriteQDSToHDF5(OutputTime,PreviousTime)
 !===================================================================================================================================
 ! write QDS field to HDF5 file
 !===================================================================================================================================
@@ -2415,7 +2466,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2462,13 +2513,13 @@ IF(MPIROOT)THEN
   StartT=MPI_WTIME()
 #endif
 END IF
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('QDS',TRIM(MeshFile),OutputTime,PreviousTime)
+END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
-IF(PRESENT(FutureTime))THEN
-  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FutureTime)
-ELSE
-  IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
-END IF
+IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
 #ifdef MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif

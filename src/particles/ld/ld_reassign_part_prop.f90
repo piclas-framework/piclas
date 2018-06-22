@@ -89,9 +89,10 @@ SUBROUTINE UpdateMacLDValues(iElem, DeltaM, DeltaE)
 ! update new ld particle bulk values
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
+USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_LD_Vars
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PEM
+USE MOD_Particle_Vars,         ONLY : PEM
 USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 USE MOD_LD_internal_Temp
@@ -199,7 +200,8 @@ SUBROUTINE CalcCellTemp_PartDens(iElem, CellTemp, CellPartDens)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, BoltzmannConst, usevMPF, PartMPF, PEM
+  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, usevMPF, PartMPF, PEM
   USE MOD_Particle_Mesh_Vars, ONLY: GEO
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur

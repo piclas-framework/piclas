@@ -74,7 +74,7 @@ SUBROUTINE QDS_ExactFunc(QDSExactFunction,t,tDeriv,x,resu)
 ! MODULES
 USE MOD_Globals
 USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
-!USE MOD_Particle_Vars,      ONLY:BoltzmannConst
+!USE MOD_Global_Vars,      ONLY:BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -168,11 +168,7 @@ SUBROUTINE QDS_Q2U(Q,U)
 USE MOD_QDS_DG_Vars,        ONLY:QDSSpeciesMass,GaussHermitWeiAbs,QDSSpecDOF,QDSnVar_macro
 USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 USE MOD_Globals_Vars,       ONLY:PI
-#ifdef PARTICLES
-USE MOD_Particle_Vars,      ONLY:BoltzmannConst
-#else
 USE MOD_Globals_Vars,       ONLY:BoltzmannConst
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -111,7 +111,8 @@ SUBROUTINE Evaporation()
 !===================================================================================================================================
 !> calculation of evaporating particle number when particles are deleted at condensation and inserted at evaporation
 !===================================================================================================================================
-USE MOD_Particle_Vars          ,ONLY: nSpecies, BoltzmannConst, Species
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars              ,ONLY: Liquid
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
