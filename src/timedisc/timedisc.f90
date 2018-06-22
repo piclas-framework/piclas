@@ -237,10 +237,10 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,PerformPartWeightLB
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
@@ -497,9 +497,11 @@ DO !iter_t=0,MaxIter
 
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
 #if USE_LOADBALANCE
+  ! check if loadbalancing is enabled with elemtime calculation and only LoadBalanceSample number of iteration left until analyze
+  ! --> set PerformLBSample true
   IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
       .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
-      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.
+      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.  ! make sure Loadbalancing is enabled
 #endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -616,6 +618,10 @@ DO !iter_t=0,MaxIter
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
 #if USE_LOADBALANCE
+    ! check if loadbalancing is enabled with partweight and set PerformLBSample true to calculate elemtimes with partweight
+#ifdef PARTICLES
+    IF (LoadBalanceSample.EQ.0 .AND. PerformPartWeightLB .AND. DoLoadBalance .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+#endif /*PARICLES*/
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad()
 #ifdef maxwell
