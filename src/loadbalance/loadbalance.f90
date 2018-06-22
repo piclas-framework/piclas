@@ -58,7 +58,7 @@ CALL prms%CreateIntOption(     'LoadBalanceSample'            ,  "Define number 
   " that are used for calculation of elemtime information"    , value='1')
 CALL prms%CreateLogicalOption( 'PartWeightLoadBalance'        ,  "Set flag for doing LoadBalance with partMPIWeight instead of"//&
   " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
-  " If Flag [TRUE] LoadBalanceSample is set to 0.", '.FALSE.')
+  " If Flag [TRUE] LoadBalanceSample is set to 0 and vice versa.", '.FALSE.')
 CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define threshold for dynamic load-balancing.\n"//&
   "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
 #endif /*USE_LOADBALANCE*/
@@ -124,11 +124,11 @@ LoadBalanceSample   = GETINT('LoadBalanceSample')
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-  SWRITE(UNIT_StdOut,'(a3,a35,a20,a3,I33,a3,a7,a3)')' | ',TRIM("PartWeightLoadBalance = T :"),TRIM(" LoadBalanceSample")       ,' | ',&
+  SWRITE(UNIT_StdOut,'(a3,a,a,a3,I33,a3,a7,a3)')' | ',TRIM("PartWeightLoadBalance = T :"),TRIM(" LoadBalanceSample"),' | ',&
       LoadBalanceSample   ,' | ',TRIM("INFO"),' | '
 ELSE IF (LoadBalanceSample.EQ.0) THEN
   PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-  SWRITE(UNIT_StdOut,'(a3,a35,a20,a3,L33,a3,a7,a3)')' | ',TRIM("LoadbalanceSample = 0 :"),TRIM(" PerformPartWeightLB")       ,' | ',&
+  SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("LoadbalanceSample = 0 :"),TRIM(" PartWeightLoadBalance"),' | ',&
       PerformPartWeightLB ,' | ',TRIM("INFO"),' | '
 END IF
 #else
@@ -168,7 +168,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, PerformPartWeightLB
+USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, LoadBalanceSample
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacefluxPerElem,nPartsPerBCElem,nSurfacePartsPerElem
@@ -194,7 +194,7 @@ REAL                  :: stotalDepos,stotalParts,sTotalTracks,stotalSurfacefluxe
 !====================================================================================================================================
 
 ! If elem times are calculated by time measurement (PerformLBSample) and no Partweight Loadbalance is enabled
-IF(PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
+IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
   ! number of load balance calls to Compute Elem Load
   nLoadBalance=nLoadBalance+1
@@ -280,7 +280,7 @@ IF(PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
   END DO ! iElem=1,PP_nElems
 #ifdef PARTICLES
 ! If no Elem times are calculated but Partweight Loadbalance is enabled
-ELSE IF(PerformLBSample .AND. PerformPartWeightLB) THEN
+ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   ! number of load balance calls to Compute Elem Load
   nLoadBalance=nLoadBalance+1
   ! no time measurement and particles are present: simply add the ParticleMPIWeight times the number of particles present

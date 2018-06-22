@@ -17,6 +17,7 @@ INTEGER            :: nElems_Restart
 LOGICAl            :: RestartInitIsDone   = .FALSE.
 LOGICAl            :: DoRestart           = .FALSE.
 LOGICAl            :: DoInitialAutoRestart= .FALSE.
+LOGICAl            :: IAR_PerformPartWeightLB= .FALSE.
 INTEGER            :: InitialAutoRestartSample
 LOGICAl            :: BuildNewMesh        = .TRUE.
 LOGICAl            :: WriteNewMesh        = .TRUE.
