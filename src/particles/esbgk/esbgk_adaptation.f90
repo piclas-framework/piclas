@@ -415,7 +415,7 @@ INTEGER, INTENT(IN)          :: iElem
 ! LOCAL VARIABLES
 INTEGER                      :: iPart, iLoop, iCell
 INTEGER, ALLOCATABLE         :: iPartIndx_SplitCell(:,:), PartNum_SplitCell(:),  iPartIndx(:)
-REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:), MappedPartStates(:,:)
+REAL, ALLOCATABLE            :: vBulk_SplitCell(:,:), MappedPartStates(:,:), Volumes(:)
 INTEGER                      :: PosX, PosY, PosZ, nPart, TotalSubCells, iQual
 REAL                         :: vBulk(3)
 INTEGER, ALLOCATABLE         :: Map(:,:), MapInvers(:,:,:)
@@ -426,6 +426,8 @@ IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
 END IF
 TotalSubCells = (ElemSplitCells(iElem)%Splitnum(1)+1)*(ElemSplitCells(iElem)%Splitnum(2)+1)*(ElemSplitCells(iElem)%Splitnum(3)+1)
 IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
+  CALL CalcSplitCellVolumes(iElem)
+  ALLOCATE(Volumes(TotalSubCells))
   ALLOCATE(Map(TotalSubCells,3), &
     MapInvers(ElemSplitCells(iElem)%Splitnum(1)+1,ElemSplitCells(iElem)%Splitnum(2)+1,ElemSplitCells(iElem)%Splitnum(3)+1))
   iLoop = 1
@@ -435,6 +437,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
     Map(iLoop,2) = PosY
     Map(iLoop,3) = PosZ
     MapInvers(PosX, PosY, PosZ) = iLoop
+    Volumes(iLoop) = ElemSplitCells(iElem)%SplitCellVolumes(PosX,PosY,PosZ)
     iLoop = iLoop + 1
   END DO; END DO; END DO
 
@@ -445,8 +448,6 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
   iPartIndx_SplitCell = 0
   PartNum_SplitCell = 0
   vBulk_SplitCell= 0.0
-
-  CALL CalcSplitCellVolumes(iElem)
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
@@ -473,6 +474,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
         iPartIndx_SplitCell(1:PartNum_SplitCell(iCell), iCell)
       vBulk_SplitCell(1:3, iCell+1)  =  vBulk_SplitCell(1:3, iCell+1) + vBulk_SplitCell(1:3, iCell)
       PartNum_SplitCell(iCell+1) = PartNum_SplitCell(iCell+1) + PartNum_SplitCell(iCell)
+      Volumes(iCell+1) = Volumes(iCell+1) + Volumes(iCell)
       PartNum_SplitCell(iCell) = 0
       iQual = iQual + 1
     END IF
@@ -484,6 +486,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
           iPartIndx_SplitCell(1:PartNum_SplitCell(TotalSubCells), TotalSubCells)
         vBulk_SplitCell(1:3, iCell)  =  vBulk_SplitCell(1:3, iCell) + vBulk_SplitCell(1:3, TotalSubCells)
         PartNum_SplitCell(iCell) = PartNum_SplitCell(iCell) + PartNum_SplitCell(TotalSubCells)
+        Volumes(iCell) = Volumes(iCell) + Volumes(TotalSubCells)
         PartNum_SplitCell(TotalSubCells) = 0
         iQual = iQual + 1
       END IF
@@ -494,7 +497,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
     IF (PartNum_SplitCell(iCell).GE.2) THEN
         vBulk_SplitCell(1:3,iCell) = vBulk_SplitCell(1:3,iCell) /PartNum_SplitCell(iCell)
         CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(iCell),iCell), &
-                PartNum_SplitCell(iCell), iElem, ElemSplitCells(iElem)%SplitCellVolumes(Map(iCell,1),Map(iCell,2),Map(iCell,3)), &
+                PartNum_SplitCell(iCell), iElem, Volumes(iCell), &
                 vBulk_SplitCell(1:3,iCell))
     END IF
   END DO
