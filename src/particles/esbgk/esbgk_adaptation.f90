@@ -467,7 +467,6 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
   END DO
 
   iQual = 0
-
   DO iCell = 1, TotalSubCells-1
     IF (PartNum_SplitCell(iCell).LT.BGKMinPartPerCell) THEN
       iPartIndx_SplitCell(PartNum_SplitCell(iCell+1)+1:PartNum_SplitCell(iCell+1) + PartNum_SplitCell(iCell),iCell +1) = &
@@ -489,6 +488,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1)) THEN
         Volumes(iCell) = Volumes(iCell) + Volumes(TotalSubCells)
         PartNum_SplitCell(TotalSubCells) = 0
         iQual = iQual + 1
+        EXIT
       END IF
     END DO
   END IF

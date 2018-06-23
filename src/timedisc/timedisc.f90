@@ -591,19 +591,19 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==200)
   CALL TimeStepByEulerStaticExp() ! O1 Euler Static Explicit
 #elif (PP_TimeDiscMethod==201)
-  CALL TimeStepByEulerStaticExpAdapTS(time) ! O1 Euler Static Explicit with adaptive TimeStep
+  CALL TimeStepByEulerStaticExpAdapTS() ! O1 Euler Static Explicit with adaptive TimeStep
 #elif (PP_TimeDiscMethod==400) 
-  CALL TimeStep_ESBGK(time)      ! ESBGK explicit
+  CALL TimeStep_ESBGK()      ! ESBGK explicit
 #elif (PP_TimeDiscMethod==410) 
-  CALL TimeStep_BGK_Euler(time)
+  CALL TimeStep_BGK_Euler()
 #elif (PP_TimeDiscMethod==411) 
-  CALL TimeStep_BGK_Euler_G(time)
+  CALL TimeStep_BGK_Euler_G()
 #elif (PP_TimeDiscMethod==440) 
-  CALL TimeStep_ESBGK_Phase(time)
+  CALL TimeStep_ESBGK_Phase()
 #elif (PP_TimeDiscMethod>=441) && (PP_TimeDiscMethod<=443) 
-  CALL TimeStep_ESBGK_PhaseLSERK(time)
+  CALL TimeStep_ESBGK_PhaseLSERK()
 #elif (PP_TimeDiscMethod==445) 
-  CALL TimeStep_ESBGK_Phase_LeapFrog(time)
+  CALL TimeStep_ESBGK_Phase_LeapFrog()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=506)
 #ifdef PP_HDG
 #if (PP_TimeDiscMethod==500)
@@ -4559,7 +4559,7 @@ END SUBROUTINE TimeStepByEulerStaticExpAdapTS
 #endif
 
 #if (PP_TimeDiscMethod==400)
-SUBROUTINE TimeStep_ESBGK(t)
+SUBROUTINE TimeStep_ESBGK()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -4586,15 +4586,12 @@ USE MOD_ESBGK_Vars             ,ONLY: BGKAdaptTimeStep, BGKMinCFL
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
-
 IF (DoSurfaceFlux) THEN
   IF (LiquidSimFlag) CALL Evaporation()
   ! Calculate desobing particles for Surfaceflux
@@ -4682,7 +4679,7 @@ END SUBROUTINE TimeStep_ESBGK
 #endif
 
 #if (PP_TimeDiscMethod==410)
-SUBROUTINE TimeStep_BGK_Euler(t)
+SUBROUTINE TimeStep_BGK_Euler()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -4707,15 +4704,12 @@ USE MOD_ESBGK                  ,ONLY: BGKEuler_main
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
-
 IF (DoSurfaceFlux) THEN
   ! Calculate desobing particles for Surfaceflux
   CALL ParticleSurfaceflux()
@@ -4801,7 +4795,7 @@ END SUBROUTINE TimeStep_BGK_Euler
 #endif
 
 #if (PP_TimeDiscMethod==411)
-SUBROUTINE TimeStep_BGK_Euler_G(t)
+SUBROUTINE TimeStep_BGK_Euler_G()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -4827,15 +4821,12 @@ USE MOD_ESBGK_Vars             ,ONLY: BGKAcceleration
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
-
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 
@@ -4929,7 +4920,7 @@ END SUBROUTINE TimeStep_BGK_Euler_G
 #endif
 
 #if (PP_TimeDiscMethod==440)
-SUBROUTINE TimeStep_ESBGK_Phase(t)
+SUBROUTINE TimeStep_ESBGK_Phase()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -4957,15 +4948,12 @@ USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, Int
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
-
 ! perform normal deposition
 CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
@@ -5077,7 +5065,7 @@ END SUBROUTINE TimeStep_ESBGK_Phase
 
 
 #if (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443)
-SUBROUTINE TimeStep_ESBGK_PhaseLSERK(t)
+SUBROUTINE TimeStep_ESBGK_PhaseLSERK()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -5105,7 +5093,6 @@ USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, Int
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)            :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: timeEnd, timeStart
@@ -5117,7 +5104,6 @@ DO iStage=1,nRKStages
   b_dt(iStage)=RK_b(iStage)*dt
 END DO
 iStage=1
-Time=t
 CALL ParticleInserting()
 ! perform normal deposition
 CALL Deposition(doInnerParts=.TRUE.)
@@ -5309,7 +5295,7 @@ END SUBROUTINE TimeStep_ESBGK_PhaseLSERK
 
 
 #if (PP_TimeDiscMethod==445)
-SUBROUTINE TimeStep_ESBGK_Phase_LeapFrog(t)
+SUBROUTINE TimeStep_ESBGK_Phase_LeapFrog()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -5339,14 +5325,12 @@ USE MOD_ESBGK_Phase            ,ONLY: ComputePhasePotential, EvalPhaseForce, Int
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
 IF (iter.EQ.0) THEN
   ! perform normal deposition
   CALL Deposition(doInnerParts=.TRUE.)
