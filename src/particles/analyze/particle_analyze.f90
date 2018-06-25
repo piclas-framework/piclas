@@ -3990,6 +3990,7 @@ REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position a
 REAL    :: gamma_0
 REAL    :: phi_0
 REAL    :: Theta
+REAL    :: beta
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
@@ -3998,6 +3999,20 @@ SELECT CASE(AnalyticInterpolationType)
 CASE(1)
   SELECT CASE(AnalyticInterpolationSubType)
   CASE(1,2)
+    ASSOCIATE( p       => AnalyticInterpolationP , &
+               Theta_0 => 0.d0 ) !0.785398163397448d0    )
+    beta = ACOS(p)
+    !beta = ASIN(-p)
+    ! phase shift
+    phi_0   = ATANH( (1./TAN(beta/2.)) * TAN(Theta_0/2.) )
+    ! angle
+    Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*t*SIN(beta)-phi_0) )
+    Theta   = -2.*ATANH( TAN(beta/2.) * TANH(0.5*SIN(beta*t)-phi_0) )
+    ! x-pos
+    PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
+    ! y-pos
+    PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+    END ASSOCIATE
   CASE(3)
     ASSOCIATE( p       => AnalyticInterpolationP , &
                Theta_0 => 0.d0                   )
