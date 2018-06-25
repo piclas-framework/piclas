@@ -37,7 +37,14 @@ USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
 #endif /*MPI*/
-
+USE MOD_Analyze,             ONLY: CalcErrorStateFiles
+USE MOD_Analyze_Vars,        ONLY: NAnalyze
+USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
+USE MOD_Mesh_Vars,           ONLY: Elem_xGP,dXCL_N,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,sJ,NGeoRef,DetJac_Ref
+USE MOD_Mesh_Vars,           ONLY: interpolateFromTree,NormVec,nSides
+USE MOD_Mesh_Vars,           ONLY: Face_xGP,NormVec,TangVec1,TangVec2,SurfElem,Ja_Face
+USE MOD_PreProc,             ONLY: PP_N
+USE MOD_Mesh_Vars,           ONLY: ElemToSide,SideToElem,BC,AnalyzeSide
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -50,8 +57,9 @@ CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
 CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
+REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
-REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)                 ! Solution on visualiation nodes
+REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
 REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes 
 REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
@@ -59,6 +67,7 @@ REAL,ALLOCATABLE               :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermond
 REAL,ALLOCATABLE               :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualisation nodes
 INTEGER                        :: nGeo_old,nVar_State_old           ! Variables used to check if we need to reinitialize
 INTEGER                        :: N_State_old,nElems_old            !     "
+INTEGER                        :: N_State_first                     ! first state file
 CHARACTER(LEN=255)             :: MeshFile_old                      !     "
 CHARACTER(LEN=255)             :: NodeType_State_old                !     "
 CHARACTER(LEN=255)             :: FileString_DG
@@ -74,6 +83,9 @@ LOGICAL                        :: CmdLineMode                       ! In command
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
+LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
+                                                                    ! calculation with the following state files
+CHARACTER(LEN=40)              :: DefStr
 !==================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
@@ -85,6 +97,10 @@ CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization bas
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order information in mesh. Turn off to discard "//&
                                              "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
+CALL prms%CreateLogicalOption('CalcDiffError',  "Use first state file as reference state for L2 error calculation "//&
+                                                "with the following state files.", '.TRUE.')
+CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
+                                                   'Default: 2*N. (needed for CalcDiffError)')
 CALL DefineParametersIO()
 
 ! check for command line argument --help or --markdown
@@ -173,6 +189,15 @@ END IF
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 useCurveds       = GETLOGICAL('useCurveds','.FALSE.')  ! Allow curved mesh or not
+CalcDiffError    = GETLOGICAL('CalcDiffError','.FALSE.')  ! Allow curved mesh or not
+IF(CalcDiffError.AND.(nArgs.LT.3))THEN
+  ! ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
+  ! WRITE(DefStr,'(i4)') 2*(PP_N+1)
+  ! NAnalyze=GETINT('NAnalyze',DefStr) 
+  ! CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+  IF(nArgs.LT.3)CALL abort(__STAMP__,&
+      'CalcDiffError needs a minimum of two state files!',iError)
+END IF
 
 ! Initialization of I/O routines
 CALL InitIO()
@@ -220,6 +245,8 @@ DO iArgs = 2,nArgs
 
   ! Check if the mesh has changed
   IF (TRIM(MeshFile).NE.TRIM(MeshFile_old)) THEN
+    IF(CalcDiffError.AND.(iArgs.GT.2))CALL abort(__STAMP__,&
+    'CalcDiffError needs identical meshes!',iError)
     ! Check if the file is a valid mesh
     IF(.NOT.ISVALIDMESHFILE(MeshFile)) THEN
       CALL CollectiveStop(__STAMP__,&
@@ -272,6 +299,65 @@ DO iArgs = 2,nArgs
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
 
+  IF(CalcDiffError)THEN
+    IF(iArgs <= 2)THEN
+      ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
+      WRITE(DefStr,'(i4)') 2*(N_State+1)
+      NAnalyze=GETINT('NAnalyze',DefStr) 
+      !CALL InitAnalyzeBasis(N_State,NAnalyze,xGP,wBary)
+      ! Copy state to 'first'
+      ALLOCATE(U_first(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      U_first       = U
+      N_State_first = N_State
+
+
+
+
+      ! fill ElemToSide, SideToElem,BC
+      ALLOCATE(ElemToSide(2,6,nElems))
+      ALLOCATE(SideToElem(5,nSides))
+      ALLOCATE(BC(1:nSides))
+      ALLOCATE(AnalyzeSide(1:nSides))
+      ElemToSide  = 0
+      SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
+      BC          = 0
+      AnalyzeSide = 0
+
+      interpolateFromTree=.FALSE.
+      PP_N=N_State
+      ! allocate type Mesh
+      ! volume data
+      ALLOCATE(Elem_xGP      (3,0:N_State,0:N_State,0:N_State,nElems))
+      ALLOCATE(      dXCL_N(3,3,0:N_State,0:N_State,0:N_State,nElems)) ! temp
+      ALLOCATE(Metrics_fTilde(3,0:N_State,0:N_State,0:N_State,nElems))
+      ALLOCATE(Metrics_gTilde(3,0:N_State,0:N_State,0:N_State,nElems))
+      ALLOCATE(Metrics_hTilde(3,0:N_State,0:N_State,0:N_State,nElems))
+      ALLOCATE(sJ            (  0:N_State,0:N_State,0:N_State,nElems))
+      NGeoRef=3*NGeo ! build jacobian at higher degree
+      ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+
+      ! surface data
+      ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
+      ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
+      ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
+      ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
+      ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
+      ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
+      Face_xGP=0.
+      NormVec=0.
+      TangVec1=0.
+      TangVec2=0.
+      SurfElem=0.
+
+      CALL CalcMetricsErrorDiff()
+
+
+    ELSE
+      IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&
+    'CalcDiffError: NAnalyze.LT.2*(N_State+1)! The polynomial degree is too small!',iError)
+      CALL CalcErrorStateFiles(nVar_State,N_State_first,N_State,U_first,U)
+    END IF 
+  END IF
 
   ! check if additional elem data exists
   CALL DatasetExists(File_ID,'ElemData',elemDataFound)

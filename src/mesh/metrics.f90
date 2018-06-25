@@ -55,9 +55,14 @@ INTERFACE SurfMetricsFromJa
   MODULE PROCEDURE SurfMetricsFromJa
 END INTERFACE
 
+INTERFACE CalcMetricsErrorDiff
+  MODULE PROCEDURE CalcMetricsErrorDiff
+END INTERFACE
+
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
+PUBLIC::CalcMetricsErrorDiff
 !==================================================================================================================================
 
 CONTAINS
@@ -732,5 +737,180 @@ DO iLocSide=1,6
 END DO
 
 END SUBROUTINE CalcElemLocalSurfMetrics
+
+SUBROUTINE CalcMetricsErrorDiff()
+!===================================================================================================================================
+!> This routine computes the geometries volume metric terms.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
+USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
+USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
+USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
+USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
+USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
+USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
+USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
+USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
+USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
+USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
+USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
+#ifdef PARTICLES
+#ifdef MPI
+USE MOD_Mesh_Vars,               ONLY:nSides
+#endif
+USE MOD_Mesh_Vars,               ONLY:NGeoElevated
+USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
+USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
+USE MOD_Mesh_Vars,               ONLY:SideToElem
+USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
+USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
+                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+#ifndef MPI
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
+#endif /*not MPI*/
+#endif /*PARTICLES*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,j,k,q,iElem
+INTEGER :: ll
+! Jacobian on CL N and NGeoRef
+REAL    :: DetJac_N( 1,0:PP_N,   0:PP_N,   0:PP_N)
+REAL    :: tmp(      1,0:NgeoRef,0:NgeoRef,0:NgeoRef)
+!REAL    :: tmp2(     1,0:Ngeo,0:Ngeo,0:Ngeo)
+! interpolation points and derivatives on CL N
+REAL    :: XCL_N(      3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
+REAL    :: XCL_Ngeo(   3,  0:Ngeo,0:Ngeo,0:Ngeo)          ! mapping X(xi) P\in Ngeo
+REAL    :: XCL_N_quad( 3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
+REAL    :: dXCL_Ngeo(  3,3,0:Ngeo,0:Ngeo,0:Ngeo)          ! jacobi matrix on CL Ngeo
+REAL    :: dX_NgeoRef( 3,3,0:NgeoRef,0:NgeoRef,0:NgeoRef) ! jacobi matrix on SOL NgeoRef
+
+REAL    :: R_CL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric terms, uses XCL_N,dXCL_N
+REAL    :: JaCL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
+REAL    :: JaCL_N_quad(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
+REAL    :: scaledJac(2)
+
+! Polynomial derivativion matrices
+REAL    :: DCL_NGeo(0:Ngeo,0:Ngeo)
+REAL    :: DCL_N(   0:PP_N,0:PP_N)
+
+! Vandermonde matrices (N_OUT,N_IN)
+REAL    :: Vdm_EQNgeo_CLNgeo( 0:Ngeo   ,0:Ngeo)
+REAL    :: Vdm_CLNGeo_NgeoRef(0:NgeoRef,0:Ngeo)
+REAL    :: Vdm_NgeoRef_N(     0:PP_N   ,0:NgeoRef)
+REAL    :: Vdm_CLNGeo_CLN(    0:PP_N   ,0:Ngeo)
+REAL    :: Vdm_CLN_N(         0:PP_N   ,0:PP_N)
+
+! 3D Vandermonde matrices and lengths,nodes,weights
+REAL,DIMENSION(0:NgeoRef,0:NgeoRef) :: Vdm_xi_Ref,Vdm_eta_Ref,Vdm_zeta_Ref
+REAL,DIMENSION(0:PP_N   ,0:PP_N)    :: Vdm_xi_N  ,Vdm_eta_N  ,Vdm_zeta_N
+REAL,DIMENSION(0:NGeo   ,0:NGeo)    :: Vdm_xi_NGeo  ,Vdm_eta_NGeo  ,Vdm_zeta_NGeo
+REAL    :: xiRef( 0:NgeoRef),wBaryRef( 0:NgeoRef)
+REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
+REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
+REAL    :: xi0(3),dxi(3),length(3)
+
+#ifdef PARTICLES
+INTEGER            :: iSide,lowerLimit,ElemID,SideID,NBElemID
+REAL               :: StartT2,BezierTime
+#endif /*PARTICLES*/
+REAL               :: StartT,EndT
+!===================================================================================================================================
+
+
+StartT=BOLTZPLATZTIME()
+
+! Prerequisites
+Metrics_fTilde=0.
+Metrics_gTilde=0.
+Metrics_hTilde=0.
+! 
+
+! Initialize Vandermonde and D matrices
+! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
+! Always use interpolation for the rest!
+
+! 1.a) NodeCoords: EQUI Ngeo to CLNgeo and CLN
+CALL GetVandermonde(    Ngeo   , NodeTypeVISU, Ngeo    , NodeTypeCL, Vdm_EQNgeo_CLNgeo , modal=.FALSE.)
+
+! 1.b) dXCL_Ngeo:
+CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_Ngeo)
+
+! 1.c) Jacobian: CLNgeo to NgeoRef, CLNgeoRef to N
+CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNgeo_NgeoRef, modal=.FALSE.)
+CALL GetVandermonde(    NgeoRef, NodeType    , PP_N    , NodeType  , Vdm_NgeoRef_N     , modal=.TRUE.)
+CALL GetNodesAndWeights(NgeoRef, NodeType    , xiRef   , wIPBary=wBaryRef)
+
+! 1.d) derivatives (dXCL) by projection or by direct derivation (D_CL):
+CALL GetVandermonde(    Ngeo   , NodeTypeCL  , PP_N    , NodeTypeCL, Vdm_CLNgeo_CLN    , modal=.FALSE.)
+CALL GetDerivativeMatrix(PP_N  , NodeTypeCL  , DCL_N)
+
+! 2.d) derivatives (dXCL) by projection or by direct derivation (D_CL):
+CALL GetVandermonde(    PP_N   , NodeTypeCL  , PP_N    , NodeType,   Vdm_CLN_N         , modal=.FALSE.)
+CALL GetNodesAndWeights(PP_N   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
+
+! 3.a) Interpolate from Tree for particls
+CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
+
+! Outer loop over all elements
+detJac_Ref=0.
+dXCL_N=0.
+DO iElem=1,nElems
+  !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
+  IF(interpolateFromTree)THEN
+    xi0   =xiMinMax(:,1,iElem)
+    length=xiMinMax(:,2,iElem)-xi0
+    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Ngeo)
+  ELSE
+    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
+  END IF
+  CALL   ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
+
+  !1.b) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k))
+  dXCL_NGeo=0.
+  DO k=0,Ngeo; DO j=0,Ngeo; DO i=0,Ngeo
+    ! Matrix-vector multiplication
+    DO ll=0,Ngeo
+      dXCL_NGeo(1,:,i,j,k)=dXCL_NGeo(1,:,i,j,k) + DCL_NGeo(i,ll)*XCL_NGeo(:,ll,j,k)
+      dXCL_NGeo(2,:,i,j,k)=dXCL_NGeo(2,:,i,j,k) + DCL_NGeo(j,ll)*XCL_NGeo(:,i,ll,k)
+      dXCL_NGeo(3,:,i,j,k)=dXCL_NGeo(3,:,i,j,k) + DCL_NGeo(k,ll)*XCL_NGeo(:,i,j,ll)
+    END DO !l=0,N
+  END DO; END DO; END DO !i,j,k=0,Ngeo
+
+  ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
+  ! Compute Jacobian on NGeo and then interpolate:
+  ! required to guarantee conservativity when restarting with N<NGeo
+  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,1,:,:,:),dX_NgeoRef(:,1,:,:,:))
+  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
+  CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
+  DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
+    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) & 
+      + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
+      + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
+      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))  
+  END DO; END DO; END DO !i,j,k=0,NgeoRef
+
+  ! interpolate detJac_ref to the solution points
+  CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N)
+
+  ! assign to global Variable sJ
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    sJ(i,j,k,iElem)=1./DetJac_N(1,i,j,k)
+  END DO; END DO; END DO !i,j,k=0,PP_N
+END DO !iElem=1,nElems
+
+
+END SUBROUTINE CalcMetricsErrorDiff
 
 END MODULE MOD_Metrics
