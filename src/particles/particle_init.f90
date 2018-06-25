@@ -55,12 +55,14 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle")
 
-CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
-CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
-                                                                ' instantaneous values with those of previous iterations.', '0.001')
-CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
-CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
-CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
+CALL prms%CreateRealOption(     'Particles-ManualTimeStep'    , 'Manual timestep [sec]', '0.0')
+CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average '//&
+                                                                'instantaneous values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'Part-nSpecies'               , 'Number of species used in calculation', '1')
+CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
+                                                                'specific degree', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-nMacroRestartFiles'     , 'Number of Restart files used for calculation', '0')
+CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]'    , 'relative path to Restart file [$] used for calculation','none' &
                                                           ,numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
@@ -1018,10 +1020,10 @@ SUBROUTINE InitializeVariables()
 ! Initialize the variables first 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
+USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Particle_Vars!, ONLY: 
+USE MOD_Particle_Vars
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
@@ -1265,6 +1267,9 @@ PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
+
+! Initial Ionization of species
+DoInitialIonization = GETLOGICAL('Part-DoInitialIonization','.FALSE.')
 
 ! IMD data import from *.chkpt file
 DoImportIMDFile=.FALSE. ! default
