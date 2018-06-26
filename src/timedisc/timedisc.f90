@@ -242,11 +242,11 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
-USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,PerformPartWeightLB
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #ifdef PARTICLES
@@ -393,8 +393,11 @@ IF (DoInitialAutoRestart) THEN
   DoLoadBalance = .TRUE.
   tmp_LoadbalanceSample = LoadBalanceSample
   LoadBalanceSample = InitialAutoRestartSample
+  ! correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
+  ! LoadBalanceSample still needs to be zero
+  IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! correction for first analyzetime due to auto initial restart
-  IF (MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt).LT.tAnalyze) THEN
+  IF (MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+InitialAutoRestartSample*dt).LT.tAnalyze) THEN
     tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd,tZero+LoadBalanceSample*dt)
     tAnalyzeDiff=tAnalyze-time
     dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
@@ -519,9 +522,11 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*(PP_TimeDiscMethod==509)*/
 #if USE_LOADBALANCE
+  ! check if loadbalancing is enabled with elemtime calculation and only LoadBalanceSample number of iteration left until analyze
+  ! --> set PerformLBSample true
   IF ((tAnalyzeDiff.LE.LoadBalanceSample*dt &                                 ! all iterations in LoadbalanceSample interval
       .OR. (ALMOSTEQUALRELATIVE(tAnalyzeDiff,LoadBalanceSample*dt,1e-5))) &   ! make sure to get the first iteration in interval
-      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.
+      .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE.  ! make sure Loadbalancing is enabled
 #endif /*USE_LOADBALANCE*/
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -638,6 +643,12 @@ DO !iter_t=0,MaxIter
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
 #if USE_LOADBALANCE
+#ifdef PARTICLES
+    ! Check if loadbalancing is enabled with partweight and set PerformLBSample true to calculate elemtimes with partweight
+    ! LoadBalanceSample is 0 if partweightLB or IAR_partweighlb are enabled. If only one of them is set Loadbalancesample switches
+    ! during time loop
+    IF (LoadBalanceSample.EQ.0 .AND. DoLoadBalance .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+#endif /*PARICLES*/
     ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad()
 #ifdef maxwell

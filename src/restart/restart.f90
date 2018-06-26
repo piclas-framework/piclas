@@ -48,6 +48,10 @@ CALL prms%CreateIntOption('InitialAutoRestartSample',"Define number of iteration
  "sampling before performing automatic initial restart.\n"// &
  "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
   " DEFAULT: LoadBalanceSample.")
+CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance' &
+  ,  "Set flag for doing initial auto restart with partMPIWeight instead of"//&
+  " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
+  " If Flag [TRUE] InitialAutoRestartSample is set to 0 and vice versa.", '.FALSE.')
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE DefineParametersRestart
 
@@ -103,6 +107,16 @@ ELSE
   DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
   WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
   InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
+  IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
+  IF (IAR_PerformPartWeightLB) THEN
+    InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
+    SWRITE(UNIT_StdOut,'(a3,a,a,a3,I33,a3,a7,a3)')' | ',TRIM(" InitialAutoRestart-PartWeightLoadBalance = T :"),&
+      TRIM(" InitialAutoRestartSample"),' | ', InitialAutoRestartSample   ,' | ',TRIM("INFO"),' | '
+  ELSE IF (InitialAutoRestartSample.EQ.0) THEN
+    IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
+    SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("InitialAutoRestartSample = 0 :")&
+      ,TRIM(" InitialAutoRestart-PartWeightLoadBalance"),' | ', IAR_PerformPartWeightLB ,' | ',TRIM("INFO"),' | '
+  END IF
 #endif /*USE_LOADBALANCE*/
 END IF
 
