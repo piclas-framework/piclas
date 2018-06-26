@@ -65,9 +65,9 @@ SUBROUTINE InitESBGK()
 USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Vars      ,ONLY: nSpecies, Species, BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC
-USE MOD_Globals_Vars       ,ONLY: Pi
+USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_ESBGK_Vars
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix

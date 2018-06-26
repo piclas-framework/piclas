@@ -27,11 +27,11 @@ SUBROUTINE ESBGK_CollisionOperator(iPartIndx_Node, nPart, iElem, NodeVolume, vBu
 !> description
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: PartState, Species, BoltzmannConst
+USE MOD_Particle_Vars ,ONLY: PartState, Species
 USE MOD_DSMC_Vars     ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Analyze  ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars ,ONLY: dt, TEnd, Time
-USE MOD_Globals_Vars  ,ONLY: Pi
+USE MOD_Globals_Vars  ,ONLY: Pi, BoltzmannConst
 USE MOD_ESBGK_Vars    ,ONLY: SpecESBGK, ESBGKTempCorrectFact, ESBGKModel, BGKCollModel, BGKUnifiedCes
 USE MOD_ESBGK_Vars    ,ONLY: BGKDiffEn, BGKTest, BGKDiffEn2, BGKDiffEn3, BGKDiffEn4, BGKAveragingLength, BGKDoAveraging
 USE MOD_ESBGK_Vars    ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, ElemSplitCells, BGKSampAdapFac
@@ -898,7 +898,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC
   USE MOD_ESBGK_Vars,             ONLY : BGKDoVibRelaxation
@@ -995,7 +995,7 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
 ! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
   USE MOD_ESBGK_Vars,             ONLY : BGKDoVibRelaxation
@@ -1112,7 +1112,7 @@ END SUBROUTINE CalcTEquiPoly
 !! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !!===================================================================================================================================
 !! MODULES
-!  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+!  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 !  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
 !! IMPLICIT VARIABLE HANDLING
 !  IMPLICIT NONE
