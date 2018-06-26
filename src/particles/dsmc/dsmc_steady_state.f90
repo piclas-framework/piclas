@@ -579,7 +579,8 @@ SUBROUTINE SteadyStateDetection_main()
   
   USE MOD_DSMC_Vars,             ONLY : DSMC, CollisMode, SpecDSMC 
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Vars,         ONLY : nSpecies, BoltzmannConst, Species
+  USE MOD_Particle_Vars,         ONLY : nSpecies, Species
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : iSamplingIters, nSamplingIters, HistTime, nTime
   USE MOD_DSMC_Vars,             ONLY : Sampler, History, CheckHistory, SamplingActive, SteadyIdentGlobal
 #ifdef MPI

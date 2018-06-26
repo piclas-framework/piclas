@@ -11,21 +11,21 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL             :: TEnd
-REAL             :: TAnalyze
-REAL             :: TLoadBalance
-REAL             :: Time                              ! Simulation Time
-REAL             :: dt
-REAL             :: CFLScale 
-REAL             :: CFLtoOne      ! scaling factor to scale CFL to one
-REAL             :: sdtCFLOne     ! inverse of dt of CFLOne
+REAL             :: TEnd                              !> simulation end time
+REAL             :: TAnalyze                          !> time for next analyze
+REAL             :: Time                              !> Simulation Time
+REAL             :: dt                                !> simulation time step
+REAL             :: CFLScale                          !> cfl scale
+REAL             :: CFLtoOne                          !> scaling factor to scale CFL to one
+REAL             :: sdtCFLOne                         !> inverse of dt of CFLOne
 !REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 REAL             :: RKdtFrac,RKdtFracTotal
 !INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
-INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
-LOGICAL          :: DoDisplayIter
-LOGICAL          :: DoDisplayEmissionWarnings
+INTEGER(KIND=8)  :: iter                              !> iteration since first init
+INTEGER(KIND=8)  :: IterDisplayStep                   !> number of displayed iteration steps written during simulation
+INTEGER(KIND=8)  :: IterDisplayStepUser               !> number of displayed iteration steps that are defined by user
+LOGICAL          :: DoDisplayIter                     !> flag if iterations are displayed (TRUE if IterDisplayStep>0)
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
 REAL             :: dt_Min
