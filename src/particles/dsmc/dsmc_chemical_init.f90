@@ -27,10 +27,11 @@ SUBROUTINE DSMC_chemical_init()
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,          ONLY : ChemReac,CollisMode, DSMC, QKBackWard, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY : ChemReac,CollisMode, DSMC, QKBackWard, SpecDSMC
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_PARTICLE_Vars,         ONLY : nSpecies
   USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -764,8 +765,9 @@ SUBROUTINE Calc_Arrhenius_Factors()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
+  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+  USE MOD_PARTICLE_Vars,      ONLY : nSpecies
   USE MOD_Globals_Vars,       ONLY : Pi
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
 ! IMPLICIT VARIABLE HANDLING
@@ -1099,9 +1101,8 @@ SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi
+USE MOD_Globals_Vars,       ONLY: Pi, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, QKBackWard, ChemReac, CollInf
-USE MOD_Particle_Vars,      ONLY: BoltzmannConst
 USE MOD_DSMC_ChemReact,     ONLY: gammainc
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

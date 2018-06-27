@@ -103,8 +103,9 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF!, Debug_Energy
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, PartMPF
+                                         PartState, usevMPF, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -413,10 +414,11 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_Globals,                ONLY : Abort
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, PartMPF
+                                         PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -894,8 +896,9 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, PEM, usevMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PEM, usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_vmpf_collision,         ONLY : AtomRecomb_vMPF
@@ -2521,8 +2524,8 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
+  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2586,9 +2589,9 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
+  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,          ONLY : PolyatomMolDSMC
-  USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

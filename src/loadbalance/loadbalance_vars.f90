@@ -16,6 +16,9 @@ INTEGER                             :: LoadBalanceSample                        
 LOGICAL                             :: PerformLBSample                            ! Flag for enabling time measurement in current
                                                                                   ! timestep (automatically set depending on LB
                                                                                   ! sampling method)
+LOGICAL                             :: PerformPartWeightLB                        ! Flag for performing LB with partMPIWeight
+                                                                                  ! instead of summed Elemtimes
+                                                                                  ! -> nParts*PartWeight written into elemtime array
 LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
 
 ! time measurement
@@ -42,7 +45,7 @@ TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI fo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                             :: nSkipAnalyze                               ! Skip Analyze-Dt
+INTEGER(KIND=8)                     :: nSkipAnalyze                               ! Skip Analyze-Dt
 REAL                                :: ParticleMPIWeight
 REAL                                :: DeviationThreshold                         ! threshold for load-balancing
 LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file

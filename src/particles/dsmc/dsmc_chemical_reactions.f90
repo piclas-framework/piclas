@@ -40,9 +40,10 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, BoltzmannConst, nSpecies
+  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
 ! IMPLICIT VARIABLE HANDLING
@@ -342,9 +343,10 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, PartPosRef, Species
+USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -868,9 +870,9 @@ SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi, PlanckConst
+USE MOD_Globals_Vars,       ONLY: Pi, PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY: BoltzmannConst, Species
+USE MOD_Particle_Vars,      ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

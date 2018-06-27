@@ -1141,10 +1141,11 @@ IF(useDSMC)THEN
 END IF
 
 ! Create dataset attribute "SurfVarNames"
-nVar2D = 5
 IF (calcWallModel) THEN
+  nVar2D = 6
   nVar2D_Spec=4
 ELSE
+  nVar2D = 5
   nVar2D_Spec=1
 END IF
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
@@ -1187,6 +1188,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
+IF (calcWallModel) THEN
+  Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
+END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
@@ -1463,7 +1467,7 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
