@@ -48,7 +48,7 @@ USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
-USE MOD_PICDepo_Vars,   ONLY: DoDeposition
+USE MOD_PICDepo_Vars,   ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -201,7 +201,7 @@ iCounter=PP_nVar+2
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
-IF(DoDeposition)THEN ! compute powerdensity only if particles are deposited
+IF(DoDeposition .AND. .NOT.RelaxDeposition)THEN ! compute powerdensity only if particles are deposited and not relaxed
   DO iSpec=1,nSpecies
     IF(ANY(CalcAvg(iCounter+1:iCounter+9))) THEN
       DoPowerDensity(iSpec)=.TRUE.

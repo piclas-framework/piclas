@@ -60,6 +60,7 @@ CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETE
 
 CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
 CALL prms%CreateLogicalOption(  'HDG_MassOverintegration', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateIntOption(      'HDGskip'                , 'TODO-DEFINE-PARAMETER', '1')
 
 END SUBROUTINE DefineParametersHDG
 
@@ -114,6 +115,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
 nGP_vol =(PP_N+1)**3
 nGP_face=(PP_N+1)**2
+
+HDGSkip = GETINT('HDGSkip','1')
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   nonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver','1')
@@ -422,6 +425,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+IF (iter.GT.0 .AND. MOD(iter,HDGSkip).NE.0) RETURN
 IF(nonlinear) THEN
   IF (NonLinSolver.EQ.1) THEN
     CALL HDGNewton(t, U_out, iter)

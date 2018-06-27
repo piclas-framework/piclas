@@ -202,6 +202,9 @@ USE MOD_Analyze_Vars,   ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_DG_Vars,        ONLY:U
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_ChangeBasis,    ONLY:ChangeBasis3D
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars,   ONLY:DoDeposition, RelaxDeposition, PartSourceOld
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -223,12 +226,34 @@ REAL                          :: Volume,IntegrationWeight
 REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
+#ifdef PARTICLES
+REAL, ALLOCATABLE             :: PartSource_NAnalyze1(:,:,:,:), PartSource_NAnalyze2(:,:,:,:)
+REAL, ALLOCATABLE             :: L_2_PartSource(:), L_Inf_PartSource(:), L_2_PartSource2(:), L_Inf_PartSource2(:)
+INTEGER                       :: PartSource_nVar
+#endif /*PARTICLES*/
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
 L_Inf_Error2(:)=-1.E10
 L_2_Error2(:)=0.
 Volume=0.
+#ifdef PARTICLES
+IF (DoDeposition .AND. RelaxDeposition) THEN
+#if (defined (PP_HDG) && (PP_nVar==1))
+  PartSource_nVar=1
+#else
+  PartSource_nVar=4
+#endif
+  ALLOCATE(PartSource_NAnalyze1(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze) &
+          ,PartSource_NAnalyze2(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze) &
+          ,L_2_PartSource(1:PartSource_nVar), L_Inf_PartSource(1:PartSource_nVar) &
+         , L_2_PartSource2(1:PartSource_nVar), L_Inf_PartSource2(1:PartSource_nVar))
+  L_Inf_PartSource(:)=-1.E10
+  L_2_PartSource(:)=0.
+  L_Inf_PartSource2(:)=-1.E10
+  L_2_PartSource2(:)=0.
+END IF
+#endif /*PARTICLES*/
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
    ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
@@ -238,6 +263,15 @@ DO iElem=1,PP_nElems
    CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
    ! Interpolate the solution to the analyze grid
    CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U(1:PP_nVar,:,:,:,iElem),U_NAnalyze(1:PP_nVar,:,:,:))
+#ifdef PARTICLES
+   IF (DoDeposition .AND. RelaxDeposition) THEN
+     CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+                       ,PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
+     CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+                       ,PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
+     PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem)=PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem)
+   END IF
+#endif /*PARTICLES*/
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
@@ -251,6 +285,13 @@ DO iElem=1,PP_nElems
          ! To sum over the elements, We compute here the square of the L_2 error
          L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
          Volume = Volume + IntegrationWeight 
+#ifdef PARTICLES
+         IF (DoDeposition .AND. RelaxDeposition) THEN
+           L_Inf_PartSource = MAX(L_Inf_PartSource,abs(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)))
+           L_2_PartSource = L_2_PartSource+(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)) &
+                                          *(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m))*IntegrationWeight
+         END IF
+#endif /*PARTICLES*/
        END DO ! k
      END DO ! l
    END DO ! m
@@ -266,6 +307,20 @@ END DO ! iElem=1,PP_nElems
     CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,PP_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
     ! in this case the receive value is not relevant. 
   END IF
+#ifdef PARTICLES
+IF (DoDeposition .AND. RelaxDeposition) THEN
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_PartSource,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_PartSource,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+  ELSE
+    CALL MPI_REDUCE(L_2_PartSource,L_2_PartSource2,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_Inf_PartSource,L_Inf_PartSource2,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    ! in this case the receive value is not relevant. 
+  END IF
+END IF
+#endif /*PARTICLES*/
 #endif /*MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
@@ -277,6 +332,20 @@ IF(MPIroot) THEN
   WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
   WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
 END IF
+
+#ifdef PARTICLES
+IF (DoDeposition .AND. RelaxDeposition) THEN
+  ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+  L_2_PartSource = SQRT(L_2_PartSource/Volume)
+
+  ! Graphical output
+  IF(MPIroot) THEN
+    WRITE(formatStr,'(A5,I1,A7)')'(A13,',PartSource_nVar,'ES16.7)'
+    WRITE(UNIT_StdOut,formatStr)' L_2_PartSource  : ',L_2_PartSource
+    WRITE(UNIT_StdOut,formatStr)' L_inf_PartSource: ',L_Inf_PartSource
+  END IF
+END IF
+#endif /*PARTICLES*/
 END SUBROUTINE CalcError
 
 SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)

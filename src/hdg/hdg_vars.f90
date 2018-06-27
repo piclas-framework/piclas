@@ -60,6 +60,7 @@ INTEGER             :: MaxIterCG, MaxIterFixPoint
 REAL                :: EpsCG,EpsNonLinear
 LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
+INTEGER             :: HDGSkip
 !===================================================================================================================================
 #endif /* PP_HDG*/
 END MODULE MOD_HDG_Vars
