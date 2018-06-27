@@ -1695,12 +1695,10 @@ CASE('shape_function','shape_function_simple')
 #if (defined (PP_HDG) && (PP_nVar==1))
                 PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac &
                                              + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
-                PartSourceOld(1,2,mm,ll,kk,iElem) = PartSourceOld(1,1,mm,ll,kk,iElem)
                 PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
                 PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac &
                                                + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
-                PartSourceOld(1:4,2,mm,ll,kk,iElem) = PartSourceOld(1:4,1,mm,ll,kk,iElem)
                 PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
 #endif
               END IF
@@ -1716,12 +1714,10 @@ CASE('shape_function','shape_function_simple')
 #if (defined (PP_HDG) && (PP_nVar==1))
               PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac &
                                            + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
-              PartSourceOld(1,2,mm,ll,kk,iElem) = PartSourceOld(1,1,mm,ll,kk,iElem)
               PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
               PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac &
                                              + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
-              PartSourceOld(1:4,2,mm,ll,kk,iElem) = PartSourceOld(1:4,1,mm,ll,kk,iElem)
               PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
 #endif
             END DO !mm

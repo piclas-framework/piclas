@@ -311,11 +311,9 @@ END DO ! iElem=1,PP_nElems
 IF (DoDeposition .AND. RelaxDeposition) THEN
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,L_2_PartSource,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
     CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_PartSource,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
   ELSE
     CALL MPI_REDUCE(L_2_PartSource,L_2_PartSource2,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
     CALL MPI_REDUCE(L_Inf_PartSource,L_Inf_PartSource2,PartSource_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
     ! in this case the receive value is not relevant. 
   END IF
