@@ -386,19 +386,18 @@ SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY: BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_Analyze_Vars,          ONLY: DoAnalyze,CalcEpot
+USE MOD_Analyze_Vars           ,ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars
-USE MOD_PARTICLE_Vars,         ONLY: nSpecies
-USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
-USE MOD_Restart_Vars,          ONLY: DoRestart
-USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
-USE MOD_DSMC_Vars,             ONLY: DSMC
-USE MOD_Dielectric_Vars,       ONLY: DoDielectric
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
+USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
+USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_AnalyzeField           ,ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_TimeDisc_Vars          ,ONLY: iter
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
@@ -495,7 +494,6 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
   OutputCounter = 2
   unit_index = 535
 #ifdef MPI
-!#ifdef PARTICLES
   IF (PartMPI%MPIRoot) THEN
 #endif    /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
