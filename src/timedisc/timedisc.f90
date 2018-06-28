@@ -210,7 +210,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -514,6 +514,7 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*(PP_TimeDiscMethod==509)*/
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+  dtWeight=dt/dt_Min !might be further descreased by rk-stages
 #if (PP_TimeDiscMethod==509)
   IF (iter.EQ.0) THEN
     dt_old=dt
@@ -4863,7 +4864,7 @@ SUBROUTINE TimeStepPoissonByLSERK(tEndDiff)
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
 USE MOD_Analyze                ,ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
@@ -4926,6 +4927,7 @@ iStage=1
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 tStage=time
 RKdtFrac = RK_c(2)
+dtWeight = dt/dt_Min * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -5108,6 +5110,7 @@ DO iStage=2,nRKStages
     RKdtFrac = 1.-RK_c(nRKStages)
     RKdtFracTotal=1.
   END IF
+  dtWeight = dt/dt_Min * RKdtFrac
 
   ! deposition 
   IF (time.GE.DelayTime) THEN

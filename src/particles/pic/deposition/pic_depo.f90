@@ -130,14 +130,17 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
     RETURN
   ELSE
   !-- use read PartSource as initialValue for relaxation
+  !-- CAUTION: will be overwritten by DG_Source if present in restart-file!
     DO iElem = 1, nElems
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
 #if (defined (PP_HDG) && (PP_nVar==1))
             PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+            PartSourceOld(1,2,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
             PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+            PartSourceOld(1:4,2,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
 #endif
           END DO !mm
         END DO !ll
@@ -1221,6 +1224,7 @@ USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
+USE MOD_TimeDisc_Vars,          ONLY:dtWeight
 !USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 ! only required for shape function??
@@ -1693,12 +1697,12 @@ CASE('shape_function','shape_function_simple')
               PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
               IF (RelaxDeposition) THEN
 #if (defined (PP_HDG) && (PP_nVar==1))
-                PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac &
-                                             + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
+                PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                             + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
                 PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
-                PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac &
-                                               + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
+                PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                               + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
                 PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
 #endif
               END IF
@@ -1712,12 +1716,12 @@ CASE('shape_function','shape_function_simple')
           DO ll = 0, PP_N
             DO mm = 0, PP_N
 #if (defined (PP_HDG) && (PP_nVar==1))
-              PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac &
-                                           + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
+              PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                           + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
               PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
-              PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac &
-                                             + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac)
+              PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                             + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
               PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
 #endif
             END DO !mm

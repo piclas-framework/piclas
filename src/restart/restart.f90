@@ -216,6 +216,7 @@ USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBo
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif /*MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
+USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
 #ifdef PP_HDG
 USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
@@ -278,21 +279,22 @@ INTEGER                  :: locnSurfPart,offsetnSurfPart
 INTEGER,ALLOCATABLE      :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE      :: SurfPartData(:,:)
 REAL,ALLOCATABLE         :: SurfCalcData(:,:,:,:,:)
+REAL,ALLOCATABLE         :: PartSource_HDF5(:,:,:,:,:)
 INTEGER                  :: Coordinations, SurfPartIntSize, SurfPartDataSize
 INTEGER                  :: Indx, Indy, UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                  :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                  :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
 INTEGER                  :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
 LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL                  :: DGSourceExists
 LOGICAL,ALLOCATABLE      :: readVarFromState(:)
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
-INTEGER                  :: j,k
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES)
-INTEGER                  :: i
+INTEGER                  :: i,j,k
 INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 #endif
 !===================================================================================================================================
@@ -481,6 +483,34 @@ __STAMP__&
   END IF
 
 #ifdef PARTICLES
+  !-- read PartSource if relaxation is performed
+  IF (DoDeposition .AND. RelaxDeposition) THEN
+    CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
+    IF(DGSourceExists)THEN
+      IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+        ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+        CALL ReadArray('DG_Source' ,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=PartSource_HDF5)
+        DO iElem =1, PP_nElems
+          DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+            PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+            PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+            PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+            PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+          END DO; END DO; END DO
+        END DO
+        DEALLOCATE(PartSource_HDF5)
+      ELSE! We need to interpolate the solution to the new computational grid
+        CALL abort(&
+          __STAMP__&
+          ,' Restart with changed polynomial degree not implemented for DG_Source!')
+      END IF
+    END IF
+  END IF
+
+  !-- read particle data
   implemented=.FALSE.
   IF(useDSMC.AND.(.NOT.(useLD)))THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
