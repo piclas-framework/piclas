@@ -59,7 +59,7 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
-USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
+USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser
 #ifdef IMPA
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
@@ -195,6 +195,7 @@ dt=HUGE(1.)
 # endif
 RKdtFrac=1.
 RKdtFracTotal=1.
+dtWeight=1.
 TimediscInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -699,6 +700,7 @@ DO !iter_t=0,MaxIter
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
           !CALL InitTimeStep() ! re-calculate time step after load balance is performed
           RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
+          dtWeight=1. ! is intialized in InitTimeDisc which is not called in LoadBalance, but needed for restart (RestartHDG)
           RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
         END IF
         CALL LoadBalance()
