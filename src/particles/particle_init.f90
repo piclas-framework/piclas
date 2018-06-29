@@ -30,6 +30,10 @@ INTERFACE roty
   MODULE PROCEDURE roty
 END INTERFACE
 
+INTERFACE InitialIonization
+  MODULE PROCEDURE InitialIonization
+END INTERFACE
+
 !INTERFACE rotz
 !  MODULE PROCEDURE rotz
 !END INTERFACE
@@ -39,8 +43,8 @@ INTERFACE Ident
 END INTERFACE
 
 PUBLIC::InitParticles,FinalizeParticles
-
 PUBLIC::DefineParametersParticles
+PUBLIC::InitialIonization
 !===================================================================================================================================
 
 CONTAINS
@@ -2813,6 +2817,149 @@ __STAMP__&
 END DO ! iFile = 1, nMacroRestartFiles
 
 END SUBROUTINE ReadMacroRestartFiles
+
+
+SUBROUTINE InitialIonization() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! 1.) assign charges to each atom/molecule using the charge supplied by the user
+! 2.) reconstruct the electron phase space using the summed charged per cell for which an electron is 
+!     created to achieve an ionization degree supplied by the user
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Globals_Vars  ,ONLY: ElectronCharge
+USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
+USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
+USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars     ,ONLY: useDSMC
+USE MOD_Eval_xyz      ,ONLY: Eval_XYZ_Poly
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: ChargeLower,ChargeUpper
+INTEGER :: ElemCharge(1:PP_nElems)
+INTEGER :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
+REAL    :: ChargeProbability
+REAL    :: iRan
+REAL    :: PartPosRef(1:3)
+REAL    :: CellElectronTemperature=300
+!REAL    :: MaxElectronTemp_eV
+INTEGER :: SpeciesID(3)
+INTEGER :: SpeciesCharge(3)
+REAL    :: ChargeAverage
+!===================================================================================================================================
+SpeciesID     = (/1,2,3/)    ! Species IDs for the considered species
+SpeciesCharge = (/0,-1,1/)   ! Charge state for each species
+ChargeAverage = 0.01         ! Average charge for each atom/molecule in the cell (corresponds to the ionization degree)
+
+! ---------------------------------------------------------------------------------------------------------------------------------
+! 1.) reconstruct ions and determine charge
+! ---------------------------------------------------------------------------------------------------------------------------------
+SWRITE(UNIT_stdOut,*)'1.) Reconstructing ions and determining charge'
+
+! Initialize the element charge with zero
+ElemCharge(1:PP_nElems)=0
+
+! Loop over all particles in the vector list
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart)) THEN
+
+    ! If the current particle is part of the species list, then a charge can be assigned
+    IF(ANY(PartSpecies(iPart).EQ.SpeciesID(:)))THEN ! 
+
+      ! Get the TTM cell charge average value and select and upper and lower charge number
+      ChargeLower       = ChargeAverage !INT(TTM_Cell_11(PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
+      ChargeUpper       = ChargeLower+1
+      ChargeProbability = REAL(ChargeUpper)-ChargeAverage !TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
+
+      ! Compare the random number with the charge difference
+      CALL RANDOM_NUMBER(iRan)
+      IF(iRan.LT.ChargeProbability)THEN ! Select the lower charge number
+        ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
+        ! species
+        location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1) 
+        ElemCharge(PEM%Element(iPart))      = ElemCharge(PEM%Element(iPart))+ChargeLower
+      ELSE ! select the upper charge number
+        ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
+        ! species
+        location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1) 
+        ElemCharge(PEM%Element(iPart))      = ElemCharge(PEM%Element(iPart))+ChargeUpper
+      END IF
+
+      ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
+      PartSpecies(iPart)=SpeciesID(location)
+    END IF
+  END IF
+END DO
+
+! ---------------------------------------------------------------------------------------------------------------------------------
+! 2.) reconstruct electrons
+! ---------------------------------------------------------------------------------------------------------------------------------
+SWRITE(UNIT_stdOut,*)'2.) Reconstructing electrons'
+
+! Initialize the species index for the electron species with -1
+ElecSpecIndx = -1
+
+! Loop over all species and find the index corresponding to the electron species
+DO iSpec = 1, nSpecies
+  IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
+  IF(NINT(Species(iSpec)%ChargeIC/(-1.60217653E-19)).EQ.1) THEN
+    ElecSpecIndx = iSpec
+    EXIT
+  END IF
+END DO
+IF (ElecSpecIndx.EQ.-1) CALL abort(&
+  __STAMP__&
+  ,'Electron species not found. Cannot create electrons without the defined species!')
+
+! Loop over all elements and the sum of charges in each element (for each charge assigned in an element, an electron is created)
+DO iElem=1,PP_nElems
+  DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
+
+    ! Set the next free position in the particle vector list
+    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
+
+    !Set new SpeciesID of new particle (electron)
+    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PartSpecies(ParticleIndexNbr) = ElecSpecIndx
+     
+    ! Place the electron randomly in the reference cell
+    CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
+    PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
+
+    ! Get the physical coordinates that correspond to the reference coordinates
+    CALL Eval_xyz_Poly(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
+                      ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
+
+    ! Set the internal energies (vb, rot and electronic) to zero if needed
+    IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
+      PartStateIntEn(ParticleIndexNbr, 1) = 0.
+      PartStateIntEn(ParticleIndexNbr, 2) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
+    END IF
+
+    ! Set the element ID of the electron to the current element ID
+    PEM%Element(ParticleIndexNbr) = iElem
+
+    ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
+                                  Temperature=CellElectronTemperature)
+  END DO
+END DO
+
+
+END SUBROUTINE InitialIonization
+
 
 
 SUBROUTINE FinalizeParticles() 
