@@ -39,8 +39,9 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ! init electronic shell
 !===================================================================================================================================
   USE MOD_Globals,                ONLY : abort
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, PEM
+  USE MOD_Particle_Vars,          ONLY : Species, PEM
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,7 +102,8 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, usevMPF,PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
@@ -226,7 +228,8 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, usevMPF,PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
@@ -377,6 +380,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 ! use module
   USE MOD_io_hdf5
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
   USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
@@ -551,7 +555,7 @@ REAL FUNCTION CalcXiElec(Telec, iSpec)
 ! Calculation of the electronic degree of freedom
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

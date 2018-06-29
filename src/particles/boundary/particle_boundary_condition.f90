@@ -1262,12 +1262,12 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
-USE MOD_Globals_Vars,           ONLY:PI
+USE MOD_Globals_Vars,           ONLY:PI, BoltzmannConst
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies,WriteMacroSurfaceValues
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,PartSpecies,nSpecies,WriteMacroSurfaceValues
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:PDM
 #endif
@@ -2459,7 +2459,8 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles
-USE MOD_Particle_Vars          ,ONLY: PartState,Species,BoltzmannConst,PartSpecies
+USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 !USE MOD_Particle_Vars          ,ONLY : PDM, LastPartPos
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, Adsorption, PolyatomMolDSMC
@@ -3161,7 +3162,8 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Vars          ,ONLY: PartState,Species,BoltzmannConst,PartSpecies
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, Liquid, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar

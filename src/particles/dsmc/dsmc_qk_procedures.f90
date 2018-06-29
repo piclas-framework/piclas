@@ -40,8 +40,9 @@ SUBROUTINE QK_dissociation(iPair,iReac,RelaxToDo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY: PartSpecies 
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE                                                                                    !
@@ -104,7 +105,7 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM, PartState,  usevMPF
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
@@ -256,8 +257,9 @@ SUBROUTINE QK_exchange(iPair,iReac,RelaxToDo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : PartSpecies
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -445,7 +447,8 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac,RelaxToDo)
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC
 USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
-USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : PartSpecies
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -510,7 +513,8 @@ USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIn
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars,              ONLY: DSMC
 #endif
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY: PartSpecies, Species, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: DSMC_Chemistry
 USE MOD_Globals_Vars,           ONLY: Pi
@@ -649,7 +653,7 @@ ReactionProb = nPartNode/Volume * Species(PartSpecies(iPart_p3))%MacroParticleFa
   IF ( DSMC%ReservoirRateStatistic ) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
   END IF
-# endif
+#endif
 
 CALL RANDOM_NUMBER(iRan)
 !ReactionProb=0.0
@@ -662,7 +666,7 @@ IF (ReactionProb.GT.iRan) THEN
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
-# endif
+#endif
 
     ! Relative velocity square between mean velocity of pseudo molecule AB and X
 !    CRela2X = ((PartState(Coll_pData(iPair)%iPart_p1,4) + PartState(Coll_pData(iPair)%iPart_p2,4))/2 - PartState(iPart_p3,4))**2&
@@ -703,7 +707,7 @@ IF (ReactionProb.GT.iRan) THEN
   IF ( DSMC%ReservoirRateStatistic ) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reactionrate coeficient
   END IF
-# endif
+#endif
   RelaxToDo = .FALSE.
 !enach = 0.5* Species(PartSpecies(PartReac1))%MassIC &
 !  * ((PartState(PartReac1,4)+DSMC_RHS(PartReac1,1))**2+(PartState(PartReac1,5) &

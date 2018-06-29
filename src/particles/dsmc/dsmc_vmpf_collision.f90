@@ -257,9 +257,10 @@ SUBROUTINE AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
   USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
+  USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
   USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
@@ -545,7 +546,8 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, DSMC
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, PartState, &
-                                          BoltzmannConst,  PartMPF
+                                         PartMPF
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
 !--------------------------------------------------------------------------------------------------!

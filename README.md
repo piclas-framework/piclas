@@ -24,19 +24,23 @@ For installation instruction see [InstallHDF5.md](INSTALLHDF5.md).
 For installation instruction on forhlr1 see [Install-on-FORHLR1.md](INSTALLFORHLR1.md).
 
 For installation instruction on hazelhen see [Install-on-HAZELHEN.md](INSTALLHAZELHEN.md).
-This instruction contains the informations on using the cray-tools, too.
+This instruction contains the information on using the cray-tools, too.
+
+## Style Guide
+
+For information about the coding style rules see [STYLEGUIDE.md](STYLEGUIDE.md).
 
 ## Particle Tracking
 
-For informations about the different particle tracking routines see [Tracking.md](TRACKING.md).
+For information about the different particle tracking routines see [Tracking.md](TRACKING.md).
 
 ## Regressioncheck
 
-For informations about the regressioncheck see [REGGIE.md](REGGIE.md).
+For information about the regressioncheck see [REGGIE.md](REGGIE.md).
 
 ## Compiler Flag
 
-For informations about the compiler-flag see [COMPILER.md](COMPILER.md).
+For information about the compiler-flag see [COMPILER.md](COMPILER.md).
 
 ## Arbitrary Particle Distribution 
 

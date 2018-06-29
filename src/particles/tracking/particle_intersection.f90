@@ -76,22 +76,22 @@ PnewX = PartState(iPart,1)
 PnewY = PartState(iPart,2)
 PnewZ = PartState(iPart,3)
 
-xNod = GEO%NodeCoords(1,1,iLocSide,Element)
-yNod = GEO%NodeCoords(2,1,iLocSide,Element)
-zNod = GEO%NodeCoords(3,1,iLocSide,Element)
+xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
 
 !---- Calculate normal vector:
 
 Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
 Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
 
-Vector1(1) = GEO%NodeCoords(1,Node1,iLocSide,Element) - xNod
-Vector1(2) = GEO%NodeCoords(2,Node1,iLocSide,Element) - yNod
-Vector1(3) = GEO%NodeCoords(3,Node1,iLocSide,Element) - zNod
+Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - xNod
+Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - yNod
+Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - zNod
 
-Vector2(1) = GEO%NodeCoords(1,Node2,iLocSide,Element) - xNod
-Vector2(2) = GEO%NodeCoords(2,Node2,iLocSide,Element) - yNod
-Vector2(3) = GEO%NodeCoords(3,Node2,iLocSide,Element) - zNod
+Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - xNod
+Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - yNod
+Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - zNod
 
 nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
 ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
@@ -1076,31 +1076,33 @@ ELSE
         xitild=xi(2)
         etatild=eta(2)
       CASE(3) ! double intersection leaves and entries element
-        IF(ABS(t(1)).LT.ABS(t(2)))THEN
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(2)
-            xitild=xi(2)
-            etatild=eta(2)
-          ELSE
+!        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(2)
+!            xitild=xi(2)
+!            etatild=eta(2)
+!          ELSE
             alpha=-1.0
             xitild=0.
             etatild=0.
             isHit=.FALSE.
-          END IF
-        ELSE
-          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(2),eta=eta(2),SideID=SideID)
-          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
-            alpha=t(1)
-            xitild=xi(1)
-            etatild=eta(1)
-          ELSE
-            alpha=-1.0
-            xitild=0.
-            etatild=0.
-            isHit=.FALSE.
-          END IF
-        END IF
+!          END IF
+!        ELSE
+!          CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi(1),eta=eta(1),SideID=SideID)
+!          IF(flip.NE.0) n_loc=-n_loc
+!          IF(DOT_PRODUCT(n_loc,PartTrajectory).GT.0)THEN
+!            alpha=t(1)
+!            xitild=xi(1)
+!            etatild=eta(1)
+!          ELSE
+!            alpha=-1.0
+!            xitild=0.
+!            etatild=0.
+!            isHit=.FALSE.
+!          END IF
+!        END IF
       END SELECT
     END IF
 #ifdef MPI

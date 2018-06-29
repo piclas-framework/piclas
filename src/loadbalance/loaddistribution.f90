@@ -1080,7 +1080,7 @@ SUBROUTINE WriteElemTimeStatistics(WriteHeader,time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,SimulationTime,InitializationWallTime
+USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Globals          ,ONLY: abort
 USE MOD_Globals          ,ONLY: nProcessors
@@ -1108,7 +1108,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'WeightSum', &
     'SimulationEfficiency',&
     'PID', &
-    'SimulationTime',&
+    'SimulationWallTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2 
@@ -1165,7 +1165,7 @@ ELSE !
         delimiter,WeightSum, &
         delimiter,SimulationEfficiency,&
         delimiter,PID,&
-        delimiter,SimulationTime,&
+        delimiter,WallTime,&
         delimiter,InitializationWallTime
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit) 

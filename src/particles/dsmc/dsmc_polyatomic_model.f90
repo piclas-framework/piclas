@@ -34,8 +34,8 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
   USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -48,7 +48,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 ! LOCAL VARIABLES
   CHARACTER(32)                  :: hilf, hilf2
   INTEGER                        :: iPolyatMole, iVibDOF                     
-  REAL                            :: JToEv
+  REAL                           :: JToEv
 !===================================================================================================================================
 
   JToEv = 1.602176565E-19
@@ -120,8 +120,9 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM
+  USE MOD_Particle_Vars,        ONLY : Species, PEM
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -188,8 +189,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Adaptive_MacroVal, PEM, Species
+  USE MOD_Particle_Vars,        ONLY : Adaptive_MacroVal, PEM, Species
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
@@ -296,8 +298,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PEM, Species
+  USE MOD_Particle_Vars,        ONLY : PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -406,8 +409,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PEM, Species
+  USE MOD_Particle_Vars,        ONLY : PEM, Species
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -516,8 +520,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM
+  USE MOD_Particle_Vars,        ONLY : Species, PEM
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -626,8 +631,9 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, Coll_pData, VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -679,7 +685,8 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -737,7 +744,8 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, PartSpecies
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -792,11 +800,83 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 END SUBROUTINE DSMC_VibRelaxPoly_MH
 
 
+SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
+!===================================================================================================================================
+! Vibrational relaxation (multi-mode), using Gibbs sampling, faster than MH (1/3 for CO2, 1/2 for CH4 of comp duration)
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
+  USE MOD_Particle_Vars,        ONLY : PartSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPair, iPart
+  REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                          :: iRan, iRan2, NormProb, tempProb, Ec, NormProbZero
+  INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
+  INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
+!===================================================================================================================================
+  iSpec = PartSpecies(iPart)
+  Ec = Coll_pData(iPair)%Ec
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  ALLOCATE(iQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF),iMaxQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  iQuant(:) = VibQuantsPar(iPart)%Quants(:)
+
+  NormProbZero = Ec - SpecDSMC(iSpec)%EZeroPoint
+
+  iMaxQuant(:) = INT(Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))-0.5) + 1
+  iMaxQuant(:) = MIN(iMaxQuant(:), PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(:))
+
+  DO iLoop = 1,4
+    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      DO
+        CALL RANDOM_NUMBER(iRan)
+        iQuant(iDOF) = INT(iRan*iMaxQuant(iDOF))
+        tempProb = SpecDSMC(iSpec)%EZeroPoint
+        DO iDOF2 = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          tempProb = tempProb + iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
+          IF(iDOF2.NE.iDOF) NormProb = NormProbZero - iQuant(iDOF2)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF2)*BoltzmannConst
+        END DO
+        CALL RANDOM_NUMBER(iRan2)
+        IF ((Ec-tempProb).GE.0.0) THEN
+          IF ((iRan2.GT.((Ec-tempProb)/NormProb)**FakXi)) THEN
+            DO
+              tempProb = tempProb - iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+              CALL RANDOM_NUMBER(iRan)
+              iQuant(iDOF) = INT(iRan*iMaxQuant(iDOF))
+              tempProb = tempProb  + iQuant(iDOF)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+              CALL RANDOM_NUMBER(iRan2)
+              IF ((Ec-tempProb).GE.0.0) THEN
+                IF ((iRan2.LE.((Ec-tempProb)/NormProb)**FakXi)) EXIT
+              END IF
+            END DO
+          END IF
+          IF ((iRan2.LE.((Ec-tempProb)/NormProb)**FakXi)) EXIT
+        END IF
+      END DO
+    END DO
+  END DO
+
+  PartStateIntEn(iPart,1) = tempProb
+  VibQuantsPar(iPart)%Quants(:) = iQuant(:)
+
+  DEALLOCATE(iQuant ,iMaxQuant)
+
+END SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling
+
+
 SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
-! Switch between ARM and MH depending on the number of vibrational modes:
-! Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
+! Switch between ARM and MH/Gibbs depending on the number of vibrational modes:
+! Acceptance Rejection: up to 3 (Gibbs) / 4 (MH) modes (molecules with 3 atoms, linear and non-linear)
 ! Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
+! Gibbs sampling: from 4 modes (molecules with 3 (linear) and 4 or more atoms)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
@@ -815,8 +895,9 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 
   iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
-    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.4) THEN
+!    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+    CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
   ELSE
     CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
   END IF
@@ -830,7 +911,7 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -868,8 +949,8 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,          ONLY : ChemReac,  SpecDSMC
-  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,            ONLY : ChemReac,  SpecDSMC
+  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -138,6 +138,8 @@ TYPE tDSMC
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean             ! Summation of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
+  REAL                          :: MeanFreePath
+  REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
@@ -538,7 +540,9 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
 !
 !TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
-INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep, iter_macsurfvalout
+! MacValout and MacroVolSample have to be separated due to autoinitialrestart
+INTEGER(KIND=8)                   :: iter_macvalout             ! iterations since last macro volume output
+INTEGER(KIND=8)                   :: iter_macsurfvalout         ! iterations since last macro surface output
 !-----------------------------------------------convergence criteria-------------------------------------------------
 LOGICAL                           :: SamplingActive             ! Identifier if DSMC Sampling is activated
 LOGICAL                           :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for 

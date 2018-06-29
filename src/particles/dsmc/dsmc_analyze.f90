@@ -282,6 +282,8 @@ IF (useDSMC) THEN
   END IF
 END IF
 
+! if calcwalsample is called with emission_opt (from particle emission eg. evaporation, desorption) than collision counter are not
+! added to sampwall and surfcollis analyzes
 IF (PRESENT(emission_opt)) THEN
   IF (.NOT.emission_opt) THEN
     !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
@@ -316,7 +318,7 @@ IF (PRESENT(emission_opt)) THEN
       END IF
     END IF
   END IF
-ELSE
+ELSE ! no emission_opt present, so definitely not called from emission and counters are added
   !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
@@ -422,12 +424,14 @@ IF(useDSMC)THEN
   IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
 END IF
 
-ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-MacroSurfaceVal=0.
 IF(calcWallModel) THEN
+  ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
   MacroSurfaceSpecVal=0.
 ELSE
+  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
   MacroSurfaceSpecVal=0.
 END IF
@@ -452,6 +456,8 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
@@ -526,7 +532,7 @@ REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: abort
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -585,7 +591,7 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 !> Calculation of the electronic temperature (zero-point search)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -644,7 +650,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -819,9 +825,10 @@ SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, BoltzmannConst, PartMPF, usevMPF
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1516,11 +1523,12 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC,iter_macvalout
+USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Vars      ,ONLY: Species, BoltzmannConst, nSpecies, WriteMacroVolumeValues
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
@@ -1716,25 +1724,19 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   IF (DSMC%CalcQualityFactors) THEN
     DO iElem=1,nElems
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
-      IF ((DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem).GT.0).AND.(DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem).GT.0)) THEN
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) &
-                              / CalcMeanFreePath((DSMC_HOSolution(7,kk,ll,mm, iElem,1:nSpecies)/REAL(DSMC%SampNum)), &
-                              DSMC_MacroVal(nVarCount+11,kk,ll,mm,iElem), &
-                              GEO%Volume(iElem), SpecDSMC(1)%omegaVHS, DSMC_MacroVal(nVarCount+12,kk,ll,mm,iElem))
-      END IF
       IF(WriteMacroVolumeValues) THEN
-        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / iter_macvalout
-        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / iter_macvalout
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) / iter_macvalout
+        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(DSMC%SampNum)
+        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(DSMC%SampNum)
+        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(DSMC%SampNum)
       ELSE
         IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / iter
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / iter
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) / iter
+          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(iter)
+          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(iter)
+          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(iter)
         ELSE
           DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
           DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC_MacroVal(nVar+3,kk,ll,mm,iElem)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
         END IF
       END IF
     !END DO; END DO; END DO

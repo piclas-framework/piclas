@@ -373,11 +373,11 @@ SUBROUTINE InitDSMC()
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
 USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
-USE MOD_Globals_Vars,               ONLY : Pi
+USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_PARTICLE_Vars,              ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
 USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
@@ -1301,14 +1301,15 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! Energy distribution according to dissertation of Laux (diatomic)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,              ONLY : abort
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC
+  USE MOD_Globals,               ONLY : abort
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,             ONLY : PartStateIntEn, SpecDSMC, DSMC
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-  USE MOD_DSMC_Vars,            ONLY : LD_MultiTemperaturMod
+  USE MOD_DSMC_Vars,             ONLY : LD_MultiTemperaturMod
 #endif
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM, Adaptive_MacroVal
+  USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+  USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

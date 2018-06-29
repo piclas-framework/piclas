@@ -2107,20 +2107,23 @@ DO iPartBound=1,nPartBound
      IF(PartBound%Adaptive(iPartBound)) THEN
        nAdaptiveBC = nAdaptiveBC + 1
        PartBound%AdaptiveType(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveType','2')
-       PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
-       IF (PartBound%AdaptiveMacroRestartFileID(iPartBound).EQ.0) THEN
-         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
-         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
-__STAMP__&
-,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
-       ELSE
+       IF (nMacroRestartFiles.GT.0) THEN
+         PartBound%AdaptiveMacroRestartFileID(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-AdaptiveMacroRestartFileID','0')
+       END IF
+       FileID = PartBound%AdaptiveMacroRestartFileID(iPartBound)
+       IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
+         MacroRestartFileUsed(FileID) = .TRUE.
          IF (PartBound%AdaptiveType(iPartBound).EQ.1) THEN
            PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
            IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
 __STAMP__&
 ,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
          END IF
-         MacroRestartFileUsed(PartBound%AdaptiveMacroRestartFileID(iPartBound)) = .TRUE.
+       ELSE
+         PartBound%AdaptiveTemp(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp','0.')
+         IF (PartBound%AdaptiveTemp(iPartBound).EQ.0.) CALL abort(&
+__STAMP__&
+,'Error during ParticleBoundary init: Part-Boundary'//TRIM(hilf)//'-AdaptiveTemp not defined')
        END IF
        PartBound%AdaptivePressure(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AdaptivePressure','0.')
        IF (PartBound%AdaptivePressure(iPartBound).EQ.0.) CALL abort(&

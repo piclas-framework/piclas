@@ -309,19 +309,19 @@ DO iSide=1,nTotalSides
     LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
 
     SurfaceVal = 0.
-    xNod = GEO%NodeCoords(1,1,LocSideID,ElemID)
-    yNod = GEO%NodeCoords(2,1,LocSideID,ElemID)
-    zNod = GEO%NodeCoords(3,1,LocSideID,ElemID)
+    xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+    yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
+    zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
     DO TriNum = 1,2
       Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
       Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-      Vector1(1) = GEO%NodeCoords(1,Node1,LocSideID,ElemID) - xNod
-      Vector1(2) = GEO%NodeCoords(2,Node1,LocSideID,ElemID) - yNod
-      Vector1(3) = GEO%NodeCoords(3,Node1,LocSideID,ElemID) - zNod
-      Vector2(1) = GEO%NodeCoords(1,Node2,LocSideID,ElemID) - xNod
-      Vector2(2) = GEO%NodeCoords(2,Node2,LocSideID,ElemID) - yNod
-      Vector2(3) = GEO%NodeCoords(3,Node2,LocSideID,ElemID) - zNod
+      Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
+      Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
+      Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
+      Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
+      Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
+      Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
       nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
       ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
       nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
@@ -1141,10 +1141,11 @@ IF(useDSMC)THEN
 END IF
 
 ! Create dataset attribute "SurfVarNames"
-nVar2D = 5
 IF (calcWallModel) THEN
+  nVar2D = 6
   nVar2D_Spec=4
 ELSE
+  nVar2D = 5
   nVar2D_Spec=1
 END IF
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
@@ -1187,6 +1188,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
+IF (calcWallModel) THEN
+  Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
+END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
@@ -1463,7 +1467,7 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
