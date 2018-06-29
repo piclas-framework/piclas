@@ -226,7 +226,7 @@ SUBROUTINE InitialIonization()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Globals_Vars  ,ONLY: ElectronCharge
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,BoltzmannConst,PartState,nSpecies,Species,PartSpecies
+USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
 USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
