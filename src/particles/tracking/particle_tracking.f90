@@ -454,7 +454,10 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     IF (ElemType(ElemID).EQ.1) THEN
-      CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
+      !removed CheckPlanarInside since it can be inconsistent for planar-assumed sides:
+      !they can still be planar-nonrect for which the bilin-algorithm will be used which might give a different result
+      !(anyway, this was a speed-up for completely planar meshes only, but those should be now calculated with triatracking)
+      !CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
@@ -2337,55 +2340,55 @@ RETURN
 END SUBROUTINE ParticleThroughSideLastPosCheck
 
 
-SUBROUTINE CheckPlanarInside(PartID,ElemID,lengthPartTrajectory,PartisDone)
-!===================================================================================================================================
-! checks if particle is inside of linear element with planar faces
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PartState
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec,BezierControlPoints3D,epsilontol
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemRadiusNGeo
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: PartID,ElemID
-REAL,INTENT(IN)               :: lengthPartTrajectory
-LOGICAL,INTENT(INOUT)         :: PartisDone
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
-REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction, eps
-!===================================================================================================================================
-PartisDone = .TRUE.
-PlanarSideNum = 0
-eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 10. !value can be further increased, so far "semi-empirical".
-
-DO ilocSide=1,6
-  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-  flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
-  ! new with flip
-  IF(flip.EQ.0)THEN
-    NormVec = SideNormVec(1:3,SideID)
-  ELSE
-    NormVec = -SideNormVec(1:3,SideID)
-  END IF
-  vector_face2particle(1:3) = PartState(PartID,1:3) - BezierControlPoints3D(1:3,0,0,SideID)
-  Direction = DOT_PRODUCT(NormVec,vector_face2particle)
-
-  !IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
-  IF ( Direction.GE.-eps ) THEN !less rigorous check for planar-assumed sides: they can still be planar-nonrect for which the
-                                !bilin-algorithm will be used which might give a different result for very small distances!
-    PartisDone = .FALSE.
-  END IF
-END DO
-
-END SUBROUTINE CheckPlanarInside
+!SUBROUTINE CheckPlanarInside(PartID,ElemID,lengthPartTrajectory,PartisDone)
+!!===================================================================================================================================
+!! checks if particle is inside of linear element with planar faces
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Preproc
+!USE MOD_Globals
+!USE MOD_Particle_Vars,               ONLY:PartState
+!USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec,BezierControlPoints3D,epsilontol
+!USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemRadiusNGeo
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT/OUTPUT VARIABLES
+!INTEGER,INTENT(IN)            :: PartID,ElemID
+!REAL,INTENT(IN)               :: lengthPartTrajectory
+!LOGICAL,INTENT(INOUT)         :: PartisDone
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
+!REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction, eps
+!!===================================================================================================================================
+!PartisDone = .TRUE.
+!PlanarSideNum = 0
+!eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 10. !value can be further increased, so far "semi-empirical".
+!
+!DO ilocSide=1,6
+!  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+!  flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+!  ! new with flip
+!  IF(flip.EQ.0)THEN
+!    NormVec = SideNormVec(1:3,SideID)
+!  ELSE
+!    NormVec = -SideNormVec(1:3,SideID)
+!  END IF
+!  vector_face2particle(1:3) = PartState(PartID,1:3) - BezierControlPoints3D(1:3,0,0,SideID)
+!  Direction = DOT_PRODUCT(NormVec,vector_face2particle)
+!
+!  !IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
+!  IF ( Direction.GE.-eps ) THEN !less rigorous check for planar-assumed sides: they can still be planar-nonrect for which the
+!                                !bilin-algorithm will be used which might give a different result for very small distances!
+!    PartisDone = .FALSE.
+!  END IF
+!END DO
+!
+!END SUBROUTINE CheckPlanarInside
 
 
 
