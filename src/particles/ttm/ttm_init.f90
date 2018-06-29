@@ -791,39 +791,68 @@ REAL    :: PartPosRef(1:3)
 REAL    :: CellElectronTemperature
 REAL    :: MaxElectronTemp_eV
 !===================================================================================================================================
+
+! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
+! ---------------------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_stdOut,*)'1.) Reconstructing ions and determining charge'
+
+! Initialize the element charge with zero
 ElemCharge(1:PP_nElems)=0
+
+! Loop over all particles in the vector list
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
+
+    ! If the current particle is part of the IMD species list, then a charge can be assigned
     IF(ANY(PartSpecies(iPart).EQ.IMDSpeciesID(:)))THEN ! 
+
+      ! Check if the average charge (TTM data) for the current cell is zero 
+      ! (if yes: add a charge to force at least singly charged ions)
       IF(TTM_Cell_11(PEM%Element(iPart)).EQ.0)THEN ! this would create uncharged atoms -> force singly charged ions
         ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+1
         location = MINLOC(ABS(IMDSpeciesCharge-1),1) !Determines the location of the element in the array with min value
       ELSE
-        ! get the TTM cell charge avergae value and select and upper and lower charge number
-        ChargeLower       = INT(TTM_Cell_11(PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
-        ChargeUpper       = ChargeLower+1
+        ! Get the TTM cell charge avergae value and select and upper and lower charge number
+        ChargeLower       = INT(TTM_Cell_11(PEM%Element(iPart))) ! FLOOR(): use first DOF (0,0,0) because the data is const. in each cell
+        ChargeUpper       = ChargeLower+1                        ! CEILING(): floor + 1 
         ChargeProbability = REAL(ChargeUpper)-TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
-        ! distribute the charge using random numbers
+
+        ! Distribute the charge using random numbers
         CALL RANDOM_NUMBER(iRan)
-        IF(iRan.LT.ChargeProbability)THEN ! select the lower charge number
-          location = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1) !Determines the location of the element in the array with min value
-          ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeLower
-        ELSE ! select the upper charge number
-          location = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1) !Determines the location of the element in the array with min value
-          ElemCharge(PEM%Element(iPart))=ElemCharge(PEM%Element(iPart))+ChargeUpper
+
+        ! Compare the random number with the charge difference
+        IF(iRan.LT.ChargeProbability)THEN ! Select the lower charge number
+          ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
+          ! species
+          location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeLower),1)
+          ElemCharge(PEM%Element(iPart)) = ElemCharge(PEM%Element(iPart))+ChargeLower
+        ELSE ! Select the upper charge number
+          ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
+          ! species
+          location                       = MINLOC(ABS(IMDSpeciesCharge-ChargeUpper),1) 
+          ElemCharge(PEM%Element(iPart)) = ElemCharge(PEM%Element(iPart))+ChargeUpper
         END IF
       END IF
-      PartSpecies(iPart)=IMDSpeciesID(location) ! set the species ID to atom/singly charged ion/doubly charged ... and so on
+
+      ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
+      PartSpecies(iPart)=IMDSpeciesID(location) 
     END IF
   END IF
 END DO
 
+! ---------------------------------------------------------------------------------------------------------------------------------
 ! 2.) reconstruct electrons
+! ---------------------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_stdOut,*)'2.) Reconstructing electrons'
+
+! Set the electron temperature (in eV) from the TTM data
 MaxElectronTemp_eV=MAXVAL(TTM_Cell_2(:))
+
+! Initialize the species index for the electron species with -1
 ElecSpecIndx = -1
+
+! Loop over all species and find the index corresponding to the electron species
 DO iSpec = 1, nSpecies
   IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
   IF(NINT(Species(iSpec)%ChargeIC/(-1.60217653E-19)).EQ.1) THEN
@@ -835,31 +864,45 @@ IF (ElecSpecIndx.EQ.-1) CALL abort(&
   __STAMP__&
   ,'Electron species not found. Cannot create electrons without the defined species!')
 
+! Loop over all elements and the sum of charges in each element (for each charge assigned in an element, an electron is created)
 DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-    !Set new Species of new particle
+
+    ! Set the next free position in the particle vector list
+    PDM%CurrentNextFreePosition          = PDM%CurrentNextFreePosition + 1
+    ParticleIndexNbr                     = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+    PDM%ParticleVecLength                = PDM%ParticleVecLength + 1
+
+    !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .true.
-    PartSpecies(ParticleIndexNbr) = ElecSpecIndx
+    PartSpecies(ParticleIndexNbr)        = ElecSpecIndx
      
+    ! Place the electron randomly in the reference cell
     CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
+
+    ! Get the physical coordinates that correspond to the reference coordinates
     CALL Eval_xyz_Poly(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
                       ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
 
+    ! Set the internal energies (vb, rot and electronic) to zero if needed
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
       PartStateIntEn(ParticleIndexNbr, 1) = 0.
       PartStateIntEn(ParticleIndexNbr, 2) = 0.
       IF ( DSMC%ElectronicModel )  PartStateIntEn(ParticleIndexNbr, 3) = 0.
     END IF
+
+    ! Set the element ID of the electron to the current element ID
     PEM%Element(ParticleIndexNbr) = iElem
+
+    ! Determine the electron temperature (for each cell different) in Kelvin for the Maxwellian distribution
     IF(TTM_Cell_2(iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons
       CellElectronTemperature=(MaxElectronTemp_eV*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     ELSE
       CellElectronTemperature=(TTM_Cell_2(iElem)*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     END IF
+
+    ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
                                   Temperature=CellElectronTemperature)
   END DO
