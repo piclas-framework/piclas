@@ -143,8 +143,7 @@ IF(ALMOSTZERO(BezierClipHit)) BezierClipHit=100.*BezierClipTolerance
 BezierClipHit         = 1.0+BezierClipHit
 BezierNewtonHit       = GETREAL('BezierNewtonHit','0.')
 IF(ALMOSTZERO(BezierNewtonHit)) BezierNewtonHit=BezierNewtonTolerance2
-!BezierNewtonHit       = 1.0+10*(BezierNewtonHit)
-BezierNewtonHit       = 1.0+1*(BezierNewtonHit)
+BezierNewtonHit       = 1.0+(BezierNewtonHit) ! it is not clear how this value should be determined
 BezierNewtonTolerance2=BezierNewtonTolerance2**2
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
