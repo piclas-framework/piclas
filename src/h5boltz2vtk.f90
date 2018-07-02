@@ -37,7 +37,7 @@ USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 #ifdef MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
 #endif /*MPI*/
-USE MOD_Analyze,             ONLY: CalcErrorStateFiles
+USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Analyze_Vars,        ONLY: NAnalyze
 USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
 USE MOD_Mesh_Vars,           ONLY: Elem_xGP,dXCL_N,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,sJ,NGeoRef,DetJac_Ref
@@ -85,6 +85,7 @@ CHARACTER(LEN=2)               :: NVisuString                       ! String con
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
                                                                     ! calculation with the following state files
+LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 CHARACTER(LEN=40)              :: DefStr
 !==================================================================================================================================
 CALL InitMPI()
@@ -99,6 +100,7 @@ CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order infor
                                              "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
 CALL prms%CreateLogicalOption('CalcDiffError',  "Use first state file as reference state for L2 error calculation "//&
                                                 "with the following state files.", '.TRUE.')
+CALL prms%CreateLogicalOption('CalcDiffSigma',  "Use last state file as state for L2 sigma calculation.", '.FALSE.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL DefineParametersIO()
@@ -190,13 +192,10 @@ END IF
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 useCurveds       = GETLOGICAL('useCurveds','.FALSE.')  ! Allow curved mesh or not
 CalcDiffError    = GETLOGICAL('CalcDiffError','.FALSE.')  ! Allow curved mesh or not
-IF(CalcDiffError.AND.(nArgs.LT.3))THEN
-  ! ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
-  ! WRITE(DefStr,'(i4)') 2*(PP_N+1)
-  ! NAnalyze=GETINT('NAnalyze',DefStr) 
-  ! CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+IF(CalcDiffError)THEN
   IF(nArgs.LT.3)CALL abort(__STAMP__,&
       'CalcDiffError needs a minimum of two state files!',iError)
+  CalcDiffSigma    = GETLOGICAL('CalcDiffSigma','.FALSE.')  ! Allow curved mesh or not
 END IF
 
 ! Initialization of I/O routines
@@ -300,7 +299,7 @@ DO iArgs = 2,nArgs
   CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
 
   IF(CalcDiffError)THEN
-    IF(iArgs <= 2)THEN
+    IF(iArgs .EQ. 2)THEN
       ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
       WRITE(DefStr,'(i4)') 2*(N_State+1)
       NAnalyze=GETINT('NAnalyze',DefStr) 
@@ -350,7 +349,10 @@ DO iArgs = 2,nArgs
       SurfElem=0.
 
       CALL CalcMetricsErrorDiff()
-
+    ELSE IF(iArgs .EQ. nArgs .AND. CalcDiffSigma) THEN
+      IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&
+    'CalcDiffError: NAnalyze.LT.2*(N_State+1)! The polynomial degree is too small!',iError)
+      CALL CalcErrorStateFileSigma(nVar_State,N_State,U)
 
     ELSE
       IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&

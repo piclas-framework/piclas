@@ -118,7 +118,7 @@ IF(iError.EQ.0) THEN
   CALL H5CLOSE_F(iError)
 ELSE
   ! Close FORTRAN predefined datatypes
-  isValidHDF5File=.FALSE.
+!!!  isValidHDF5File=.FALSE.
   CALL H5CLOSE_F(iError)
 END IF
 END FUNCTION ISVALIDHDF5FILE

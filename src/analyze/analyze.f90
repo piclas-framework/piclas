@@ -36,8 +36,12 @@ INTERFACE CalcErrorStateFiles
   MODULE PROCEDURE CalcErrorStateFiles
 END INTERFACE
 
+INTERFACE CalcErrorStateFileSigma
+  MODULE PROCEDURE CalcErrorStateFileSigma
+END INTERFACE
+
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles
+PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles, CalcErrorStateFileSigma
 !===================================================================================================================================
 PUBLIC::DefineParametersAnalyze
 
@@ -397,6 +401,115 @@ IF(MPIroot) THEN
   WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
 END IF
 END SUBROUTINE CalcErrorStateFiles
+
+
+SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
+!===================================================================================================================================
+! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars     ,ONLY: Elem_xGP,sJ
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+USE MOD_Analyze_Vars  ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Equation      ,ONLY: ExactFunc
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
+USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)           :: nVar
+INTEGER,INTENT(IN)           :: N1
+REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+INTEGER                       :: iElem,k,l,m
+REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: Volume,IntegrationWeight
+#ifdef MPI
+REAL                          :: Volume2
+#endif
+CHARACTER(LEN=40)             :: formatStr
+REAL                          :: xGP1(0:N1),wGP1(0:N1),wBary1(0:N1)
+REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+!===================================================================================================================================
+L_Inf_Error(:)=-1.E10
+L_2_Error(:)=0.
+L_Inf_Error2(:)=-1.E10
+L_2_Error2(:)=0.
+Volume=0.
+
+CALL LegendreGaussNodesAndWeights(N1,xGP1,wGP1)
+
+CALL BarycentricWeights(N1,xGP1,wBary1)
+
+ALLOCATE(Vdm_GaussN_NAnalyze1(0:NAnalyze,0:N1))
+
+CALL LegGaussLobNodesAndWeights(NAnalyze,XiAnalyze,wAnalyze)
+
+CALL InitializeVandermonde(N1,NAnalyze,wBary1,xGP1,XiAnalyze,Vdm_GaussN_NAnalyze1)
+
+
+
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,nElems
+   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+   J_N(1,0:N1,0:N1,0:N1)=1./sJ(:,:,:,iElem)
+   CALL ChangeBasis3D(1,N1,NAnalyze,Vdm_GaussN_NAnalyze1,J_N(1:1,0:N1,0:N1,0:N1),J_NAnalyze(1:1,:,:,:))
+
+
+
+   ! Interpolate the solution to the analyze grid
+   CALL ChangeBasis3D(nVar,N1,NAnalyze,Vdm_GaussN_NAnalyze1,U1(1:nVar,:,:,:,iElem),U1_NAnalyze(1:nVar,:,:,:))
+
+   DO m=0,NAnalyze
+     DO l=0,NAnalyze
+       DO k=0,NAnalyze
+         L_Inf_Error = MAX(L_Inf_Error,sqrt(abs(U1_NAnalyze(:,k,l,m))))
+         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+         ! To sum over the elements, We compute here the square of the L_2 error (sigma in state is already squared!!!)
+         L_2_Error = L_2_Error+ (U1_NAnalyze(:,k,l,m))*IntegrationWeight
+         Volume = Volume + IntegrationWeight 
+       END DO ! k
+     END DO ! l
+   END DO ! m
+END DO ! iElem=1,nElems
+#ifdef MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+  ELSE
+    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    ! in this case the receive value is not relevant. 
+  END IF
+#endif /*MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_Error = SQRT(L_2_Error/Volume)
+
+! Graphical output
+IF(MPIroot) THEN
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',nVar,'ES16.7)'
+  WRITE(UNIT_StdOut,formatStr)' L2_sigma  : ',L_2_Error
+  WRITE(UNIT_StdOut,formatStr)' Linf_sigma: ',L_Inf_Error
+END IF
+END SUBROUTINE CalcErrorStateFileSigma
+
 
 SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
 !===================================================================================================================================
