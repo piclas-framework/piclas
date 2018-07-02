@@ -51,10 +51,14 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take 
                                                                              ! PartState(:,4:6) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
+#if (PP_TimeDiscMethod==509)
+LOGICAL               :: velocityOutputAtTime
+REAL    , ALLOCATABLE :: velocityAtTime(:,:)
+#endif /*(PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
-LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
                                                                              ! 1) time fraction of domain entering (surface flux)
