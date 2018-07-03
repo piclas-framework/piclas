@@ -60,7 +60,9 @@ CALL prms%CreateLogicalOption(  'ExactLambda'            , 'TODO-DEFINE-PARAMETE
 
 CALL prms%CreateIntOption(      'HDG_N'                  , 'TODO-DEFINE-PARAMETER \nDefault: 2*N')
 CALL prms%CreateLogicalOption(  'HDG_MassOverintegration', 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateIntOption(      'HDGskip'                , 'TODO-DEFINE-PARAMETER', '1')
+CALL prms%CreateIntOption(      'HDGskip'                , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'HDGSkipInit'            , 'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateRealOption(     'HDGSkip_t0'             , 'TODO-DEFINE-PARAMETER', '0.')
 
 END SUBROUTINE DefineParametersHDG
 
@@ -116,7 +118,13 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 nGP_vol =(PP_N+1)**3
 nGP_face=(PP_N+1)**2
 
-HDGSkip = GETINT('HDGSkip','1')
+HDGSkip = GETINT('HDGSkip','0')
+IF (HDGSkip.GT.0) THEN
+  HDGSkipInit = GETINT('HDGSkipInit','0')
+  HDGSkip_t0 = GETREAL('HDGSkip_t0','0.')
+ELSE
+  HDGSkip=0
+END IF
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   nonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver','1')
@@ -413,6 +421,9 @@ SUBROUTINE HDG(t,U_out,iter)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars, ONLY: iStage
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -425,7 +436,18 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF (iter.GT.0 .AND. MOD(iter,HDGSkip).NE.0) RETURN
+IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
+  IF (t.LT.HDGSkip_t0) THEN
+    IF (MOD(iter,HDGSkipInit).NE.0) RETURN
+  ELSE
+    IF (MOD(iter,HDGSkip).NE.0) RETURN
+  END IF
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (iStage.GT.1) THEN
+    RETURN
+  END IF
+#endif
+END IF
 IF(nonlinear) THEN
   IF (NonLinSolver.EQ.1) THEN
     CALL HDGNewton(t, U_out, iter)
