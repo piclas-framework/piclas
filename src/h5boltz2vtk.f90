@@ -58,6 +58,8 @@ INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties
 CHARACTER(LEN=255)             :: NodeType_State                    !     "
 REAL,ALLOCATABLE               :: U(:,:,:,:,:)                      ! Solution from state file
 REAL,ALLOCATABLE               :: U_first(:,:,:,:,:)                ! Solution from state file
+REAL,ALLOCATABLE               :: U_average(:,:,:,:,:)              ! Solution from state file
+INTEGER                        :: N_average
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
 REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
 REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes 
@@ -86,6 +88,8 @@ CHARACTER(LEN=20)              :: fmtString                         ! String con
 LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
                                                                     ! calculation with the following state files
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
+LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
+LOGICAL                        :: VisuSource, DGSourceExists
 CHARACTER(LEN=40)              :: DefStr
 !==================================================================================================================================
 CALL InitMPI()
@@ -101,6 +105,8 @@ CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order infor
 CALL prms%CreateLogicalOption('CalcDiffError',  "Use first state file as reference state for L2 error calculation "//&
                                                 "with the following state files.", '.TRUE.')
 CALL prms%CreateLogicalOption('CalcDiffSigma',  "Use last state file as state for L2 sigma calculation.", '.FALSE.')
+CALL prms%CreateLogicalOption('CalcAverage',    "Calculate and write arithmetic mean of alle StateFile.", '.FALSE.')
+CALL prms%CreateLogicalOption('VisuSource',     "use DG_Source instead of DG_Solution.", '.FALSE.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL DefineParametersIO()
@@ -191,12 +197,15 @@ END IF
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 useCurveds       = GETLOGICAL('useCurveds','.FALSE.')  ! Allow curved mesh or not
-CalcDiffError    = GETLOGICAL('CalcDiffError','.FALSE.')  ! Allow curved mesh or not
+CalcDiffError    = GETLOGICAL('CalcDiffError','.FALSE.')
 IF(CalcDiffError)THEN
   IF(nArgs.LT.3)CALL abort(__STAMP__,&
       'CalcDiffError needs a minimum of two state files!',iError)
-  CalcDiffSigma    = GETLOGICAL('CalcDiffSigma','.FALSE.')  ! Allow curved mesh or not
+  CalcDiffSigma    = GETLOGICAL('CalcDiffSigma','.FALSE.')
+ELSE
+  CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
+VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
 
 ! Initialization of I/O routines
 CALL InitIO()
@@ -233,12 +242,29 @@ DO iArgs = 2,nArgs
   CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
   CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-  ! Check if we need to reallocate the var names array
-  IF (nVar_State.NE.nVar_State_old) THEN
-    SDEALLOCATE(StrVarNames)
-    ALLOCATE(StrVarNames(nVar_State))
+
+  IF (VisuSource) THEN
+    CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
+  ELSE
+    DGSourceExists=.FALSE.
   END IF
-  CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+  IF (DGSourceExists) THEN
+    nVar_State=4
+    ! Check if we need to reallocate the var names array
+    IF (nVar_State.NE.nVar_State_old) THEN
+      SDEALLOCATE(StrVarNames)
+      ALLOCATE(StrVarNames(nVar_State))
+    END IF
+    CALL ReadAttribute(File_ID,'VarNamesSource',nVar_State,StrArray=StrVarNames)
+  ELSE
+    VisuSource=.FALSE.
+    ! Check if we need to reallocate the var names array
+    IF (nVar_State.NE.nVar_State_old) THEN
+      SDEALLOCATE(StrVarNames)
+      ALLOCATE(StrVarNames(nVar_State))
+    END IF
+    CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=StrVarNames)
+  END IF
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
   CALL CloseDataFile()
 
@@ -246,6 +272,8 @@ DO iArgs = 2,nArgs
   IF (TRIM(MeshFile).NE.TRIM(MeshFile_old)) THEN
     IF(CalcDiffError.AND.(iArgs.GT.2))CALL abort(__STAMP__,&
     'CalcDiffError needs identical meshes!',iError)
+    IF(CalcAverage.AND.(iArgs.GT.2))CALL abort(__STAMP__,&
+    'CalcAverage needs identical meshes!',iError)
     ! Check if the file is a valid mesh
     IF(.NOT.ISVALIDMESHFILE(MeshFile)) THEN
       CALL CollectiveStop(__STAMP__,&
@@ -266,6 +294,15 @@ DO iArgs = 2,nArgs
   
     ! Read the mesh itself
     CALL readMesh(MeshFile) 
+
+    IF(CalcAverage .AND. iArgs.GT.2)THEN
+      IF (nVar_State_old     .NE. nVar_State .OR.&
+          N_State_old        .NE. N_State .OR.&
+          nGeo_old           .NE. nGeo .OR.&
+          nElems_old         .NE. nElems .OR.&
+          NodeType_State_old .NE. NodeType_State) CALL abort(__STAMP__,&
+      'CalcAverage: different N,nGeo,etc. not implemented yet!')
+    END IF
 
     ! Check if ne need to realloacte the Vandermonde from mesh to visualization
     IF (NGeo.NE.nGeo_old) THEN
@@ -296,7 +333,12 @@ DO iArgs = 2,nArgs
 
   ! Read in solution
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+
+  IF(VisuSource)THEN
+    CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+  ELSE
+    CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+  END IF
 
   IF(CalcDiffError)THEN
     IF(iArgs .EQ. 2)THEN
@@ -360,6 +402,19 @@ DO iArgs = 2,nArgs
       CALL CalcErrorStateFiles(nVar_State,N_State_first,N_State,U_first,U)
     END IF 
   END IF
+  IF(CalcAverage)THEN
+    IF(iArgs .EQ. 2)THEN
+      ALLOCATE(U_average(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      U_average = U
+      N_average = 1
+    ELSE
+      U_average = U_average+U
+      N_average = N_average+1
+    END IF
+    IF (iArgs .EQ. nArgs) THEN
+      U = U_average/REAL(N_average)
+    END IF
+  END IF
 
   ! check if additional elem data exists
   CALL DatasetExists(File_ID,'ElemData',elemDataFound)
@@ -379,6 +434,10 @@ DO iArgs = 2,nArgs
   END IF
   CALL CloseDataFile()
 
+  IF(CalcAverage .AND. (iArgs.GT.2 .AND. iArgs.LT.nArgs)) THEN
+    CYCLE !go to next file (only output the averaged U, but allocate and set _old-stuff for iArg=2)
+  END IF
+
   ! Check if we need to reallocate the Vandermonde from state to visualisation
   IF ((N_State.NE.N_State_old).OR.(TRIM(NodeType_State).NE.TRIM(NodeType_State_old))) THEN
     SDEALLOCATE(Vdm_N_NVisu)
@@ -392,6 +451,7 @@ DO iArgs = 2,nArgs
     ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
   END IF
 
+IF(iArgs.EQ.nArgs .OR. .NOT.CalcAverage) THEN
   ! Interpolate solution to visu grid
   iDG = 0
   DO iElem = 1,nElems
@@ -410,6 +470,7 @@ DO iArgs = 2,nArgs
     FileString_multiblock=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtm'
     CALL WriteVTKMultiBlockDataSet(FileString_multiblock,FileString_DG)
   END IF
+END IF !iArgs.EQ.nArgs .OR. .NOT.CalcAverage
 
   ! Save parameters of this state to later check if we need to reinitialize variables
   nVar_State_old     = nVar_State
@@ -418,7 +479,7 @@ DO iArgs = 2,nArgs
   nGeo_old           = nGeo
   nElems_old         = nElems
   NodeType_State_old = NodeType_State
-END DO ! iArgs = 3, nArgs
+END DO ! iArgs = 2, nArgs
 
 ! Finalize
 SDEALLOCATE(Vdm_N_NVisu)
