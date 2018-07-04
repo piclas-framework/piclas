@@ -4580,6 +4580,9 @@ USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 !#ifdef CODE_ANALYZE
 !USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 !#endif /*CODE_ANALYZE*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -4622,10 +4625,14 @@ REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpo
 INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2,ExtraPartsTria(2)
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
 REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
+REAL, PARAMETER             :: eps_nontria=1.0E-6 !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
 #if USE_LOADBALANCE
 ! load balance
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#ifdef CODE_ANALYZE
+REAL                        :: tmpVec(3)
+#endif /*CODE_ANALYZE*/
 TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
@@ -4890,6 +4897,13 @@ __STAMP__&
         DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
           IF (TriaSurfaceFlux) THEN
             CALL RANDOM_NUMBER(RandVal2)
+            IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
+              RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2) !shift randVal off from 0 and 1
+              DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
+                CALL RANDOM_NUMBER(RandVal2)
+                RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2)
+              END DO
+            END IF
             Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1)
             Particle_pos =       Particle_pos + Vector2 * RandVal2(2)
             PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
@@ -5008,6 +5022,33 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(ParticleIndexNbr.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A32)') ' ---------------------------------------------------------------'
+                IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' SurfFlux Pos:      ', PartState(ParticleIndexNbr,1:3)
+                IF (TriaSurfaceFlux) THEN
+                  !- the following lines are inverted to recalc. the RandVal
+                  !Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  !PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
+                  !             + ndist(2)*(Particle_pos(2)-midpoint(2)) &
+                  !             + ndist(3)*(Particle_pos(3)-midpoint(3))
+                  !IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
+                  !  Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
+                  !END IF
+                  !- recalc. the RandVal assuming no flip:
+                  tmpVec=PartState(ParticleIndexNbr,1:3)
+                  tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals1:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
+                  !- recalc. the RandVal assuming flip:
+                  tmpVec=2*midpoint(1:3)-PartState(ParticleIndexNbr,1:3)
+                  tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals2:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
+                END IF
+                WRITE(UNIT_stdout,'(A32)') ' ---------------------------------------------------------------'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
@@ -6289,6 +6330,46 @@ CALL LBElemSplitTime(ElemID,tLBStart)
 END DO
 
 END SUBROUTINE AdaptiveBCAnalyze
+
+
+FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
+!===================================================================================================================================
+! robust calculation of Coeffs C(1) and C(2) from point = C(1)*Vector1 + C(2)*Vector2
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)         :: point(3), Vector1(3), Vector2(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL                     :: CalcVectorAdditionCoeffs(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                     :: denom(3)
+!===================================================================================================================================
+denom(1)=Vector2(2)*Vector1(3)-Vector2(3)*Vector1(2)
+denom(2)=Vector2(1)*Vector1(2)-Vector2(2)*Vector1(1)
+denom(3)=Vector2(3)*Vector1(1)-Vector2(1)*Vector1(3)
+
+IF (ABS(denom(1)).GT.ABS(denom(2)) .AND. ABS(denom(1)).GT.ABS(denom(3))) THEN
+  CalcVectorAdditionCoeffs(2)=(point(2)*Vector1(3)-point(3)*Vector1(2))/denom(1)
+ELSE IF (ABS(denom(2)).GT.ABS(denom(1)) .AND. ABS(denom(2)).GT.ABS(denom(3))) THEN
+  CalcVectorAdditionCoeffs(2)=(point(1)*Vector1(2)-point(2)*Vector1(1))/denom(2)
+ELSE
+  CalcVectorAdditionCoeffs(2)=(point(3)*Vector1(1)-point(1)*Vector1(3))/denom(3)
+END IF
+
+IF (ABS(Vector1(1)).GT.ABS(Vector1(2)) .AND. ABS(Vector1(1)).GT.ABS(Vector1(3))) THEN
+  CalcVectorAdditionCoeffs(1)=(point(1)-CalcVectorAdditionCoeffs(2)*Vector2(1))/Vector1(1)
+ELSE IF (ABS(Vector1(2)).GT.ABS(Vector1(1)) .AND. ABS(Vector1(2)).GT.ABS(Vector1(3))) THEN
+  CalcVectorAdditionCoeffs(1)=(point(2)-CalcVectorAdditionCoeffs(2)*Vector2(2))/Vector1(2)
+ELSE
+  CalcVectorAdditionCoeffs(1)=(point(3)-CalcVectorAdditionCoeffs(2)*Vector2(3))/Vector1(3)
+END IF
+
+END FUNCTION CalcVectorAdditionCoeffs
 
 
 END MODULE MOD_part_emission
