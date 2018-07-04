@@ -422,12 +422,14 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 #endif
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime,PartSurfaceModel
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
+USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
+USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution, useDSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -594,6 +596,7 @@ IF (DoAnalyze)  THEN
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
     CALL AnalyzeParticles(OutputTime)
+    CALL AnalyzeSurface(OutputTime)
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
@@ -605,11 +608,17 @@ IF (DoAnalyze)  THEN
         IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
            .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
            CALL AnalyzeParticles(OutputTime)
+        IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+           .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeSurface(OutputTime)
       END IF
     ELSE
       IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
          CALL AnalyzeParticles(OutputTime)
+      IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+         .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeSurface(OutputTime)
    END IF
   END IF
 #if defined(LSERK)
@@ -617,6 +626,7 @@ IF (DoAnalyze)  THEN
   IF(LastIter) CALL AnalyzeParticles(OutputTime)
 #else
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
+  IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
 #endif
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
@@ -701,12 +711,10 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides 
       SampWall(iSide)%State=0.
-      IF (useDSMC) THEN
-      IF (DSMC%WallModel.GT.0) THEN
+      IF (PartSurfaceModel.GT.0) THEN
         SampWall(iSide)%Adsorption=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
-      END IF
       END IF
     END DO
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN

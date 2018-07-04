@@ -21,6 +21,7 @@ REAL,ALLOCATABLE  :: PosPoyntingInt(:)           ! z-coordinate of plane
 REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   ! plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     ! vector, abs for TEM waves
 LOGICAL           :: DoAnalyze                   ! perform analyze
+LOGICAL           :: DoSurfModelAnalyze          ! perform analyze for SurfaceModel
 LOGICAL           :: DoCalcErrorNorms            ! perform L2, LInf error calculation
 LOGICAL           :: CalcEpot                    ! Computation of the energy stored in the electric and
                                                  ! magnetic field

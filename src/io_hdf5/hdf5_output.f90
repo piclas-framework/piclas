@@ -1011,8 +1011,8 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide, PartBound
 ! IMPLICIT VARIABLE HANDLING
@@ -1043,8 +1043,7 @@ INTEGER,ALLOCATABLE            :: SurfPartData(:,:)
 REAL,ALLOCATABLE               :: SurfCalcData(:,:,:,:,:)
 !===================================================================================================================================
 ! first check if wallmodel defined and greater than 0 before writing any surface things into state
-IF(.NOT.useDSMC) RETURN
-IF(DSMC%WallModel.EQ.0) RETURN
+IF(PartSurfaceModel.EQ.0) RETURN
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! only pocs with real surfaces (not halo) in own proc write out
@@ -1060,7 +1059,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteAttributeToHDF5(File_ID,'Surface_BCs',nSurfBC,StrArray=SurfBCName)
   CALL WriteAttributeToHDF5(File_ID,'nSurfSample',1,IntegerScalar=nSurfSample)
-  CALL WriteAttributeToHDF5(File_ID,'WallModel',1,IntegerScalar=DSMC%WallModel)
+  CALL WriteAttributeToHDF5(File_ID,'WallModel',1,IntegerScalar=PartSurfaceModel)
   CALL WriteAttributeToHDF5(File_ID,'nSpecies',1,IntegerScalar=nSpecies)
   CALL CloseDataFile()
 #ifdef MPI
@@ -1068,7 +1067,7 @@ END IF
 #endif
 
 ! set names and write attributes in hdf5 files
-IF (DSMC%WallModel.EQ.3) THEN
+IF (PartSurfaceModel.EQ.3) THEN
   nVar = 4
 ELSE
   nVar = 1
@@ -1078,7 +1077,7 @@ iVar = 1
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
   StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'_Coverage'
-  IF (DSMC%WallModel.EQ.3) THEN
+  IF (PartSurfaceModel.EQ.3) THEN
     StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
     StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
     StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
@@ -1106,7 +1105,7 @@ DO iSurfSide = 1,SurfMesh%nSides
     DO jsubsurf = 1,nSurfSample
       DO isubsurf = 1,nSurfSample
         SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:) = Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:)
-        IF (DSMC%WallModel.EQ.3) THEN
+        IF (PartSurfaceModel.EQ.3) THEN
           SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:)
           SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:)
           SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)
@@ -1138,7 +1137,7 @@ SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
 ! save number of and positions of binded particles for all coordinations
-IF (DSMC%WallModel.EQ.3) THEN
+IF (PartSurfaceModel.EQ.3) THEN
   Coordinations    = 3
   SurfPartIntSize  = 3
   SurfPartDataSize = 2
@@ -1275,7 +1274,7 @@ IF (DSMC%WallModel.EQ.3) THEN
   SDEALLOCATE(StrVarNamesData)
   SDEALLOCATE(SurfPartInt)
   SDEALLOCATE(SurfPartData)
-END IF ! DSMC%WallModel.EQ.3
+END IF ! PartSurfaceModel.EQ.3
 
 
 
@@ -1291,7 +1290,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING

@@ -52,7 +52,8 @@ USE MOD_PICInit          ,ONLY: DefineParametersPIC
 USE MOD_Part_Emission    ,ONLY: DefineParametersParticleEmission
 USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
-USE MOD_DSMC_SurfModelInit,ONLY: DefineParametersSurfModel
+USE MOD_SurfaceModel_Init,ONLY: DefineParametersSurfModel
+USE MOD_SurfaceModel_Analyze,ONLY: DefineParametersSurfModelAnalyze
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -103,6 +104,7 @@ CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
 CALL DefineParametersSurfModel()
+CALL DefineParametersSurfModelAnalyze()
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')
