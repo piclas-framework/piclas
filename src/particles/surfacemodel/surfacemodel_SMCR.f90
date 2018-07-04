@@ -536,6 +536,8 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, Set_TST_Factors
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
+USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncAct, PartitionFuncAct_dissoc
+USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncAct_recomb, PartitionFuncAct_exch
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time

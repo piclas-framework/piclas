@@ -13,9 +13,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE PartitionFuncGas
-  MODULE PROCEDURE PartitionFuncGas
-END INTERFACE
+!INTERFACE PartitionFuncGas
+!  MODULE PROCEDURE PartitionFuncGas
+!END INTERFACE
 
 INTERFACE PartitionFuncAct
   MODULE PROCEDURE PartitionFuncAct
@@ -41,7 +41,7 @@ INTERFACE AnalyzePartitionTemp
   MODULE PROCEDURE AnalyzePartitionTemp
 END INTERFACE
 
-PUBLIC :: PartitionFuncGas
+!PUBLIC :: PartitionFuncGas
 PUBLIC :: PartitionFuncAct
 PUBLIC :: PartitionFuncAct_dissoc
 PUBLIC :: PartitionFuncAct_recomb
@@ -52,62 +52,62 @@ PUBLIC :: AnalyzePartitionTemp
 
 CONTAINS
 
-SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
-!===================================================================================================================================
-!> Calculation of partition function for gaseous state particle species at certain temperature
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec
-REAL, INTENT(IN)              :: Temp
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: VarPartitionFuncGas
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL, PARAMETER               :: Pi=3.14159265358979323846_8
-INTEGER                       :: iPolyatMole, iDOF
-REAL                          :: Qtra, Qrot, Qvib!, Qelec
-!===================================================================================================================================
-Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
-IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-    ELSE
-      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-    END IF
-    Qvib = 1.
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
-    END DO
-  ELSE
-    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-    Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
-  END IF
-ELSE
-  Qrot = 1.
-  Qvib = 1.
-END IF
-!   Qelec = 0.
-!   DO iDOF=1, SpecDSMC(iSpec)%NumElecLevels
-!     Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
-!   END DO
-VarPartitionFuncGas = Qtra * Qrot * Qvib! * Qelec
-
-END SUBROUTINE PartitionFuncGas
+!SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
+!!===================================================================================================================================
+!!> Calculation of partition function for gaseous state particle species at certain temperature
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
+!USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+!USE MOD_Particle_Vars ,ONLY: Species
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! INPUT VARIABLES
+!INTEGER, INTENT(IN)           :: iSpec
+!REAL, INTENT(IN)              :: Temp
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!REAL, INTENT(OUT)             :: VarPartitionFuncGas
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! LOCAL VARIABLES
+!REAL, PARAMETER               :: Pi=3.14159265358979323846_8
+!INTEGER                       :: iPolyatMole, iDOF
+!REAL                          :: Qtra, Qrot, Qvib!, Qelec
+!!===================================================================================================================================
+!Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
+!IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+!  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+!    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+!    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+!      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
+!    ELSE
+!      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+!                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+!                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
+!    END IF
+!    Qvib = 1.
+!    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!      Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+!    END DO
+!  ELSE
+!    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
+!    Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
+!  END IF
+!ELSE
+!  Qrot = 1.
+!  Qvib = 1.
+!END IF
+!!   Qelec = 0.
+!!   DO iDOF=1, SpecDSMC(iSpec)%NumElecLevels
+!!     Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
+!!   END DO
+!VarPartitionFuncGas = Qtra * Qrot * Qvib! * Qelec
+!
+!END SUBROUTINE PartitionFuncGas
 
 
 SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)

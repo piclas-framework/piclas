@@ -227,6 +227,7 @@ SUBROUTINE Calc_DesorbPartNum()
 !===================================================================================================================================
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PartSurfaceModel
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Tools     ,ONLY: CalcDesorbProb
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #if USE_LOADBALANCE
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem

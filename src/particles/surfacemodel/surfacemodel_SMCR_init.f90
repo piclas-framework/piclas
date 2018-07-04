@@ -51,6 +51,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -904,5 +905,78 @@ END IF ! SurfMesh%SurfOnProc .OR. MPIRoot
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 
 END SUBROUTINE InitSMCR_Chem
+
+
+SUBROUTINE Init_TST_Coeff(TST_Case)
+!===================================================================================================================================
+!> Initializion of the Transition state theory (TST) factors for surface chemistry
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
+USE MOD_ReadInTools            ,ONLY: GETREAL
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER , INTENT(IN)            :: TST_Case
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL                            :: PartitionArraySize
+INTEGER                         :: iSpec, iReactNum
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
+
+Adsorption%PartitionMaxTemp = GETREAL('Surface-AdsorptionTST-PartitionMaxTemp','10000.')
+Adsorption%PartitionInterval = GETREAL('Surface-AdsorptionTST-PartitionInterval','20.')
+IF (SurfMesh%SurfOnProc) THEN
+ALLOCATE(Adsorption%PartitionTemp(1:nElems,1:nSpecies))
+
+IF (TST_Case.EQ.1) THEN
+  DO iSpec=1,nSpecies
+    DO iReactNum=0,Adsorption%ReactNum
+      IF ((iReactNum.EQ.0) .AND. (Adsorption%Ads_Prefactor(iSpec).EQ.0.) .AND. (Adsorption%Ads_Powerfactor(iSpec).EQ.0.)) THEN
+        Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LT.Adsorption%DissNum)) THEN
+        IF ((Adsorption%Diss_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%Diss_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+          Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+        END IF
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.GT.Adsorption%DissNum)) THEN
+        IF ((Adsorption%ER_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+          Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+        END IF
+      END IF
+    END DO
+  END DO
+ELSE
+  Adsorption%TST_Calc(:,:) = .TRUE.
+END IF
+
+!IF(MOD(Adsorption%PartitionMaxTemp,Adsorption%PartitionInterval).EQ.0.0) THEN
+!  PartitionArraySize = INT(Adsorption%PartitionMaxTemp / Adsorption%PartitionInterval)
+!ELSE
+!  CALL abort(&
+!__STAMP__&
+!,'ERROR INIT_TST_FACTORS: Partition temperature limit must be multiple of partition interval!')
+!END IF  
+!
+!! calculate array of partitionfunction values
+!ALLOCATE(Adsorption%TST_Factors(1:2,0:Adsorption%ReactNum,1:nSpecies)
+!DO iSpec=1,nSpecies
+!  DO iReactNum=0,Adsorption%ReactNum
+!    IF(Adsorption%TST_Calc(iReactNum,iSpec))THEN
+!      
+!    END IF
+!  END DO
+!END DO
+END IF ! SurfMesh%SurfOnProc
+
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS DONE!'
+END SUBROUTINE Init_TST_Coeff
 
 END MODULE MOD_SMCR_Init
