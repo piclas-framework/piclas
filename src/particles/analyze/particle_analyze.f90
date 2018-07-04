@@ -143,9 +143,6 @@ USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
-#if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars             ,ONLY: Adsorption
-#endif
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -460,10 +457,6 @@ REAL                :: tLBStart
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
-      ELSE IF (Adsorption%TPD) THEN
-          iCov = INT(Adsorption%Coverage(1,1,1,1)*1000)
-          WRITE( hilf, '(I4.4)') iCov
-        outfile = 'Database_Cov_'//TRIM(hilf)//'.csv'
       ELSE
         outfile = 'Database.csv'
       END IF

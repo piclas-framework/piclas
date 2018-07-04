@@ -225,7 +225,7 @@ INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionN
                 OutputCounter = OutputCounter + 1
               DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                RITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                     OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase,' '
                 OutputCounter = OutputCounter + 1
               END DO
@@ -381,7 +381,6 @@ IF (PartMPI%MPIROOT) THEN
     END IF
     IF (CalcEvaporation) THEN
       CALL WriteDataInfo(unit_index,nSpecies,RealArray=EvaporationRate(:))
-    END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     END IF
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)*/
