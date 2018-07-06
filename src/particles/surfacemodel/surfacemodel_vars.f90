@@ -8,7 +8,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
 ! defintion of Adsorbation variables
@@ -27,8 +27,12 @@ TYPE tProperInfo
   REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
   REAL     , ALLOCATABLE                 :: MeanAdsActE(:)          ! mean activation energy of adsorption reaction
   REAL     , ALLOCATABLE                 :: MeanSurfActE(:)         ! mean activation energy of desorption reaction
+  REAL     , ALLOCATABLE                 :: ProperAdsActE(:)        ! activation energy of accepted adsorption reaction
+  REAL     , ALLOCATABLE                 :: ProperSurfActE(:)       ! activation energy of accepted desorption reaction
   INTEGER  , ALLOCATABLE                 :: AdsReactCount(:)        ! Number of reactive adsorption probability calculations
   INTEGER  , ALLOCATABLE                 :: SurfReactCount(:)       ! Number of reactive desorption probability caluclations
+  INTEGER  , ALLOCATABLE                 :: ProperAdsReactCount(:)  ! Number of reactive adsorptions
+  INTEGER  , ALLOCATABLE                 :: ProperSurfReactCount(:) ! Number of reactive desorptions
 END TYPE
 #endif
 
@@ -112,7 +116,7 @@ END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
 TYPE tAdsorbateMapping
-  INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex 
+  INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex
                                                                     ! (1:SitesRemain) --> free site positions
                                                                     ! (SitesRemain+1:nSites) --> vacant site positions
   INTEGER , ALLOCATABLE                  :: Species(:)              ! species of adsorbate on sitepos (1:nSites)
@@ -121,7 +125,7 @@ TYPE tAdsorbateMapping
   INTEGER                                :: nInterAtom              ! number of adjacent surface atoms
   INTEGER , ALLOCATABLE                  :: NeighPos(:,:)           ! pos of adjacent Neigbhour (1:nSites,1:nNeigbhours)
   INTEGER , ALLOCATABLE                  :: NeighSite(:,:)          ! site of adjacent Neigbhour (1:nSites,1:nNeigbhours)
-  INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites 
+  INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites
                                                                     ! (all possible Coordinations incl.)
   LOGICAL , ALLOCATABLE                  :: IsNearestNeigh(:,:)     ! Flag for defining nearest neighbour of binding site
 #ifdef MPI
@@ -142,7 +146,7 @@ TYPE tSurfaceDistributionInfo
   REAL    , ALLOCATABLE                  :: desorbnum_tmp(:)
   REAL    , ALLOCATABLE                  :: adsorbnum_tmp(:)
   REAL    , ALLOCATABLE                  :: reactnum_tmp(:)
-  TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours 
+  TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours
                                                                     ! (1:nCoordination)
 END TYPE
 TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
@@ -157,7 +161,7 @@ TYPE tLiquid
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: ProbEvap(:,:,:,:)       ! Evaporation probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  
+
 #if (PP_TimeDiscMethod==42)
   TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! Info for species n (nSpecies)
 #endif

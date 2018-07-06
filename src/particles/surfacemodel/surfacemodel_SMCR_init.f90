@@ -9,7 +9,7 @@ MODULE MOD_SMCR_Init
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ SUBROUTINE InitSMCR()
 !>          |       |       |       |       |
 !>          3---2---3---2---3---2---3---2---3
 !> For now:
-!> Neighbours are all sites, that have the same binding surface atom. 
+!> Neighbours are all sites, that have the same binding surface atom.
 !> Except for top sites(3) they also interact with the next top site.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -60,7 +60,7 @@ USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 CHARACTER(64)                    :: particle_mpf
@@ -102,7 +102,7 @@ Max_Surfsites_num = 0
 Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
 
-! Allocate and initializes number of surface sites and neighbours 
+! Allocate and initializes number of surface sites and neighbours
 DO iSurfSide = 1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
@@ -203,7 +203,7 @@ DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions
   surfsquare = INT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))))
-  ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours      
+  ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours
   Indx = 1
   Indy = 1
   DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1)
@@ -377,7 +377,7 @@ DO jSubSurf = 1,nSurfSample
       END IF
       ! mapping respective bond atoms
       SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx - surfsquare
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy 
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
       SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx - surfsquare
       SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
     END IF
@@ -883,14 +883,18 @@ __STAMP__&
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(1:Adsorption%ReactNum),&
               Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(1:Adsorption%ReactNum+1),&
-              Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1))
+              Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1))
     Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
     Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(:) = 0.
     Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(:) = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(:) = 0.
     Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
     Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(:) = 0
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(:) = 0
   END DO
 #endif
 
@@ -963,14 +967,14 @@ END IF
 !  CALL abort(&
 !__STAMP__&
 !,'ERROR INIT_TST_FACTORS: Partition temperature limit must be multiple of partition interval!')
-!END IF  
+!END IF
 !
 !! calculate array of partitionfunction values
 !ALLOCATE(Adsorption%TST_Factors(1:2,0:Adsorption%ReactNum,1:nSpecies)
 !DO iSpec=1,nSpecies
 !  DO iReactNum=0,Adsorption%ReactNum
 !    IF(Adsorption%TST_Calc(iReactNum,iSpec))THEN
-!      
+!
 !    END IF
 !  END DO
 !END DO

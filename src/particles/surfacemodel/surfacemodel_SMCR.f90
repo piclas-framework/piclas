@@ -9,7 +9,7 @@ MODULE MOD_SMCR
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -33,13 +33,13 @@ USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, Set_TST_Fact
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SampWall, SurfMesh
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
-#if (PP_TimeDiscMethod==42)  
+#if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfID,PartID
 REAL   ,INTENT(IN)               :: Norm_Ec
 INTEGER,INTENT(OUT)              :: adsorption_case
@@ -70,7 +70,7 @@ INTEGER                          :: DissocReactID, AssocReactID
 REAL                             :: a_f, b_f, E_d
 REAL                             :: coverage_check
 #if (PP_TimeDiscMethod==42)
-REAL                             :: iSampleReact
+INTEGER                          :: iSampleReact
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
@@ -541,7 +541,7 @@ USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncAct_recomb
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
-#if (PP_TimeDiscMethod==42)  
+#if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #endif
 #if USE_LOADBALANCE
@@ -589,6 +589,7 @@ INTEGER                           :: IDRearrange
 #if (PP_TimeDiscMethod==42)
 ! reservoir sample variables
 INTEGER                           :: iSampleReact
+REAL                              :: loc_SurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1)
 #endif
 INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%RecombNum)
 #if USE_LOADBALANCE
@@ -700,6 +701,10 @@ DO iSubSurf = 1,nSurfSample
       CYCLE
     END IF
 
+#if (PP_TimeDiscMethod==42)
+    loc_SurfActE = 0.
+#endif
+
     Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
     iSpec = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species(Surfpos)
 
@@ -799,6 +804,7 @@ DO iSubSurf = 1,nSurfSample
 !            Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes = Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes + P_actual_react(iReact)
           END IF
         END IF
+        loc_SurfActE(iSampleReact) = E_d
         Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) + E_d
         Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) = &
@@ -965,6 +971,7 @@ DO iSubSurf = 1,nSurfSample
                     Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iSampleReact) + P_actual_react(ReactNum_run+iReact)
               END IF
             END IF
+            loc_SurfActE(iSampleReact) = E_d
             Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) = &
                 Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) + E_d
             Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) = &
@@ -993,7 +1000,7 @@ DO iSubSurf = 1,nSurfSample
         IF ( (Adsorption%ChemProduct(1,iReact+Adsorption%nDissocReactions).NE.iSpec) &
            .AND. (Adsorption%ChemProduct(2,iReact+Adsorption%nDissocReactions).NE.iSpec) ) CYCLE
       END IF
-      ! Choose which reaction partner considered particle is 
+      ! Choose which reaction partner considered particle is
       ! -> defines which species is second reaction partner and if forward or reverse reaction
       ! ----------------------------------------------------------------------------------------------------------------------------
       IF (Adsorption%ChemReactant(1,iReact+Adsorption%nDissocReactions).EQ.iSpec) THEN ! -> first forward
@@ -1330,6 +1337,7 @@ DO iSubSurf = 1,nSurfSample
         Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + P_actual_des
       END IF
     END IF
+    loc_SurfActE(iSampleReact) = E_d
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) + E_d
     Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) = Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) + 1
 #endif
@@ -1377,6 +1385,10 @@ DO iSubSurf = 1,nSurfSample
           Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) = &
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) + 1
         END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1)+loc_SurfActE(iReact+Adsorption%DissNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) + 1
 #endif
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1435,6 +1447,10 @@ DO iSubSurf = 1,nSurfSample
           Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) = &
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) + 1
         END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) + loc_SurfActE(iReact)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact) + 1
 #endif
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1661,6 +1677,10 @@ DO iSubSurf = 1,nSurfSample
         IF (DSMC%ReservoirRateStatistic) THEN
           Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) + 1
         END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) + loc_SurfActE(1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) + 1
 #endif
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1727,8 +1747,8 @@ DO iSubSurf = 1,nSurfSample
     SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) &
                         - REAL(Adsorption%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec))
-    ! Sample vibrational energies 
-    ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled 
+    ! Sample vibrational energies
+    ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
       IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
@@ -1817,7 +1837,7 @@ USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSurf, SpecID, globSide, jSubSurf, iSubSurf
