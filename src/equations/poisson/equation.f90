@@ -340,21 +340,18 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
   ! for BC, not ElemID will be given
   IF(.NOT.PRESENT(ElemID))THEN
     IF(x(3).GT.0.0)THEN ! inside dielectric
-      !resu(1:PP_nVar) = -Dielectric_E_0*x(3)*(-DielectricRadiusValue   *((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3))) + 1)
-      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+      resu(1:PP_nVar) = -(Dielectric_E_0/DielectricRatio)*(x(3)-DielectricRadiusValue)
     ELSE
-      resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
-          (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
+      resu(1:PP_nVar) = -(Dielectric_E_0)*(x(3)-DielectricRadiusValue/DielectricRatio)
     END IF
     RETURN
   END IF
 
   ! depending on the radius the solution for the potential is different for inner/outer parts of the domain
   IF(     (ABS(ElemBaryNGeo(3,ElemID)).LT.2.0*DielectricRadiusValue).AND.(ElemBaryNGeo(3,ElemID).GT.0.0))THEN ! inside box: DOF and element bary center
-    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*(-((DielectricRatio-1.)/(DielectricRatio)) + 1)
+    resu(1:PP_nVar) = -(Dielectric_E_0/DielectricRatio)*(x(3)-DielectricRadiusValue)
   ELSEIF( (ABS(ElemBaryNGeo(3,ElemID)).GT.DielectricRadiusValue).OR.(ElemBaryNGeo(3,ElemID).LT.0.0) )THEN ! outside sphere
-    resu(1:PP_nVar) = -Dielectric_E_0*(x(3)-DielectricRadiusValue)*&
-        (-DielectricRadiusValue*((DielectricRatio-1.)/(DielectricRatio))/(abs(x(3)-DielectricRadiusValue)) + 1)
+    resu(1:PP_nVar) = -(Dielectric_E_0)*(x(3)-DielectricRadiusValue/DielectricRatio)
   ELSE
     SWRITE(*,*) "ElemID                ",ElemID
     SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
