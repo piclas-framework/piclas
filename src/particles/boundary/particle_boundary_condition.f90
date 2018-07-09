@@ -2741,8 +2741,8 @@ CASE (2)
   END IF
 CASE (3)
   Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-  Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 END SELECT
 
 SELECT CASE(adsorption_case)
@@ -3285,7 +3285,7 @@ SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideI
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Liquid
@@ -3317,7 +3317,6 @@ REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Condensation_prob
 INTEGER                          :: adsorption_case
 INTEGER                          :: SurfSideID, SpecID
-REAL                             :: Norm_velo, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
@@ -3387,9 +3386,6 @@ ELSE
     END SELECT
   END IF
 END IF
-
-!Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-!Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
 
 EvaporationEnthalpie = 0. ! negative at evaporation and positive at condensation
 

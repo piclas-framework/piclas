@@ -303,7 +303,7 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample    !> loadbalance sample saved until initial autorestart ist finished
-INTEGER                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
+LOGICAL                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart

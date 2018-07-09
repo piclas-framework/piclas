@@ -54,7 +54,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
 #endif /*MPI*/
@@ -68,16 +67,12 @@ REAL                             :: surface_mpf
 INTEGER                          :: Max_Surfsites_num
 INTEGER                          :: Max_Surfsites_own
 INTEGER                          :: Max_Surfsites_halo
-INTEGER                          :: iSurfSide, iSubSurf, jSubSurf, iSpec, iInterAtom
+INTEGER                          :: iSurfSide, iSubSurf, jSubSurf, iSpec
 INTEGER                          :: SideID, PartBoundID
 INTEGER                          :: surfsquare, dist, Adsorbates
 INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
 REAL                             :: RanNum
-INTEGER                          :: xpos, ypos
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
-#ifdef MPI
-INTEGER                          :: iProc
-#endif
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -516,8 +511,10 @@ USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT, GETREALARRAY, GETINTARRAY
+#if !(USE_LOADBALANCE)
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

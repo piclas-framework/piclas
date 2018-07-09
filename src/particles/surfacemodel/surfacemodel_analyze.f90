@@ -825,8 +825,8 @@ IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate   ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbActE  ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   AdsorbRate = AdsorbRate  / REAL(SurfCOMM%nProcs)
-  SurfCollNum= SurfCollNum / REAL(SurfCOMM%nProcs)
-  AdsorbNum  = AdsorbNum   / REAL(SurfCOMM%nProcs)
+  SurfCollNum= INT( REAL(SurfCollNum) / REAL(SurfCOMM%nProcs) )
+  AdsorbNum  = INT( REAL(AdsorbNum)   / REAL(SurfCOMM%nProcs) )
   ReactRate  = ReactRate   / REAL(SurfCOMM%nProcs)
   AdsorbActE = AdsorbActE  / REAL(SurfCOMM%nProcs)
 ELSE
@@ -844,7 +844,7 @@ IF(SurfMesh%SurfOnProc)THEN
     Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
     Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
     Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
     Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
   END DO
 END IF
@@ -936,8 +936,8 @@ END IF
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  DesorbRate  = DesorbRate  / REAL(SurfCOMM%nProcs)
-  DesorbNum   = DesorbNum   / REAL(SurfCOMM%nProcs)
+  DesorbRate  = DesorbRate / REAL(SurfCOMM%nProcs)
+  DesorbNum   = INT( REAL(DesorbNum) / REAL(SurfCOMM%nProcs) )
 ELSE
   CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1015,8 +1015,8 @@ IF(SurfMesh%SurfOnProc)THEN
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE = 0.
     Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE = 0.
     Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0
   END DO
 END IF
 

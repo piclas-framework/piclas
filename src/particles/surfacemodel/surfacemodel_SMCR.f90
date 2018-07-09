@@ -20,7 +20,7 @@ PUBLIC :: SMCR_Diffusion
 
 CONTAINS
 
-SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface reconstruction (SMCR) (surfacemodel = 3)
 !===================================================================================================================================
@@ -41,7 +41,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfID,PartID
-REAL   ,INTENT(IN)               :: Norm_Ec
 INTEGER,INTENT(OUT)              :: adsorption_case
 INTEGER,INTENT(OUT)              :: outSpec(2)
 REAL   ,INTENT(OUT)              :: AdsorptionEnthalpie
@@ -63,7 +62,6 @@ INTEGER                          :: n_empty_Neigh(3), n_Neigh(3), adsorbates(nSp
 REAL                             :: E_a, c_f
 REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
 REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob
-INTEGER                          :: iInteratom, xpos, ypos
 LOGICAL                          :: Cell_Occupied
 REAL                             :: CharaTemp
 INTEGER                          :: DissocReactID, AssocReactID
@@ -553,7 +551,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
 INTEGER                           :: iSurf, iSpec, globSide, jSubSurf, iSubSurf, PartBoundID
-INTEGER                           :: Coord, Coord2, Coord3, i, j, AdsorbID, numSites
+INTEGER                           :: Coord, Coord3, i, j, AdsorbID, numSites
 REAL                              :: WallTemp, RanNum
 REAL                              :: Heat_A, Heat_B, nu_des, rate, P_actual_des
 INTEGER                           :: Indx, Indy, Surfpos
@@ -563,7 +561,7 @@ INTEGER , ALLOCATABLE             :: adsorbnum(:)
 INTEGER , ALLOCATABLE             :: nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
 LOGICAL                           :: Cell_Occupied
 !---------- reaction variables
-INTEGER                           :: react_Neigh, n_Neigh(3), n_empty_Neigh(3), jSpec, iReact, PartnerID
+INTEGER                           :: n_Neigh(3), n_empty_Neigh(3), jSpec, iReact, PartnerID!,react_Neigh
 INTEGER                           :: surf_react_case, NeighID
 REAL                              :: E_d, nu_react, E_diff
 REAL                              :: Heat_AB, D_AB, sum_probabilities
@@ -1841,10 +1839,10 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSurf, SpecID, globSide, jSubSurf, iSubSurf
-INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID
+INTEGER                          :: Coord, nSites, nSitesRemain, i, AdsorbID
 REAL                             :: WallTemp, Prob_diff, RanNum
 REAL                             :: Heat_i, Heat_j, Heat_temp
-INTEGER                          :: n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
+INTEGER                          :: n_equal_site_Neigh, Surfpos, newpos
 INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 !----------------------------------------------------------------------------------------------------------------------------------!
 
