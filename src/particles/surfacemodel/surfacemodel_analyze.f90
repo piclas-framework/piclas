@@ -168,8 +168,9 @@ REAL                :: EvaporationRate(nSpecies)
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 #endif
 !===================================================================================================================================
+  isRestart = .FALSE.
   IF ( DoRestart ) THEN
-    isRestart = .true.
+    isRestart = .TRUE.
   END IF
   IF (.NOT.DoSurfModelAnalyze) RETURN
   OutputCounter = 2
@@ -999,7 +1000,7 @@ IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE ,ProperSurfaceActE,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   ReactRate   = ReactRate   / REAL(SurfCOMM%nProcs)
   SurfaceActE = SurfaceActE / REAL(SurfCOMM%nProcs)
-  SurfaceActE = ProperSurfaceActE / REAL(SurfCOMM%nProcs)
+  ProperSurfaceActE = ProperSurfaceActE / REAL(SurfCOMM%nProcs)
 ELSE
   CALL MPI_REDUCE(ReactRate         ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(SurfaceActE       ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)

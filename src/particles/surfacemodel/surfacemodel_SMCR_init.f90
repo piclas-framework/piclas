@@ -556,7 +556,7 @@ IF (SurfMesh%SurfOnProc .OR. MPIRoot) THEN
   ALLOCATE( Adsorption%AdsorpReactInfo(1:nSpecies))
 #endif
 
-  MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
+  MaxDissNum = GETINT('Surface-MaxDissNum','0')
   MaxAssocNum = MaxDissNum
 
   ! allocate and initialize dissociative and associative reactions species map
@@ -650,9 +650,9 @@ __STAMP__&
           Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
           WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
           Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-ER'//TRIM(hilf2)//'-Powerfactor','0.')
+              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.')
           Adsorption%ER_Prefactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-ER'//TRIM(hilf2)//'-Prefactor','0.')
+              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
           ReactNum = ReactNum + 1
         ELSE IF (Adsorption%DissocReact(2,iReactNum2,iSpec2).EQ.iSpec) THEN
           Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
@@ -660,9 +660,9 @@ __STAMP__&
           Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
           WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
           Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-ER'//TRIM(hilf2)//'-Powerfactor','0.')
+              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.')
           Adsorption%ER_Prefactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-ER'//TRIM(hilf2)//'-Prefactor','0.')
+              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
           ReactNum = ReactNum + 1
         ELSE
           CYCLE

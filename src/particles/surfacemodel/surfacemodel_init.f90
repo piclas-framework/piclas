@@ -111,12 +111,12 @@ CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
   , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [surfacemodel=3].\n'//&
     'If one surface contains less then 10 surface atoms program abort is called.\n'//&
     'Default: Species(1)%MPF: Uses macro particle factor of species1.')
-CALL prms%CreateIntOption(      'Part-Species-MaxDissNum'&
+CALL prms%CreateIntOption(      'Surface-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')
-CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-DissocReactions'&
+CALL prms%CreateIntOption(      'Surface-Nbr-DissocReactions'&
                                           , 'TODO-DEFINE-PARAMETER\n'//&
                                           'Resulting species for given dissoc (2,MaxDissNum,nSpecies)','0')
-CALL prms%CreateIntOption(      'Part-SurfChem-Nbr-ExchangeReactions'&
+CALL prms%CreateIntOption(      'Surface-Nbr-ExchangeReactions'&
                                           , 'TODO-DEFINE-PARAMETER','0')
 
 
@@ -150,13 +150,13 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Prefactor'&
                                           , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 
 
-CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Reactants'&
+CALL prms%CreateIntArrayOption( 'Surface-ExchReact[$]-Reactants'&
                                           , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-SurfChem-Disprop[$]-Products'&
+CALL prms%CreateIntArrayOption( 'Surface-ExchReact[$]-Products'&
                                           , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Reactants'&
+CALL prms%CreateRealArrayOption('Surface-ExchReact[$]-DissBond_K-Reactants'&
                                           , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-SurfChem-Disprop[$]-DissBond_K-Products'&
+CALL prms%CreateRealArrayOption('Surface-ExchReact[$]-DissBond_K-Products'&
                                          , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
@@ -220,7 +220,8 @@ __STAMP__&
 END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 ! initialize surface chemistry
-KeepWallParticles = GETLOGICAL('Surface-KeepWallParticles','.FALSE.')
+!KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
+KeepWallParticles = .FALSE.
 IF (KeepWallParticles) THEN
   IF(SurfMesh%SurfOnProc) THEN
     ALLOCATE(PDM%ParticleAtWall(1:PDM%maxParticleNumber)  , &

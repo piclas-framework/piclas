@@ -401,6 +401,7 @@ SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if (PP_nVar>=6)
@@ -590,7 +591,7 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (DoAnalyze)  THEN
+IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
 #ifdef PARTICLES 
   ! particle analyze
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN

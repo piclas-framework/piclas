@@ -1337,7 +1337,7 @@ DO iSubSurf = 1,nSurfSample
         Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + P_actual_des
       END IF
     END IF
-    loc_SurfActE(iSampleReact) = E_d
+    loc_SurfActE(1) = E_d
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) + E_d
     Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) = Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) + 1
 #endif
@@ -1447,10 +1447,10 @@ DO iSubSurf = 1,nSurfSample
           Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) = &
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) + 1
         END IF
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) + loc_SurfActE(iReact)
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact) + 1
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) + loc_SurfActE(DissocNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) + 1
 #endif
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
