@@ -246,7 +246,7 @@ gnu_maxwell:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/boltzplatz
 
 intel_maxwell:
   <<: *defaults_intel_maxwell
@@ -254,7 +254,7 @@ intel_maxwell:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_maxwell/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/boltzplatz
 
 gnu_poisson:
   <<: *defaults_gnu_poisson
@@ -262,7 +262,7 @@ gnu_poisson:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/boltzplatz
 
 intel_poisson:
   <<: *defaults_intel_poisson
@@ -270,7 +270,7 @@ intel_poisson:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/checkin_poisson/poisson -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/boltzplatz
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
