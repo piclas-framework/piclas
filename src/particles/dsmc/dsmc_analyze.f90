@@ -1584,7 +1584,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
           IF (PartNum.GT.0.0) THEN
             ! simulation particle number
             Macro_PartNum = PartNum / REAL(DSMC%SampNum)
-            Total_PartNum = Total_PartNum + PartNum
+            Total_PartNum = Total_PartNum + Macro_PartNum
             ! compute flow velocity
             Macro_Velo = PartVelo / PartNum
             Total_Velo = Total_Velo + Macro_Velo*Macro_PartNum
