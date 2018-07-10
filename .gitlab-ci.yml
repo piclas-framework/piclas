@@ -300,7 +300,7 @@ gnu_PIC_IMD_coupling:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
 gnu_DSMC_check:
   <<: *defaults_gnu
@@ -350,7 +350,7 @@ intel_PIC_IMD_coupling:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
     
 intel_PIC_maxwell_implicitBC:
   <<: *defaults_intel
