@@ -310,6 +310,13 @@ gnu_DSMC_check:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_checkin
 
+intel_DSMC_check:
+  <<: *defaults_intel
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_checkin
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
@@ -390,14 +397,6 @@ intel_chemistry_rates:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_chemistry/rate ; fi
-
-intel_DSMC_check:
-  <<: *defaults_intel
-  stage: reggie_DSMC_nightly
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_checkin; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
