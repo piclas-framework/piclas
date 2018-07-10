@@ -308,7 +308,7 @@ gnu_DSMC_check:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_checkin
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 intel_DSMC_check:
   <<: *defaults_intel
@@ -316,7 +316,7 @@ intel_DSMC_check:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/DSMC_checkin
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
