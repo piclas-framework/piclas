@@ -294,7 +294,7 @@ gnu_PIC_single_particle_PML:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
-gnu__PIC_IMD_coupling:
+gnu_PIC_IMD_coupling:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
@@ -337,7 +337,7 @@ intel_PIC_single_particle_PML:
   script:
     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
-intel__PIC_IMD_coupling:
+intel_PIC_IMD_coupling:
   <<: *defaults_intel
   stage: reggie_feature_checkin
   tags:
