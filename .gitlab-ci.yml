@@ -284,7 +284,7 @@ gnu_PIC_gyrotron_variable_Bz:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
 
 gnu_PIC_single_particle_PML:
   <<: *defaults_gnu
@@ -292,7 +292,7 @@ gnu_PIC_single_particle_PML:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
 gnu_PIC_IMD_coupling:
   <<: *defaults_gnu
@@ -334,7 +334,7 @@ intel_PIC_gyrotron_variable_Bz:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
     
 intel_PIC_single_particle_PML:
   <<: *defaults_intel
@@ -342,7 +342,7 @@ intel_PIC_single_particle_PML:
   tags:
     - withmodules
   script:
-    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
     
 intel_PIC_IMD_coupling:
   <<: *defaults_intel
