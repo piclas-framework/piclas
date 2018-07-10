@@ -738,14 +738,15 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, Liquid
-USE MOD_Particle_Vars          ,ONLY: PDM, PEM
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, Liquid
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfModelAnalyzeInitIsDone
+USE MOD_Particle_Vars             ,ONLY: PDM, PEM
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
-USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfCoverageSendBuf,SurfCoverageRecvBuf
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
+USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfModelExchange
+USE MOD_SurfaceModel_MPI_Vars     ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
+USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfCoverageSendBuf,SurfCoverageRecvBuf
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -760,6 +761,7 @@ INTEGER                      :: iSubSurf,jSubSurf,iSurfSide,iCoord
 INTEGER                      :: iProc
 #endif /*MPI*/
 !===================================================================================================================================
+SurfModelAnalyzeInitIsDone=.FALSE.
 ! variables used if particles are kept after adsorption (currentyl not working)
 SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
