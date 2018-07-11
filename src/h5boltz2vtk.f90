@@ -201,8 +201,10 @@ CalcDiffError    = GETLOGICAL('CalcDiffError','.FALSE.')
 IF(CalcDiffError)THEN
   IF(nArgs.LT.3)CALL abort(__STAMP__,&
       'CalcDiffError needs a minimum of two state files!',iError)
-  CalcDiffSigma    = GETLOGICAL('CalcDiffSigma','.FALSE.')
+  CalcDiffSigma  = GETLOGICAL('CalcDiffSigma','.FALSE.')
+  CalcAverage    = .FALSE.
 ELSE
+  CalcDiffSigma  = .FALSE.
   CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
 VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
