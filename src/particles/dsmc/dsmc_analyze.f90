@@ -1628,17 +1628,17 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   ELSE                                            ! TSHO-model
                     Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
-                  Total_TempVib = Total_TempVib + Macro_TempVib*Macro_PartNum
                   Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
-                  Total_TempRot = Total_TempRot + Macro_TempRot*Macro_PartNum
                   MolecPartNum = MolecPartNum + Macro_PartNum
                   IF (DSMC%ElectronicModel) THEN
                     IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
                       Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
-                      Total_TempElec = Total_TempElec + Macro_TempRot*Macro_PartNum
                       HeavyPartNum = HeavyPartNum + Macro_PartNum
                     END IF
                   END IF
+                  Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
+                  Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
+                  Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum
                 END IF
               END IF
             END IF
