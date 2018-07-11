@@ -671,26 +671,7 @@ DO iPart=1,PDM%ParticleVecLength
               ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
             IF(ElemID.NE.OldElemID)THEN
               ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
-              ! remark: maybe a storage value has to be set to drow?
-              ! particle is re-entered in cell without bc intersection, tolerance issue
-              IF(firstElem.EQ.ElemID)THEN
-                IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located at undefined location. '
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
-                IF(CountNbOfLostParts) nLostParts=nLostParts+1
-                PartIsDone=.TRUE.
-                PDM%ParticleInside(iPart)=.FALSE.
-                DoParticle(iPart)=.FALSE.
-                EXIT
-              END IF
-              !markTol=.FALSE.
               SwitchedElement=.TRUE.
-              ! already done
-              !! move particle to intersection
-              !LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
-              !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-              !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-              !                         +PartTrajectory(2)*PartTrajectory(2) &
-              !                         +PartTrajectory(3)*PartTrajectory(3) )
               IF(ALMOSTZERO(lengthPartTrajectory))THEN
                 PartisDone=.TRUE.
               END IF
@@ -745,14 +726,6 @@ DO iPart=1,PDM%ParticleVecLength
             locAlphaAll(1:6)=locAlpha
             CALL InsertionSort(locAlphaAll,locListAll,6+nAuxBCs)
             AuxBCsToCheck=nAuxBCs
-!#ifdef CODE_ANALYZE
-!            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!              IF(iPart.EQ.PARTOUT)THEN
-!print*,'locAlphaAll:',locAlphaAll
-!print*,'locListAll:',locListAll
-!              END IF
-!            END IF
-!#endif /*CODE_ANALYZE*/
           ELSE
             CALL InsertionSort(locAlpha,locSideList,6)
             AuxBCsToCheck=0
@@ -802,24 +775,7 @@ DO iPart=1,PDM%ParticleVecLength
                 END IF
 
                 IF(ElemID.NE.OldElemID)THEN
-                  IF((firstElem.EQ.ElemID).AND.(.NOT.CrossedBC))THEN
-                    IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located at undefined location. '
-                    IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
-                    PartIsDone=.TRUE.
-                    PDM%ParticleInside(iPart)=.FALSE.
-                    DoParticle(iPart)=.FALSE.
-                    IF(CountNbOfLostParts) nLostParts=nLostParts+1
-                    EXIT
-                  END IF
-                  !markTol=.FALSE.
                   IF(.NOT.CrossedBC) SwitchedElement=.TRUE.
-                  ! already done
-                  ! move particle to intersection
-                  !LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
-                  !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-                  !lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                  !                         +PartTrajectory(2)*PartTrajectory(2) &
-                  !                         +PartTrajectory(3)*PartTrajectory(3) )
                   IF(ALMOSTZERO(lengthPartTrajectory))THEN
                     PartisDone=.TRUE.
                   END IF
@@ -962,16 +918,6 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
-!    IF(markTol)THEN
-!      CALL PartInElemCheck(iPart,ElemID,isHit)
-!      PEM%Element(iPart)=ElemID
-!      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
-!      PartIsDone=.TRUE.
-!      IF(.NOT.PDM%ParticleInside(iPart))THEN
-!        IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
-!      END IF
-!    END IF
-
   END IF ! Part inside
 #ifdef IMPA
   IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.

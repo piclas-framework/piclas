@@ -2174,10 +2174,10 @@ SUBROUTINE PeriodicBC(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,Si
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,GEO,SidePeriodicType
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PEM
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 #if defined(IMPA) || defined(ROS)
@@ -2376,6 +2376,8 @@ __STAMP__&
 END IF
 #endif /*MPI*/
 !ElemID   =PEM%Element(PartID)
+
+IF (DoRefMapping) PEM%LastElement(PartID) = 0
 
 IF(1.EQ.2)THEN
   alpha=0.2
