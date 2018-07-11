@@ -1555,6 +1555,8 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   kk = 1 ; ll = 1 ; mm = 1
   DO iElem = 1, nElems ! element/cell main loop    
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
+    MolecPartNum = 0.0
+    HeavyPartNum = 0.0
     ASSOCIATE ( Total_Velo     => DSMC_MacroVal(nVarLoc*nSpecies+1:nVarLoc*nSpecies+3,kk,ll,mm, iElem) ,&
                 Total_Temp     => DSMC_MacroVal(nVarLoc*nSpecies+4:nVarLoc*nSpecies+6,kk,ll,mm, iElem) ,&
                 Total_TempMean => DSMC_MacroVal(nVarLoc*nSpecies+12,kk,ll,mm, iElem)            ,&
