@@ -1506,6 +1506,9 @@ END IF
 ! check connectivity of particle mesh
 CALL ElemConnectivity()
 
+#if (PP_TimeDiscMethod==1001)
+FindNeighbourElems = .TRUE.
+#endif
 IF (FindNeighbourElems) THEN
   ! build node conectivity of particle mesh
   IF(PartMPI%MPIROOT)THEN
@@ -4697,7 +4700,7 @@ END SUBROUTINE ElemConnectivity
 
 SUBROUTINE NodeNeighbourhood()
 !===================================================================================================================================
-! Subroutine for initialization of neighbourhood with nodes using GEO container
+!> Subroutine for initialization of neighbourhood with nodes using GEO container
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -4737,6 +4740,7 @@ INTEGER                :: iNode
 #ifdef MPI
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
+LOGICAL                :: HaloNeighNode(1:nNodes)
 #endif /*MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4762,6 +4766,20 @@ END DO
 DO jNode=1,nNodes
   ALLOCATE(NodeToElem(jNode)%ElemID(GEO%ElemsOnNode(jNode)))
 END DO
+#ifdef MPI
+! set nodes of sides with halo element connected to it as HaloNeighNodes
+HaloNeighNode(:) = .FALSE.
+DO iElem=1,nElems
+  DO iLocSide = 1,6
+    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
+      DO iNode = 1,4
+        HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
+      END DO
+    END IF
+  END DO
+END DO
+#endif /*MPI*/
+
 ! connect local elements using local node indeces 
 ! (mpi indeces are doubled indeces and not connected therefore done different)
 TempNumNodes(:)=0
@@ -4804,12 +4822,14 @@ ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
 GEO%NumNeighborElems(:)=0
 DO iElem=1,PP_nElems
   HasHaloElem = .FALSE.
-  DO iLocSide = 1,6
-    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
+#ifdef MPI
+  DO iNode = 1,8
+    IF (HaloNeighNode(GEO%ElemToNodeID(iNode,iElem))) THEN
       HasHaloElem = .TRUE.
       IF (GEO%NumNeighborElems(iElem).NE.1)  GEO%NumNeighborElems(iElem) = -1
     END IF
   END DO
+#endif /*MPI*/
   IF (.NOT.HasHaloElem) THEN
     GEO%NumNeighborElems(iElem) = NumNeighborElems(iElem)
     ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)))
@@ -4828,26 +4848,32 @@ IF (nTotalElems.GT.PP_nElems) THEN
       DO iLocSide = 1, 6
         ElemExists = .FALSE.
         Element = PartElemToElemAndSide(1,iLocSide,iElem)
-        IF (Element.GT.PP_nElems) THEN
-          DO l=1, TempHaloNumElems
-            IF(Element.EQ.TempHaloElems(l)) THEN
-              ElemExists=.TRUE.
-              EXIT
-            END IF
-          END DO
-          IF (.NOT.ElemExists) THEN
-            TempHaloNumElems = TempHaloNumElems + 1
-            TempHaloElems(TempHaloNumElems) = Element
+        !IF (Element.GT.PP_nElems) THEN
+        DO l=1, TempHaloNumElems
+          IF(Element.EQ.TempHaloElems(l)) THEN
+            ElemExists=.TRUE.
+            EXIT
           END IF
-          CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
+        END DO
+        IF (.NOT.ElemExists) THEN
+          TempHaloNumElems = TempHaloNumElems + 1
+          TempHaloElems(TempHaloNumElems) = Element
         END IF
+        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
+        !END IF
       END DO
-      GEO%NumNeighborElems(iElem) = NumNeighborElems(iElem) + TempHaloNumElems
+      IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
+__STAMP__&
+,'ERROR in FindNeighbourElems! no Halo neighbour elements found altough there are some') 
+      GEO%NumNeighborElems(iElem) = TempHaloNumElems
       ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
-      GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)) = ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem))
-      IF (TempHaloNumElems.GT.0) THEN
-        GEO%ElemToNeighElems(iElem)%ElemID(NumNeighborElems(iElem)+1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
-      END IF
+      GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
+      !GEO%NumNeighborElems(iElem) = NumNeighborElems(iElem) + TempHaloNumElems
+      !ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
+      !GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)) = ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem))
+      !IF (TempHaloNumElems.GT.0) THEN
+      !  GEO%ElemToNeighElems(iElem)%ElemID(NumNeighborElems(iElem)+1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
+      !END IF
     END IF ! Element near Halo cell
   END DO ! iElem=1,PP_nElems
 END IF ! nTotalElems > nElems
@@ -4881,7 +4907,7 @@ END SUBROUTINE NodeNeighbourhood
 
 RECURSIVE SUBROUTINE RecurseCheckNeighElems(StartElem,HaloElem,TempHaloNumElems,TempHaloElems)
 !===================================================================================================================================
-! Subroutine for recursively checking halo neighbourhood for connectivity to current elem
+!> Subroutine for recursively checking halo neighbourhood for connectivity to current elem
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -4905,7 +4931,7 @@ REAL                   :: MPINodeCoord(3), ElemCoord(3)
 DO iLocSide = 1,6
   ElemExists = .FALSE.
   currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
-  IF (currentElem.GT.PP_nElems) THEN
+  !IF (currentElem.GT.PP_nElems) THEN
     DO l=1, TempHaloNumElems
       IF(currentElem.EQ.TempHaloElems(l)) THEN
         ElemExists=.TRUE.
@@ -4930,7 +4956,7 @@ DO iLocSide = 1,6
         IF (ElemDone) EXIT
       END DO
     END IF
-  END IF
+  !END IF
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
