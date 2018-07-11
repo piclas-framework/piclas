@@ -1612,7 +1612,6 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                       IF( (PartEvib/PartNum) .GT. SpecDSMC(iSpec)%EZeroPoint ) THEN
                         Macro_TempVib = CalcTVibPoly(PartEvib/PartNum, iSpec)
-                        Total_TempVib = Total_TempVib + Macro_TempVib*Macro_PartNum
                       ELSE
                         Macro_TempVib = 0.0
                       END IF
@@ -1627,6 +1626,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   ELSE                                            ! TSHO-model
                     Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
+                  Total_TempVib = Total_TempVib + Macro_TempVib*Macro_PartNum
                   Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
                   Total_TempRot = Total_TempRot + Macro_TempRot*Macro_PartNum
                   MolecPartNum = MolecPartNum + Macro_PartNum
