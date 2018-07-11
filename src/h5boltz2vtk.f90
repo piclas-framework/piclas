@@ -39,12 +39,9 @@ USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
 #endif /*MPI*/
 USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Analyze_Vars,        ONLY: NAnalyze
-USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
-USE MOD_Mesh_Vars,           ONLY: Elem_xGP,dXCL_N,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,sJ,NGeoRef,DetJac_Ref
-USE MOD_Mesh_Vars,           ONLY: interpolateFromTree,NormVec,nSides
-USE MOD_Mesh_Vars,           ONLY: Face_xGP,NormVec,TangVec1,TangVec2,SurfElem,Ja_Face
+USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
 USE MOD_PreProc,             ONLY: PP_N
-USE MOD_Mesh_Vars,           ONLY: ElemToSide,SideToElem,BC,AnalyzeSide
+USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -353,45 +350,9 @@ DO iArgs = 2,nArgs
       U_first       = U
       N_State_first = N_State
 
-
-
-
-      ! fill ElemToSide, SideToElem,BC
-      ALLOCATE(ElemToSide(2,6,nElems))
-      ALLOCATE(SideToElem(5,nSides))
-      ALLOCATE(BC(1:nSides))
-      ALLOCATE(AnalyzeSide(1:nSides))
-      ElemToSide  = 0
-      SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
-      BC          = 0
-      AnalyzeSide = 0
-
-      interpolateFromTree=.FALSE.
       PP_N=N_State
-      ! allocate type Mesh
-      ! volume data
-      ALLOCATE(Elem_xGP      (3,0:N_State,0:N_State,0:N_State,nElems))
-      ALLOCATE(      dXCL_N(3,3,0:N_State,0:N_State,0:N_State,nElems)) ! temp
-      ALLOCATE(Metrics_fTilde(3,0:N_State,0:N_State,0:N_State,nElems))
-      ALLOCATE(Metrics_gTilde(3,0:N_State,0:N_State,0:N_State,nElems))
-      ALLOCATE(Metrics_hTilde(3,0:N_State,0:N_State,0:N_State,nElems))
-      ALLOCATE(sJ            (  0:N_State,0:N_State,0:N_State,nElems))
       NGeoRef=3*NGeo ! build jacobian at higher degree
-      ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
-
-      ! surface data
-      ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-      ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
-      ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
-      ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
-      ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
-      ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
-      Face_xGP=0.
-      NormVec=0.
-      TangVec1=0.
-      TangVec2=0.
-      SurfElem=0.
-
+      ALLOCATE(sJ            (  0:N_State,0:N_State,0:N_State,nElems))
       CALL CalcMetricsErrorDiff()
     ELSE IF(iArgs .EQ. nArgs .AND. CalcDiffSigma) THEN
       IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&

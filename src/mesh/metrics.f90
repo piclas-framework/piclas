@@ -740,39 +740,19 @@ END SUBROUTINE CalcElemLocalSurfMetrics
 
 SUBROUTINE CalcMetricsErrorDiff()
 !===================================================================================================================================
-!> This routine computes the geometries volume metric terms.
+!> This routine computes the geometries volume metric terms (sJ only!)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
-USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,dXCL_N
-USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
-USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
-USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
-USE MOD_Mesh_Vars,               ONLY:nElems,offSetElem
+USE MOD_Mesh_Vars,               ONLY:sJ
+USE MOD_Mesh_Vars,               ONLY:nElems
+USE MOD_Mesh_Vars,               ONLY:NodeCoords
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
-#ifdef PARTICLES
-#ifdef MPI
-USE MOD_Mesh_Vars,               ONLY:nSides
-#endif
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated
-USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Mesh_Vars,               ONLY:SideToElem
-USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
-USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
-                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifndef MPI
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*not MPI*/
-#endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -821,21 +801,8 @@ REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
 REAL    :: xi0(3),dxi(3),length(3)
 
-#ifdef PARTICLES
-INTEGER            :: iSide,lowerLimit,ElemID,SideID,NBElemID
-REAL               :: StartT2,BezierTime
-#endif /*PARTICLES*/
-REAL               :: StartT,EndT
+REAL    :: DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !===================================================================================================================================
-
-
-StartT=BOLTZPLATZTIME()
-
-! Prerequisites
-Metrics_fTilde=0.
-Metrics_gTilde=0.
-Metrics_hTilde=0.
-! 
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -865,17 +832,10 @@ CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo
 
 ! Outer loop over all elements
 detJac_Ref=0.
-dXCL_N=0.
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
-  IF(interpolateFromTree)THEN
-    xi0   =xiMinMax(:,1,iElem)
-    length=xiMinMax(:,2,iElem)-xi0
-    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,TreeCoords(:,:,:,:,ElemToTree(iElem)),XCL_Ngeo)
-  ELSE
-    CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
-  END IF
-  CALL   ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
 
   !1.b) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k))
   dXCL_NGeo=0.
