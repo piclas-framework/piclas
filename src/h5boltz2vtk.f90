@@ -84,9 +84,10 @@ CHARACTER(LEN=2)               :: NVisuString                       ! String con
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
                                                                     ! calculation with the following state files
+LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: VisuSource, DGSourceExists
+LOGICAL                        :: VisuSource, DGSourceExists, skip
 CHARACTER(LEN=40)              :: DefStr
 !==================================================================================================================================
 CALL InitMPI()
@@ -101,6 +102,7 @@ CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order infor
                                              "high-order data and treat curved meshes as linear meshes.", '.TRUE.')
 CALL prms%CreateLogicalOption('CalcDiffError',  "Use first state file as reference state for L2 error calculation "//&
                                                 "with the following state files.", '.TRUE.')
+CALL prms%CreateLogicalOption('AllowChangedMesh',"Neglect changes mesh, use inits of first mesh (ElemID must match!).", '.FALSE.')
 CALL prms%CreateLogicalOption('CalcDiffSigma',  "Use last state file as state for L2 sigma calculation.", '.FALSE.')
 CALL prms%CreateLogicalOption('CalcAverage',    "Calculate and write arithmetic mean of alle StateFile.", '.FALSE.')
 CALL prms%CreateLogicalOption('VisuSource',     "use DG_Source instead of DG_Solution.", '.FALSE.')
@@ -199,9 +201,11 @@ IF(CalcDiffError)THEN
   IF(nArgs.LT.3)CALL abort(__STAMP__,&
       'CalcDiffError needs a minimum of two state files!',iError)
   CalcDiffSigma  = GETLOGICAL('CalcDiffSigma','.FALSE.')
+  AllowChangedMesh  = GETLOGICAL('AllowChangedMesh','.FALSE.')
   CalcAverage    = .FALSE.
 ELSE
   CalcDiffSigma  = .FALSE.
+  AllowChangedMesh = .FALSE. !dummy(?)
   CalcAverage    = GETLOGICAL('CalcAverage','.FALSE.')
 END IF
 VisuSource    = GETLOGICAL('VisuSource','.FALSE.')
@@ -268,7 +272,12 @@ DO iArgs = 2,nArgs
   CALL CloseDataFile()
 
   ! Check if the mesh has changed
-  IF (TRIM(MeshFile).NE.TRIM(MeshFile_old)) THEN
+  IF(CalcDiffError.AND.(iArgs.GT.2).AND.AllowChangedMesh)THEN
+    skip=.TRUE.
+  ELSE
+    skip=.FALSE.
+  END IF
+  IF (.NOT.skip .AND. (TRIM(MeshFile).NE.TRIM(MeshFile_old))) THEN
     IF(CalcDiffError.AND.(iArgs.GT.2))CALL abort(__STAMP__,&
     'CalcDiffError needs identical meshes!',iError)
     IF(CalcAverage.AND.(iArgs.GT.2))CALL abort(__STAMP__,&
