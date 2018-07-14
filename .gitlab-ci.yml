@@ -450,6 +450,14 @@ gnu_convtest:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
+
+gnu_convtest_t:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
        
 gnu_poisson_turner:
   <<: *defaults_gnu
@@ -590,6 +598,14 @@ intel_convtest:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
+       
+intel_convtest_t:
+  <<: *defaults_intel
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
        
 intel_poisson_turner:
   <<: *defaults_intel
