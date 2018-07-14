@@ -596,7 +596,6 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_HDG*/
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
-#endif /*HDG-LSERK*/
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
