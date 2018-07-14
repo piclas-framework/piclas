@@ -24,7 +24,7 @@ LOGICAL           :: DoAnalyze                   !< perform analyze
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
 ! magnetic field
-LOGICAL           :: OutputNorms                 !< print L2 norms (DG state and particles if present)
+LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

@@ -400,7 +400,7 @@ SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputNorms
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if (PP_nVar>=6)
@@ -504,6 +504,7 @@ END IF
 IF(forceAnalyze.OR.Output)THEN
     CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
+    OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,CalcTime,L_2_Error)
   END IF

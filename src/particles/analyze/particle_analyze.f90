@@ -417,7 +417,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,L_2_Error_Part
-USE MOD_Analyze_Vars           ,ONLY: OutputNorms
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -979,11 +979,11 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
 #ifdef CODE_ANALYZE
   IF(DoInterpolationAnalytic)THEN
     CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-    IF(PartMPI%MPIRoot.AND.DoAnalyze.AND.OutputNorms) THEN
+    IF(PartMPI%MPIRoot.AND.DoAnalyze.AND.OutputErrorNorms) THEN
       WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
       WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
       WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
-      OutputNorms=.FALSE.
+      OutputErrorNorms=.FALSE.
     END IF
   END IF
   IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
