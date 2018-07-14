@@ -29,6 +29,9 @@ LOGICAL          :: DoDisplayIter                     !> flag if iterations are 
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
 REAL             :: dt_Min
+#if (defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509))
+REAL             :: dt_old
+#endif /*defined(IMPA) || defined(ROS) || (PP_TimeDiscMethod==509)*/
 #if (PP_TimeDiscMethod==201)
 REAL             :: dt_temp
 INTEGER          :: MaximumIterNum
@@ -387,7 +390,6 @@ REAL,PARAMETER  :: RK3_b(1:2) = (/RK3_b1,RK3_b2/)
 #ifdef IMPA
 ! || (PP_TimeDiscMethod==131)
 REAL               :: RK_inc(2:nRKStages), RK_inflow(2:nRKStages),RK_fillSF
-REAL               :: dt_old
 #endif /*IMPA*/
 #if (PP_TimeDiscMethod==130) 
 ! coefficients of Ianelli-Baker RO2-2
@@ -596,7 +598,7 @@ REAL,PARAMETER  :: RK_b6= 3.8766099456208400e1
 REAL,PARAMETER  :: RK_b(1:nRKStages) = (/RK_b1,RK_b2,RK_b3,RK_b4,RK_b5,RK_b6/)
 #endif
 #ifdef ROS
-REAL            :: dt_inv, dt_old
+REAL            :: dt_inv
 REAL            :: RK_inflow(2:nRKStages) ! required for boundary conditions
 #endif /*ROSENBROCK RK*/
 !===================================================================================================================================

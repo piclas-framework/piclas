@@ -145,9 +145,9 @@ USE MOD_Equation_Vars          ,ONLY: B
 USE MOD_Equation_Vars          ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*PP_HDG*/
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
-#endif /*HDG-LSERK*/
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
+USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef MPI
 ! only required for shape function??  only required for shape function??
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -177,11 +177,11 @@ REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||PP_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #else
 NotMappedSurfFluxParts=.FALSE.
-#endif /*HDG-LSERK*/
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 ! null field vector
 field=0.
 
@@ -594,9 +594,10 @@ USE MOD_Equation_Vars,        ONLY:B
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
 #endif /*PP_HDG*/
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*HDG-LSERK*/
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
@@ -620,11 +621,11 @@ REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||PP_HDG)*/
 LOGICAL                          :: NotMappedSurfFluxParts
 !===================================================================================================================================
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #else
 NotMappedSurfFluxParts=.FALSE.
-#endif /*HDG-LSERK*/
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 FieldAtParticle=0.
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation

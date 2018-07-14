@@ -96,6 +96,7 @@ IF (ALLOCSTAT.NE.0) THEN
   ,'ERROR in pic_depo.f90: Cannot allocate PartSource!')
 END IF
 PartSource=0.
+PartSourceConstExists=.FALSE.
 
 !--- check if chargedensity is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
@@ -201,6 +202,7 @@ CASE('shape_function','shape_function_simple')
     SFdepoFixesEps = GETREAL('PIC-SFdepoFixesEps','0.')
     SDEALLOCATE(SFdepoFixesGeo)
     SDEALLOCATE(SFdepoFixesChargeMult)
+    SDEALLOCATE(SFdepoFixesPartOfLink)
     SDEALLOCATE(SFdepoFixesBounds)
     ALLOCATE(SFdepoFixesGeo(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(base,normal);1:3(x,y,z)
     IF (ALLOCSTAT.NE.0) THEN
@@ -253,6 +255,7 @@ CASE('shape_function','shape_function_simple')
     END DO
     NbrOfSFdepoFixLinks = GETINT('PIC-NbrOfSFdepoFixLinks','0')
     IF (NbrOfSFdepoFixLinks.GT.0) THEN
+      SDEALLOCATE(SFdepoFixLinks)
       ALLOCATE(SFdepoFixLinks(1:NbrOfSFdepoFixLinks,1:3),STAT=ALLOCSTAT)
       IF (ALLOCSTAT.NE.0) THEN
         CALL abort(&
@@ -310,6 +313,7 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(SFdepoLayersSpace)
     SDEALLOCATE(SFdepoLayersBaseVector)
     SDEALLOCATE(SFdepoLayersSpec)
+    SDEALLOCATE(SFdepoLayersMPF)
     SDEALLOCATE(SFdepoLayersPartNum)
     SDEALLOCATE(SFdepoLayersRadius)
     ALLOCATE(SFdepoLayersGeo(1:NbrOfSFdepoLayers,1:2,1:3),STAT=ALLOCSTAT)  !1:nLayers;1:2(base,normal);1:3(x,y,z)
@@ -342,6 +346,11 @@ CASE('shape_function','shape_function_simple')
       CALL abort(__STAMP__, &
         'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersSpec!')
     END IF
+    ALLOCATE(SFdepoLayersMPF(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersMPF!')
+    END IF
     ALLOCATE(SFdepoLayersPartNum(1:NbrOfSFdepoLayers),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
@@ -353,6 +362,9 @@ CASE('shape_function','shape_function_simple')
         'ERROR in pic_depo.f90: Cannot allocate SFdepoLayersRadius!')
     END IF
     SFdepoLayersRadius=0. !not used for cuboid...
+    SFdepoLayersAlreadyDone=.FALSE.
+    ConstantSFdepoLayers=GETLOGICAL('PIC-ConstantSFdepoLayers','.FALSE.')
+    IF (ConstantSFdepoLayers) PartSourceConstExists=.TRUE.
     DO iSFfix=1,NbrOfSFdepoLayers
 #if !(defined (PP_HDG) && (PP_nVar==1))
       CALL abort(__STAMP__, &
@@ -531,12 +543,17 @@ CASE('shape_function','shape_function_simple')
       END SELECT
       SFdepoLayersChargedens = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-Chargedens','1.')
       SFdepoLayersSpec(iSFFix) = GETINT('PIC-SFdepoLayers'//TRIM(hilf)//'-Spec','1')
+      WRITE(UNIT=hilf2,FMT='(E16.8)') Species(SFdepoLayersSpec(iSFfix))%MacroParticleFactor
+      SFdepoLayersMPF(iSFfix)   = GETREAL('PIC-SFdepoLayers'//TRIM(hilf)//'-MPF',TRIM(hilf2))
       IF (.NOT.LayerOutsideOfBounds) THEN
         SFdepoLayersGeo(iSFfix,2,:) = SFdepoLayersGeo(iSFfix,2,:)*r_sf
         IF (SFdepoLayersPartNum(iSFfix).LE.0.) CALL abort(__STAMP__&
           ,' Volume of SFdepoLayersXX is zero for Layer ',iSFfix)
         SFdepoLayersPartNum(iSFfix) = SFdepoLayersPartNum(iSFfix)*r_sf &
-          * SFdepoLayersChargedens/Species(SFdepoLayersSpec(iSFFix))%MacroParticleFactor
+          * SFdepoLayersChargedens/SFdepoLayersMPF(iSFfix)
+        IF (SFdepoLayersPartNum(iSFfix)+1.0 .GT. HUGE(iSFfix)) CALL abort(__STAMP__, &
+          ' ERROR in SFdepoLayer: number of to-be inserted particles exceeds max INT. Layer/factor: ',iSFfix, &
+          (SFdepoLayersPartNum(iSFfix)+1.0)/REAL(HUGE(iSFfix)))
         SWRITE(*,'(E12.5,A,I0)') SFdepoLayersPartNum(iSFfix), &
           ' additional particles will be inserted for SFdepoLayer ',iSFfix
         IF (ChangeOccured) THEN
@@ -593,8 +610,14 @@ CASE('shape_function','shape_function_simple')
     IF (LastAnalyzeSurfCollis%Restart) THEN
       LastAnalyzeSurfCollis%DSMCSurfCollisRestartFile = GETSTR('PIC-SFResampleRestartFile','dummy')
     END IF
+    !-- BCs
     LastAnalyzeSurfCollis%NumberOfBCs = GETINT('PIC-SFResampleNumberOfBCs','1')
-    ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs))
+    SDEALLOCATE(LastAnalyzeSurfCollis%BCs)
+    ALLOCATE(LastAnalyzeSurfCollis%BCs(1:LastAnalyzeSurfCollis%NumberOfBCs),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%BCs!')
+    END IF
     IF (LastAnalyzeSurfCollis%NumberOfBCs.EQ.1) THEN !already allocated
       LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',1,'0') ! 0 means all...
     ELSE     
@@ -605,6 +628,26 @@ CASE('shape_function','shape_function_simple')
         IF (iBC.NE.LastAnalyzeSurfCollis%NumberOfBCs) hilf2=TRIM(hilf2)//','
       END DO
       LastAnalyzeSurfCollis%BCs = GETINTARRAY('PIC-SFResampleSurfCollisBC',LastAnalyzeSurfCollis%NumberOfBCs,hilf2)
+    END IF
+    !-- spec for dt-calc
+    LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc = GETINT('PIC-SFResampleNbrOfSpeciesForDtCalc','1')
+    SDEALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc)
+    ALLOCATE(LastAnalyzeSurfCollis%SpeciesForDtCalc(1:LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate LastAnalyzeSurfCollis%SpeciesForDtCalc!')
+    END IF
+    IF (LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc.EQ.1) THEN !already allocated
+      LastAnalyzeSurfCollis%SpeciesForDtCalc = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',1,'0') ! 0 means all...
+    ELSE
+      hilf2=''
+      DO iBC=1,LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc !build default string: 0,0,0,...
+        WRITE(UNIT=hilf,FMT='(I0)') 0
+        hilf2=TRIM(hilf2)//TRIM(hilf)
+        IF (iBC.NE.LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc) hilf2=TRIM(hilf2)//','
+      END DO
+      LastAnalyzeSurfCollis%SpeciesForDtCalc &
+        = GETINTARRAY('PIC-SFResampleSpeciesForDtCalc',LastAnalyzeSurfCollis%NbrOfSpeciesForDtCalc,hilf2)
     END IF
   END IF
 
@@ -1100,6 +1143,15 @@ CASE DEFAULT
   ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
+IF (PartSourceConstExists) THEN
+  ALLOCATE(PartSourceConst(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate PartSourceConst!')
+  END IF
+  PartSourceConst=0.
+END IF
 OutputSource = GETLOGICAL('PIC-OutputSource','F')
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
@@ -1468,28 +1520,10 @@ CASE('shape_function','shape_function_simple')
     END DO ! iPart
   END IF ! usevMPF
   IF(.NOT.DoInnerParts)THEN
-    Vec1(1:3) = 0.
-    Vec2(1:3) = 0.
-    Vec3(1:3) = 0.
-#ifdef MPI
-    IF (NbrOfextParticles .GT. 0) THEN
-      IF (GEO%nPeriodicVectors.EQ.1) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.2) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.3) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-        Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-      END IF
-    END IF
-#endif /*MPI*/
 
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
     DO iLayer=1,NbrOfSFdepoLayers
+      IF (SFdepoLayersAlreadyDone) EXIT
       CALL RANDOM_NUMBER(RandVal)
       IF (SFdepoLayersPartNum(iLayer).GT.0.) THEN
         layerParts=INT(SFdepoLayersPartNum(iLayer)+RandVal)
@@ -1540,9 +1574,12 @@ CASE('shape_function','shape_function_simple')
           CYCLE !outside of bounds
         END IF
         CALL calcSfSource(1 &
-          ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*Species(SFdepoLayersSpec(iLayer))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,layerPartPos,iPart)
+          ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*SFdepoLayersMPF(iLayer)*w_sf &
+          ,Vec1,Vec2,Vec3,layerPartPos,iPart,const_opt=ConstantSFdepoLayers)
       END DO ! iPart
+      IF (iLayer.EQ.NbrOfSFdepoLayers .AND. ConstantSFdepoLayers) THEN
+        SFdepoLayersAlreadyDone=.TRUE.
+      END IF
     END DO ! iLayer=1,NbrOfSFdepoLayers
 
     !--SFResampleAnalyzeSurfCollis 
@@ -1608,6 +1645,19 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
 #endif /*MPI*/
+
+    !-- add const. PartSource (only once, i.e., during call with .NOT.DoInnerParts)
+    IF (PartSourceConstExists) THEN
+      DO iElem = 1, nElems
+        DO kk = 0, PP_N
+          DO ll = 0, PP_N
+            DO mm = 0, PP_N
+              PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
+            END DO !mm
+          END DO !ll
+        END DO !kk
+      END DO !iElem
+    END IF !PartSourceConstExists
   END IF !.NOT.DoInnerParts
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
@@ -3226,7 +3276,7 @@ END SUBROUTINE ComputeGaussDistance
 #endif
 
 
-SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo)
+SUBROUTINE calcSfSource(SourceSize_in,ChargeMPF,Vec1,Vec2,Vec3,PartPos,PartIdx,PartVelo,const_opt)
 !============================================================================================================================
 ! deposit charges on DOFs via shapefunction including periodic displacements and mirroring with SFdepoFixes
 !============================================================================================================================
@@ -3244,6 +3294,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)              :: SourceSize_in,PartIdx
 REAL, INTENT(IN)                 :: ChargeMPF,PartPos(3),Vec1(3),Vec2(3),Vec3(3)
 REAL, INTENT(IN), OPTIONAL       :: PartVelo(3)
+LOGICAL, INTENT(IN), OPTIONAL    :: const_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3262,7 +3313,13 @@ INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, i
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
 LOGICAL , ALLOCATABLE            :: SFdepoFixDone(:)
+LOGICAL                          :: const
 !----------------------------------------------------------------------------------------------------------------------------------
+IF (PRESENT(const_opt)) THEN
+  const=const_opt
+ELSE
+  const=.FALSE.
+END IF
 #if !(defined (PP_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
 #endif
@@ -3287,9 +3344,9 @@ IF (NbrOfSFdepoFixes.EQ.0) THEN
     Fac = Fac2
     SELECT CASE(TRIM(DepositionType))
     CASE('shape_function')
-      CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+      CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
     CASE('shape_function_simple')
-      CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac)
+      CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
     END SELECT
   END DO ! iCase (periodicity)
 ELSE ! NbrOfSFdepoFixes.NE.0
@@ -3388,9 +3445,9 @@ ELSE ! NbrOfSFdepoFixes.NE.0
             !------------- actual deposition:
             SELECT CASE(TRIM(DepositionType))
             CASE('shape_function')
-              CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac)
+              CALL depoChargeOnDOFs_sf(ShiftedPart,SourceSize,Fac,const)
             CASE('shape_function_simple')
-              CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac)
+              CALL depoChargeOnDOFs_sf_simple(ShiftedPart,SourceSize,Fac,const)
             END SELECT
           END DO ! iLinkRecursive
           IF (DoCycle) EXIT
@@ -3403,12 +3460,12 @@ END IF !NbrOfSFdepoFixes
 END SUBROUTINE calcSfSource
 
 
-SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac)
+SUBROUTINE depoChargeOnDOFs_sf(Position,SourceSize,Fac,const)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction
 !============================================================================================================================
 ! use MODULES                                                                                               
-USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, PartSourceConst
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
@@ -3427,6 +3484,7 @@ REAL, INTENT(IN)                 :: Fac(1:1)
 #else
 REAL, INTENT(IN)                 :: Fac(1:SourceSize)
 #endif
+LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3484,13 +3542,23 @@ DO kk = kmin,kmax
               DO expo = 3, alpha_sf
                 S1 = S*S1
               END DO
-              IF (SourceSize.EQ.1) THEN
-                PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+              IF (const) THEN
+                IF (SourceSize.EQ.1) THEN
+                  PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
-              ELSE IF (SourceSize.EQ.4) THEN
-                PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+                ELSE IF (SourceSize.EQ.4) THEN
+                  PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
-              END IF
+                END IF
+              ELSE !.NOT.const
+                IF (SourceSize.EQ.1) THEN
+                  PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+#if !(defined (PP_HDG) && (PP_nVar==1))
+                ELSE IF (SourceSize.EQ.4) THEN
+                  PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+#endif
+                END IF
+              END IF !const.
             END IF
           END DO; END DO; END DO
           chargedone(ElemID) = .TRUE.
@@ -3503,13 +3571,13 @@ END DO ! kk
 END SUBROUTINE depoChargeOnDOFs_sf
 
 
-SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac)
+SUBROUTINE depoChargeOnDOFs_sf_simple(Position,SourceSize,Fac,const)
 !============================================================================================================================
 ! actual deposition of single charge on DOFs via shapefunction_simple (i.e. loop through all elems instead of part-dependency: efficient for small elem-nbr!)
 !============================================================================================================================
 ! use MODULES                                                                                               
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
-USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf
+USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #ifdef MPI
@@ -3527,6 +3595,7 @@ REAL, INTENT(IN)                 :: Fac(1:1)
 #else
 REAL, INTENT(IN)                 :: Fac(1:SourceSize)
 #endif
+LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3567,13 +3636,23 @@ DO ElemID=1,PP_nElems
     DO expo = 3, alpha_sf
       S1 = S*S1
     END DO
-    IF (SourceSize.EQ.1) THEN
-      PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+    IF (const) THEN
+      IF (SourceSize.EQ.1) THEN
+        PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
-    ELSE IF (SourceSize.EQ.4) THEN
-      PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+      ELSE IF (SourceSize.EQ.4) THEN
+        PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
-    END IF
+      END IF
+    ELSE !.NOT.const
+      IF (SourceSize.EQ.1) THEN
+        PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+#if !(defined (PP_HDG) && (PP_nVar==1))
+      ELSE IF (SourceSize.EQ.4) THEN
+        PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
+#endif
+      END IF
+    END IF !const
   END DO; END DO; END DO
 END DO !ElemID=1,PP_nElems
   
@@ -3728,6 +3807,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 SDEALLOCATE(PartSource)
+SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(ElemDepo_xGP)
 SDEALLOCATE(Vdm_EquiN_GaussN)
