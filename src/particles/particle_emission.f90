@@ -1257,7 +1257,7 @@ __STAMP__&
                                            * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha 
          END IF
 
-!        2. calculate curved B-field at z-position in order to determin size of gyroradius
+!        2. calculate curved B-field at z-position in order to determine size of gyro radius
          IF (useVariableExternalField) THEN
             IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
               CALL abort(&
