@@ -835,9 +835,9 @@ __STAMP__&
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
+          WRITE(UNIT=hilf2,FMT='(I0)') iInit
+          hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            WRITE(UNIT=hilf2,FMT='(I0)') iInit
-            hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
@@ -852,7 +852,7 @@ __STAMP__&
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
-,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
             END IF
           END IF
         END DO !SurfaceFluxBCs
@@ -894,7 +894,7 @@ __STAMP__&
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
-,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
             END IF
             currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
             IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
