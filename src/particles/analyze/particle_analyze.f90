@@ -985,8 +985,8 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
       WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
       OutputErrorNorms=.FALSE.
     END IF
+    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
   END IF
-  IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
 #endif /*CODE_ANALYZE*/
   !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
   IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
@@ -3337,6 +3337,7 @@ END IF
 END SUBROUTINE WriteParticleTrackingData
 
 
+#ifdef CODE_ANALYZE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Write analytic particle info to ParticlePositionAnalytic.csv file
 !> time, pos, velocity
@@ -3345,10 +3346,11 @@ SUBROUTINE WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Globals          ,ONLY: abort
+USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Restart_Vars          ,ONLY: DoRestart
+USE MOD_Globals               ,ONLY: abort
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -3360,7 +3362,7 @@ REAL(KIND=8),INTENT(IN)          :: PartStateAnalytic(1:6)
 CHARACTER(LEN=28),PARAMETER              :: outfile='ParticlePositionAnalytic.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=7
+INTEGER,PARAMETER                        :: nOutputVar=13
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time',     &
     'PartPosX_Analytic', &
@@ -3368,7 +3370,14 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'PartPosZ_Analytic', &
     'PartVelX_Analytic', &
     'PartVelY_Analytic', &
-    'PartVelZ_Analytic'/)
+    'PartVelZ_Analytic', &
+    'L2_PartPosX'      , &
+    'L2_PartPosY'      , &
+    'L2_PartPosZ'      , &
+    'L2_PartVelX'      , &
+    'L2_PartVelY'      , &
+    'L2_PartVelZ'        &
+    /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2 
 CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
@@ -3424,7 +3433,13 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,PartStateAnalytic(3), &     ! PartPosZ analytic solution
       delimiter,PartStateAnalytic(4), &     ! PartVelX analytic solution
       delimiter,PartStateAnalytic(5), &     ! PartVelY analytic solution
-      delimiter,PartStateAnalytic(6)        ! PartVelZ analytic solution
+      delimiter,PartStateAnalytic(6), &     ! PartVelZ analytic solution
+      delimiter,L_2_Error_Part(1), &     ! L2 error for PartPosX solution
+      delimiter,L_2_Error_Part(2), &     ! L2 error for PartPosY solution
+      delimiter,L_2_Error_Part(3), &     ! L2 error for PartPosZ solution
+      delimiter,L_2_Error_Part(4), &     ! L2 error for PartVelX solution
+      delimiter,L_2_Error_Part(5), &     ! L2 error for PartVelY solution
+      delimiter,L_2_Error_Part(6)        ! L2 error for PartVelZ solution
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit) 
 ELSE
@@ -3432,6 +3447,8 @@ ELSE
 END IF
 
 END SUBROUTINE WriteParticleTrackingDataAnalytic
+#endif /* CODE_ANALYZE */
+
 
 Function CalcEkinPart(iPart)
 !===================================================================================================================================
