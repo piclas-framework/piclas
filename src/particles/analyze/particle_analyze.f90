@@ -4055,18 +4055,27 @@ END SUBROUTINE CalcAnalyticalParticleState
 
 !===================================================================================================================================
 !> Calculates "running" L_2 norms
-!> running means: use the old L_2 error from the previous iteration in order to determine the L_2 error over time (wall time)
+!> running means: use the old L_2 error from the previous iteration in order to determine the L_2 error over time (simulation time)
+!>
+!> -------------------------------------------------------------------------
+!> OLD METHOD: assuming constant timestep (ignoring the total time tEnd -> Delta t = tEnd / Niter)
 !> L_2(t) = SQRT( ( L_2(t-1)^2 * (iter-1) + delta(t)^2 ) / iter )
 !>
+!> -------------------------------------------------------------------------
+!> NEW METHOD: assuming variable timestep
+!> L_2(t) = SQRT(  L_2(t-1)^2   +   (t - t_old) * delta(t)^2  )
+!>
 !> t     : simulation time
+!> t_old : simulation time of the last iteration
 !> L_2   : error norm
 !> delta : difference numerical to analytical solution
 !> iter  : simulation iteration counter
 !===================================================================================================================================
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4085,13 +4094,23 @@ CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
 
 ! Depending on the iteration counter, set the L_2 error (re-use the value in the next loop)
 IF(iter.LT.1)THEN ! first iteration
-  L_2_Error_Part(1:6) = 0
+  L_2_Error_Part(1:6) = 0.
+  L_2_Error_Part_time = 0.
 ELSE
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       DO j = 1, 6
-        L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 )/ REAL(iter))
+        ! OLD METHOD: original
+        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 )/ REAL(iter))
+
+        ! OLD METHOD: considering TEnd
+        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 ) &
+        !                      / REAL(iter))
+
+        ! NEW METHOD: considering variable time step
+        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(i,j))**2 )
       END DO ! j = 1, 6
+      L_2_Error_Part_time = t
     ELSE
       L_2_Error_Part(1:6) = -1.0
     END IF
