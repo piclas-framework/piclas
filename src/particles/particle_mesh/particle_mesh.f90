@@ -248,7 +248,10 @@ ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'  Cannot allocate particle mesh vars!')
-
+! nullify
+PartElemToSide=-1
+PartSideToElem=-1
+PartElemToElemGlob=-1
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
@@ -1523,7 +1526,9 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
+SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
 CALL BuildElementBasis()
+SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
   ! compute distance between each side associated with  the element and its origin
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
@@ -4208,6 +4213,7 @@ IF(DoRefMapping)THEN
 ELSE
   ALLOCATE(epsOneCell(1:PP_nElems))
 END IF
+epsOneCell=0.
 
 nLoop=nTotalElems
 IF(.NOT.DoRefMapping) nLoop=PP_nElems
@@ -4540,10 +4546,11 @@ ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
                       ! if the connections points to an element which is not in MY region (MY elems + halo elems)
                       ! then this connection points to -1
 ALLOCATE(ElemToGlobalElemID(1:nTotalElems))
-
+! nullify
+PartElemToElemAndSide=-1
+ElemToGlobalElemID=-1
 
 ! now, map the PartElemToElemGlob to local elemids
-PartElemToElemAndSide=-1
 ! loop over all Elems and map the neighbor element to local coordinates
 DO iElem=1,nTotalElems
   IF(iElem.LE.nElems)THEN
@@ -4593,6 +4600,7 @@ DO iElem=1,nTotalElems
     ELSE
       BCSideID=SideID
     END IF
+    ! disable BCSideID, if it is NOT a periodic side
     IF(BCSideID.GT.0)THEN ! only BC faces 
       IF(SidePeriodicType(SideID).NE.0)THEN ! only periodic sides
         Vec1=SideNormVec(1:3,BCSideID)
@@ -4600,6 +4608,7 @@ DO iElem=1,nTotalElems
 __STAMP__&
         , ' Error in ElemConnectivity. No SideNormVec!',iElem,REAL(ilocSide))
       ELSE ! disable non-periodic  sides
+        Vec1=0.
         BCSideID=-1
       END IF
     END IF
@@ -4658,6 +4667,7 @@ __STAMP__&
             ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
             IF(ElemID.LE.0) CYCLE
             IF(ElemID.EQ.iElem) THEN
+              IF(iElem.EQ.49.AND.NBElemID.EQ.40) print*,'test'
               ! check if periodic side
               SideID=PartElemToSide(E2S_SIDE_ID,ilocSide2,NBElemID)    
               ! check for ref-mapping or tracing
@@ -5055,7 +5065,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
 LOGICAL                              :: MapPeriodicSides
-REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
+REAL                                 :: MinMax(1:2),MinMaxGlob(1:6),xTest(1:3)
 !===================================================================================================================================
 
 ! 1) loop over all sides and detect periodic sides
@@ -5138,16 +5148,25 @@ IF(MapPeriodicSides)THEN
   tmpnSides  =nTotalSides 
   nTotalSides=nTotalSides+nPartPeriodicSides
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  BezierControlPoints3d=-1.
   ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
+  BezierControlPoints3DElevated=-1.
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
+  SideSlabNormals=-1.
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides))
+  SideSlabIntervals=-1.
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides))
+  BoundingBoxIsEmpty=.FALSE.
   ALLOCATE(BC(1:nTotalSides))
+  BC=-3
   ALLOCATE(MortarSlave2MasterInfo(1:nTotalSides))
+  MortarSlave2MasterInfo=-1
   ALLOCATE(MortarType(1:2,1:nTotalSides))
+  MortarType=-1
   ALLOCATE(PartSideToElem(1:5,1:nTotalSides))
-  ALLOCATE(SidePeriodicType(1:nTotalSides))
   PartSideToElem=-1
+  ALLOCATE(SidePeriodicType(1:nTotalSides))
+  SidePeriodicType=0
   !ALLOCATE(SidePeriodicDisplacement(1:3,1:nTotalSides))
 
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
@@ -5197,6 +5216,22 @@ IF(MapPeriodicSides)THEN
         MortarSlave2MasterInfo(newSideID) = DummyMortarSlave2MasterInfo(iSide)
         PVID=SidePeriodicType(iSide)
         SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
+        ! rebuild sides for sanity
+        CALL GetBezierControlPoints3D(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),ElemID,ilocSide_In=locSideID,SideID_In=iSide)
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                             &
+                                           ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)     &
+                                           ,SideSlabNormals(1:3,1:3,iSide)                                             &
+                                           ,SideSlabInterVals(1:6,iSide)                                               &
+                                           ,BoundingBoxIsEmpty(iSide)                                                  )
+        ! sanity check
+        xTest(1:3) = BezierControlPoints3D(1:3,0,0,iSide)
+        xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+        IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(2)+1e-8.LT.MinMaxGlob(2)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(3)+1e-8.LT.MinMaxGlob(3)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(1)-1e-8.GT.MinMaxGlob(4)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(2)-1e-8.GT.MinMaxGlob(5)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(3)-1e-8.GT.MinMaxGlob(6)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
       END IF
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
@@ -5257,6 +5292,17 @@ IF(MapPeriodicSides)THEN
                                          ,SideSlabNormals(1:3,1:3,newSideID)                                         &
                                          ,SideSlabInterVals(1:6,newSideID)                                           &
                                          ,BoundingBoxIsEmpty(newSideID)                                              )
+
+      ! sanity check
+      xTest(1:3) = BezierControlPoints3D(1:3,0,0,newSideID)
+      PVID=SidePeriodicType(newSideID)
+      xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+      IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(2)+1e-8.LT.MinMaxGlob(2)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(3)+1e-8.LT.MinMaxGlob(3)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(1)-1e-8.GT.MinMaxGlob(4)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(2)-1e-8.GT.MinMaxGlob(5)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(3)-1e-8.GT.MinMaxGlob(6)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
     END IF
   END DO ! iSide=1,tmpnSides
   ! deallocate dummy  

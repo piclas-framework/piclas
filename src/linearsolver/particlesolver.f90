@@ -239,9 +239,9 @@ SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac
-USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
+                                     ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
+                                     ,MeshHasReflectiveBCs
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
@@ -285,9 +285,10 @@ REAL                         :: AbortCritLinSolver,gammaA,gammaB
 REAL                         :: Pt_tmp(1:6)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
-LOGICAL                      :: DoNewton
+LOGICAL                      :: DoNewton,reMap
 REAL                         :: AbortTol
 REAL                         :: LorentzFacInv
+REAL                         :: n_loc(1:3)
 INTEGER:: counter
 #if USE_LOADBALANCE
 REAL                         :: tLBStart
@@ -321,17 +322,35 @@ IF(opt)THEN ! compute zero state
   ! whole pt array
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
-      ! update the last part pos and element for particle movement
-      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
-      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      !! update the last part pos and element for particle movement
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      ! compute Lorentz force at particle's position
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      reMap=.FALSE.
+      IF(MeshHasReflectiveBCs)THEN
+        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
+          n_loc=PEM%NormVec(iPart,1:3)
+          ! particle is actually located outside, hence, it moves in the mirror field
+          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
+          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          ! and of coarse, the velocity has to be back-rotated, because the particle has not hit the wall
+          reMap=.TRUE.
+          PEM%NormVec(iPart,1:3)=0.
+        END IF
+      END IF
+      IF(PEM%PeriodicMoved(iPart)) THEN
+        reMap=.TRUE.
+        PEM%PeriodicMoved(iPart)=.FALSE.
+      END IF
+      IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      PEM%PeriodicMoved(iPart)=.FALSE.
+      IF(reMap)THEN
+        PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
+      END IF
+      ! update the last part pos and element for particle movement
+      LastPartPos(iPart,1)=PartStateN(iPart,1)
+      LastPartPos(iPart,2)=PartStateN(iPart,2)
+      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      ! HERE: rotate part to partstate back
       SELECT CASE(PartLorentzType)
       CASE(0)
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
@@ -377,10 +396,22 @@ ELSE
       !LastPartPos(iPart,2)=StagePartPos(iPart,2)
       !LastPartPos(iPart,3)=StagePartPos(iPart,3)
       !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      LastPartPos(iPart,1)=PartState(iPart,1)
-      LastPartPos(iPart,2)=PartState(iPart,2)
-      LastPartPos(iPart,3)=PartState(iPart,3)
-      PEM%lastElement(iPart)=PEM%Element(iPart)
+      LastPartPos(iPart,1)=PartStateN(iPart,1)
+      LastPartPos(iPart,2)=PartStateN(iPart,2)
+      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      reMap=.FALSE.
+      IF(MeshHasReflectiveBCs)THEN
+        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
+          reMap=.TRUE.
+          PEM%NormVec(iPart,1:3)=0.
+        END IF
+      END IF
+      IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
+      IF(reMap)THEN
+        PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
+      END IF
+      PEM%PeriodicMoved(iPart)=.FALSE.
     END IF ! ParticleInside
   END DO ! iPart
 END IF
@@ -423,6 +454,9 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   nInnerPartNewton=nInnerPartNewton+1
+  IF(DoPrintConvInfo)THEN
+    SWRITE(UNIT_StdOut,'(A,I0)') ' Particle Newton iteration: ',nInnerPartNewton
+  END IF
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! set abort crit      
@@ -657,8 +691,9 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,Norm_F_PartXk_old !,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept  &
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,Norm_F_PartXk_old,PartStateN &
+                                     ,MeshHasReflectiveBCs
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -710,6 +745,8 @@ LOGICAL                      :: Found
 REAL                         :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif 
+REAL                         :: n_loc(1:3), PartStateTmp(1:6)
+LOGICAL                      :: ReMap
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -720,16 +757,14 @@ DoSetLambda=.TRUE.
 PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
   IF(DoPartInNewton(iPart))THEN
-    ! update the last part pos and element for particle movement
-    !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-    !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-    !LastPartPos(iPart,3)=StagePartPos(iPart,3)
-    !PEM%lastElement(iPart)=PEM%StageElement(iPart)
     ! caution: PartXK has to be used instead of PartState
-    LastPartPos(iPart,1)=PartXK(1,iPart)
-    LastPartPos(iPart,2)=PartXK(2,iPart)
-    LastPartPos(iPart,3)=PartXK(3,iPart)
-    PEM%lastElement(iPart)=PEM%Element(iPart)
+    LastPartPos(iPart,1)=PartStateN(iPart,1)
+    LastPartPos(iPart,2)=PartStateN(iPart,2)
+    LastPartPos(iPart,3)=PartStateN(iPart,3)
+    PEM%lastElement(iPart)=PEM%ElementN(iPart)
+    ! and disable periodic movement
+    IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,:)=0.
+    PEM%PeriodicMoved(iPart)=.FALSE.
     ! new part: of Armijo algorithm: check convergence
     ! compute new function value
     CALL PartMatrixVector(t,Coeff,iPart,PartDeltaX(:,iPart),Xtilde) ! coeff*Ut+Source^n+1 ! only output
@@ -829,7 +864,26 @@ DO iPart=1,PDM%ParticleVecLength
       CYCLE
     END IF
 #endif /*MPI*/
+    ! compute lorentz force at particles position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+    reMap=.FALSE.
+    IF(MeshHasReflectiveBCs)THEN
+      IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
+        n_loc=PEM%NormVec(iPart,1:3)
+        ! particle is actually located outside, hence, it moves in the mirror field
+        FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
+        FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+        ! reset part state to the not-reflected position
+        !PEM%NormVec(iPart,1:3)=0.
+        reMap=.TRUE.
+      END IF
+    END IF
+    IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
+    IF(reMap)THEN
+      ! stoare old position within mesh || required for deposition
+      PartStateTmp(1:6) = PartState(iPart,1:6)
+      PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+    END IF
     SELECT CASE(PartLorentzType)
     CASE(0)
       Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
@@ -870,6 +924,7 @@ __STAMP__&
        DoPartInNewton(iPart)=.FALSE.
        PartLambdaAccept(iPart)=.TRUE.
        PartXK(1:6,iPart)=PartState(iPart,1:6)
+       PartDeltaX(1:6,iPart)=0.
     ELSE
       !IF(nInnerPartNewton.LT.5)THEN
       !  ! accept lambda
@@ -897,6 +952,7 @@ __STAMP__&
           PartLambdaAccept(iPart)=.TRUE.
           ! set  new position
           PartXK(1:6,iPart)=PartState(iPart,1:6)
+          PartDeltaX(1:6,iPart)=0.
           Norm_F_PartXK(iPart)=Norm_PartX
           IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
               DoPartInNewton(iPart)=.FALSE.
@@ -905,6 +961,7 @@ __STAMP__&
         END IF
   !    END IF ! nInnerPartNewton>1
     END IF
+    IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6) 
   END IF
 END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
@@ -950,55 +1007,13 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     END IF
 #endif /*MPI*/
       ! update the last part pos and element for particle movement
-      !LastPartPos(iPart,1)=StagePartPos(iPart,1)
-      !LastPartPos(iPart,2)=StagePartPos(iPart,2)
-      !LastPartPos(iPart,3)=StagePartPos(iPart,3)
-      ! step to large, reduced step is performed from PartXK again
-      ! set last-part again to PartXK, last element is still PEM%lastElement(iPart), has not changed yet
-      !PEM%lastElement(iPart)=PEM%StageElement(iPart)
-      LastPartPos(iPart,1)=PartXK(1,iPart)
-      LastPartPos(iPart,2)=PartXK(2,iPart)
-      LastPartPos(iPart,3)=PartXK(3,iPart)
-      ! verify integrity of lastElement due to MPI communication
-      ! prevent circular definition 
-      IF(PEM%LastElement(iPart).LT.0)THEN
-      !  tmpElemID=PEM%Element(iPart)
-      !  PartState(iPart,1:3)=PartXK(1:3,iPart)
-      !  IF(DoRefMapping)THEN
-      !    CALL SingleParticleToExactElement     (iPart,doHALO=.TRUE.,initFix=.FALSE.,doRelocate=.TRUE.)
-      !  ELSE
-      !    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
-      !  END IF
-      !  PEM%Element(iPart)=tmpElemID
-      !END IF
-        !  search old elemid
-        ! switch sign
-        PEM%LastElement(iPart)=-PEM%LastElement(iPart)
-        ! get local elem-id
-        IF(((PEM%LastElement(iPart)-offsetElem).LE.nElems) &
-          .AND.((PEM%LastElement(iPart)-offsetElem).GT.0))THEN
-          PEM%LastElement(iPart)=PEM%LastElement(iPart)-offsetElem
-#ifdef MPI
-        ELSE
-          GlobalElemID=PEM%LastElement(iPart)
-          Found=.FALSE.
-          DO iElem=nElems+1,nTotalElems
-            ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iElem)
-            GlobalElemID2=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iElem)
-            IF(GlobalElemID.EQ.GlobalElemID2)THEN
-              Found=.TRUE.
-              PEM%LastElement(iPart)=iElem
-              EXIT
-            END IF
-          END DO
-          IF(.NOT.Found) CALL abort(&
-  __STAMP__&
-  ,' Element-ID of PartXK is not found on process. increase halo region!')
-#endif /*MPI*/
-        END IF
-        ! set element back to old element, not required
-        ! PEM%Element(iPart)=PEM%LastElement(iPart)
-      END IF
+      LastPartPos(iPart,1)=PartStateN(iPart,1)
+      LastPartPos(iPart,2)=PartStateN(iPart,2)
+      LastPartPos(iPart,3)=PartStateN(iPart,3)
+      PEM%lastElement(iPart)=PEM%ElementN(iPart)
+      IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      PEM%PeriodicMoved(iPart)=.FALSE.
+      ! recompute part state
       PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
       PartLambdaAccept(iPart)=.FALSE.
     END IF ! ParticleInside
@@ -1015,7 +1030,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
     CALL ParticleRefTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
   ELSE
     IF (TriaTracking) THEN
-      CALL ParticleTriaTracking(doParticle_In=PartLambdaAccept(1:PDM%ParticleVecLength))
+      CALL ParticleTriaTracking(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength))
     ELSE
       CALL ParticleTracing(doParticle_In=.NOT.PartLambdaAccept(1:PDM%ParticleVecLength)) 
     END IF
@@ -1065,7 +1080,23 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         CYCLE
       END IF
 #endif /*MPI*/
+      ! compute lorentz-force at particle's position
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      reMap=.FALSE.
+      IF(MeshHasReflectiveBCs)THEN
+        IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
+          n_loc=PEM%NormVec(iPart,1:3)
+          ! particle is actually located outside, hence, it moves in the mirror field
+          FieldAtParticle(iPart,1:3)=FieldAtParticle(iPart,1:3)-2.*DOT_PRODUCT(FieldAtParticle(iPart,1:3),n_loc)*n_loc
+          FieldAtParticle(iPart,4:6)=FieldAtParticle(iPart,4:6)!-2.*DOT_PRODUCT(FieldAtParticle(iPart,4:6),n_loc)*n_loc
+          reMap=.TRUE.
+        END IF
+      END IF
+      IF(PEM%PeriodicMoved(iPart)) reMap=.TRUE.
+      IF(reMap)THEn
+        PartStateTmp(1:6) = PartState(iPart,1:6)
+        PartState(iPart,1:6)=PartXK(1:6,iPart)+lambda*PartDeltaX(1:6,iPart)
+      END IF
       SELECT CASE(PartLorentzType)
       CASE(0)
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
@@ -1101,6 +1132,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
         PartLambdaAccept(iPart)=.TRUE.
         ! set  new position
         PartXK(1:6,iPart)=PartState(iPart,1:6)
+        PartDeltaX(1:6,iPart)=0.
         Norm_F_PartXK(iPart)=Norm_PartX
         IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
            DoPartInNewton(iPart)=.FALSE.
@@ -1110,6 +1142,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
           PartLambdaAccept(iPart)=.TRUE.
           ! set  new position
           PartXK(1:6,iPart)=PartState(iPart,1:6)
+          PartDeltaX(1:6,iPart)=0.
           Norm_F_PartXK(iPart)=Norm_PartX
           IF((Norm_F_PartXK(iPart).LT.AbortTol*Norm_F_PartX0(iPart)).OR.(Norm_F_PartXK(iPart).LT.1e-12)) &
             DoPartInNewton(iPart)=.FALSE.
@@ -1131,6 +1164,8 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
           PartLambdaAccept(iPart)=.TRUE.
         END IF
       END IF ! DoFullNewton
+      ! remap is performed for deposition
+      IF(reMap) PartState(iPart,1:6) = PartStateTmp(1:6) 
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
