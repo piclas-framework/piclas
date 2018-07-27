@@ -74,6 +74,7 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Flag to calculate P
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Flag to compute the ionization degree in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Flag to compute the points per shape function in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Flag to compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Flag to compute the HDG time step in each cell','.FALSE.')
@@ -154,6 +155,7 @@ SUBROUTINE InitParticleAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars 
@@ -164,13 +166,17 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_DSMC_Vars             ,ONLY: Adsorption
 #endif
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_PICDepo_Vars          ,ONLY: r_sf
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: dir, VeloDirs_hilf(4)
+INTEGER   :: dir, VeloDirs_hilf(4),iElem
+REAL      :: DOF,VolumeShapeFunction
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -197,6 +203,23 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
+
+! Average number of points per shape function: max. number allowed is (PP_N+1)^3
+CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
+IF(CalcPointsPerShapeFunction)THEN
+  ALLOCATE( PPSCell(1:PP_nElems) )
+  PPSCell=0.0
+  CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
+  VolumeShapeFunction = 4./3.*PI*(r_sf**3)
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('VolumeShapeFunction')   &
+                                                    ,' | ',VolumeShapeFunction   ,' | ',TRIM('OUTPUT'),' | '
+  DOF                 = REAL((PP_N+1)**3)
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Max DOFs in Shape-Function per cell')   &
+                                                    ,' | ',DOF   ,' | ',TRIM('OUTPUT'),' | '
+  DO iElem = 1, nElems
+    PPSCell(iElem) = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+  END DO ! iElem = 1, nElems
+END IF
 !--------------------------------------------------------------------------------------------------------------------
 ! get derived particle properties 
 ! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
