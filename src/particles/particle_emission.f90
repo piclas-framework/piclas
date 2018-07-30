@@ -504,7 +504,11 @@ DO i=1,nSpecies
 #endif
           Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
         CASE(2)    ! Emission Type: Particles per Iteration
-          NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+          IF (RKdtFracTotal .EQ. 1.) THEN !insert in last stage only, so that no reconstruction is nec. and number/iter matches
+            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+          ELSE
+            NbrOfParticle = 0
+          END IF
         CASE(3)
           CALL abort(&
 __STAMP__&
@@ -1253,7 +1257,7 @@ __STAMP__&
                                            * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha 
          END IF
 
-!        2. calculate curved B-field at z-position in order to determin size of gyroradius
+!        2. calculate curved B-field at z-position in order to determine size of gyro radius
          IF (useVariableExternalField) THEN
             IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
               CALL abort(&
@@ -1663,7 +1667,10 @@ __STAMP__&
             ELSE
                PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
             END IF
-            IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+            IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
+              PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+              PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
+            END IF
          ELSE
            CALL abort(&
 __STAMP__&
@@ -2106,7 +2113,10 @@ __STAMP__,&
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
        END IF
-       IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+       IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
+         PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
+       END IF
     ELSE
       CALL abort(&
 __STAMP__&
@@ -3627,9 +3637,8 @@ USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles
-#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
-#endif
+USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
@@ -3791,6 +3800,13 @@ DO iSpec=1,nSpecies
   END IF
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%nSurfacefluxBCs = GETINT('Part-Species'//TRIM(hilf)//'-nSurfacefluxBCs','0')
+  IF (useDSMC) THEN
+    IF (BGGas%BGGasSpecies.EQ.iSpec) THEN
+      IF (Species(iSpec)%nSurfacefluxBCs.GT.0 .OR. nAdaptiveBC.GT.0) CALL abort(&
+__STAMP__&
+, 'SurfaceFlux or AdaptiveBCs are not implemented for the BGG-species!')
+    END IF
+  END IF
   ! if no surfacefluxes defined and only adaptive boundaries then first allocation with adaptive
   IF ((Species(iSpec)%nSurfacefluxBCs.EQ.0) .AND. (nAdaptiveBC.GT.0)) THEN
     Species(iSpec)%nSurfacefluxBCs = nAdaptiveBC
@@ -4502,9 +4518,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
-#if defined(IMPA) || defined(ROS)
-DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE')
-#endif
+DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE.')
 
 #ifdef MPI
 CALL MPI_BARRIER(PartMPI%COMM,iError)
@@ -5917,6 +5931,7 @@ __STAMP__,&
         PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+        PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
         PEM%Element(ParticleIndexNbr) = iElem
         ichunkSize = ichunkSize + 1
       ELSE

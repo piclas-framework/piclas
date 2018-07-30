@@ -409,8 +409,11 @@ USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps
 USE MOD_Mesh_Vars,               ONLY:offsetElem
 #if defined(IMPA)
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,LastPartPos
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif
+#if defined(IMAP) || defined(ROS)
+USE MOD_Particle_Vars,           ONLY:PEM,LastPartPos
+#endif /*IMPA or ROS*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -545,8 +548,11 @@ __STAMP__&
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartisImplicit(PartID)
-      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
 #endif
+#if defined(IMAP) || defined(ROS)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' last?', LastPartPos(PartID,1:3)
+      IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' ElemID-N', PEM%ElementN(PartID)+offSetElem
+#endif /*IMPA or ROS*/
         CALL abort(&
   __STAMP__&
   ,'Particle Not inSide of Element, ElemID,',ElemID)
