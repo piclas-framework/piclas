@@ -74,6 +74,9 @@ CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAve
 !CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
+#endif /* CODE_ANALYZE */
 #ifndef PARTICLES
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
@@ -613,12 +616,7 @@ IF (DoAnalyze)  THEN
          CALL AnalyzeParticles(OutputTime)
    END IF
   END IF
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
   IF(LastIter) CALL AnalyzeParticles(OutputTime)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
-#endif
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
@@ -844,7 +842,7 @@ SUBROUTINE CodeAnalyzeOutput(TIME)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
+USE MOD_Analyze_Vars            ,ONLY:DoAnalyze,DoCodeAnalyzeOutput
 USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
@@ -863,6 +861,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
+IF(.NOT.DoCodeAnalyzeOutput) RETURN ! check if the output is to be skipped and return if true
 
 IF ( DoRestart ) THEN
   isRestart = .true.
