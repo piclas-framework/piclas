@@ -2107,6 +2107,7 @@ USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo
+USE MOD_Particle_Tracking,       ONLY:ParticleSanityCheck
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
@@ -3068,7 +3069,6 @@ DO iStage=2,nRKStages
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
       CALL ParticleSanityCheck(iPart)
-    END IF
   END DO
 #endif
 
