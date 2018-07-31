@@ -616,7 +616,12 @@ IF (DoAnalyze)  THEN
          CALL AnalyzeParticles(OutputTime)
    END IF
   END IF
+#if defined(LSERK)
+  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
   IF(LastIter) CALL AnalyzeParticles(OutputTime)
+#else
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
+#endif
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
