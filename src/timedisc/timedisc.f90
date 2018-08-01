@@ -3069,7 +3069,7 @@ DO iStage=2,nRKStages
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
      CALL ParticleSanityCheck(iPart)
   END DO
-#endif
+#endif /*CODE_ANALYZE*/
 
 #endif /*PARTICLES*/
 END DO
@@ -3496,7 +3496,7 @@ END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif
+#endif /*PARTICLES*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 1 - initialization && first linear solver 
@@ -3527,38 +3527,6 @@ IF(time.GE.DelayTime)THEN
         IF(PDM%IsNewPart(iPart))THEN
           ! initialize of surface-flux particles
           IF(DoPrintConvInfo) nParts=nParts+1
-          !! nullify
-          !PartStage(iPart,1:6,:)=0.
-          !! f(u^n) for position
-          !PartStage(iPart,1:3,1)=PartState(iPart,4:6)
-          !IF(PartLorentzType.EQ.5)THEN
-          !  LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
-          !  LorentzFac=1.0/SQRT(LorentzFac)
-          !  PartState(iPart,4) = LorentzFac*PartState(iPart,4)
-          !  PartState(iPart,5) = LorentzFac*PartState(iPart,5)
-          !  PartState(iPart,6) = LorentzFac*PartState(iPart,6)
-          !END IF
-          ! CAUTION: position in reference space has to be computed during emission for implicit particles
-          ! interpolate field at surface position
-          ! CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-          ! ! RHS at interface
-          ! SELECT CASE(PartLorentzType)
-          ! CASE(0)
-          !   Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          ! CASE(1)
-          !   Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          ! CASE(3)
-          !   Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          ! CASE(5)
-          !   Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-          ! CASE DEFAULT
-          ! END SELECT
-          ! f(u^n) for velocity
-          ! IF(.NOT.DoForceFreeSurfaceFlux) PartStage(iPart,4:6,1)=Pt(iPart,1:3)
-          ! position NOT known but we backup the state
-          !PartStateN(iPart,1:3) = PartState(iPart,1:3)
-          !! initial velocity equals velocity of surface flux
-          !PartStateN(iPart,4:6) = PartState(iPart,4:6) 
           ! gives entry point into domain
           CALL RANDOM_NUMBER(RandVal)
           PartDtFrac(iPart)=RandVal
@@ -3588,7 +3556,6 @@ IF(time.GE.DelayTime)THEN
     END IF
   END IF
 END IF
-
 
 IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
 ! communicate shape function particles for deposition
@@ -3756,7 +3723,7 @@ IF(time.GE.DelayTime)THEN
 END IF ! time.GE. DelayTime
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
-
+ 
 #ifndef PP_HDG
 ! LB measurement is performed within DGTimeDerivative_weakForm and LinearSolver (again DGTimeDerivative_weakForm)
 ! the copy time of the arrays is ignored within this measurement
@@ -4080,7 +4047,7 @@ IF(DoFieldUpdate)THEN
 END IF ! DoFieldUpdate
 #endif /*PARTICLES*/
 #endif /*NOT HDG->DG*/
-  
+   
 #ifdef PARTICLES
 ! particle step || only explicit particles
 IF (time.GE.DelayTime) THEN
@@ -4152,8 +4119,8 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (useDSMC) THEN
 #ifdef PARTICLES
+IF (useDSMC) THEN
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
