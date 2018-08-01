@@ -520,6 +520,7 @@ END IF
 ! and output during last iteration
 IF(LastIter) DoPerformAnalyze=.TRUE.
 
+! selection criterion for LSERK time discs
 #if defined(LSERK)
 ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
 ! is triggered with prolong-to-face, which would else be missing    
@@ -532,16 +533,20 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5) THEN
   ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
 END IF
-#else /* IMPA or ROS*/
-IF(.NOT.LastIter)THEN
-  IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5 .AND. .NOT. LastIter) DoPerformAnalyze=.TRUE.
-  IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5 .AND. .NOT. LastIter)       DoPerformAnalyze=.TRUE.
+#endif /*LSERK*/
+
+! selection criterion for normal RK methods, full stage schemes
+#if defined(ROS) || defined (IMPA) 
+IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
+IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
 #ifdef maxwell
-  ProlongToFaceNeeded=.TRUE.
+ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
-END IF
-#endif
-! remove analyze for restart file
+! remove duplicate output of last iteration
+IF(LastIter .AND. MOD(iter,PartAnalyzeStep).EQ.0) DoPerformAnalyze=.FALSE.
+#endif /* IMPA or ROS*/
+
+! remove analyze from restart, first file 
 IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
 
 !----------------------------------------------------------------------------------------------------------------------------------
