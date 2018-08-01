@@ -74,6 +74,7 @@ CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Flag to calculate P
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Flag to compute the ionization degree in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Flag to compute the points per shape function in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Flag to compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Flag to compute the HDG time step in each cell','.FALSE.')
@@ -154,6 +155,7 @@ SUBROUTINE InitParticleAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
 USE MOD_Particle_Analyze_Vars 
@@ -164,13 +166,17 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_DSMC_Vars             ,ONLY: Adsorption
 #endif
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_PICDepo_Vars          ,ONLY: r_sf
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: dir, VeloDirs_hilf(4)
+INTEGER   :: dir, VeloDirs_hilf(4),iElem
+REAL      :: DOF,VolumeShapeFunction
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -197,6 +203,23 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
+
+! Average number of points per shape function: max. number allowed is (PP_N+1)^3
+CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
+IF(CalcPointsPerShapeFunction)THEN
+  ALLOCATE( PPSCell(1:PP_nElems) )
+  PPSCell=0.0
+  CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
+  VolumeShapeFunction = 4./3.*PI*(r_sf**3)
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('VolumeShapeFunction')   &
+                                                    ,' | ',VolumeShapeFunction   ,' | ',TRIM('OUTPUT'),' | '
+  DOF                 = REAL((PP_N+1)**3)
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Max DOFs in Shape-Function per cell')   &
+                                                    ,' | ',DOF   ,' | ',TRIM('OUTPUT'),' | '
+  DO iElem = 1, nElems
+    PPSCell(iElem) = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+  END DO ! iElem = 1, nElems
+END IF
 !--------------------------------------------------------------------------------------------------------------------
 ! get derived particle properties 
 ! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
@@ -985,8 +1008,8 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
       WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
       OutputErrorNorms=.FALSE.
     END IF
+    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
   END IF
-  IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
 #endif /*CODE_ANALYZE*/
   !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
   IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
@@ -3337,6 +3360,7 @@ END IF
 END SUBROUTINE WriteParticleTrackingData
 
 
+#ifdef CODE_ANALYZE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Write analytic particle info to ParticlePositionAnalytic.csv file
 !> time, pos, velocity
@@ -3345,10 +3369,11 @@ SUBROUTINE WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
-USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Globals          ,ONLY: abort
+USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Restart_Vars          ,ONLY: DoRestart
+USE MOD_Globals               ,ONLY: abort
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -3360,7 +3385,7 @@ REAL(KIND=8),INTENT(IN)          :: PartStateAnalytic(1:6)
 CHARACTER(LEN=28),PARAMETER              :: outfile='ParticlePositionAnalytic.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=7
+INTEGER,PARAMETER                        :: nOutputVar=13
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time',     &
     'PartPosX_Analytic', &
@@ -3368,7 +3393,14 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'PartPosZ_Analytic', &
     'PartVelX_Analytic', &
     'PartVelY_Analytic', &
-    'PartVelZ_Analytic'/)
+    'PartVelZ_Analytic', &
+    'L2_PartPosX'      , &
+    'L2_PartPosY'      , &
+    'L2_PartPosZ'      , &
+    'L2_PartVelX'      , &
+    'L2_PartVelY'      , &
+    'L2_PartVelZ'        &
+    /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2 
 CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
@@ -3424,7 +3456,13 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,PartStateAnalytic(3), &     ! PartPosZ analytic solution
       delimiter,PartStateAnalytic(4), &     ! PartVelX analytic solution
       delimiter,PartStateAnalytic(5), &     ! PartVelY analytic solution
-      delimiter,PartStateAnalytic(6)        ! PartVelZ analytic solution
+      delimiter,PartStateAnalytic(6), &     ! PartVelZ analytic solution
+      delimiter,L_2_Error_Part(1), &     ! L2 error for PartPosX solution
+      delimiter,L_2_Error_Part(2), &     ! L2 error for PartPosY solution
+      delimiter,L_2_Error_Part(3), &     ! L2 error for PartPosZ solution
+      delimiter,L_2_Error_Part(4), &     ! L2 error for PartVelX solution
+      delimiter,L_2_Error_Part(5), &     ! L2 error for PartVelY solution
+      delimiter,L_2_Error_Part(6)        ! L2 error for PartVelZ solution
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit) 
 ELSE
@@ -3432,6 +3470,8 @@ ELSE
 END IF
 
 END SUBROUTINE WriteParticleTrackingDataAnalytic
+#endif /* CODE_ANALYZE */
+
 
 Function CalcEkinPart(iPart)
 !===================================================================================================================================
@@ -4038,18 +4078,27 @@ END SUBROUTINE CalcAnalyticalParticleState
 
 !===================================================================================================================================
 !> Calculates "running" L_2 norms
-!> running means: use the old L_2 error from the previous iteration in order to determine the L_2 error over time (wall time)
+!> running means: use the old L_2 error from the previous iteration in order to determine the L_2 error over time (simulation time)
+!>
+!> -------------------------------------------------------------------------
+!> OLD METHOD: assuming constant timestep (ignoring the total time tEnd -> Delta t = tEnd / Niter)
 !> L_2(t) = SQRT( ( L_2(t-1)^2 * (iter-1) + delta(t)^2 ) / iter )
 !>
+!> -------------------------------------------------------------------------
+!> NEW METHOD: assuming variable timestep
+!> L_2(t) = SQRT(  L_2(t-1)^2   +   (t - t_old) * delta(t)^2  )
+!>
 !> t     : simulation time
+!> t_old : simulation time of the last iteration
 !> L_2   : error norm
 !> delta : difference numerical to analytical solution
 !> iter  : simulation iteration counter
 !===================================================================================================================================
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -4068,13 +4117,23 @@ CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
 
 ! Depending on the iteration counter, set the L_2 error (re-use the value in the next loop)
 IF(iter.LT.1)THEN ! first iteration
-  L_2_Error_Part(1:6) = 0
+  L_2_Error_Part(1:6) = 0.
+  L_2_Error_Part_time = 0.
 ELSE
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       DO j = 1, 6
-        L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 )/ REAL(iter))
+        ! OLD METHOD: original
+        ! L_2_Error_Part(j) = SQRT( ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 )/ REAL(iter))
+
+        ! OLD METHOD: considering TEnd
+        ! L_2_Error_Part(j) = SQRT( Tend * ( (L_2_Error_Part(j))**2*REAL(iter-1) + (PartStateAnalytic(j)-PartState(i,j))**2 ) &
+        !                      / REAL(iter))
+
+        ! NEW METHOD: considering variable time step
+        L_2_Error_Part(j) = SQRT(  (L_2_Error_Part(j))**2 + (t-L_2_Error_Part_time)*(PartStateAnalytic(j)-PartState(i,j))**2 )
       END DO ! j = 1, 6
+      L_2_Error_Part_time = t
     ELSE
       L_2_Error_Part(1:6) = -1.0
     END IF
