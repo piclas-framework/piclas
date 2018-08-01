@@ -305,8 +305,12 @@ DO iELEM = 1, nElems
         iPoyntingSide = iPoyntingSide + 1
 
         ! check if dielectric regions are involved
-        IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
-          CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+        IF(PoyntingUseMuR_Inv)THEN
+          IF(isDielectricFace(SideID))THEN
+            CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+          ELSE
+            CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
+          END IF
         ELSE
           CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         END IF
