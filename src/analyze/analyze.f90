@@ -501,10 +501,11 @@ LastIter=.FALSE.
 IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! Determine if an analyze step is to be performed
+! Determine if an analyze step has to be performed
+! selection is identical with/without particles
 !----------------------------------------------------------------------------------------------------------------------------------
 DoPerformAnalyze=.FALSE.
-
+! check, if prolongtoface in CalcPoyntingIntegral is needed
 #ifdef maxwell
 ProlongToFaceNeeded=.FALSE.
 #endif /*maxwell*/
