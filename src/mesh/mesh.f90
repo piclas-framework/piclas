@@ -425,6 +425,13 @@ DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
 CALL AddToElemData(ElementOut,'myRank',IntScalar=MyRank)
+#ifdef PARTICLES
+ALLOCATE(ElemGlobalID(1:nElems))
+DO iElem=1,nElems
+  ElemGlobalID(iElem)=OffsetElem+iElem
+END DO ! iElem=1,nElems
+CALL AddToElemData(ElementOut,'ElemID',LongIntArray=ElemGlobalID)
+#endif /*PARTICLES*/
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -901,6 +908,7 @@ SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
+SDEALLOCATE(ElemGlobalID)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

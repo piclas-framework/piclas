@@ -1412,14 +1412,17 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       END IF
       LastAnalyzeSurfCollis%WallState(:,counter) = PartSpecData(iSpec,counter2,1:6)
       LastAnalyzeSurfCollis%Species(counter) = iSpec
-      LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
+      IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
+          ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
+        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
 
     IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
       CALL Abort(&
         __STAMP__,&
-        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
+        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!',&
+        999,LastAnalyzeSurfCollis%pushTimeStep)
     ELSE
       LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
       LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
@@ -1431,7 +1434,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
         CALL Abort(&
           __STAMP__,&
-          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
+          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',&
+          LastAnalyzeSurfCollis%PartNumberDepo,r_SF/LastAnalyzeSurfCollis%pushTimeStep)
       END IF
     END IF
   END IF !TotalNumberMPF.GT.0

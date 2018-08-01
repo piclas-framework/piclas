@@ -32,6 +32,20 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC")
 
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Use an analytic/algebraic function for PIC interpolation "//&
+                                                                   "(ifdef CODE_ANALYZE)",&
+                                                                   '.FALSE.')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-Type'   , "Type of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
+#endif /*CODE_ANALYZE*/
+
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Type of Interpolation-Method to calculate"//&
                                                                 " the EM field's value for the particle", 'particle_position')
@@ -145,6 +159,7 @@ CALL prms%CreateIntArrayOption( 'PIC-SFdepoFixLink[$]'     , 'TODO-DEFINE-PARAME
 CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoLayers'  ,    'TODO-DEFINE-PARAMETER\n'//&
                                                                     'Number of const. source layer for sf-depo'//&
                                                               ' at planar BCs', '0')
+CALL prms%CreateLogicalOption(  'PIC-ConstantSFdepoLayers'      , 'Do deposition of SFdepoLayers just once', '.FALSE.')
 CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PIC-SFdepoLayers[$]-Normal', 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-xmin'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -174,6 +189,8 @@ CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-Chargedens'        , 'TODO-
 CALL prms%CreateIntOption(      'PIC-SFdepoLayers[$]-Spec'        ,    'TODO-DEFINE-PARAMETER\n'//&
                                                                                    'Particle species for respective'//&
                                                                        ' layer','1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'PIC-SFdepoLayers[$]-MPF'        ,    'MPF for respective'//&
+                                                                       ' layer (def.: MPF of resp. species)', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&
@@ -187,6 +204,10 @@ CALL prms%CreateIntOption(      'PIC-SFResampleNumberOfBCs' ,        'TODO-DEFIN
                                                                                  'Number of BC to be analyzed', '1')
 CALL prms%CreateIntOption(      'PIC-SFResamplePartNumberReduced'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'Max. allowed number of parts to be saved', '0')
+CALL prms%CreateIntOption(      'PIC-SFResampleNbrOfSpeciesForDtCalc' ,        'TODO-DEFINE-PARAMETER\n'//&
+                                                                                 'Number of species used for SFResample-dt', '1')
+CALL prms%CreateIntArrayOption( 'PIC-SFResampleSpeciesForDtCalc',        'TODO-DEFINE-PARAMETER\n'//&
+                                                                                 'Species used for SFResample-dt (def.: 0 = all)')
 CALL prms%CreateLogicalOption(  'PIC-SFResampleRestart'     , 'TODO-DEFINE-PARAMETER\n'//&
                                                                      'Read-in old DSMCSurfCollis-file for restart'&
                                                             , '.FALSE.')

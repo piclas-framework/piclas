@@ -53,17 +53,20 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take 
                                                                              ! PartState(:,4:6) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
+#if (PP_TimeDiscMethod==509)
+LOGICAL               :: velocityOutputAtTime
+REAL    , ALLOCATABLE :: velocityAtTime(:,:)
+#endif /*(PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
-LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
                                                                              ! 1) time fraction of domain entering (surface flux)
                                                                              ! 2) fraction of time step for push (surface flux)
 #endif /*IMPA || ROS*/
 #if defined(IMPA)
-!REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
 LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
@@ -290,12 +293,17 @@ INTEGER                                  :: nSpecies                         ! n
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
+#if defined(IMPA) || defined(ROS)
+LOGICAL                                  :: MeshHasReflectiveBCs
+#endif
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
   INTEGER                , ALLOCATABLE   :: lastElement(:)  !      =>NULL()  ! Element number allocated
-!#if defined(IMPA)
-!  INTEGER                , ALLOCATABLE   :: StageElement(:)  !      =>NULL()  ! Element number allocated
-!#endif
+#if defined(IMPA) || defined(ROS)
+  INTEGER                , ALLOCATABLE   :: ElementN(:)  !      =>NULL()  ! Element number allocated
+  REAL                   , ALLOCATABLE   :: NormVec(:,:)  !      =>NULL()  ! Element number allocated
+  LOGICAL                , ALLOCATABLE   :: PeriodicMoved(:)                 ! flag, if the particle moved over periodic bcs
+#endif
                                                                              ! to each Particle at previous timestep
 !----------------------------------------------------------------------------!----------------------------------
                                                                              ! Following vectors are assigned in
