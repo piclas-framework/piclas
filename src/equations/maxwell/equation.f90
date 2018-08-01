@@ -467,9 +467,7 @@ REAL,PARAMETER                  :: Q=1, dD=1, omegaD=6.28318E8     ! aux. Consta
 REAL                            :: cos1,sin1,b1,b2                     ! aux. Variables for Gyrotron
 REAL                            :: eps,phi,z                       ! aux. Variables for Gyrotron
 REAL                            :: Er,Br,Ephi,Bphi,Bz,Ez           ! aux. Variables for Gyrotron
-!REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
-!REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
-!REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+!REAL, PARAMETER                 :: k0=3562.936537
 REAL                            :: SqrtN
 REAL                            :: omegaG,g,h,B0G
 REAL                            :: Bess_mG_R_R_inv,r_inv
@@ -830,8 +828,12 @@ CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary
     resu(7:8)=0.
   END IF
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
-  eps=1e-10
-  mG =34
+  g      = 3236.706462    ! aux. Constants for Gyrotron
+  B0G    = 1.0
+  h      = 1489.378411    ! aux. Constants for Gyrotron
+  omegaG = 3.562936537e+3 ! aux. Constants for Gyrotron
+  eps    = 1e-10
+  mG     = 34
   IF ((ExactFunction.EQ.51).AND.(x(3).GT.eps)) RETURN
   r=SQRT(x(1)**2+x(2)**2)
   phi = ATAN2(x(2),x(1))

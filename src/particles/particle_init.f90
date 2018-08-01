@@ -117,6 +117,10 @@ CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-P
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
                                                                  , '100000')
+#if (PP_TimeDiscMethod==509)
+CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
+#endif
+
 CALL prms%SetSection("IMD")
 ! IMD things
 CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
@@ -1027,7 +1031,7 @@ USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC
 USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC
+USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC, BGGas
 USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
@@ -1077,6 +1081,10 @@ REAL                  :: particlenumber_tmp
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
+#if (PP_TimeDiscMethod==509)
+velocityOutputAtTime = GETLOGICAL('velocityOutputAtTime','.FALSE.')
+#endif
+
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 !print*, "SFSDRWE#"
@@ -1088,6 +1096,17 @@ __STAMP__&
 END IF
 Pt_temp=0.
 #endif 
+#if (PP_TimeDiscMethod==509)
+IF (velocityOutputAtTime) THEN
+  ALLOCATE(velocityAtTime(1:PDM%maxParticleNumber,1:3), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR in particle_init.f90: Cannot allocate velocityAtTime array!')
+  END IF
+  velocityAtTime=0.
+END IF
+#endif /*(PP_TimeDiscMethod==509)*/
 
 #ifdef IMPA
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
@@ -1186,6 +1205,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif /* ROSENBROCK */
 
 #if IMPA
@@ -1203,15 +1243,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
-!         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
-! IF (ALLOCSTAT.NE.0) THEN
-!   CALL abort(&
-! __STAMP__&
-!   ,' Cannot allocate the stage position and element arrays!')
-! END IF
-! StagePartPos=0
-! PEM%StageElement=0
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif
 
 IF(DoRefMapping)THEN
@@ -2078,6 +2130,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+#if defined(IMPA) || defined(ROS)
+MeshHasReflectiveBCs=.FALSE.
+#endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
@@ -2127,6 +2182,9 @@ __STAMP__&
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
      PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp','0')
@@ -2176,6 +2234,9 @@ __STAMP__&
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
@@ -2695,6 +2756,55 @@ IF (nCollectChargesBCs .GT. 0) THEN
   END DO !iCC
 END IF !nCollectChargesBCs .GT. 0
 
+!-- reading BG Gas stuff
+!   (moved here from dsmc_init for switching off the initial emission)
+IF (useDSMC) THEN
+  BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
+  IF (BGGas%BGGasSpecies.NE.0) THEN
+    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
+      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
+__STAMP__&
+,'BGG species can be used ONLY for BGG!')
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%UseForInit .OR. Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission) THEN
+      SWRITE(*,*) 'WARNING: Emission was switched off for BGG species!'
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForInit=.FALSE.
+      Species(BGGas%BGGasSpecies)%Init(0)%UseForEmission=.FALSE.
+    END IF
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
+      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
+      !-- from MacroRestartFile (inner DOF not yet implemented!):
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
+__STAMP__&
+,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
+__STAMP__&
+,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
+      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
+        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
+        CALL abort(&
+__STAMP__&
+,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
+      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
+        CALL abort(&
+__STAMP__&
+,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
+      END IF
+    ELSE
+      !-- constant values (some from init0)
+      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
+      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
+__STAMP__&
+,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
+      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
+__STAMP__&
+,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+    END IF
+  END IF !BGGas%BGGasSpecies.NE.0
+END IF !useDSMC
+
 
 END SUBROUTINE InitializeVariables
 
@@ -2833,11 +2943,19 @@ IMPLICIT NONE
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
+#if (PP_TimeDiscMethod==509)
+IF (velocityOutputAtTime) THEN
+  SDEALLOCATE(velocityAtTime)
+END IF
+#endif /*(PP_TimeDiscMethod==509)*/
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
+SDEALLOCATE(PEM%ElementN)
+SDEALLOCATE(PEM%NormVec)
+SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/
 #if defined(IMPA)
 SDEALLOCATE(F_PartXk)

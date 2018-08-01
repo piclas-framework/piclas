@@ -116,6 +116,10 @@ USE MOD_Prepare_Mesh,           ONLY:exchangeFlip
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
+#if USE_LOADBALANCE 
+USE MOD_LoadBalance_Vars,       ONLY: DoLoadBalance
+USE MOD_Restart_Vars,           ONLY: DoInitialAutoRestart
+#endif /*USE_LOADBALANCE*/ 
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -177,6 +181,13 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
+#if USE_LOADBALANCE 
+IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
+  DoWriteStateToHDF5=.TRUE.
+  SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("Loadbalancing or InitialAutoRestart enabled ->")&
+    ,TRIM(" DoWriteStateToHDF5"),' | ',DoWriteStateToHDF5 ,' | ',TRIM("INFO"),' | '
+END IF
+#endif /*USE_LOADBALANCE*/ 
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
@@ -414,6 +425,13 @@ DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
 CALL AddToElemData(ElementOut,'myRank',IntScalar=MyRank)
+#ifdef PARTICLES
+ALLOCATE(ElemGlobalID(1:nElems))
+DO iElem=1,nElems
+  ElemGlobalID(iElem)=OffsetElem+iElem
+END DO ! iElem=1,nElems
+CALL AddToElemData(ElementOut,'ElemID',LongIntArray=ElemGlobalID)
+#endif /*PARTICLES*/
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -890,6 +908,7 @@ SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
+SDEALLOCATE(ElemGlobalID)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

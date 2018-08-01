@@ -466,6 +466,7 @@ INTEGER                          :: nVar2D, nVar2D_Spec, nVar2D_Total
 CHARACTER(LEN=255),ALLOCATABLE   :: SurfBCName_HDF5(:)
 LOGICAL                          :: SurfCalcDataExists, WallmodelExists
 INTEGER                          :: WallModel_HDF5
+REAL                             :: Version_HDF5
 !===================================================================================================================================
 
 IF (DoRestart) THEN
@@ -551,6 +552,15 @@ __STAMP__&
 __STAMP__&
 ,'Error in surface coverage init: attribute "nSpecies" does not exist!')
   END IF
+  ! check for given file version
+  CALL DatasetExists(File_ID,'File_Version',exists,attrib=.TRUE.)
+  IF (exists) THEN
+    CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=Version_HDF5)
+  ELSE
+    CALL abort(&
+__STAMP__&
+,'Error in surface coverage init: attribute "fileversion" does not exist!')
+  END IF
 
   ! check if Dataset SurfaceData exists and read from container
   CALL DatasetExists(File_ID,'SurfaceData',exists)
@@ -575,12 +585,16 @@ __STAMP__&
 __STAMP__&
 ,'Error in surface coverage init: number of surface sides in HDF5-file does not match!')
     ! number comes from boundary sampling, if wallmodel is used then nVar2d_Spec=4
-    nVar2D = 5
+    IF (Version_HDF5.GT.0.1)THEN
+      nVar2D = 6
+    ELSE
+      nVar2D = 5
+    END IF
     nVar2D_Spec = 4
     nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
     IF (nVarSurf_HDF5.NE.nVar2D_Total) CALL abort(&
 __STAMP__&
-,'Error in surface coverage init: number of variables in HDF5-file does not match (5+4*nSpecies)!')
+,'Error in surface coverage init: number of variables in HDF5-file does not match!')
     SDEALLOCATE(SurfState_HDF5)
     ALLOCATE(SurfState_HDF5(1:nVarSurf_HDF5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
     CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5,nSurfSample,nSurfSample,SurfMesh%nSides/)&

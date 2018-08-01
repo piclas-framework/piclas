@@ -307,7 +307,7 @@ END DO
 END FUNCTION
 
 
-SUBROUTINE CalcTimeAverage(Finalize,dt,t,tFuture)
+SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 !==================================================================================================================================
 !> Compute time averages by trapezoidal rule
 !==================================================================================================================================
@@ -331,7 +331,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)              :: Finalize               !< finalized trapezoidal rule and output file
 REAL,INTENT(IN)                 :: dt                     !< current timestep for averaging
 REAL,INTENT(IN)                 :: t                      !< current simulation time
-REAL,INTENT(IN)                 :: tFuture                !< future simulation time
+REAL,INTENT(IN)                 :: tPrevious              !< previous average time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem,iVar
@@ -430,7 +430,7 @@ END DO ! iElem
 IF(Finalize)THEN
   UAvg =UAvg /dtAvg
   UFluc=UFluc/dtAvg
-  CALL WriteTimeAverage(TRIM(MeshFile),t,tFuture,VarNamesAvgOut,VarNamesFlucOut,UAvg,UFluc,dtAvg,nVarAvg,nVarFluc)
+  CALL WriteTimeAverage(TRIM(MeshFile),t,tPrevious,VarNamesAvgOut,VarNamesFlucOut,UAvg,UFluc,dtAvg,nVarAvg,nVarFluc)
   UAvg=0.
   UFluc=0.
   dtAvg=0.

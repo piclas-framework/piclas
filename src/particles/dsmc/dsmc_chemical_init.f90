@@ -27,10 +27,11 @@ SUBROUTINE DSMC_chemical_init()
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,          ONLY : ChemReac,CollisMode, DSMC, QKBackWard, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY : ChemReac,CollisMode, DSMC, QKBackWard, SpecDSMC
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_PARTICLE_Vars,         ONLY : nSpecies
   USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -44,6 +45,7 @@ SUBROUTINE DSMC_chemical_init()
   INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss
   INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
+  LOGICAL               :: DoScat
   INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
 !===================================================================================================================================
   
@@ -119,8 +121,13 @@ __STAMP__&
     ALLOCATE(ChemReac%CEXb(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%MEXa(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%MEXb(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%ELa(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%ELb(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%DoScat(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 
+    DoScat = .false.
     DO iReac = 1, ReadInNumOfReact
       WRITE(UNIT=hilf,FMT='(I0)') iReac
       ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
@@ -133,10 +140,25 @@ __STAMP__&
       ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
       ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
       ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
-      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','0')
-      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','0')
-      ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
-      ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
+      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
+      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
+      ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
+      IF (ChemReac%DoScat(iReac)) THEN
+        DoScat = .true.
+        ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')        ! Passen diese Zeilen so?
+        ChemReac%ELb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELb','148.975')
+        ChemReac%TLU_FileName(iReac)        = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-TLU_FileName','0'))
+        IF(TRIM(ChemReac%TLU_FileName(iReac)).EQ.'0') THEN
+          CALL abort(__STAMP__,&
+            'Input Error: No file containing table lookup data for scattering simulation has been found.')
+        END IF 
+      ELSE
+        ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','-27.2')
+        ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
+      END IF
+      ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
+      ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
+
       ! Filling up ChemReac-Array for the given non-reactive dissociation partners
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
         IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
@@ -168,6 +190,8 @@ __STAMP__&
         END IF
       END IF
     END DO
+
+    IF (DoScat) CALL Init_TLU_Data()
 
     ! Calculation of stoichiometric coefficients and calculation of the heat of formation
     DO iReac = 1, ChemReac%NumOfReact
@@ -764,8 +788,9 @@ SUBROUTINE Calc_Arrhenius_Factors()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
+  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+  USE MOD_PARTICLE_Vars,      ONLY : nSpecies
   USE MOD_Globals_Vars,       ONLY : Pi
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
 ! IMPLICIT VARIABLE HANDLING
@@ -1099,9 +1124,8 @@ SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi
+USE MOD_Globals_Vars,       ONLY: Pi, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, QKBackWard, ChemReac, CollInf
-USE MOD_Particle_Vars,      ONLY: BoltzmannConst
 USE MOD_DSMC_ChemReact,     ONLY: gammainc
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1143,5 +1167,79 @@ USE MOD_DSMC_ChemReact,     ONLY: gammainc
   END DO
 END SUBROUTINE InitQKForwardReac
 
+SUBROUTINE Init_TLU_Data
+!===================================================================================================================================
+! Reads Scattering Angle Lookup Table from Test_Lookup_komplett.txt
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_DSMC_Vars,          ONLY : TLU_Data, ChemReac
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+
+!-- parameters
+INTEGER,PARAMETER             :: unit1=20
+DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
+DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
+
+!-- local variables
+INTEGER                       :: io_error1,read_error,iLine
+CHARACTER(LEN=1000000)        :: string1
+CHARACTER(LEN=10)             :: stringSelect
+INTEGER                       :: N_b, N_E
+DOUBLE PRECISION              :: real1, real2
+!===================================================================================================================================
+
+OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName(ChemReac%NumOfReact)),STATUS='old',ACTION='READ',IOSTAT=io_error1)
+IF ( io_error1 .EQ. 0) THEN
+  !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
+  iLine=0
+  DO
+    !----------------------------------Einlesen----------------------------------!
+    READ(unit1,'(A)',IOSTAT=read_error) string1
+    IF ( read_error .GT. 0) THEN
+      CALL abort(__STAMP__,&
+        'Chemistry - Error in Init_TLU_Data, Error:',read_error)
+    ELSE IF (read_error .LT. 0 ) THEN
+      EXIT ! Dateiende erreicht
+    ELSE
+      iLine=iLine+1
+      IF (iLine.EQ.1) THEN
+        READ(string1,*,IOSTAT=read_error) real1, real2
+        N_b=NINT(real1)
+        N_E=NINT(real2)
+        ALLOCATE( TLU_Data%Chitable(1:N_E,1:N_b))                                     
+        ALLOCATE( TLU_Data%deltabj(1:N_E))                                                   
+      ELSE IF (iLine.EQ.2) THEN
+        READ(string1,*,IOSTAT=read_error) TLU_Data%Emin, TLU_Data%Emax, TLU_Data%deltaE                      
+      ELSE IF (iLine.EQ.3) THEN
+        READ(string1,*,IOSTAT=read_error) TLU_Data%deltabj(1:N_E)                                 
+      ELSE IF (iLine.EQ.4 .OR. iLine.EQ.5) THEN
+        !dummy lines...
+      ELSE IF (iLine.GE.6 .AND. iLine.LE.N_b+5) THEN
+        READ(string1,*,IOSTAT=read_error) TLU_Data%Chitable(:,iLine-5)                
+      ELSE
+        CALL abort(__STAMP__,&
+          'Chemistry - Error in Init_TLU_Data, File too long, Error:',read_error)
+      END IF
+      IF ( read_error .NE. 0) THEN
+        !STOP "Datenfehler im gelesenen String!"
+        CALL abort(__STAMP__,&
+          'Chemistry - Error in Init_TLU_Data, Data error in loaded string,Error:',read_error)
+      END IF
+    END IF
+  END DO
+ELSE
+  !STOP "Datenfehler im gelesenen String!"
+        CALL abort(__STAMP__,&
+          'Chemistry - Error in Init_TLU_Data, Error while opening of Test_Lookup_komplett.txt, Error:',io_error1)
+  !WRITE(*,'(A,I0,A)') 'Beim Oeffenen der Datei Test_Lookup_komplett.txt ist Fehler Nr. ', io_error1,' aufgetreten!'
+END IF
+
+! Force Chi at N_b to be 0
+TLU_Data%Chitable(:,N_b) = 0
+
+CLOSE(unit=unit1)
+END SUBROUTINE Init_TLU_Data
 
 END MODULE MOD_DSMC_ChemInit

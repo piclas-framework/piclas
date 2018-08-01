@@ -20,12 +20,16 @@ INTERFACE InitAnalyze
   MODULE PROCEDURE InitAnalyze
 END INTERFACE
 
+INTERFACE FinalizeAnalyze
+  MODULE PROCEDURE FinalizeAnalyze
+END INTERFACE
+
 INTERFACE CalcError
   MODULE PROCEDURE CalcError
 END INTERFACE
 
-INTERFACE FinalizeAnalyze
-  MODULE PROCEDURE FinalizeAnalyze
+INTERFACE AnalyzeToFile
+  MODULE PROCEDURE AnalyzeToFile
 END INTERFACE
 
 INTERFACE PerformAnalyze
@@ -33,7 +37,7 @@ INTERFACE PerformAnalyze
 END INTERFACE
 
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
+PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
 PUBLIC::DefineParametersAnalyze
 
@@ -70,6 +74,9 @@ CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAve
 !CALL prms%CreateLogicalOption('doMeasureFlops',  "Set true to measure flop count, if compiled with PAPI.",&
                                                  !'.TRUE.')
 !CALL DefineParametersAnalyzeEquation()
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
+#endif /* CODE_ANALYZE */
 #ifndef PARTICLES
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
@@ -185,7 +192,7 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE CalcError(Time,L_2_Error)
+SUBROUTINE CalcError(time,L_2_Error)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -202,10 +209,10 @@ USE MOD_ChangeBasis,    ONLY:ChangeBasis3D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: Time
+REAL,INTENT(IN)               :: time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: L_2_Error(PP_nVar)   !< L2 error of the solution
+REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: iElem,k,l,m
@@ -275,7 +282,7 @@ IF(MPIroot) THEN
 END IF
 END SUBROUTINE CalcError
 
-SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
+SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
 !===================================================================================================================================
 ! Writes the L2-error norms to file.
 !===================================================================================================================================
@@ -283,15 +290,15 @@ SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars
+USE MOD_TimeDisc_Vars ,ONLY:iter
 USE MOD_Globals_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                :: TIME                         ! physical time
+REAL,INTENT(IN)                :: time                         ! physical time
 REAL,INTENT(IN)                :: CalcTime                     ! computational time
-INTEGER(KIND=8),INTENT(IN)     :: iter                         ! number of timesteps
 REAL,INTENT(IN)                :: L_2_Error(PP_nVar)           ! L2 error norms
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -389,15 +396,16 @@ AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
 
-SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter_In)
+SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputNorms
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
 USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif
@@ -451,9 +459,8 @@ USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)            :: t
+REAL,INTENT(IN)               :: OutputTime
 REAL,INTENT(IN)               :: tenddiff
-INTEGER(KIND=8),INTENT(INOUT) :: iter
 LOGICAL,INTENT(IN)            :: forceAnalyze,output
 LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -513,13 +520,14 @@ IF(forceAnalyze)                   DoPerformAnalyze=.TRUE.
 IF(forceAnalyze.OR.Output)THEN
     CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
-    CALL CalcError(t,L_2_Error)
-    IF (t.GE.tEnd) CALL AnalyzeToFile(t,CalcTime,iter,L_2_Error)
+    OutputErrorNorms=.TRUE.
+    CALL CalcError(OutputTime,L_2_Error)
+    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,CalcTime,L_2_Error)
   END IF
   IF(MPIroot) THEN
-    OutputNorms=.TRUE.
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',t
-    IF (t.GT.0.) THEN
+    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
+    IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
       WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
       WRITE(UNIT_StdOut,'(132("-"))')
@@ -537,7 +545,7 @@ IF (CalcPoyntingInt) THEN
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
-    CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
   ELSE
      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
 #if defined(LSERK)
@@ -545,27 +553,27 @@ IF (CalcPoyntingInt) THEN
       IF(iter.GT.1)THEN
         ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
         ! is triggered with prolong-to-face, which would else be missing    
-        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
-        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
+        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)  CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
       END IF
     ELSE
       ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
       ! is triggered with prolong-to-face, which would else be missing    
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
     END IF
 #else
     IF(.NOT.LastIter)THEN
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
+      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
     END IF
 #endif
   END IF ! ForceAnalyze
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  IF(LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
 #else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
 #endif
 #endif
 #if USE_LOADBALANCE
@@ -583,10 +591,10 @@ IF(RP_onProc) THEN
   IF(RPSkip)THEN
     RPSkip=.FALSE.
   ELSE
-    CALL RecordPoints(iter,t,forceAnalyze,Output)
+    CALL RecordPoints(OutputTime,forceAnalyze,Output)
   END IF
 #else
-  CALL RecordPoints(iter,t,forceAnalyze,Output)
+  CALL RecordPoints(OutputTime,forceAnalyze,Output)
 #endif /*LSERK*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
@@ -637,27 +645,27 @@ IF (DoAnalyze)  THEN
   ! analyze field
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
-    CALL AnalyzeField(t)
+    CALL AnalyzeField(OutputTime)
   ELSE
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
       IF(iter.GT.1)THEN
         ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
         IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
            .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeField(t)
+           CALL AnalyzeField(OutputTime)
       END IF
     ELSE
       ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
       IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeField(t)
+         CALL AnalyzeField(OutputTime)
     END IF
   END IF
 #if defined(LSERK)
   ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeField(t)
+  IF(LastIter) CALL AnalyzeField(OutputTime)
 #else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(t)
+  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(OutputTime)
 #endif
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
@@ -694,7 +702,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
 #endif
     iter_macvalout = 0
     DSMC%SampNum = 0
@@ -707,9 +715,9 @@ END IF
 
 ! write surface data for DSMC macroscopic values 
 IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides 
       SampWall(iSide)%State=0.
@@ -737,7 +745,7 @@ IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
@@ -748,7 +756,7 @@ IF(OutPut)THEN
     IF(WriteMacroVolumeValues)THEN
       iter_macvalout = iter_macvalout + 1
       IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
         iter_macvalout = 0
         DSMC%SampNum = 0
         DSMC_HOSolution = 0.0
@@ -776,9 +784,9 @@ IF(OutPut)THEN
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF ((.NOT. useLD).AND.(DSMC%NumOutput.GT.0)) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
     END IF
-    IF ((t.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN
+    IF ((OutputTime.GE.DelayTime).AND.(DSMC%NumOutput.GT.0)) THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
@@ -822,12 +830,12 @@ CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
 ! particle analyze
 IF (DoAnalyze)  THEN
   IF(forceAnalyze)THEN
-    CALL CodeAnalyzeOutput(t)
+    CALL CodeAnalyzeOutput(OutputTime)
   ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(t) 
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(OutputTime) 
   END IF
   IF(LastIter)THEN
-    CALL CodeAnalyzeOutput(t) 
+    CALL CodeAnalyzeOutput(OutputTime) 
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
@@ -855,7 +863,7 @@ SUBROUTINE CodeAnalyzeOutput(TIME)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
+USE MOD_Analyze_Vars            ,ONLY:DoAnalyze,DoCodeAnalyzeOutput
 USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
@@ -874,6 +882,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 !===================================================================================================================================
+IF(.NOT.DoCodeAnalyzeOutput) RETURN ! check if the output is to be skipped and return if true
 
 IF ( DoRestart ) THEN
   isRestart = .true.

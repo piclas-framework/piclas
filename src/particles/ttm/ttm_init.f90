@@ -106,7 +106,7 @@ USE MOD_Restart_Vars      ,ONLY: DoRestart
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Vars     ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_Equation_Vars     ,ONLY: eps0
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars      ,ONLY: RestartFile
@@ -765,10 +765,11 @@ SUBROUTINE InitIMD_TTM_Coupling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_PreProc
 USE MOD_TTM_Vars
 USE MOD_Globals_Vars  ,ONLY: ElectronCharge
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,BoltzmannConst,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
+USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
 USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn

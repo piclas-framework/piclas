@@ -1141,10 +1141,11 @@ IF(useDSMC)THEN
 END IF
 
 ! Create dataset attribute "SurfVarNames"
-nVar2D = 5
 IF (calcWallModel) THEN
+  nVar2D = 6
   nVar2D_Spec=4
 ELSE
+  nVar2D = 5
   nVar2D_Spec=1
 END IF
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
@@ -1187,6 +1188,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
+IF (calcWallModel) THEN
+  Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
+END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
@@ -1408,14 +1412,17 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       END IF
       LastAnalyzeSurfCollis%WallState(:,counter) = PartSpecData(iSpec,counter2,1:6)
       LastAnalyzeSurfCollis%Species(counter) = iSpec
-      LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
+      IF (ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.0) .OR. &
+          ANY(LastAnalyzeSurfCollis%SpeciesForDtCalc.EQ.LastAnalyzeSurfCollis%Species(counter))) &
+        LastAnalyzeSurfCollis%pushTimeStep = MIN( LastAnalyzeSurfCollis%pushTimeStep &
         , DOT_PRODUCT(LastAnalyzeSurfCollis%NormVecOfWall,LastAnalyzeSurfCollis%WallState(4:6,counter)) )
     END DO
 
     IF (LastAnalyzeSurfCollis%pushTimeStep .LE. 0.) THEN
       CALL Abort(&
         __STAMP__,&
-        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!')
+        'Error with SFResampleAnalyzeSurfCollis. Something is wrong with velocities or NormVecOfWall!',&
+        999,LastAnalyzeSurfCollis%pushTimeStep)
     ELSE
       LastAnalyzeSurfCollis%pushTimeStep = r_SF / LastAnalyzeSurfCollis%pushTimeStep !dt required for smallest projected velo to cross r_SF
       LastAnalyzeSurfCollis%PartNumberDepo = NINT(BCTotalFlowrateMPF * LastAnalyzeSurfCollis%pushTimeStep)
@@ -1427,7 +1434,8 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
       IF (LastAnalyzeSurfCollis%PartNumberDepo .GT. LastAnalyzeSurfCollis%PartNumThreshold) THEN
         CALL Abort(&
           __STAMP__,&
-          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',LastAnalyzeSurfCollis%PartNumberDepo)
+          'Error with SFResampleAnalyzeSurfCollis: PartNumberDepo .gt. PartNumThreshold',&
+          LastAnalyzeSurfCollis%PartNumberDepo,r_SF/LastAnalyzeSurfCollis%pushTimeStep)
       END IF
     END IF
   END IF !TotalNumberMPF.GT.0
@@ -1463,7 +1471,7 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
-DO iSurfSide=1,SurfMesh%nSides
+DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)

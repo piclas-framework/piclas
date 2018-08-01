@@ -84,6 +84,8 @@ CALL prms%CreateRealOption(     'Particles-DSMC-PartitionMaxTemp'&
 CALL prms%CreateRealOption(     'Particles-DSMC-PartitionInterval'&
                                           , 'Define temperature interval for pre-stored partition functions that are used for '//&
                                           'calculation of backwards rates', '10.0')
+CALL prms%CreateRealOption(     'Particles-DSMC-veloMinColl-Spec[$]' , 'min velo magn. for spec allowed to perform collision' , '0.' &
+                                          , numberedmulti=.TRUE.)
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors'&
                                           , 'Enables [TRUE] / disables [FALSE] the calculation and output of flow-field variable.\n'//&
@@ -347,21 +349,29 @@ CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Activation-Energy_K'  &
                                            'Activation energy (relativ to k_Boltzmann) for Reaction[$].', '0.' &
                                         , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXa'  &
-                                        , 'TODO-DEFINE-PARAMETER\n'//&
-                                          'CEX log-factor (g-dep. cross section in Angstrom (nReactions)', '0.'  &
-                                        ,  numberedmulti=.TRUE.)
+                                , 'CEX log-factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CEXb'  &
-                                        , 'TODO-DEFINE-PARAMETER\n'//&
-                                          'CEX const. factor (g-dep. cross section in Angstrom (nReactions)', '0.'  &
-                                        ,  numberedmulti=.TRUE.)
+                                , 'CEX const. factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DSMC-Reaction[$]-DoScat'  &
+                                , 'Perform scattering-based charge-exchange instead of isotropic '//&
+                                '(model of Samuel Araki by lookup table)', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELa'  &
+                                , 'with DoScat=T: EL log-factor '//&
+                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '-26.8' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DSMC-Reaction[$]-ELb'  &
+                                , 'with DoScat=T: EL const. factor '//&
+                                '(g&cut-off-angle-dep. cs in Angstrom, def.: value for Xe+)', '148.975' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXa'  &
-                                               , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'MEX log-factor (g-dep. cross section in Angstrom (nReactions)', '0.'  &
-                                        ,  numberedmulti=.TRUE.)
+                                , 'with DoScat=F: MEX log-factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '-27.2' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-MEXb'  &
-                                        , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'MEX const. factor (g-dep. cross section in Angstrom (nReactions)', '0.'  &
-                                        ,  numberedmulti=.TRUE.)
+                                , 'with DoScat=F: MEX const. factor '//&
+                                '(g-dep. cross section in Angstrom, def.: value for Xe+)', '175.269' , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
+                                , 'with DoScat=F: No TLU-File needed '//&
+                                '(def.: )', '0' , numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -373,11 +383,11 @@ SUBROUTINE InitDSMC()
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
 USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
-USE MOD_Globals_Vars,               ONLY : Pi
+USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_PARTICLE_Vars,              ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
 USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
@@ -429,6 +439,11 @@ IMPLICIT NONE
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
+  ALLOCATE(DSMC%veloMinColl(nSpecies))
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    DSMC%veloMinColl(iSpec) = GETREAL('Particles-DSMC-veloMinColl-Spec'//TRIM(hilf),'0.')
+  END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
 ! Partition functions are calculated for each species during initialization and stored for values starting with the
@@ -606,65 +621,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-  IF (BGGas%BGGasSpecies.NE.0) THEN
-    IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%nSurfacefluxBCs.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%initialParticleNumber.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ConstantPressure.NE.0. &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%PartDensity.NE.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ParticleEmission.NE.0 ) CALL abort(&
-__STAMP__&
-,'BGG species can be used ONLY for BGG!')
-    IF (Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.GT.0 &
-      .OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID .GT.0 ) THEN! &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.GT.0 &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID .GT.0 &
-      !.OR. Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.GT.0 ) THEN
-      !-- from MacroRestartFile (inner DOF not yet implemented!):
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTemperatureIC)) CALL abort(&
-__STAMP__&
-,'ElemTemperatureIC not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensityFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemPartDensity)) CALL abort(&
-__STAMP__&
-,'ElemPartDensity not defined in Init0 for BGG from MacroRestartFile!')
-      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityICFileID.LE.0 .OR. &
-        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemVelocityIC)) THEN
-        CALL abort(&
-__STAMP__&
-,'ElemVelocityIC not defined in Init0 for BGG from MacroRestartFile!')
-      ELSE IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') THEN !(use always Init 0 for BGG !!!)
-        CALL abort(&
-__STAMP__&
-,'only maxwell_lpn is implemened as velocity-distribution for BGG from MacroRestartFile!')
-      END IF
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVibFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTVib)) CALL abort(&
-!__STAMP__&
-!,'ElemTVib not defined in Init0 for BGG from MacroRestartFile!')
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRotFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTRot)) CALL abort(&
-!__STAMP__&
-!,'ElemTRot not defined in Init0 for BGG from MacroRestartFile!')
-!      IF(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElecFileID.LE.0 .OR. &
-!        .NOT.ALLOCATED(Species(BGGas%BGGasSpecies)%Init(0)%ElemTElec)) CALL abort(&
-!__STAMP__&
-!,'ElemTElec not defined in Init0 for BGG from MacroRestartFile!')
-    ELSE
-      !-- constant values (some from init0)
-      BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0.')
-      IF (BGGas%BGGasDensity.EQ.0.) CALL abort(&
-__STAMP__&
-,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
-      IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
-__STAMP__&
-,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
-    END IF
-  END IF !BGGas%BGGasSpecies.NE.0
+  !...moved to InitializeVariables!!!
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
@@ -1214,10 +1171,6 @@ __STAMP__&
       CALL abort(__STAMP__,&
               'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas')
     END IF
-    IF (BGGas%BGGasDensity.EQ.0) THEN
-      CALL abort(__STAMP__,&
-        'ERROR: Background gas density is not defined. Set Particles-DSMCBackgroundGasDensity (real number density) !')
-    END IF
     IF(SpecDSMC(BGGas%BGGasSpecies)%InterID.EQ.4) THEN
       CALL abort(__STAMP__,&
         'ERROR: Electrons as background gas are not yet available!!')
@@ -1301,14 +1254,15 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! Energy distribution according to dissertation of Laux (diatomic)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,              ONLY : abort
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC
+  USE MOD_Globals,               ONLY : abort
+  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,             ONLY : PartStateIntEn, SpecDSMC, DSMC
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-  USE MOD_DSMC_Vars,            ONLY : LD_MultiTemperaturMod
+  USE MOD_DSMC_Vars,             ONLY : LD_MultiTemperaturMod
 #endif
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species, PEM, Adaptive_MacroVal
+  USE MOD_Particle_Vars,         ONLY : Species, PEM, Adaptive_MacroVal
   USE MOD_Particle_Boundary_Vars,ONLY: PartBound
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+  USE MOD_DSMC_ElectronicModel,  ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1450,6 +1404,7 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
+SDEALLOCATE(DSMC%veloMinColl)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
@@ -1481,7 +1436,11 @@ SDEALLOCATE(ChemReac%CEXa)
 SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
 SDEALLOCATE(ChemReac%MEXb)
+SDEALLOCATE(ChemReac%ELa)
+SDEALLOCATE(ChemReac%ELb)
+SDEALLOCATE(ChemReac%DoScat)
 SDEALLOCATE(ChemReac%ReactInfo)
+SDEALLOCATE(ChemReac%TLU_FileName)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(CollInf%Coll_Case)

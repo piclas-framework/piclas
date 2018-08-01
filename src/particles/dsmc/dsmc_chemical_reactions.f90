@@ -17,6 +17,10 @@ INTERFACE simpleCEX
   MODULE PROCEDURE simpleCEX
 END INTERFACE
 
+INTERFACE simpleMEX
+  MODULE PROCEDURE simpleMEX
+END INTERFACE
+
 INTERFACE CalcReactionProb
   MODULE PROCEDURE CalcReactionProb
 END INTERFACE
@@ -29,7 +33,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_Chemistry, simpleCEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
+PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate, gammainc, CalcPartitionFunction
 !===================================================================================================================================
 
 CONTAINS
@@ -40,9 +44,10 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, BoltzmannConst, nSpecies
+  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
 ! IMPLICIT VARIABLE HANDLING
@@ -342,9 +347,10 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, PartPosRef, Species
+USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -414,6 +420,8 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
       END IF
       !Set new Species of new particle
       PDM%ParticleInside(React3Inx) = .true.
+      PDM%IsNewPart(React3Inx) = .true.
+      PDM%dtFracPush(React3Inx) = .FALSE.
       PartSpecies(React3Inx) = ProductReac(3)
       PartState(React3Inx,1:3) = PartState(React1Inx,1:3)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing
@@ -819,7 +827,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair)
+SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
 !===================================================================================================================================
 ! simple charge exchange interaction     
 ! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
@@ -828,6 +836,61 @@ SUBROUTINE simpleCEX(iReac, iPair)
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_Particle_Vars,         ONLY : PartSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+  LOGICAL, INTENT(IN), OPTIONAL :: resetRHS_opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: React1Inx, React2Inx
+  LOGICAL                       :: resetRHS
+!===================================================================================================================================
+
+  IF (PRESENT(resetRHS_opt)) THEN
+    resetRHS=resetRHS_opt
+  ELSE
+    resetRHS=.TRUE.
+  END IF
+
+  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+    React1Inx = Coll_pData(iPair)%iPart_p1
+    React2Inx = Coll_pData(iPair)%iPart_p2
+  ELSE
+    React2Inx = Coll_pData(iPair)%iPart_p1
+    React1Inx = Coll_pData(iPair)%iPart_p2
+  END IF
+  ! change species
+  PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
+  PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,2)
+
+  IF (resetRHS) THEN
+    ! deltaV particle 1
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
+    ! deltaV particle 2
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+  END IF
+
+END SUBROUTINE simpleCEX
+
+
+SUBROUTINE simpleMEX(iReac, iPair)
+!===================================================================================================================================
+! simple momentum exchange interaction     
+! ION(v1) + ATOM(v2) -> ION2(v1') + ATOM(v2')
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,               ONLY : abort
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData !, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -847,19 +910,18 @@ SUBROUTINE simpleCEX(iReac, iPair)
     React2Inx = Coll_pData(iPair)%iPart_p1
     React1Inx = Coll_pData(iPair)%iPart_p2
   END IF
-  ! change species
-  PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
-  PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,2)
-  ! deltaV particle 1
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
-  ! deltaV particle 2
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
-  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+  ! change species of educt-ion to product-ion
+  IF (Species(PartSpecies(React1Inx))%ChargeIC.NE.0. .AND. Species(PartSpecies(React2Inx))%ChargeIC.EQ.0.) THEN
+    PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,2)
+  ELSE IF (Species(PartSpecies(React2Inx))%ChargeIC.NE.0. .AND. Species(PartSpecies(React1Inx))%ChargeIC.EQ.0.) THEN
+    PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,1)
+  ELSE
+    CALL abort(&
+     __STAMP__&
+      ,'ERROR in simpleMEX: one of the products must be an ion!')
+  END IF
 
-END SUBROUTINE simpleCEX
+END SUBROUTINE simpleMEX
 
 
 SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
@@ -868,9 +930,9 @@ SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi, PlanckConst
+USE MOD_Globals_Vars,       ONLY: Pi, PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars,          ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY: BoltzmannConst, Species
+USE MOD_Particle_Vars,      ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
