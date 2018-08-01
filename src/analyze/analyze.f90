@@ -534,8 +534,8 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5) THEN
 END IF
 #else /* IMPA or ROS*/
 IF(.NOT.LastIter)THEN
-  IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
-  IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
+  IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5 .AND. .NOT. LastIter) DoPerformAnalyze=.TRUE.
+  IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5 .AND. .NOT. LastIter)       DoPerformAnalyze=.TRUE.
 #ifdef maxwell
   ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
