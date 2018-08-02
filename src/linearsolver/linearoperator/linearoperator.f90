@@ -153,9 +153,12 @@ USE MOD_DG_Vars,           ONLY:U,Ut
 USE MOD_DG,                ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,          ONLY:CalcSource
 USE MOD_Equation,          ONLY:DivCleaningDamping
-USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS,mass
+USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
+#if !defined(PP_HDG) && !defined(ROS)
+USE MOD_LinearSolver_Vars, ONLY:ImplicitSource
+#endif /*NO ROSENBROCK and no HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -412,13 +415,16 @@ USE MOD_PreProc
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_Equation_Vars,           ONLY:c2_inv
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,PartDtFrac
+USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck
-USE MOD_Particle_Vars,           ONLY:PartPosRef,PartState,PEM
+USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
+#ifndef ROS
+USE MOD_Particle_Vars,           ONLY:PartDtFrac
+#endif 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -435,7 +441,7 @@ REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
 REAL               :: LorentzFacInv
 !REAL               :: FieldAtParticle(1:6)
-REAL               :: typ_v_abs, XK_V, sign_XK_V
+!REAL               :: typ_v_abs,XK_V,sign_XK_V
 !===================================================================================================================================
 
 CALL PartVectorDotProduct(X,X,X_abs)

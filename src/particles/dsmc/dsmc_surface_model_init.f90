@@ -208,11 +208,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)               :: SurfaceFileName
 CHARACTER(32)                    :: hilf, hilf2
 INTEGER                          :: iSpec, iSide, iPartBound
 INTEGER                          :: SideID, PartBoundID
-REAL , ALLOCATABLE               :: Coverage_tmp(:,:)
 #if (PP_TimeDiscMethod==42)
 INTEGER                          :: idiff
 #endif
@@ -1159,8 +1157,10 @@ SUBROUTINE Init_SurfChem()
 USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
 USE MOD_DSMC_Vars              ,ONLY: Adsorption, SpecDSMC
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT, GETREALARRAY, GETINTARRAY
+#if !(USE_LOADBALANCE)
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1567,7 +1567,8 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                          :: iSide
 #ifdef MPI
-INTEGER                          :: iProc, SendArraySize, RecvArraySize
+INTEGER                          :: iProc
+INTEGER(KIND=8)                  :: SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
 
@@ -1583,7 +1584,7 @@ END DO
 ! Reallocate buffer for mpi communication of sampling
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    SendArraySize = SIZEOF(SurfSendBuf(iProc)%content)
+    SendArraySize = INT(SIZEOF(SurfSendBuf(iProc)%content),8)
     SDEALLOCATE(SurfSendBuf(iProc)%content)
     ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
@@ -1592,7 +1593,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    RecvArraySize = SIZEOF(SurfRecvBuf(iProc)%content)
+    RecvArraySize = INT(SIZEOF(SurfRecvBuf(iProc)%content),8)
     SDEALLOCATE(SurfRecvBuf(iProc)%content)
     ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))

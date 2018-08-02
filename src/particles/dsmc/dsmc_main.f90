@@ -28,16 +28,16 @@ SUBROUTINE DSMC_main()
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd
+  USE MOD_TimeDisc_Vars,         ONLY : time, TEnd
   USE MOD_Globals
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-  USE MOD_Mesh_Vars,             ONLY : nElems, MeshFile
+  USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
   USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues, WriteMacroSurfaceValues
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
   USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
@@ -51,6 +51,10 @@ SUBROUTINE DSMC_main()
 #endif
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   USE MOD_Restart_Vars,          ONLY : RestartTime
+  USE MOD_Mesh_Vars,             ONLY : MeshFile
+  USE MOD_TimeDisc_Vars,         ONLY : iter
+  USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+  USE MOD_Particle_Vars,         ONLY : WriteMacroSurfaceValues
 #endif
 #if USE_LOADBALANCE
   USE MOD_LoadBalance_tools,     ONLY : LBStartTime, LBElemSplitTime

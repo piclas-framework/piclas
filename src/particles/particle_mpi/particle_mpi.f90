@@ -1223,7 +1223,7 @@ USE MOD_Mesh_Vars,                ONLY:OffSetElem
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
-                                     ,PartDeltaX,PartLambdaAccept,LastPartPos
+                                     ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1237,13 +1237,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iProc, iPos, nRecv, PartID,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
-INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles, LocElemID,iElem
+INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
 !CHARACTER(LEN=64)             :: filename,hilf
 ! shape function 
 INTEGER                       :: iExtPart
 #if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter
+INTEGER                       :: iCounter, LocElemID,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly
@@ -1792,10 +1792,13 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
 !USE MOD_Mesh_Vars,                  ONLY:nSides
+#ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalBCSides,nTotalSides
+#endif /*CODE_ANALYZE*/
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides,nPartSides
+USE MOD_Particle_Mesh_Vars,         ONLY:nPartSides,nTotalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

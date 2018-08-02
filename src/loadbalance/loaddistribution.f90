@@ -899,7 +899,7 @@ SUBROUTINE CalcDistriFromOffsets(nProcessors,nGlobalElems,ElemGlobalTime,offSetE
 ! Calculate Distribution from offSetElemMPI
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,   ONLY:abort, MPIRoot
+USE MOD_Globals,   ONLY:abort
 USE MOD_Utils,     ONLY:InsertionSort
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -991,7 +991,7 @@ SUBROUTINE checkList(offSetElemMPI,identical,numOfCalls)
 !===================================================================================================================================
 ! MODULES
 USE MOD_LoadBalance_Vars
-USE MOD_Globals, ONLY : nProcessors, MPIRoot
+USE MOD_Globals, ONLY : nProcessors
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

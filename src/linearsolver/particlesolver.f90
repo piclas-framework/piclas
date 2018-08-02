@@ -691,9 +691,9 @@ SUBROUTINE Particle_Armijo(t,coeff,AbortTol,nInnerPartNewton)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
-USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept  &
-                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,Norm_F_PartXk_old,PartStateN &
-                                     ,MeshHasReflectiveBCs
+USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
+                                     ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,PartStateN &
+                                     ,MeshHasReflectiveBCs!,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -704,7 +704,7 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID,nTotalElems
+USE MOD_Particle_Mesh_Vars,      ONLY:nTotalElems
 USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
 USE MOD_Mesh_Vars,               ONLY:OffSetElem,nElems
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
@@ -737,7 +737,7 @@ REAL                         :: lambda, Norm_PartX,DeltaX_Norm
 REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
-INTEGER                      :: tmpElemID
+!INTEGER                      :: tmpElemID
 #ifdef MPI
 INTEGER                      :: GlobalElemID,GlobalElemID2,iElem,ProcID
 LOGICAL                      :: Found

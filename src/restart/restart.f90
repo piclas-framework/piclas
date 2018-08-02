@@ -279,7 +279,7 @@ INTEGER,ALLOCATABLE      :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE      :: SurfPartData(:,:)
 REAL,ALLOCATABLE         :: SurfCalcData(:,:,:,:,:)
 INTEGER                  :: Coordinations, SurfPartIntSize, SurfPartDataSize
-INTEGER                  :: Indx, Indy, UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
+INTEGER                  :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                  :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                  :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
 INTEGER                  :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
@@ -293,7 +293,6 @@ INTEGER                  :: j,k
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES)
 INTEGER                  :: i
-INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 #endif
 !===================================================================================================================================
 IF(DoRestart)THEN

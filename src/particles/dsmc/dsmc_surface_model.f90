@@ -403,9 +403,7 @@ END DO  !SurfSideID = 1,SurfMesh%nSides
 
 END SUBROUTINE CalcDiffusion
 
-
-SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,&
-                                 AdsorptionEnthalpie)
+SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface reconstruction (wallmodel 3)
 !===================================================================================================================================
@@ -423,7 +421,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,PartID
-REAL   ,INTENT(IN)               :: Norm_Ec
+
 INTEGER,INTENT(OUT)              :: adsorption_case
 INTEGER,INTENT(OUT)              :: outSpec(2)
 REAL   ,INTENT(OUT)              :: AdsorptionEnthalpie
@@ -453,7 +451,7 @@ INTEGER                          :: DissocReactID, AssocReactID
 REAL                             :: a_f, b_f, E_d
 REAL                             :: coverage_check
 #if (PP_TimeDiscMethod==42)
-REAL                             :: iSampleReact
+INTEGER                             :: iSampleReact
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
@@ -581,7 +579,7 @@ IF ( (SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied) &
   ! calculation of molecular adsorption probability with TCE
   E_a = 0.
   E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,.TRUE.) * Boltzmannconst
-  CALL Set_TST_Factors(1,a_f,b_f,PartID,0,PartBoundID)
+  CALL Set_TST_Factors(1,a_f,b_f,PartID,0)
   Prob_ads = CalcAdsorbReactProb(1,PartID,Norm_velo,E_a,E_d,a_f,b_f,c_f)
 #if (PP_TimeDiscMethod==42)
   iSampleReact = 1
@@ -592,7 +590,7 @@ IF ( (SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied) &
     !  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
     !ELSE
       Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-          Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + Prob_ads
+         Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + Prob_ads
       Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Prob_ads
     !END IF
   END IF
@@ -759,7 +757,7 @@ DO ReactNum = 1,(Adsorption%DissNum)
       E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
       E_d = 0.0  !0.1 * Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
       ! calculation of dissociative adsorption probability with TCE
-      CALL Set_TST_Factors(2,a_f,b_f,PartID,ReactNum,PartBoundID)
+      CALL Set_TST_Factors(2,a_f,b_f,PartID,ReactNum)
       Prob_diss(ReactNum) = CalcAdsorbReactProb(2,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f)
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
@@ -829,7 +827,7 @@ DO ReactNum = 1,(Adsorption%RecombNum)
       CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom)
     END IF
     ! calculation of ER-reaction probability with TCE
-    CALL Set_TST_Factors(3,a_f,b_f,PartID,ReactNum,PartBoundID)
+    CALL Set_TST_Factors(3,a_f,b_f,PartID,ReactNum)
     P_Eley_Rideal(ReactNum+Adsorption%DissNum) = CalcAdsorbReactProb(3,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f &
                              ,PartnerSpecies=jSpec,CharaTemp=CharaTemp,WallTemp=WallTemp)
 #if (PP_TimeDiscMethod==42)
@@ -1190,7 +1188,7 @@ DO subsurfxi = 1,nSurfSample
         ! calculate partition function of second particle bound on surface
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
         ! estimate partition function of activated complex
-        CALL PartitionFuncAct_recomb(iSpec,jSpec,Prod_Spec1, WallTemp, VarPartitionFuncAct, &
+        CALL PartitionFuncAct_recomb(iSpec,jSpec, WallTemp, VarPartitionFuncAct, &
                     Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct)/(VarPartitionFuncWall1*VarPartitionFuncWall2)
@@ -1382,8 +1380,8 @@ DO subsurfxi = 1,nSurfSample
             ! calculate partition function of particles bound on surface
             CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
             ! estimate partition function of activated complex
-            CALL PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct, &
-                                  Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID))
+            CALL PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct)!, &
+                                  !Adsorption%DensSurfAtoms(SurfSideID)/Adsorption%AreaIncrease(SurfSideID),)
             ! transition state theory to estimate pre-exponential factor
             nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall1)
             rate = nu_react * exp(-E_d/(WallTemp))
@@ -1756,8 +1754,8 @@ DO subsurfxi = 1,nSurfSample
     ! calculate partition function of particles bound on surface
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
     ! estimate partition function of activated complex
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID) &
-        /Adsorption%AreaIncrease(SurfSideID))
+    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)!, Adsorption%DensSurfAtoms(SurfSideID) &
+!        /Adsorption%AreaIncrease(SurfSideID))
     ! transition state theory to estimate pre-exponential factor
     nu_des = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
     E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)
@@ -3040,64 +3038,64 @@ END DO
 END SUBROUTINE CalcDesorbProb
 
 
-SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
+!SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
 !===================================================================================================================================
 !> Calculation of partition function for gaseous state particle species at certain temperature
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars ,ONLY: Species
+!USE MOD_Globals
+!USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
+!USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+!USE MOD_Particle_Vars ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
+!IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec
-REAL, INTENT(IN)              :: Temp
+!INTEGER, INTENT(IN)           :: iSpec
+!REAL, INTENT(IN)              :: Temp
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: VarPartitionFuncGas
+!REAL, INTENT(OUT)             :: VarPartitionFuncGas
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL, PARAMETER               :: Pi=3.14159265358979323846_8
-INTEGER                       :: iPolyatMole, iDOF
-REAL                          :: Qtra, Qrot, Qvib!, Qelec
+!REAL, PARAMETER               :: Pi=3.14159265358979323846_8
+!INTEGER                       :: iPolyatMole, iDOF
+!REAL                          :: Qtra, Qrot, Qvib!, Qelec
 !===================================================================================================================================
-Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
-IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
-    ELSE
-      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
-                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
-    END IF
-    Qvib = 1.
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
-    END DO
-  ELSE
-    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-    Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
-  END IF
-ELSE
-  Qrot = 1.
-  Qvib = 1.
-END IF
+!Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
+!IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+!  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+!    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+!    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+!      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
+!    ELSE
+!      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+!                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+!                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
+!    END IF
+!    Qvib = 1.
+!    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!      Qvib = Qvib * 1. / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
+!    END DO
+!  ELSE
+!    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
+!    Qvib = 1. / (1. - EXP(-SpecDSMC(iSpec)%CharaTVib / Temp))
+!  END IF
+!ELSE
+!  Qrot = 1.
+!  Qvib = 1.
+!END IF
 !   Qelec = 0.
 !   DO iDOF=1, SpecDSMC(iSpec)%NumElecLevels
 !     Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
 !   END DO
-VarPartitionFuncGas = Qtra * Qrot * Qvib! * Qelec
+!VarPartitionFuncGas = Qtra * Qrot * Qvib! * Qelec
 
-END SUBROUTINE PartitionFuncGas
+!END SUBROUTINE PartitionFuncGas
 
-SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct)!, Surfdensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (molecular desorption)
 !===================================================================================================================================
@@ -3110,7 +3108,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: Surfdensity
+!REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -3149,7 +3147,7 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 
 END SUBROUTINE PartitionFuncAct
 
-SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (dissociation at surface)
 !===================================================================================================================================
@@ -3160,11 +3158,11 @@ USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec
+!INTEGER, INTENT(IN)           :: iSpec
 INTEGER, INTENT(IN)           :: Prod_Spec1
 INTEGER, INTENT(IN)           :: Prod_Spec2
 REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: Surfdensity
+!REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -3205,7 +3203,7 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 
 END SUBROUTINE PartitionFuncAct_dissoc
 
-SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Result_Spec, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (recombination for desorption)
 !===================================================================================================================================
@@ -3219,7 +3217,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: Educt_Spec1
 INTEGER, INTENT(IN)           :: Educt_Spec2
-INTEGER, INTENT(IN)           :: Result_Spec
 REAL, INTENT(IN)              :: Temp
 REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3656,7 +3653,7 @@ IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 END FUNCTION Calc_E_Act
 
 
-SUBROUTINE Set_TST_Factors(ReactionCase,a_f,b_f,PartID,ReactNum,PartBoundID)
+SUBROUTINE Set_TST_Factors(ReactionCase,a_f,b_f,PartID,ReactNum)
 !===================================================================================================================================
 !> set the Transition state theory (TST) factors for surface chemistry
 !===================================================================================================================================
@@ -3670,7 +3667,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: ReactionCase, ReactNum
-INTEGER, INTENT(IN)           :: PartID, PartBoundID
+INTEGER, INTENT(IN)           :: PartID
 !===================================================================================================================================
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: a_f, b_f

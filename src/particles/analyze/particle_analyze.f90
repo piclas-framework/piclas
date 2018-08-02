@@ -471,19 +471,19 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
+INTEGER             :: iCov
 INTEGER             :: ii, iunit, iCase, iTvib,jSpec
+INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies) 
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 CHARACTER(LEN=350)  :: hilf
 REAL                :: NumSpecTmp(nSpecAnalyze)
 REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:), AdsorptionActE(:), SurfaceActE(:)
+REAL                :: Accomodation(nSpecies), EvaporationRate(nSpecies) 
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
 INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
-INTEGER             :: iCov
-REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies)
-REAL                :: EvaporationRate(nSpecies)
-INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
+REAL                :: WallCoverage(nSpecies)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -517,6 +517,7 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
   OutputCounter = 2
   unit_index = 535
 #ifdef MPI
+!#ifdef PARTICLES
   IF (PartMPI%MPIRoot) THEN
 #endif    /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
@@ -1061,7 +1062,7 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
-  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn,Xi_Vib,Xi_Elec)
+  IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
@@ -1875,8 +1876,8 @@ IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate   ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbActE  ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   AdsorbRate = AdsorbRate  / REAL(SurfCOMM%nProcs)
-  SurfCollNum= SurfCollNum / REAL(SurfCOMM%nProcs)
-  AdsorbNum  = AdsorbNum   / REAL(SurfCOMM%nProcs)
+  SurfCollNum= INT(REAL(SurfCollNum / SurfCOMM%nProcs))
+  AdsorbNum  = INT(REAL(AdsorbNum   / SurfCOMM%nProcs))
   ReactRate  = ReactRate   / REAL(SurfCOMM%nProcs)
   AdsorbActE = AdsorbActE  / REAL(SurfCOMM%nProcs)
 ELSE
@@ -1984,7 +1985,7 @@ IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
   DesorbRate  = DesorbRate  / REAL(SurfCOMM%nProcs)
-  DesorbNum   = DesorbNum   / REAL(SurfCOMM%nProcs)
+  DesorbNum   = INT(REAL(DesorbNum   / SurfCOMM%nProcs))
 ELSE
   CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -2274,9 +2275,10 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartMPF, usevMPF, PDM,PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PartMPF, usevMPF, PDM,PartSpecies!,Species
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec,nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas
+!USE MOD_Particle_Mesh_Vars    ,ONLY: Geo
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 #ifdef MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -2383,7 +2385,12 @@ INTEGER                            :: iPolyatMole,iDOF,iSpec
 
 
 ! next, calctranstemp
+
+#if (PP_TimeDiscMethod!=1000)
 CALL CalcTransTemp(NumSpec, Temp)
+#else
+CALL CalcTransTemp(Temp)
+#endif
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -2443,7 +2450,12 @@ END IF
 END SUBROUTINE CalcTemperature
 
 
+
+#if (PP_TimeDiscMethod!=1000)
 SUBROUTINE CalcTransTemp(NumSpec, Temp)
+#else
+SUBROUTINE CalcTransTemp(Temp)
+#endif
 !===================================================================================================================================
 ! calculate the translational temperature of each species
 !===================================================================================================================================
@@ -2451,28 +2463,32 @@ SUBROUTINE CalcTransTemp(NumSpec, Temp)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
 USE MOD_Preproc
-USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies, PartMPF, usevMPF
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_Particle_Vars         ,ONLY: nSpecies
 #if (PP_TimeDiscMethod==1000)
 USE MOD_LD_Vars               ,ONLY: BulkValues
 #endif
+#if (PP_TimeDiscMethod!=1000)
+USE MOD_Particle_Vars         ,ONLY: usevMPF, PartMPF, PartSpecies, PartState, Species, PDM
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if (PP_TimeDiscMethod!=1000)
 REAL, INTENT(IN)                :: NumSpec(:)    !< global number of REAL particles in domain
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Temp(:)       !< output value is already the GLOBAL temperature
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i, iSpec
-REAL              ::  TempDirec(nSpecies,3)
+INTEGER           :: iSpec
+REAL              :: TempDirec(nSpecies,3)
 #if (PP_TimeDiscMethod!=1000)
 REAL              :: PartVandV2(nSpecies, 6), Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
-#endif
-#ifdef MPI
+INTEGER           :: i
 REAL              :: RD(nSpecies*6)
 #endif
 !===================================================================================================================================
@@ -2503,7 +2519,7 @@ END DO
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 ELSE
-  CALL MPI_REDUCE(PartVandV2  ,RD        ,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(PartVandV2  ,RD,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 END IF
 #endif /*MPI*/
 
@@ -3372,7 +3388,6 @@ SUBROUTINE WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic)
 USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Globals               ,ONLY: abort
-USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -3405,8 +3420,6 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnaly
 CHARACTER(LEN=1000)                      :: tmpStr2 
 CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
 LOGICAL                                  :: FileExist,CreateFile
-REAL                                     :: diffPos,diffVelo
-INTEGER                                  :: iPartState
 !===================================================================================================================================
 ! only the root shall write this file
 IF(.NOT.MPIRoot)RETURN

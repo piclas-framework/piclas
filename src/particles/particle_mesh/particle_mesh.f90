@@ -504,15 +504,16 @@ REAL   ,INTENT(IN)          :: Coord(1:3,1:4,1:nSides,1:nElems)
 CHARACTER(LEN=*),INTENT(IN) :: FileString           ! < Output file name
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,str_len,iSide
-INTEGER            :: INT
+INTEGER            :: iElem,nVTKElems,nVTKCells,ivtk=44,iSide!,iVal,iVar,str_len
+INTEGER(KIND=8)    :: Offset, nBytes
+INTEGER            :: IntegerType
 INTEGER            :: Vertex(3,nSides*nElems*2)
 INTEGER            :: NodeID,CellID,CellType
 CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200) :: Buffer
 CHARACTER(LEN=1)   :: lf!,components_string
 !CHARACTER(LEN=255) :: VarNameString
-REAL(KIND=4)       :: Float
+REAL(KIND=4)       :: FloatType
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE TRIA DATA TO VTX XML BINARY (VTU) FILE..."
 IF(nSides.LT.1)THEN
@@ -545,7 +546,7 @@ WRITE(StrOffset,'(I16)')Offset
 !    IF (VarNamePartCombine(iVar).EQ.0) THEN
 !      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNamePartVisu(iVar))//&
 !      '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)
+!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)
 !      WRITE(StrOffset,'(I16)')Offset
 !    ELSE IF (VarNamePartCombine(iVar).EQ.1) THEN
 !      str_len = LEN_TRIM(VarNamePartVisu(iVar))
@@ -558,7 +559,7 @@ WRITE(StrOffset,'(I16)')Offset
 !      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
 !      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
 !      WRITE(ivtk) TRIM(Buffer)
-!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)*VarNamePartCombineLen(iVar)
+!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)*VarNamePartCombineLen(iVar)
 !      WRITE(StrOffset,'(I16)')Offset
 !    END IF
 !  END DO
@@ -570,7 +571,7 @@ Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+3*nVTKElems*SIZEOF(FLOAT)
+Offset=Offset+SIZEOF(IntegerType)+3*nVTKElems*SIZEOF(FloatType)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify necessary cell data
@@ -578,12 +579,12 @@ Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Connectivity
 Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+nVTKCells*3*SIZEOF(INT)
+Offset=Offset+SIZEOF(IntegerType)+nVTKCells*3*SIZEOF(IntegerType)
 WRITE(StrOffset,'(I16)')Offset
 ! Offsets
 Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+nVTKCells*SIZEOF(INT)
+Offset=Offset+SIZEOF(IntegerType)+nVTKCells*SIZEOF(IntegerType)
 WRITE(StrOffset,'(I16)')Offset
 ! Elem types
 Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
@@ -598,7 +599,7 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 
 ! Write binary raw data into append section
 ! Point data
-nBytes = nVTKElems*SIZEOF(FLOAT)
+nBytes = nVTKElems*SIZEOF(FloatType)
 !DO iVal=1,nVal
 !  IF (VarNamePartCombine(iVal).EQ.0) THEN
 !    WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
@@ -623,11 +624,11 @@ DO iElem=1,nElems
     NodeID=NodeID+4
   END DO
 END DO
-nBytes = 3*nVTKCells*SIZEOF(INT)
+nBytes = 3*nVTKCells*SIZEOF(IntegerType)
 WRITE(ivtk) nBytes
 WRITE(ivtk) Vertex(:,:)
 ! Offset
-nBytes = nVTKCells*SIZEOF(INT)
+nBytes = nVTKCells*SIZEOF(IntegerType)
 WRITE(ivtk) nBytes
 WRITE(ivtk) (Offset,Offset=3,3*nVTKCells,3)
 ! Cell type
@@ -1105,11 +1106,11 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,Sanity_Opt,Tol_Opt& 
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,&
 #ifdef CODE_ANALYZE
-        ,CodeAnalyze_Opt)
+    Sanity_Opt,Tol_Opt,CodeAnalyze_Opt)
 #else
-        )
+       Tol_Opt)
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! Checks if particle is in Element
@@ -1142,8 +1143,8 @@ INTEGER,INTENT(IN)                       :: ElemID,PartID
 REAL,INTENT(IN)                          :: PartPos_In(1:3)
 #ifdef CODE_ANALYZE
 LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
-#endif /*CODE_ANALYZE*/
 LOGICAL,INTENT(IN),OPTIONAL              :: Sanity_Opt
+#endif /*CODE_ANALYZE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: FoundInElem
@@ -1213,7 +1214,7 @@ DO ilocSide=1,6
       CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
                                                                                        ,xi      &
                                                                                        ,eta      &
-                                                                                       ,PartID,flip,SideID &
+                                                                                       ,PartID,SideID &
                                                                                        ,ElemCheck_Opt=.TRUE.)
   CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID,ElemCheck_Opt=.TRUE.)
@@ -1388,8 +1389,6 @@ USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Mesh_Vars,                          ONLY:ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars,             ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2785,7 +2784,7 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides,PartSideToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -3623,7 +3622,7 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,BC,NGeo,Vdm_CLNGeo1_CLNGeo,nSides,ElemBaryNGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4506,7 +4505,7 @@ SUBROUTINE ElemConnectivity()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
-                                 ,SidePeriodicType,nPartSides,nTotalSides,ElemToGlobalElemID
+                                 ,SidePeriodicType,ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec
@@ -4770,10 +4769,10 @@ SUBROUTINE NodeNeighbourhood()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, nTotalElems, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
 #ifdef MPI
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
 USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
 #endif /*MPI*/
@@ -4797,7 +4796,10 @@ INTEGER                :: TempElems(1:500)
 INTEGER                :: TempNumElems
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists, HasHaloElem
-INTEGER                :: iElem, iNode, jNode
+INTEGER                :: iElem, jNode
+#ifdef CODE_ANALYZE
+INTEGER                :: iNode
+#endif /*CODE_ANALYZE*/
 #ifdef MPI
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
@@ -5371,8 +5373,8 @@ SUBROUTINE MarkAllBCSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,               ONLY:nSides
-USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType,nTotalBCSides,nPartSides
-USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,nTotalBCSides,nPartSides
+USE MOD_Mesh_Vars,               ONLY:BC,nBCSides
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5385,7 +5387,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSide, BCID
+INTEGER             :: iSide
 !===================================================================================================================================
 
 ! PartBCSideList is increased, due to the periodic sides
@@ -5701,7 +5703,7 @@ SUBROUTINE MarkAuxBCElems()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
