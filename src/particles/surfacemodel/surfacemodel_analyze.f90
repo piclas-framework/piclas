@@ -153,19 +153,19 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen, isRestart
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter
+INTEGER             :: unit_index, OutputCounter
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase
+INTEGER             :: iCov, iSpec
 CHARACTER(LEN=350)  :: hilf
-REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
+REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies), Accomodation(nSpecies)
+REAL                :: EvaporationRate(nSpecies)
+INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:), AdsorptionActE(:), SurfaceActE(:), ProperSurfaceActE(:)
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
 INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
-INTEGER             :: iCov
-REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies)
-REAL                :: EvaporationRate(nSpecies)
-INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
+REAL                :: WallCoverage(nSpecies)
 #endif
 !===================================================================================================================================
   isRestart = .FALSE.

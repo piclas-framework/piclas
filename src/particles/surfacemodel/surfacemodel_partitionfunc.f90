@@ -110,7 +110,7 @@ CONTAINS
 !END SUBROUTINE PartitionFuncGas
 
 
-SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct)!, Surfdensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (molecular desorption)
 !===================================================================================================================================
@@ -123,7 +123,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: Surfdensity
+!REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -163,7 +163,8 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 END SUBROUTINE PartitionFuncAct
 
 
-SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
+!SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (dissociation at surface)
 !===================================================================================================================================
@@ -174,11 +175,11 @@ USE MOD_DSMC_Vars    ,ONLY: SpecDSMC, PolyatomMolDSMC
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec
+!INTEGER, INTENT(IN)           :: iSpec
 INTEGER, INTENT(IN)           :: Prod_Spec1
 INTEGER, INTENT(IN)           :: Prod_Spec2
 REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: Surfdensity
+!REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -220,7 +221,7 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 END SUBROUTINE PartitionFuncAct_dissoc
 
 
-SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Result_Spec, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (recombination for desorption)
 !===================================================================================================================================
@@ -234,7 +235,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: Educt_Spec1
 INTEGER, INTENT(IN)           :: Educt_Spec2
-INTEGER, INTENT(IN)           :: Result_Spec
 REAL, INTENT(IN)              :: Temp
 REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!

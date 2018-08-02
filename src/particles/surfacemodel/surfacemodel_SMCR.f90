@@ -782,7 +782,7 @@ DO iSubSurf = 1,nSurfSample
         ! calculate partition function of second particle bound on surface
         CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
         ! estimate partition function of activated complex
-        CALL PartitionFuncAct_recomb(iSpec,jSpec,Prod_Spec1, WallTemp, VarPartitionFuncAct, &
+        CALL PartitionFuncAct_recomb(iSpec,jSpec, WallTemp, VarPartitionFuncAct, &
                     Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct)/(VarPartitionFuncWall1*VarPartitionFuncWall2)
@@ -951,8 +951,9 @@ DO iSubSurf = 1,nSurfSample
             ! calculate partition function of particles bound on surface
             CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
             ! estimate partition function of activated complex
-            CALL PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct, &
-                                  Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
+            CALL PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct)
+            !CALL PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct, &
+            !                      Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
             ! transition state theory to estimate pre-exponential factor
             nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall1)
             rate = nu_react * exp(-E_d/(WallTemp))
@@ -1316,8 +1317,7 @@ DO iSubSurf = 1,nSurfSample
     ! calculate partition function of particles bound on surface
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
     ! estimate partition function of activated complex
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(iSurf) &
-        /Adsorption%AreaIncrease(iSurf))
+    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)!, Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
     ! transition state theory to estimate pre-exponential factor
     nu_des = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
     E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)

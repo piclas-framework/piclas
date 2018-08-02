@@ -506,7 +506,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: ReactionCase, ReactNum
-INTEGER, INTENT(IN)           :: PartID, PartBoundID
+INTEGER, INTENT(IN)           :: PartID!, PartBoundID
 !===================================================================================================================================
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: a_f, b_f
