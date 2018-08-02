@@ -1057,13 +1057,12 @@ USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
-INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, nRandomSeeds
 INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
-LOGICAL               :: TrueRandom, PartDens_OnlyInit                                                  !
-INTEGER,ALLOCATABLE   :: iSeeds(:)
+LOGICAL               :: PartDens_OnlyInit                                                  !
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
@@ -2346,14 +2345,14 @@ END IF
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
 CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
 ALLOCATE(seeds(SeedSize))
-IF(nRandomSeeds=-1) THEN
+IF(nRandomSeeds.EQ.-1) THEN
   ! PSEUDO RANDOM Case
   CALL RANDOM_SEED(GET = Seeds(1:SeedSize))
 #if USE_MPI
   Seeds(1:SeedSize)=Seeds(1:SeedSize)+PartMPI%MyRank
 #endif
   CALL RANDOM_SEED(PUT = Seeds(1:SeedSize))
-ELSE IF(nRandomSeeds=0) THEN
+ELSE IF(nRandomSeeds.EQ.0) THEN
   ! hard-coded deterministic random numbers
   ! compiler specific number of seeds needed
  !   IF (Restart) THEN
@@ -2364,21 +2363,22 @@ ELSE IF(nRandomSeeds=0) THEN
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
   ! ini needs n=SeedSize seeds 
-  IF (nRandomSeeds.EQ.SeedSize)
+  IF (nRandomSeeds.EQ.SeedSize) THEN
     DO iSeed=1,SeedSize
       WRITE(UNIT=hilf,FMT='(I0)') iSeed
       Seeds(iSeed)= GETINT('Particle-RandomSeed'//TRIM(hilf))
     END DO
-  ELSE IF(nRandomSeeds.GT.SeedSize)
+  ELSE IF(nRandomSeeds.GT.SeedSize) THEN
     SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
     CALL ABORT(&
      __STAMP__&
      ,'Too many seeds provided in ini') 
-  ELSE IF(nRandomSeeds.LT.SeedSize)
+  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
     SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
     CALL ABORT(&
       __STAMP__&
       ,'Not enough seeds provided in ini.')
+  END IF
 ELSE 
   SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
   'Choose nRandomSeeds'//&
@@ -2750,7 +2750,6 @@ END IF !nCollectChargesBCs .GT. 0
 !   (moved here from dsmc_init for switching off the initial emission)
 IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
-CALL prms%CreateIntOption(     'Seed-Init','seeds for nRandomSeeds>0 case','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
@@ -3069,22 +3068,22 @@ SUBROUTINE DeterministicRandomSeeds(SeedSize,DeterministicSeeds)
 !===================================================================================================================================
 ! MODULES
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY:,PartMPI
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
 !===================================================================================================================================
 
 IMPLICIT NONE
 ! INPUT VARIABLES
-REAL,INTENT(IN)             :: SeedSize
+INTEGER,INTENT(IN)          :: SeedSize
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)            :: DeterministicSeeds(SeedSize)
+INTEGER,INTENT(OUT)            :: DeterministicSeeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                     :: iSeed
 !CHARACTER(LEN=30)           :: filename
 !==================================================================================================================================
-DO iSeed=1:SeedSize
+DO iSeed=1,SeedSize
 DeterministicSeeds(iSeed)=iSeed
 #ifdef MPI
 DeterministicSeeds(iSeed)=iSeed+PartMPI%MyRank
