@@ -289,7 +289,6 @@ SUBROUTINE CalcNormAndTangTriangle(nVec,tang1,tang2,area,midpoint,ndist,xyzNod,V
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:Abort
 USE MOD_PreProc
-USE MOD_Particle_Vars,                        ONLY:PEM
 USE MOD_Particle_Mesh_Vars,                   ONLY:GEO,PartSideToElem,PartElemToSide
 USE MOD_Mesh_Vars,                            ONLY:XCL_NGeo,NGeo
 USE MOD_Particle_Tracking_Vars,               ONLY:TrackInfo,TriaTracking
@@ -310,7 +309,7 @@ REAL,INTENT(INOUT),OPTIONAL            :: xyzNod(3) ,Vectors(3,3)
 ! LOCAL VARIABLES
 INTEGER                                :: ElemID, LocSideID
 INTEGER                                :: Node1, Node2, p, q, flip
-REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3), swap(3)
+REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(3)
 REAL                                   :: nVal, ndistVal, nx, ny, nz, dotpr, SideCoord_tmp(1:3,0:1,0:1), SideCoord(1:3,0:1,0:1)
 !================================================================================================================================
 IF (PRESENT(ElemID_opt).AND.PRESENT(LocSideID_opt)) THEN

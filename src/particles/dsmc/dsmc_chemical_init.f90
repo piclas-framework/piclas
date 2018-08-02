@@ -1185,7 +1185,6 @@ DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
 !-- local variables
 INTEGER                       :: io_error1,read_error,iLine
 CHARACTER(LEN=1000000)        :: string1
-CHARACTER(LEN=10)             :: stringSelect
 INTEGER                       :: N_b, N_E
 DOUBLE PRECISION              :: real1, real2
 !===================================================================================================================================

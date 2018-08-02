@@ -531,7 +531,7 @@ SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance,Norm_R0_in)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,              ONLY:U,Ut
+USE MOD_DG_Vars,              ONLY:U!,Ut
 USE MOD_LinearSolver_Vars,    ONLY:nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource,nRestarts

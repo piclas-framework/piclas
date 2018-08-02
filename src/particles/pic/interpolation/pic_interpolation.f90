@@ -48,7 +48,9 @@ USE MOD_PICInterpolation_Vars
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT
 REAL                      :: scaleExternalField
+#ifdef CODE_ANALYZE
 CHARACTER(LEN=20)         :: tempStr
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')

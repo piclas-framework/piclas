@@ -66,7 +66,7 @@ REAL,INTENT(OUT)           :: Delta_Norm_R
 REAL,INTENT(OUT)           :: Delta_Norm_Rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: X,DeltaX,DeltaX_Rel
+REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
@@ -230,7 +230,7 @@ REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: Norm_R0,Norm_R,Norm_Rold,  Delta_Norm_R0,Delta_Norm_Rel0 
+REAL                       :: Norm_R0,Norm_R,Norm_Rold, Delta_Norm_R0,Delta_Norm_Rel0!, Norm_Diff,Norm_Diff_old
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
 INTEGER                    :: nFullNewtonIter,Mode

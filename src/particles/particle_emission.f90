@@ -154,7 +154,6 @@ USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
 USE MOD_part_pressure,  ONLY : ParticleInsideCheck
-USE MOD_Particle_Mesh_Vars,ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -164,7 +163,8 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: i, NbrOfParticle,iInit,iPart,PositionNbr
-INTEGER               :: nPartInside,insertParticles
+INTEGER               :: nPartInside
+INTEGER(KIND=8)       :: insertParticles
 REAL                  :: EInside,TempInside
 LOGICAL               :: EmType6
 !===================================================================================================================================
@@ -199,19 +199,19 @@ DO i=1,nSpecies
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
-        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
+        insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
 #else
-        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+        insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
 #endif
       ELSE
-        insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+        insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
       END IF
     ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
          .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
 #ifdef MPI
       insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
-      insertParticles = insertParticles + Species(i)%Init(iInit)%initialParticleNumber
+      insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
 #endif
     END IF
   END DO
@@ -700,7 +700,7 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
+USE MOD_Timedisc_Vars,         ONLY:dt
 USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping, TriaTracking
@@ -709,6 +709,9 @@ USE MOD_PICInterpolation_Vars ,ONLY:VariableExternalField
 USE MOD_PICInterpolation_vars, ONLY:useVariableExternalField
 USE MOD_Equation_vars,         ONLY:c_inv
 USE MOD_LD,                    ONLY:LD_SetParticlePosition
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
+USE MOD_Timedisc_Vars,         ONLY:DoDisplayIter, iter, IterDisplayStep
+#endif
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'                                                                               
@@ -3658,10 +3661,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
-INTEGER               :: iCopy1, iCopy2, iCopy3, iPoint, nSides
+INTEGER               :: iCopy1, iCopy2, iCopy3, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
-REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2), radius
+REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2)
 LOGICAL               :: AnySimpleRadialVeloFit, noAdaptive
 INTEGER               :: MaxSurfacefluxBCs
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
@@ -3688,14 +3691,14 @@ REAL                  :: corner(3)
 REAL                  :: VecBoundingBox(3)
 INTEGER               :: iNode
 REAL                  :: vec(2)
-REAL                  :: para,radiusCorner(2,4)
+REAL                  :: radiusCorner(2,4)
 LOGICAL               :: r0inside, intersecExists(2,2)
-REAL                  :: corners(2,4),atan2Shift,rmin,rmax
+REAL                  :: corners(2,4),rmin,rmax!,atan2Shift
 INTEGER               :: FileID
 LOGICAL               :: OutputSurfaceFluxLinked
 REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
-INTEGER               :: nVarAdd_HDF5, iElem, iVar
+INTEGER               :: iElem
 !===================================================================================================================================
 
 #ifdef MPI
@@ -4562,8 +4565,10 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
+#ifdef CODE_ANALYZE
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SideType, SurfMeshSubSideData
+#endif /*CODE_ANALYZE*/ 
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData!, SideType
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 #if defined(IMPA) || defined(ROS)
@@ -4571,20 +4576,20 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #endif /*IMPA*/
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
+USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+!USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
+#ifdef CODE_ANALYZE
+!USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #if  defined(IMPA) || defined(ROS)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
-!#ifdef CODE_ANALYZE
-!USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
-!#endif /*CODE_ANALYZE*/
+#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
-USE MOD_Mesh_Vars,              ONLY : BC, ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY : BC!, ElemBaryNGeo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,       ONLY:nSurfacefluxPerElem
 USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
@@ -5892,7 +5897,7 @@ __STAMP__,&
     END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-    chunkSize_tmp = PartDens * GEO%LocalVolume
+    chunkSize_tmp = INT(PartDens * GEO%LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(&
 __STAMP__,&

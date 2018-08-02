@@ -172,7 +172,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,O
 #endif /*PP_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('State',MeshFileName,OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('State',OutputTime,PreviousTime)
 END IF
 
 ! Reopen file and write DG solution
@@ -1032,8 +1032,8 @@ CHARACTER(LEN=255)             :: CoordID
 INTEGER                        :: sendbuf(1),recvbuf(1)
 #endif
 INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
-INTEGER                        :: iSurfPart, iSurf_glob, iSurf_loc, iSpec, nVar
-INTEGER                        :: iOffset, UsedSiteMapPos, SideID, SurfSideID, PartBoundID
+INTEGER                        :: iSpec, nVar
+INTEGER                        :: iOffset, UsedSiteMapPos, SideID, PartBoundID
 INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart, iVar
 INTEGER                        :: Coordinations          !number of PartInt and PartData coordinations
 INTEGER                        :: SurfPartIntSize        !number of entries in each line of PartInt
@@ -1291,7 +1291,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
@@ -1392,7 +1391,7 @@ END IF
 
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',MeshFileName,OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',OutputTime,PreviousTime)
 END IF
 
 ! Write timeaverages ---------------------------------------------------------------------------------------------------------------
@@ -1521,7 +1520,7 @@ CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_C
 END SUBROUTINE GenerateFileSkeleton
 
 
-SUBROUTINE GenerateNextFileInfo(TypeString,MeshFileName,OutputTime,PreviousTime)
+SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 !===================================================================================================================================
 !> Subroutine that opens the prvious written file on root processor and writes the necessary nextfile info
 !===================================================================================================================================
@@ -1529,8 +1528,6 @@ SUBROUTINE GenerateNextFileInfo(TypeString,MeshFileName,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
-USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars, ONLY:NodeType
 #ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM
@@ -1541,7 +1538,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
 REAL,INTENT(IN)                :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2515,7 +2511,7 @@ IF(MPIROOT)THEN
 END IF
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('QDS',TRIM(MeshFile),OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('QDS',OutputTime,PreviousTime)
 END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'

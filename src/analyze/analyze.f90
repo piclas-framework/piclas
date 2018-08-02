@@ -106,14 +106,13 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
-USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt,CalcEpot
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
 #ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep
-USE MOD_Analyze_Vars,         ONLY:doAnalyze
+USE MOD_Analyze_Vars,         ONLY:doAnalyze,CalcEpot
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
 USE MOD_TimeAverage_Vars,     ONLY:doCalcTimeAverage
@@ -405,53 +404,46 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
 USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_TimeDisc_Vars          ,ONLY: iter
-#if (PP_nVar>=6)
-USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
-#endif
+USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
-#if defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-#endif
-#ifdef LSERK
-USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
-#endif /*LSERK*/
-#ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-#endif
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==42 || PP_TimeDiscMethod==4)
+USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-#endif
+#ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,DelayTime
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, CalcSurfCollis, AnalyzeSurfCollis
 USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution, useDSMC
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-#if (PP_TimeDiscMethod==42)
-#elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-#else
-USE MOD_LD_Vars                ,ONLY: useLD
-#endif
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
-#if (PP_TimeDiscMethod==1001)
-USE MOD_LD_DSMC_TOOLS
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
+USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
 #endif
-#else
+#if (PP_TimeDiscMethod!=42)
+USE MOD_LD_Vars                ,ONLY: useLD
+USE MOD_Particle_Vars          ,ONLY: DelayTime
+#endif /*PP_TimeDiscMethod!=42*/
+#else /* no Particles*/
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
+#if (PP_nVar>=6)
+USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
+#endif /*PP_nVar>=6*/
+#ifdef LSERK
+USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
+#endif /*LSERK*/
+#if defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)
+USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+#endif /*defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
-USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
-USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_TimeDisc_Vars          ,ONLY: tEnd
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -468,7 +460,9 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef PARTICLES
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 INTEGER                       :: iSide
+#endif
 #ifdef MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
