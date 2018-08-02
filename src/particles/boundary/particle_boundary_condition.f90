@@ -50,7 +50,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -58,7 +58,6 @@ USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Mesh_Vars,              ONLY:BC
 ! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
-USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
@@ -82,7 +81,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: WallModeltype, adsorbindex
+INTEGER                              :: adsorbindex
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
@@ -138,13 +137,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! Decide which WallModel is used
-      IF (useDSMC) THEN
-        WallModeltype = DSMC%WallModel
-      ELSE
-        WallModeltype = 0
-      END IF
-      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -155,7 +148,7 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
-      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
@@ -286,7 +279,7 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -294,7 +287,6 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
-USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 #if defined(IMPA)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
@@ -314,7 +306,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID, WallModeltype, adsorbindex
+INTEGER                              :: BCSideID, adsorbindex
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -369,14 +361,8 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! Decide which WallModel is used
-      IF (useDSMC) THEN
-        WallModeltype = DSMC%WallModel
-      ELSE
-        WallModeltype = 0
-      END IF
       BCSideID=PartBCSideList(SideID)
-      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -387,7 +373,7 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         END IF
-      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
@@ -2641,18 +2627,19 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 !===================================================================================================================================
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 !USE MOD_Particle_Vars          ,ONLY : PDM, LastPartPos
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, Adsorption, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_DSMC_SurfModel_Tools   ,ONLY: CalcBackgndPartAdsorb
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2676,8 +2663,7 @@ REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: adsorption_case
 INTEGER                          :: SurfSideID, SpecID
-REAL, PARAMETER                  :: PI=3.14159265358979323846
-REAL                             :: Norm_velo, Norm_Ec
+REAL                             :: Norm_velo!, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 !   REAL                             :: IntersectionPos(1:3)
@@ -2757,7 +2743,7 @@ SpecID = PartSpecies(PartID)
 #if (PP_TimeDiscMethod==42)  
 ! Update wallcollision counter
 Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
-IF (DSMC%WallModel.EQ.1) THEN
+IF (PartSurfaceModel.EQ.1) THEN
   Adsorption%AdsorpInfo(SpecID)%Accomodation = Adsorption%AdsorpInfo(SpecID)%Accomodation &
       + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
 END IF
@@ -2765,7 +2751,7 @@ END IF
 
 adsorption_case = 0
 AdsorptionEnthalpie = 0.
-SELECT CASE(DSMC%WallModel)
+SELECT CASE(PartSurfaceModel)
 CASE (1)
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
@@ -2801,8 +2787,8 @@ CASE (2)
   END IF
 CASE (3)
   Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-  Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 END SELECT
 
 SELECT CASE(adsorption_case)
@@ -3117,13 +3103,13 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact an
 #endif
   ! Sample recombination coefficient
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    IF (DSMC%WallModel.EQ.2) THEN
+    IF (PartSurfaceModel.EQ.2) THEN
       DO iReact = 1,Adsorption%RecombNum
         IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
           SampWall(SurfSideID)%Reaction(1,SpecID,p,q) = SampWall(SurfSideID)%Reaction(1,SpecID,p,q) + 1
         END IF
       END DO
-    ELSE IF ( DSMC%WallModel.EQ.3) THEN
+    ELSE IF ( PartSurfaceModel.EQ.3) THEN
       DO iReact = 1,Adsorption%RecombNum
         IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
           SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
@@ -3348,7 +3334,8 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, Liquid, PolyatomMolDSMC
+USE MOD_SurfaceModel_Vars      ,ONLY: Liquid
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
@@ -3376,8 +3363,6 @@ REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Condensation_prob
 INTEGER                          :: adsorption_case
 INTEGER                          :: SurfSideID, SpecID
-REAL, PARAMETER                  :: PI=3.14159265358979323846
-!REAL                             :: Norm_velo, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
@@ -3447,9 +3432,6 @@ ELSE
     END SELECT
   END IF
 END IF
-
-!Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-!Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
 
 EvaporationEnthalpie = 0. ! negative at evaporation and positive at condensation
 

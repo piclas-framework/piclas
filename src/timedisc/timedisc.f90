@@ -1367,7 +1367,6 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1375,9 +1374,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Liquid_Boundary,  ONLY: Evaporation
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb !, AnalyzePartitionTemp
-USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
+USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1403,15 +1400,8 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
-    ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-    END IF
-    IF (DSMC%WallModel.EQ.3) THEN
-      CALL CalcBackgndPartDesorb()
-      !CALL AnalyzePartitionTemp()
-    END IF
-    IF (LiquidSimFlag) CALL Evaporation()
+    ! treat surface with respective model
+    CALL SurfaceModel_main()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1494,7 +1484,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
-  CALL DSMC_Update_Wall_Vars()
+  CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
@@ -1746,7 +1736,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles, LiquidSimFlag
+USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, PartSpecies
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1754,9 +1744,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Liquid_Boundary,  ONLY: Evaporation
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb
-USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
+USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1772,16 +1760,10 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
-  ! Calculate desobing particles for Surfaceflux
-  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-  END IF
-  IF (DSMC%WallModel.EQ.3) THEN
-    CALL CalcBackgndPartDesorb()
-    !CALL AnalyzePartitionTemp()
-  END IF
-  CALL DSMC_Update_Wall_Vars()
-  IF (LiquidSimFlag) CALL Evaporation()
+  ! treat surface with respective model
+  CALL SurfaceModel_main()
+  CALL UpdateSurfModelVars()
+
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0
@@ -1820,16 +1802,8 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
 ELSE
   IF (DoSurfaceFlux) THEN
-    ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-    END IF
-    IF (DSMC%WallModel.EQ.3) THEN
-      CALL CalcBackgndPartDesorb()
-      !CALL AnalyzePartitionTemp()
-    END IF
-    ! Calculate number of evaporating particles
-    IF (LiquidSimFlag) CALL Evaporation()
+    ! treat surface with respective model
+    CALL SurfaceModel_main()
     
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
@@ -1893,7 +1867,7 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
+  CALL UpdateSurfModelVars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()

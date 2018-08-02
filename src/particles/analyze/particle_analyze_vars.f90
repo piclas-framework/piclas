@@ -19,13 +19,6 @@ LOGICAL                       :: CalcEint                            !< Compute 
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
-LOGICAL                       :: CalcSurfNumSpec                     !< Calculate the number of simulated particles per species 
-                                                                     !< on surfaces
-LOGICAL                       :: CalcEvaporation                     !< Calculate rate of evaporation [kg/s]
-LOGICAL                       :: CalcSurfCoverage                    !< Calculate the surface coverage for each species
-LOGICAL                       :: CalcAccomodation                    !< Calculate the surface accommodation coefficient
-LOGICAL                       :: CalcAdsorbRates                     !< Calculate the adsorption probabilities of species
-LOGICAL                       :: CalcSurfRates                       !< Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
 LOGICAL                       :: VeloDirs(4)                         !< Select the direction for velocity computation
 LOGICAL                       :: TrackParticlePosition               !< Track the particle movement

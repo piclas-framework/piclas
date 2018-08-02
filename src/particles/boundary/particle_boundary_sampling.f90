@@ -58,8 +58,7 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies
-USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
+USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
@@ -99,14 +98,11 @@ nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
-IF (useDSMC) THEN
-  IF (DSMC%WallModel.GT.0) THEN
-    IF (nSurfSample.NE.BezierSampleN) THEN
-!       nSurfSample = BezierSampleN
-    CALL abort(&
+IF (PartSurfaceModel.GT.0) THEN
+  IF (nSurfSample.NE.BezierSampleN) THEN
+  CALL abort(&
 __STAMP__&
 ,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
-    END IF
   END IF
 END IF
  
@@ -938,8 +934,8 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag
-USE MOD_DSMC_Vars                   ,ONLY:Adsorption,DSMC,useDSMC
+USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag,PartSurfaceModel
+USE MOD_SurfaceModel_Vars           ,ONLY:Adsorption
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -953,17 +949,11 @@ IMPLICIT NONE
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
 INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
-LOGICAL                         :: calcWallModel
 !===================================================================================================================================
-
-calcWallModel=.FALSE.
-IF(useDSMC) THEN
-  IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
-END IF
 
 nValues = SurfMesh%SampSize*nSurfSample**2
 ! additional array entries for Coverage, Accomodation and recombination coefficient
-IF(calcWallModel) nValues = nValues + ((nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
+IF(PartSurfaceModel.GT.0) nValues = nValues + ((nSpecies+1)+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
 ! additional array entries for liquid surfaces
 IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
 !
@@ -992,7 +982,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
-        IF (calcWallModel)THEN
+        IF (PartSurfaceModel.GT.0) THEN
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Adsorption(:,p,q)
           iPos=iPos+nSpecies+1
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
@@ -1009,7 +999,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
-    IF (calcWallModel)THEN
+    IF (PartSurfaceModel.GT.0) THEN
       SampWall(SurfSideID)%Adsorption(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
@@ -1061,7 +1051,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &
                                          +SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
-        IF (calcWallModel)THEN
+        IF (PartSurfaceModel.GT.0) THEN
           SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
                                                 +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
           iPos=iPos+nSpecies+1
@@ -1099,8 +1089,8 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
-USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode, DSMC,useDSMC
-USE MOD_Particle_Vars,              ONLY:nSpecies
+USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
+USE MOD_Particle_Vars,              ONLY:nSpecies,PartSurfaceModel
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1120,7 +1110,6 @@ CHARACTER(LEN=255)                  :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec
 REAL                                :: tstart,tend
-LOGICAL                             :: calcWallModel
 !===================================================================================================================================
 
 #ifdef MPI
@@ -1135,13 +1124,9 @@ END IF
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
-calcWallModel=.FALSE.
-IF(useDSMC)THEN
-  IF (DSMC%WallModel.GT.0) calcWallModel=.TRUE.
-END IF
 
 ! Create dataset attribute "SurfVarNames"
-IF (calcWallModel) THEN
+IF (PartSurfaceModel.GT.0) THEN
   nVar2D = 6
   nVar2D_Spec=4
 ELSE
@@ -1174,7 +1159,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   DO iSpec=1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
     Str2DVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_Counter'
-    IF (calcWallModel) THEN
+    IF (PartSurfaceModel.GT.0) THEN
       Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
       Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
       Str2DVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_Recomb_Coeff'
@@ -1188,9 +1173,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
-IF (calcWallModel) THEN
-  Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
-END IF
+  IF (PartSurfaceModel.GT.0) THEN
+    Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
+  END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
