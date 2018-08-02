@@ -613,9 +613,14 @@ DO !iter_t=0,MaxIter
       END IF
     END IF
   END IF
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
   ! calling the analyze routines
-  CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.FALSE.)
+  IF(ALMOSTEQUAL(dt,tEndDiff))THEN
+    finalIter=.TRUE.
+  ELSE
+    finalIter=.FALSE.
+  END IF
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
+  CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
@@ -624,11 +629,6 @@ DO !iter_t=0,MaxIter
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
   IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
-    IF(ALMOSTEQUAL(dt,tEndDiff))THEN
-      finalIter=.TRUE.
-    ELSE
-      finalIter=.FALSE.
-    END IF
     WallTimeEnd=BOLTZPLATZTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics

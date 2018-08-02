@@ -543,7 +543,8 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE
 ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
 ! remove duplicate output of last iteration
-IF(LastIter .AND. MOD(iter,PartAnalyzeStep).EQ.0) DoPerformAnalyze=.FALSE.
+! hence, no analyze in almost last iteration
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
 #endif /* IMPA or ROS*/
 
 ! remove analyze from restart, first file 
@@ -554,7 +555,7 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ! Calculate error norms
-IF(FirstOrLastIter.OR.OutputHDF5)THEN
+IF(FirstOrLastIter.AND.OutputHDF5)THEN
     CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
