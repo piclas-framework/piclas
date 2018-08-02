@@ -221,7 +221,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1967,7 +1967,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: HODSMC, SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
@@ -1989,7 +1989,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
+INTEGER                        :: nVar, nVar_quality, nVarloc, nVarCount, ALLOCSTAT, iSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================

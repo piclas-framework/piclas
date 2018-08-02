@@ -1214,6 +1214,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif /* ROSENBROCK */
 
 #if IMPA
@@ -1231,15 +1252,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
-!         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
-! IF (ALLOCSTAT.NE.0) THEN
-!   CALL abort(&
-! __STAMP__&
-!   ,' Cannot allocate the stage position and element arrays!')
-! END IF
-! StagePartPos=0
-! PEM%StageElement=0
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif
 
 IF(DoRefMapping)THEN
@@ -2103,6 +2136,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+#if defined(IMPA) || defined(ROS)
+MeshHasReflectiveBCs=.FALSE.
+#endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
@@ -2152,6 +2188,9 @@ __STAMP__&
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
      PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp','0')
@@ -2201,6 +2240,9 @@ __STAMP__&
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
@@ -2931,6 +2973,9 @@ SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
+SDEALLOCATE(PEM%ElementN)
+SDEALLOCATE(PEM%NormVec)
+SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/
 #if defined(IMPA)
 SDEALLOCATE(F_PartXk)

@@ -492,7 +492,7 @@ IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 END FUNCTION Calc_E_Act
 
 
-SUBROUTINE Set_TST_Factors(ReactionCase,a_f,b_f,PartID,ReactNum,PartBoundID)
+SUBROUTINE Set_TST_Factors(ReactionCase,a_f,b_f,PartID,ReactNum)!,PartBoundID)
 !===================================================================================================================================
 !> set the Transition state theory (TST) factors for surface chemistry
 !===================================================================================================================================

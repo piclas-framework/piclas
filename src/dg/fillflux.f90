@@ -37,10 +37,8 @@ USE MOD_Riemann,         ONLY:RiemannDielectric,RiemannDielectricInterFace,Riema
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 USE MOD_Mesh_Vars,       ONLY:firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
-USE MOD_PML_vars,        ONLY:DoPML,isPMLFace,isPMLInterFace,PMLnVar
-USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem
+USE MOD_PML_vars,        ONLY:PMLnVar
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master
-USE MOD_Mesh_Vars,       ONLY:SideToElem
 USE MOD_Equation_Vars,   ONLY:DoExactFlux,isExactFluxInterFace
 #ifdef maxwell
 USE MOD_Riemann,         ONLY:ExactFlux
@@ -61,7 +59,7 @@ REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID,ElemID
+INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver

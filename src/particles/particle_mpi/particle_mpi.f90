@@ -211,10 +211,14 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 ! IsNewPart
 PartCommSize   = PartCommSize + 1
-! LastElement
-PartCommSize   = PartCommSize + 1
 ! FieldAtParticle
 PartCommSize   = PartCommSize + 6
+! NormVec
+PartCommSize   = PartCommSize + 3
+! ElementN
+PartCommSize   = PartCommSize + 1
+! PeriodicMoved
+PartCommSize   = PartCommSize + 1
 #endif /*IMPA or ROS*/
 #if defined(IMPA)
 ! PartDeltaX
@@ -779,11 +783,21 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(jPos+1) = 0.
       END IF
       jPos=jPos+1
-      PartSendBuf(iProc)%content(jPos+1) =-REAL(ElemToGlobalElemID(PEM%LastElement(iPart)))
-      jPos=jPos+1
       ! fieldatparticle 
       PartSendBuf(iProc)%content(jPos+1:jPos+6) = FieldAtParticle(iPart,1:6)
       jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+1:jPos+3) = PEM%NormVec(iPart,1:3)
+      PEM%NormVec(iPart,1:3)=0.
+      jPos=jPos+3
+      PartSendBuf(iProc)%content(jPos+1) =REAL(ElemToGlobalElemID(PEM%ElementN(iPart)))
+      jPos=jPos+1
+      IF (PEM%PeriodicMoved(iPart)) THEN
+        PartSendBuf(iProc)%content(jPos+1) = 1.
+      ELSE
+        PartSendBuf(iProc)%content(jPos+1) = 0.
+      END IF
+      PEM%PeriodicMoved(iPart)=.FALSE.
+      jPos=jPos+1
 #endif /*ROS or IMEX */
 #if defined(IMPA)
       ! required for particle newton && closed particle description
@@ -1201,12 +1215,15 @@ USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_LinearSolver_Vars,        ONLY:PartXK,R_PartXK
+USE MOD_PICInterpolation_Vars,    ONLY:FieldAtParticle
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems
+USE MOD_Particle_Mesh_Vars,       ONLY:ElemToGlobalElemID
+USE MOD_Mesh_Vars,                ONLY:OffSetElem
 #endif /*ROS or IMPA*/
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton &
-                                     ,PartDeltaX,PartLambdaAccept,LastPartPos
+                                     ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1226,7 +1243,7 @@ INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 ! shape function 
 INTEGER                       :: iExtPart
 #if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter
+INTEGER                       :: iCounter, LocElemID,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly
@@ -1340,11 +1357,38 @@ DO iProc=1,PartMPI%nMPINeighbors
         ,'Error with IsNewPart in MPIParticleRecv!',1,PartRecvBuf(iProc)%content( 1+jPos))
     END IF
     jPos=jPos+1
-    PEM%LastElement(PartID)=INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    jPos=jPos+1
     ! fieldatparticle 
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
     jPos=jPos+6
+    PEM%NormVec(PartID,1:3)  = PartRecvBuf(iProc)%content(jPos+1:jPos+3)
+    jPos=jPos+3
+    LocElemID=INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
+    IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN
+      PEM%ElementN(PartID)=LocElemID-OffSetElem
+    ELSE
+      PEM%ElementN(PartID)=0
+      DO iElem=PP_nElems+1,nTotalElems
+        IF(ElemToGlobalElemID(iElem).EQ.LocElemID)THEN
+          PEM%ElementN(PartID)=iElem
+          EXIT
+        END IF
+      END DO ! iElem=1,nTotalElems
+      IF(PEM%ElementN(PartID).EQ.0)THEN
+        IPWRITE(*,*) 'bbbbbbb'
+        STOP 'bullshit'
+      END IF
+    END IF
+    jPos=jPos+1
+    IF ( INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 1) THEN
+      PEM%PeriodicMoved(PartID)=.TRUE.
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 1+jPos)) .EQ. 0) THEN
+      PEM%PeriodicMoved(PartID)=.FALSE.
+    ELSE
+      CALL Abort(&
+        __STAMP__&
+        ,'Error with IsNewPart in MPIParticleRecv!',1,PartRecvBuf(iProc)%content( 1+jPos))
+    END IF
+    jPos=jPos+1
 #endif /*ROS or IMPA*/ 
 #if defined(IMPA)
     PartDeltaX(1:6,PartID)     = PartRecvBuf(iProc)%content(jPos+1:jPos+6)
@@ -1748,10 +1792,13 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
 !USE MOD_Mesh_Vars,                  ONLY:nSides
+#ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalBCSides,nTotalSides
+#endif /*CODE_ANALYZE*/
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides,nPartSides
+USE MOD_Particle_Mesh_Vars,         ONLY:nPartSides,nTotalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -196,7 +196,7 @@ IF ( (SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied) &
   ! calculation of molecular adsorption probability with TCE
   E_a = 0.
   E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,iSpec,Surfpos,.TRUE.) * Boltzmannconst
-  CALL Set_TST_Factors(1,a_f,b_f,PartID,0,PartBoundID)
+  CALL Set_TST_Factors(1,a_f,b_f,PartID,0)!,PartBoundID)
   Prob_ads = CalcAdsorbReactProb(1,PartID,Norm_velo,E_a,E_d,a_f,b_f,c_f)
 #if (PP_TimeDiscMethod==42)
   iSampleReact = 1
@@ -331,7 +331,7 @@ DO ReactNum = 1,(Adsorption%DissNum)
       E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
       E_d = 0.0  !0.1 * Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
       ! calculation of dissociative adsorption probability with TCE
-      CALL Set_TST_Factors(2,a_f,b_f,PartID,ReactNum,PartBoundID)
+      CALL Set_TST_Factors(2,a_f,b_f,PartID,ReactNum)!,PartBoundID)
       Prob_diss(ReactNum) = CalcAdsorbReactProb(2,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f)
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
@@ -401,7 +401,7 @@ DO ReactNum = 1,(Adsorption%RecombNum)
       CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nInterAtom)
     END IF
     ! calculation of ER-reaction probability with TCE
-    CALL Set_TST_Factors(3,a_f,b_f,PartID,ReactNum,PartBoundID)
+    CALL Set_TST_Factors(3,a_f,b_f,PartID,ReactNum)!,PartBoundID)
     P_Eley_Rideal(ReactNum+Adsorption%DissNum) = CalcAdsorbReactProb(3,PartID,Norm_Velo,E_a,E_d,a_f,b_f,c_f &
                              ,PartnerSpecies=jSpec,CharaTemp=CharaTemp,WallTemp=WallTemp)
 #if (PP_TimeDiscMethod==42)
@@ -532,7 +532,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, Set_TST_Factors
+USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncAct, PartitionFuncAct_dissoc
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncAct_recomb, PartitionFuncAct_exch

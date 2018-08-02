@@ -121,9 +121,9 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
 ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
-#if ( PP_TimeDiscMethod==42 )
-  INTEGER                       :: iQuaold
-#endif
+!#if ( PP_TimeDiscMethod==42 )
+!  INTEGER                       :: iQuaold
+!#endif
 !===================================================================================================================================
   CollisionEnergy = Coll_pData(iPair)%Ec
   iQuaMax  = 0
@@ -248,9 +248,9 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, iRanVib
   ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
-#if ( PP_TimeDiscMethod==42 )
-  INTEGER                       :: iQuaold
-#endif
+!#if ( PP_TimeDiscMethod==42 )
+!  INTEGER                       :: iQuaold
+!#endif
 !===================================================================================================================================
   iQuaMax  = 0
   ! Determine max electronic quant

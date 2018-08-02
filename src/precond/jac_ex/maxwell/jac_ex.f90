@@ -445,7 +445,7 @@ SUBROUTINE Apply_sJ1D(dRdXi,dRdEta,dRdZeta,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars ,ONLY:nDOFLine,mass
+USE MOD_LinearSolver_Vars ,ONLY:nDOFLine!,mass
 USE MOD_Mesh_Vars         ,ONLY:sJ
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -460,7 +460,7 @@ REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER :: i,j,k
-INTEGER :: ll,mm,nn,oo,v1,v2,r2
+INTEGER :: mm,nn,oo,v1,v2!,ll
 !===================================================================================================================================
 
 
