@@ -2343,61 +2343,51 @@ END IF
 #endif
 #endif
 
-!--- initialize randomization (= random if one or more seeds are 0 or random is wanted)
-nrSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-IF (nrSeeds.GT.0) THEN
-   ALLOCATE(seeds(1:nrSeeds))
-   DO iSeed = 1, nrSeeds
-      WRITE(UNIT=hilf,FMT='(I0)') iSeed
-      seeds(iSeed) = GETINT('Particles-RandomSeed'//TRIM(hilf),'0')
-   END DO
-END IF
-
-CALL RANDOM_SEED(Size = SeedSize)                       ! Check for number of needed Seeds
-TrueRandom = .FALSE.                             ! FALSE for defined random seed
-
-! to be stored in HDF5-state file!!!
-IF (nrSeeds.GT.0) THEN
-   IF (nrSeeds.NE.SeedSize) THEN
-      IF(printRandomSeeds)THEN
-        IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
-        IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
-      END IF
-      TrueRandom = .TRUE.
-   END IF
-   DO iSeed = 1, nrSeeds
-      IF (Seeds(iSeed).EQ.0) THEN
-         IF(printRandomSeeds)THEN
-           IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
-           IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
-         END IF
-         TrueRandom = .TRUE.
-      END IF
-   END DO
-ELSE
-   TrueRandom = .TRUE.
-END IF
-
-IF (TrueRandom) THEN
-   CALL RANDOM_SEED()
-ELSE
-#ifdef MPI
-   Seeds(1:SeedSize) = Seeds(1:SeedSize)+PartMPI%MyRank
+nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
+CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
+ALLOCATE(seeds(SeedSize))
+IF(nRandomSeeds=-1) THEN
+  ! PSEUDO RANDOM Case
+  CALL RANDOM_SEED(GET = Seeds(1:SeedSize))
+#if USE_MPI
+  Seeds(1:SeedSize)=Seeds(1:SeedSize)+PartMPI%MyRank
 #endif
-   CALL RANDOM_SEED(PUT = Seeds(1:SeedSize))
+  CALL RANDOM_SEED(PUT = Seeds(1:SeedSize))
+ELSE IF(nRandomSeeds=0) THEN
+  ! hard-coded deterministic random numbers
+  ! compiler specific number of seeds needed
+ !   IF (Restart) THEN
+ !   CALL !numbers from state file
+ ! ELSE IF (.NOT.Restart) THEN
+  ! array with numbers
+  CALL DeterministicRandomSeeds(SeedSize,Seeds)
+ELSE IF(nRandomSeeds.GT.0) THEN
+  ! read in numbers from ini
+  ! ini needs n=SeedSize seeds 
+  IF (nRandomSeeds.EQ.SeedSize)
+    DO iSeed=1,SeedSize
+      WRITE(UNIT=hilf,FMT='(I0)') iSeed
+      Seeds(iSeed)= GETINT('Particle-RandomSeed'//TRIM(hilf))
+    END DO
+  ELSE IF(nRandomSeeds.GT.SeedSize)
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
+    CALL ABORT(&
+     __STAMP__&
+     ,'Too many seeds provided in ini') 
+  ELSE IF(nRandomSeeds.LT.SeedSize)
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
+    CALL ABORT(&
+      __STAMP__&
+      ,'Not enough seeds provided in ini.')
+ELSE 
+  SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
+  'Choose nRandomSeeds'//&
+  '=-1    pseudo random'//&
+  '= 0    hard-coded deterministic numbers'//&
+  '> 0    numbers from ini. Expected ',SeedSize,'seeds.'
 END IF
 
-ALLOCATE(iseeds(SeedSize))
-iseeds(:)=0
-CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
-! to be stored in HDF5-state file!!!
-IF(printRandomSeeds)THEN
-  IPWRITE(UNIT_StdOut,*) 'Random seeds in PIC_init:'
-  DO iSeed = 1,SeedSize
-     IPWRITE(UNIT_StdOut,*) iseeds(iSeed)
-  END DO
-END IF
-DEALLOCATE(iseeds)
+
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
@@ -2760,6 +2750,7 @@ END IF !nCollectChargesBCs .GT. 0
 !   (moved here from dsmc_init for switching off the initial emission)
 IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
+CALL prms%CreateIntOption(     'Seed-Init','seeds for nRandomSeeds>0 case','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
@@ -2804,7 +2795,6 @@ __STAMP__&
     END IF
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
-
 
 END SUBROUTINE InitializeVariables
 
@@ -3071,5 +3061,41 @@ INTEGER :: j
 mat = 0.
 FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
+
+
+SUBROUTINE DeterministicRandomSeeds(SeedSize,DeterministicSeeds)
+!===================================================================================================================================
+!> Will include HDF5 print and read command for restart
+!===================================================================================================================================
+! MODULES
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,     ONLY:,PartMPI
+#endif
+! IMPLICIT VARIABLE HANDLING
+!===================================================================================================================================
+
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN)             :: SeedSize
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)            :: DeterministicSeeds(SeedSize)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER                     :: iSeed
+!CHARACTER(LEN=30)           :: filename
+!==================================================================================================================================
+DO iSeed=1:SeedSize
+DeterministicSeeds(iSeed)=iSeed
+#ifdef MPI
+DeterministicSeeds(iSeed)=iSeed+PartMPI%MyRank
+#endif
+END DO
+
+!! write seeds into HDF5 file
+!filename=TRIM(ProjectName)//'_State_000_PLATZHALTER'
+!open(unit=unit_stdout,file='filename'
+
+END SUBROUTINE
+
 
 END MODULE MOD_ParticleInit
