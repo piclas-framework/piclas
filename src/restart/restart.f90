@@ -186,7 +186,8 @@ USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
 USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
-#else
+#endif
+#if (USE_QDS_DG) || (!PP_HDG)
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
 #endif /*PP_HDG*/
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution
@@ -236,14 +237,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifndef PP_HDG
+#if (USE_QDS_DG) || (!PP_HDG)
 REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iPML
-#else
+#endif
+#ifdef PP_HDG
 LOGICAL                  :: DG_SolutionLambdaExists,DG_SolutionUExists
 INTEGER(KIND=8)          :: iter
-#endif /*not PP_HDG*/
+#endif /*PP_HDG*/
 INTEGER                  :: iElem
 #ifdef MPI
 REAL                     :: StartT,EndT
@@ -291,6 +293,7 @@ LOGICAL,ALLOCATABLE      :: readVarFromState(:)
 CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
 LOGICAL                  :: QDS_DG_SolutionExists
 INTEGER                  :: j,k
+INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES)
 INTEGER                  :: i
