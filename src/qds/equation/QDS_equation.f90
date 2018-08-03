@@ -74,7 +74,9 @@ SUBROUTINE QDS_ExactFunc(QDSExactFunction,t,tDeriv,x,resu)
 ! MODULES
 USE MOD_Globals
 USE MOD_QDS_DG_Vars,        ONLY:QDSnVar_macro
-!USE MOD_Global_Vars,      ONLY:BoltzmannConst
+#if (PP_TimeDiscMethod==1)
+USE MOD_TimeDisc_Vars,      ONLY: dt
+#endif /* (PP_TimeDiscMethod==1) */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -136,7 +138,7 @@ END SELECT ! QDSExactFunction
 
 
 
-# if (PP_TimeDiscMethod==1)
+#if (PP_TimeDiscMethod==1)
 ! For O3 RK, the boundary condition has to be adjusted
 ! Works only for O3 RK!!
 SELECT CASE(tDeriv)
