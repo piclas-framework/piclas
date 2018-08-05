@@ -75,12 +75,13 @@ CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Flag to compute the ionization degree in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Flag to compute the points per shape function in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Flag to compute the plasma parameter N_D in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Flag to compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Flag to compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Flag to compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Flag to compute the electron temperature in each cell','.FALSE.')
 !CALL prms%CreateLogicalOption(  'ElectronTemperatureIsMaxwell', 'Flag if  electron temperature is assumed to be Maxwellian in each cell','.TRUE.')
-CALL prms%CreateLogicalOption(  'CalcElectronDensity'     , 'Flag to compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'     , 'Flag to compute the electron density in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Flag to compute the electron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Flag to compute the whole deposited charge,'//&
@@ -215,21 +216,35 @@ IF(CalcPointsPerDebyeLength)THEN
   CALL AddToElemData(ElementOut,'PPDCell',RealArray=PPDCell(1:PP_nElems))
 END IF
 
-! Ionization degree
-CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree','.FALSE.')
-IF(CalcIonizationDegree)THEN
-  ALLOCATE( IonizationCell(1:PP_nElems) )
-  IonizationCell=0.0
-  CALL AddToElemData(ElementOut,'IonizationCell',RealArray=IonizationCell(1:PP_nElems))
+! Plasma parameter 
+CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter','.FALSE.')
+IF(CalcPlasmaParameter)THEN
+  ALLOCATE( PlasmaParameterCell(1:PP_nElems) )
+  PlasmaParameterCell=0.0
+  CALL AddToElemData(ElementOut,'PlasmaParameterCell',RealArray=PlasmaParameterCell(1:PP_nElems))
 END IF
 
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
-IF(CalcPointsPerDebyeLength) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
   CALL AddToElemData(ElementOut,'DebyeLengthCell',RealArray=DebyeLengthCell(1:PP_nElems))
+END IF
+
+! Ionization degree and quasi-neutrality
+CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree','.FALSE.')
+IF(CalcDebyeLength) CalcIonizationDegree=.TRUE.
+IF(CalcIonizationDegree)THEN
+  ! degree of ionization
+  ALLOCATE( IonizationCell(1:PP_nElems) )
+  IonizationCell=0.0
+  CALL AddToElemData(ElementOut,'IonizationCell',RealArray=IonizationCell(1:PP_nElems))
+  ! quasi neutrality
+  ALLOCATE( QuasiNeutralityCell(1:PP_nElems) )
+  QuasiNeutralityCell=0.0
+  CALL AddToElemData(ElementOut,'QuasiNeutralityCell',RealArray=QuasiNeutralityCell(1:PP_nElems))
 END IF
 
 ! PIC Time Step Approximation
@@ -250,12 +265,25 @@ IF(CalcPlasmaFrequency)THEN
 END IF
 
 ! Electron Density
-CalcElectronDensity   = GETLOGICAL('CalcElectronDensity','.FALSE.')
-IF(CalcDebyeLength.OR.CalcPlasmaFrequency) CalcElectronDensity=.TRUE.
-IF(CalcElectronDensity) THEN
+CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
+IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
+IF(CalcElectronIonDensity) THEN
+  ! electrons
   ALLOCATE( ElectronDensityCell(1:PP_nElems) )
   ElectronDensityCell=0.0
   CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+  ! ions
+  ALLOCATE( IonDensityCell(1:PP_nElems) )
+  IonDensityCell=0.0
+  CALL AddToElemData(ElementOut,'IonDensityCell',RealArray=IonDensityCell(1:PP_nElems))
+  ! neutrals
+  ALLOCATE( NeutralDensityCell(1:PP_nElems) )
+  NeutralDensityCell=0.0
+  CALL AddToElemData(ElementOut,'NeutralDensityCell',RealArray=NeutralDensityCell(1:PP_nElems))
+  ! charge number
+  ALLOCATE( ChargeNumberCell(1:PP_nElems) )
+  ChargeNumberCell=0.0
+  CALL AddToElemData(ElementOut,'ChargeNumberCell',RealArray=ChargeNumberCell(1:PP_nElems))
 END IF
 
 ! Electron Temperature
@@ -2868,14 +2896,14 @@ IF(NINT(Species(SpeciesID)%ChargeIC/(-1.60217653E-19)).EQ.1) PartIsElectron=.TRU
 END FUNCTION PARTISELECTRON
 
 
-SUBROUTINE CalculateElectronDensityCell() 
+SUBROUTINE CalculateElectronIonDensityCell() 
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Preproc                ,ONLY:PP_nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2886,22 +2914,43 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart, iElem
+INTEGER              :: iPart,iElem,ElemID
+REAL                 :: charge
 !===================================================================================================================================
 
 ! nullify
 ElectronDensityCell=0.
+     IonDensityCell=0.
+ NeutralDensityCell=0.
+   ChargeNumberCell=0.
 
 ! loop over all particles and count the number of electrons per cell
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    IF(.NOT.PARTISELECTRON(iPart)) CYCLE
-    IF(usevMPF) THEN
-      ElectronDensityCell(PEM%Element(iPart))=ElectronDensityCell(PEM%Element(iPart))+PartMPF(iPart)
-    ELSE
-      ElectronDensityCell(PEM%Element(iPart))=ElectronDensityCell(PEM%Element(iPart)) &
-                                             +Species(PartSpecies(iPart))%MacroParticleFactor
+    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
+    ElemID = PEM%Element(iPart)
+    IF(PARTISELECTRON(iPart))THEN ! electrons
+      IF(usevMPF) THEN
+        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID)+PartMPF(iPart)
+      ELSE
+        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID) &
+            +Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+    ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive of negative)
+      IF(usevMPF) THEN
+        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + PartMPF(iPart)
+        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*PartMPF(iPart)
+      ELSE
+        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + Species(PartSpecies(iPart))%MacroParticleFactor
+        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+    ELSE ! neutrals
+      IF(usevMPF) THEN
+        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + PartMPF(iPart)
+      ELSE
+        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
     END IF
   END IF ! ParticleInside
 END DO ! iPart
@@ -2909,9 +2958,11 @@ END DO ! iPart
 ! loop over all elements and divide by volume 
 DO iElem=1,PP_nElems
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/GEO%Volume(iElem)
+       IonDensityCell(iElem)=IonDensityCell(iElem)     /GEO%Volume(iElem)
+   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /GEO%Volume(iElem)
 END DO ! iElem=1,PP_nElems
 
-END SUBROUTINE CalculateElectronDensityCell
+END SUBROUTINE CalculateElectronIonDensityCell
 
 
 SUBROUTINE CalculateElectronTemperatureCell() 
@@ -3036,7 +3087,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc                ,ONLY:PP_nElems
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell
+USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElectronCharge, BoltzmannConst
 USE MOD_Equation_Vars          ,ONLY:Eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3055,7 +3106,8 @@ DebyeLengthCell=0.
 
 ! loop over all elements and compute the plasma frequency with the use of the electron density
 DO iElem=1,PP_nElems
-  IF(ElectronDensityCell(iElem).LE.0.) CYCLE
+  IF(ElectronDensityCell(iElem).LE.0.0) CYCLE ! ignore cells in which no electrons are present
+  IF(QuasiNeutralityCell(iElem).LE.0.0) CYCLE ! ignore cells in which quasi neutrality is not possible
   DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
                                  (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
 END DO ! iElem=1,PP_nElems
@@ -3099,7 +3151,8 @@ SUBROUTINE CalculateIonizationCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
+USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
+USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,usevMPF,PartMPF,PEM
 USE MOD_Preproc                ,ONLY:PP_nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3110,51 +3163,64 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart, iElem, ElemID
-REAL                 :: charge
-REAL                 :: n_i(1:PP_nElems) ! ion density: Note that the volume in the density is dropped due to the ratio
-REAL                 :: n_n(1:PP_nElems) ! neutral density: Note that the volume in the density is dropped due to the ratio
+INTEGER              :: iElem
 !===================================================================================================================================
 ! nullify
-IonizationCell = 0.
-! Note that the volume in the density is dropped due to the ratio
-n_i            = 0.
-n_n            = 0.
+IonizationCell      = 0.
+QuasiNeutralityCell = 0.
 
-! loop over all particles and count the number of electrons per cell
-! CAUTION: we need the number of all real particle instead of simulated particles
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    ElemID = PEM%Element(iPart)
-    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
-    IF(charge.LT.0.0)THEN ! ignore electrons (and any particles with negative charge)
-      CYCLE ! next particle
-    ELSEIF(charge.GT.0.0)THEN ! ion particle
-      IF(usevMPF) THEN
-        n_i(ElemID) = n_i(ElemID) + PartMPF(iPart) * charge
-      ELSE
-        n_i(ElemID) = n_i(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor * charge
-      END IF
-    ELSE ! neutral particle
-      IF(usevMPF) THEN
-        n_n(ElemID) = n_n(ElemID) + PartMPF(iPart)
-      ELSE
-        n_n(ElemID) = n_n(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    END IF
-  END IF ! ParticleInside
-END DO ! iPart
-
-! loop over all elements and divide by volume (Note that the volume in the density is dropped due to the ratio)
+! loop over all elements
 DO iElem=1,PP_nElems
-  IF(ABS(n_i(iElem) + n_n(iElem)).LE.0.0)THEN ! no particles in cell
-    IonizationCell(iElem) = 0.0
+  IF(ABS(IonDensityCell(iElem) + NeutralDensityCell(iElem)).LE.0.0)THEN ! no particles in cell
+    IonizationCell(iElem)      = 0.0
+    QuasiNeutralityCell(iElem) = 0.0
   ELSE
-    IonizationCell(iElem) = n_i(iElem) / (n_i(iElem) + n_n(iElem))
+    ! set degree of ionization
+    IonizationCell(iElem)      = IonDensityCell(iElem) / (IonDensityCell(iElem) + NeutralDensityCell(iElem))
+
+    ! set quasi neutrality between zero and unity depending on which density is larger
+    QuasiNeutralityCell(iElem) = IonDensityCell(iElem) * ChargeNumberCell(iElem)
+    IF(QuasiNeutralityCell(iElem).GT.ElectronDensityCell(iElem))THEN
+      QuasiNeutralityCell(iElem) = ElectronDensityCell(iElem) / QuasiNeutralityCell(iElem)
+    ELSE
+      QuasiNeutralityCell(iElem) = QuasiNeutralityCell(iElem) / ElectronDensityCell(iElem)
+    END IF
   END IF
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateIonizationCell
+
+
+SUBROUTINE CalculatePlasmaParameter() 
+!===================================================================================================================================
+! Calculate the points per Debye length for each cell
+! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals_Vars          ,ONLY: PI
+USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,ElectronDensityCell,PlasmaParameterCell
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem 
+!===================================================================================================================================
+! loop over all elements
+DO iElem=1,PP_nElems
+  IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronDensityCell(iElem).GT.0.0))THEN
+    PlasmaParameterCell(iElem) = (4.0/3.0) * PI * ElectronDensityCell(iElem) * (DebyeLengthCell(iElem)**3)
+  ELSE
+    PlasmaParameterCell(iElem) = 0.0
+  END IF
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePlasmaParameter
 
 
 SUBROUTINE CalculatePartElemData() 
@@ -3163,8 +3229,9 @@ SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronDensity&
-                                    ,CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3176,7 +3243,11 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! electron density
-IF(CalcElectronDensity) CALL CalculateElectronDensityCell()
+IF(CalcElectronIonDensity) CALL CalculateElectronIonDensityCell()
+
+! Ionization degree: n_i / (n_i + n_n)
+! ion density versus sum of ion and neutral density
+IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
@@ -3187,14 +3258,14 @@ IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 ! Debye length 
 IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
 
+! Plasma parameter: 4/3 * pi * n_e * lambda_D^3
+IF(CalcPlasmaParameter) CALL CalculatePlasmaParameter()
+
 ! PIC time step
 IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
 
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
 IF(CalcPointsPerDebyeLength) CALL CalculatePPDCell()
-
-! Ionization degree
-IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 END SUBROUTINE CalculatePartElemData
 
