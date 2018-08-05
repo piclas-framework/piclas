@@ -267,6 +267,8 @@ END IF
 ! Electron Density
 CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
+! check old variable name: remove at the beginning of 2019
+IF(.NOT.CalcElectronIonDensity)CalcElectronIonDensity= GETLOGICAL('CalcElectronDensity','.FALSE.')
 IF(CalcElectronIonDensity) THEN
   ! electrons
   ALLOCATE( ElectronDensityCell(1:PP_nElems) )
@@ -1716,7 +1718,7 @@ END DO
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 ELSE
-  CALL MPI_REDUCE(PartVandV2  ,RD,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(PartVandV2  ,RD        ,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 END IF
 #endif /*MPI*/
 
@@ -2683,7 +2685,7 @@ END SUBROUTINE WriteParticleTrackingDataAnalytic
 #endif /* CODE_ANALYZE */
 
 
-Function CalcEkinPart(iPart)
+PURE Function CalcEkinPart(iPart)
 !===================================================================================================================================
 ! computes the kinetic energy of one particle
 !===================================================================================================================================
@@ -2704,42 +2706,39 @@ INTEGER,INTENT(IN)                 :: iPart
 REAL                               :: CalcEkinPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                               :: partV2, gamma1, Ekin
+REAL                               :: partV2, gamma1
 !===================================================================================================================================
-
 IF (PartLorentzType.EQ.5)THEN
   ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
   ! compute gamma
   gamma1=SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
   IF(usevMPF)THEN
-    Ekin=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
+    CalcEkinPart=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
   ELSE
-    Ekin= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
+    CalcEkinPart= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
   END IF
 ELSE
   partV2 = PartState(iPart,4) * PartState(iPart,4) &
          + PartState(iPart,5) * PartState(iPart,5) &
          + PartState(iPart,6) * PartState(iPart,6)
-
   IF(usevMPF)THEN
     IF (partV2.LT.1e6)THEN
-      Ekin= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * PartMPF(iPart)
+      CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * PartMPF(iPart)
     ELSE
       gamma1=partV2*c2_inv
       gamma1=1.0/SQRT(1.-gamma1)
-      Ekin=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
+      CalcEkinPart=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
     END IF ! ipartV2
   ELSE ! novMPF
     IF (partV2.LT.1e6)THEN
-      Ekin= 0.5*Species(PartSpecies(iPart))%MassIC*partV2* Species(PartSpecies(iPart))%MacroParticleFactor
+      CalcEkinPart= 0.5*Species(PartSpecies(iPart))%MassIC*partV2* Species(PartSpecies(iPart))%MacroParticleFactor
     ELSE
       gamma1=partV2*c2_inv
       gamma1=1.0/SQRT(1.-gamma1)
-      Ekin= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
+      CalcEkinPart= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
     END IF ! ipartV2
   END IF ! usevMPF
 END IF
-CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
 
 
@@ -2971,10 +2970,10 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc               ,ONLY: PP_nElems
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartMPF
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartMPF,PartState
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2983,34 +2982,69 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,nElectronsPerCell(1:PP_nElems),ElemID
+INTEGER :: iPart,iElem,nElectronsPerCell(1:PP_nElems),ElemID,Method
+REAL    ::  PartVandV2(1:PP_nElems,1:6)
+REAL    :: Mean_PartV2(1:3)
+REAL    :: MeanPartV_2(1:3)
+REAL    ::   TempDirec(1:3)
 !===================================================================================================================================
 ! nullify
 ElectronTemperatureCell=0.
 nElectronsPerCell      =0
 
-! 1.) loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
+! hard-coded
+Method=1 ! 0: <E> = (3/2)*<k_B*T> (keeps drift velocity, hence, over-estimates the temperature when drift becomes important)
+!        ! 1: remove drift from temperature calculation
+
+PartVandV2 = 0.
+! 1.   loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    IF(.NOT.PARTISELECTRON(iPart)) CYCLE
+    IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
     ElemID                          = PEM%Element(iPart)
     IF(usevMPF)THEN
       nElectronsPerCell(ElemID)     = nElectronsPerCell(ElemID)+PartMPF(iPart)
     ELSE
       nElectronsPerCell(ElemID)     = nElectronsPerCell(ElemID)+Species(PartSpecies(iPart))%MacroParticleFactor
     END IF
-    ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
+    ! Determine velocity or kinetic energy
+    SELECT CASE(Method)
+    CASE(0) ! 1.0   for distributions where the drift is negligible
+      ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
+    CASE(1) ! 1.1   remove drift from distribution 
+      IF (usevMPF) THEN
+        PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(iPart,4:6)    * PartMPF(iPart)
+        PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(iPart,4:6)**2 * PartMPF(iPart)
+      ELSE
+        PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(iPart,4:6)    * Species(PartSpecies(iPart))%MacroParticleFactor
+        PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(iPart,4:6)**2 * Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+    END SELECT
   END IF ! ParticleInside
 END DO ! iPart
 
-! 2.) loop over all elements and divide by electrons per cell to get average kinetic energy 
-DO iElem=1,PP_nElems
-  IF(nElectronsPerCell(iElem).EQ.0) CYCLE
-  ! "For other distributions, not assumed to be in equilibrium or have a temperature, two-thirds of the average energy is often
-  ! referred to as the temperature, since for a Maxwell–Boltzmann distribution with three degrees of freedom,
-  ! <E> = (3/2)*<k_B*T> "
-  ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
-END DO ! iElem=1,PP_nElems
+! 2.   loop over all elements and divide by electrons per cell to get average kinetic energy 
+SELECT CASE(Method)
+CASE(0) ! 2.0   for distributions where the drift is negligible
+  DO iElem=1,PP_nElems
+    IF(nElectronsPerCell(iElem).EQ.0) CYCLE
+    ! <E> = (3/2)*<k_B*T>
+    ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
+  END DO ! iElem=1,PP_nElems
+CASE(1) ! 2.1   remove drift from distribution
+  DO iElem=1,PP_nElems
+    IF(nElectronsPerCell(iElem).EQ.0) THEN
+      ElectronTemperatureCell(iElem) = 0.0
+    ELSE
+      ! Compute velocity averages
+      MeanPartV_2(1:3)  = (PartVandV2(iElem,1:3) / nElectronsPerCell(iElem))**2 ! < |v| >**2
+      Mean_PartV2(1:3)  =  PartVandV2(iElem,4:6) / nElectronsPerCell(iElem)     ! < |v|**2 >
+      ! Compute temperatures
+      TempDirec(1:3) = ElectronMass * (Mean_PartV2(1:3) - MeanPartV_2(1:3)) / BoltzmannConst
+      ElectronTemperatureCell(iElem) = (TempDirec(1) + TempDirec(2) + TempDirec(3))/3.0
+    END IF
+  END DO
+END SELECT
 
 END SUBROUTINE CalculateElectronTemperatureCell
 
