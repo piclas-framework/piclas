@@ -2868,71 +2868,6 @@ IF(NINT(Species(SpeciesID)%ChargeIC/(-1.60217653E-19)).EQ.1) PartIsElectron=.TRU
 END FUNCTION PARTISELECTRON
 
 
-SUBROUTINE CalculateIonizationCell() 
-!===================================================================================================================================
-! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
-! 2.) Count the number of neutrals per DG cell and divide it by element-volume -> neutral density n_n
-! 3.) Calculate the ionization degree: alpha = n_i/(n_i + n_n)
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,usevMPF,PartMPF
-USE MOD_Preproc                ,ONLY:PP_nElems
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER              :: iPart, iElem
-REAL                 :: charge
-REAL                 :: n_i ! ion density: Note that the volume in the density is dropped due to the ratio
-REAL                 :: n_n ! neutral density: Note that the volume in the density is dropped due to the ratio
-!===================================================================================================================================
-! nullify
-IonizationCell = 0.
-! Note that the volume in the density is dropped due to the ratio
-n_i            = 0.
-n_n            = 0.
-
-! loop over all particles and count the number of electrons per cell
-! CAUTION: we need the number of all real particle instead of simulated particles
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
-    IF(charge.LT.0.0)THEN ! ignore electrons (and any particles with negative charge)
-      CYCLE ! next particle
-    ELSEIF(charge.GT.0.0)THEN ! ion particle
-      IF(usevMPF) THEN
-        n_i = n_i + PartMPF(iPart) * charge
-      ELSE
-        n_i = n_i + Species(PartSpecies(iPart))%MacroParticleFactor * charge
-      END IF
-    ELSE ! neutral particle
-      IF(usevMPF) THEN
-        n_n = n_n + PartMPF(iPart)
-      ELSE
-        n_n = n_n + Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    END IF
-  END IF ! ParticleInside
-END DO ! iPart
-
-! loop over all elements and divide by volume (Note that the volume in the density is dropped due to the ratio)
-DO iElem=1,PP_nElems
-  IF(ABS(n_i + n_n).LE.0.0)THEN ! no particles in cell
-    IonizationCell(iElem) = 0.0
-  ELSE
-    IonizationCell(iElem) = n_i / (n_i + n_n)
-  END IF
-END DO ! iElem=1,PP_nElems
-
-END SUBROUTINE CalculateIonizationCell
-
-
 SUBROUTINE CalculateElectronDensityCell() 
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
@@ -3121,7 +3056,8 @@ DebyeLengthCell=0.
 ! loop over all elements and compute the plasma frequency with the use of the electron density
 DO iElem=1,PP_nElems
   IF(ElectronDensityCell(iElem).LE.0.) CYCLE
-  DebyeLengthCell(iElem)=SQRT((eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/(ElectronDensityCell(iElem)*ElectronCharge**2))
+  DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
+                                 (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateDebyeLengthCell
@@ -3153,6 +3089,72 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePPDCell
+
+
+SUBROUTINE CalculateIonizationCell() 
+!===================================================================================================================================
+! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
+! 2.) Count the number of neutrals per DG cell and divide it by element-volume -> neutral density n_n
+! 3.) Calculate the ionization degree: alpha = n_i/(n_i + n_n)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell
+USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,usevMPF,PartMPF,PEM
+USE MOD_Preproc                ,ONLY:PP_nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iPart, iElem, ElemID
+REAL                 :: charge
+REAL                 :: n_i(1:PP_nElems) ! ion density: Note that the volume in the density is dropped due to the ratio
+REAL                 :: n_n(1:PP_nElems) ! neutral density: Note that the volume in the density is dropped due to the ratio
+!===================================================================================================================================
+! nullify
+IonizationCell = 0.
+! Note that the volume in the density is dropped due to the ratio
+n_i            = 0.
+n_n            = 0.
+
+! loop over all particles and count the number of electrons per cell
+! CAUTION: we need the number of all real particle instead of simulated particles
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    ElemID = PEM%Element(iPart)
+    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
+    IF(charge.LT.0.0)THEN ! ignore electrons (and any particles with negative charge)
+      CYCLE ! next particle
+    ELSEIF(charge.GT.0.0)THEN ! ion particle
+      IF(usevMPF) THEN
+        n_i(ElemID) = n_i(ElemID) + PartMPF(iPart) * charge
+      ELSE
+        n_i(ElemID) = n_i(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor * charge
+      END IF
+    ELSE ! neutral particle
+      IF(usevMPF) THEN
+        n_n(ElemID) = n_n(ElemID) + PartMPF(iPart)
+      ELSE
+        n_n(ElemID) = n_n(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+    END IF
+  END IF ! ParticleInside
+END DO ! iPart
+
+! loop over all elements and divide by volume (Note that the volume in the density is dropped due to the ratio)
+DO iElem=1,PP_nElems
+  IF(ABS(n_i(iElem) + n_n(iElem)).LE.0.0)THEN ! no particles in cell
+    IonizationCell(iElem) = 0.0
+  ELSE
+    IonizationCell(iElem) = n_i(iElem) / (n_i(iElem) + n_n(iElem))
+  END IF
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateIonizationCell
 
 
 SUBROUTINE CalculatePartElemData() 
