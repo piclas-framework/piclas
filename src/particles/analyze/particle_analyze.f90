@@ -744,7 +744,7 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
 ! Analyze Routines
 !===================================================================================================================================
   ! computes the real and simulated number of particles
-  CALL CalcNumPartsofSpec(NumSpec,SimNumSpec)
+  CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
@@ -1474,8 +1474,8 @@ IF(usevMPF)THEN ! for MPF differentiate between real particle number and simulat
   SimNumSpec = 0
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-        NumSpec(PartSpecies(iPart))    = NumSpec(PartSpecies(iPart)) + PartMPF(iPart)          ! NumSpec = real particle number
-        SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1                    ! NumSpec =  particle number
+        NumSpec(PartSpecies(iPart))    = NumSpec(PartSpecies(iPart)) + PartMPF(iPart)      ! NumSpec    = real particle number
+        SimNumSpec(PartSpecies(iPart)) = SimNumSpec(PartSpecies(iPart)) + 1                ! SimNumSpec = simulated particle number
     END IF
   END DO
   IF(BGGas%BGGasSpecies.NE.0) THEN
@@ -2985,10 +2985,10 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars           ,ONLY:BoltzmannConst
-USE MOD_Preproc                ,ONLY:PP_nElems
-USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronTemperatureCell
-USE MOD_Particle_Vars          ,ONLY:PDM,PEM
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2997,27 +2997,33 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart, iElem, nElectronsPerCell(1:PP_nElems), ElemID
+INTEGER              :: iPart,iElem,nElectronsPerCell(1:PP_nElems),ElemID
 !===================================================================================================================================
-
 ! nullify
 ElectronTemperatureCell=0.
 nElectronsPerCell      =0
 
-! loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
+! 1.) loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE
-    ElemID=PEM%Element(iPart)
-    nElectronsPerCell(ElemID)=nElectronsPerCell(ElemID)+1
-    ElectronTemperatureCell(ElemID)=ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
+    ElemID                          = PEM%Element(iPart)
+    IF(usevMPF)THEN
+      nElectronsPerCell(ElemID)     = nElectronsPerCell(ElemID)+PartMPF(iPart)
+    ELSE
+      nElectronsPerCell(ElemID)     = nElectronsPerCell(ElemID)+Species(PartSpecies(iPart))%MacroParticleFactor
+    END IF
+    ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
   END IF ! ParticleInside
 END DO ! iPart
 
-! loop over all elements and divide by electrons per cell to get average kinetic energy 
+! 2.) loop over all elements and divide by electrons per cell to get average kinetic energy 
 DO iElem=1,PP_nElems
   IF(nElectronsPerCell(iElem).EQ.0) CYCLE
-  ElectronTemperatureCell(iElem)=2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
+  ! "For other distributions, not assumed to be in equilibrium or have a temperature, two-thirds of the average energy is often
+  ! referred to as the temperature, since for a Maxwell–Boltzmann distribution with three degrees of freedom,
+  ! <E> = (3/2)*<k_B*T> "
+  ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateElectronTemperatureCell
