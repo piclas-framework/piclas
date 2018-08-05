@@ -267,8 +267,6 @@ END IF
 ! Electron Density
 CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
-! check old variable name: remove at the beginning of 2019
-IF(.NOT.CalcElectronIonDensity)CalcElectronIonDensity= GETLOGICAL('CalcElectronDensity','.FALSE.')
 IF(CalcElectronIonDensity) THEN
   ! electrons
   ALLOCATE( ElectronDensityCell(1:PP_nElems) )
@@ -3033,7 +3031,7 @@ CASE(0) ! 2.0   for distributions where the drift is negligible
   END DO ! iElem=1,PP_nElems
 CASE(1) ! 2.1   remove drift from distribution
   DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).EQ.0) THEN
+    IF(nElectronsPerCell(iElem).LT.2) THEN ! only calculate the temperature when more than one electron are present
       ElectronTemperatureCell(iElem) = 0.0
     ELSE
       ! Compute velocity averages
@@ -3042,6 +3040,9 @@ CASE(1) ! 2.1   remove drift from distribution
       ! Compute temperatures
       TempDirec(1:3) = ElectronMass * (Mean_PartV2(1:3) - MeanPartV_2(1:3)) / BoltzmannConst
       ElectronTemperatureCell(iElem) = (TempDirec(1) + TempDirec(2) + TempDirec(3))/3.0
+      IF(ElectronTemperatureCell(iElem).LT.0.0)THEN
+        ElectronTemperatureCell(iElem)=0.0
+      END IF
     END IF
   END DO
 END SELECT
@@ -3144,6 +3145,7 @@ DO iElem=1,PP_nElems
   IF(QuasiNeutralityCell(iElem).LE.0.0) CYCLE ! ignore cells in which quasi neutrality is not possible
   DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
                                  (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
+                             WRITE (*,*) "DebyeLengthCell(iElem) =", DebyeLengthCell(iElem),ElectronTemperatureCell(iElem)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateDebyeLengthCell
