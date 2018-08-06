@@ -301,7 +301,7 @@ REAL,INTENT(OUT)             :: Vout(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !REAL                         :: Vcalc (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 !REAL                         :: Vcalc2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 REAL                         :: Vcalc(1:PP_nVar,0:PP_N)
-INTEGER                      :: iElem,i,j,k,iVar,l,vn1,vn2,vni,vnj,vnk,p,q
+INTEGER                      :: iElem,p,q!,i,j,k
 !===================================================================================================================================
 
 Vout(:,:,:,:,:)=0.

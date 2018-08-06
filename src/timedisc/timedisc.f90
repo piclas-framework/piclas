@@ -59,10 +59,11 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
+USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStepUser
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
-USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser
+USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter
 #ifdef IMPA
-USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,RK_fillSF,nRKStages
+USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,nRKStages
 #endif
 #ifdef ROS
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inflow,nRKStages ! required for BCs
@@ -211,6 +212,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+!USE MOD_Equation_Vars          ,ONLY: c
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -226,6 +228,7 @@ USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 #if (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum
+USE MOD_Particle_Vars          ,ONLY: dt_max_particles, dt_maxwell,dt_part_ratio,maxwelliternum
 #endif
 #ifndef PP_HDG
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
@@ -245,7 +248,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,PerformPartWeightLB
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
@@ -262,18 +265,14 @@ USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_PARTICLE_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
+USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
-USE MOD_PARTICLE_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout, DSMC
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
-#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-USE MOD_PARTICLE_Vars          ,ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum
-USE MOD_Equation_Vars          ,ONLY: c
-#endif /*(PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)*/
 #if (PP_TimeDiscMethod==201)
-USE MOD_PARTICLE_Vars          ,ONLY: PDM,Pt,PartState
+USE MOD_Particle_Vars          ,ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -303,7 +302,7 @@ REAL                         :: vMax,vMaxx,vMaxy,vMaxz
 #endif
 #if USE_LOADBALANCE
 INTEGER                      :: tmp_LoadBalanceSample    !> loadbalance sample saved until initial autorestart ist finished
-INTEGER                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
+LOGICAL                      :: tmp_DoLoadBalance        !> loadbalance flag saved until initial autorestart ist finished
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: iPart
@@ -484,7 +483,7 @@ DO !iter_t=0,MaxIter
   END IF
   dt_Min = dt_max_particles
   MaxwellIterNum = INT(dt_max_particles / dt_maxwell)
-  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
+!  IterDisplayStep =MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
   IF (MaxwellIterNum.GT.MaximumIterNum) MaxwellIterNum = MaximumIterNum
   IF ((MPIroot).AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
     SWRITE(UNIT_StdOut,'(132("!"))')
@@ -743,7 +742,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
 USE MOD_Analyze,                 ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars,           ONLY: dt,iStage,time,iter
+USE MOD_TimeDisc_Vars,           ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
 USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
@@ -778,6 +777,7 @@ USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
+USE MOD_TimeDisc_Vars,           ONLY: iter
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY: DoExternalParts
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1367,7 +1367,6 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : KeepWallParticles, LiquidSimFlag
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1375,9 +1374,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Liquid_Boundary,  ONLY: Evaporation
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb !, AnalyzePartitionTemp
-USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
+USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1403,15 +1400,8 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
   IF (DoSurfaceFlux) THEN
-    ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-    END IF
-    IF (DSMC%WallModel.EQ.3) THEN
-      CALL CalcBackgndPartDesorb()
-      !CALL AnalyzePartitionTemp()
-    END IF
-    IF (LiquidSimFlag) CALL Evaporation()
+    ! treat surface with respective model
+    CALL SurfaceModel_main()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1494,7 +1484,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 
-  CALL DSMC_Update_Wall_Vars()
+  CALL UpdateSurfModelVars()
 
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
@@ -1563,8 +1553,7 @@ USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
-USE MOD_Particle_Vars,    ONLY : LiquidSimFlag
+USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1572,7 +1561,7 @@ USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1747,7 +1736,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles, LiquidSimFlag
+USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, PartSpecies
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1755,9 +1744,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_Liquid_Boundary,  ONLY: Evaporation
-USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb
-USE MOD_DSMC_SurfModel_Tools,   ONLY: DSMC_Update_Wall_Vars, CalcBackgndPartDesorb
+USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1773,16 +1760,10 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
-  ! Calculate desobing particles for Surfaceflux
-  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-  END IF
-  IF (DSMC%WallModel.EQ.3) THEN
-    CALL CalcBackgndPartDesorb()
-    !CALL AnalyzePartitionTemp()
-  END IF
-  CALL DSMC_Update_Wall_Vars()
-  IF (LiquidSimFlag) CALL Evaporation()
+  ! treat surface with respective model
+  CALL SurfaceModel_main()
+  CALL UpdateSurfModelVars()
+
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0
@@ -1821,16 +1802,8 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
 ELSE
   IF (DoSurfaceFlux) THEN
-    ! Calculate desobing particles for Surfaceflux
-    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-      CALL Calc_PartNum_Wall_Desorb()
-    END IF
-    IF (DSMC%WallModel.EQ.3) THEN
-      CALL CalcBackgndPartDesorb()
-      !CALL AnalyzePartitionTemp()
-    END IF
-    ! Calculate number of evaporating particles
-    IF (LiquidSimFlag) CALL Evaporation()
+    ! treat surface with respective model
+    CALL SurfaceModel_main()
     
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
@@ -1894,7 +1867,7 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
-  CALL DSMC_Update_Wall_Vars()
+  CALL UpdateSurfModelVars()
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
@@ -1927,13 +1900,13 @@ USE MOD_LinearOperator,   ONLY:EvalResidual
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM!, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-USE MOD_PIC_Analyze,ONLY: VerifyDepositedCharge
-USE MOD_part_tools,     ONLY : UpdateNextFreePosition
+USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
+USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2134,7 +2107,7 @@ REAL               :: tRatio, LorentzFacInv
 ! RK counter
 INTEGER            :: iCounter, iStage2
 #ifdef PARTICLES
-REAL               :: dtloc,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
+REAL               :: dtloc,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3)
 INTEGER            :: iPart,nParts
 !LOGICAL            :: NoInterpolation ! fields cannot be interpolated, because particle is "outside", hence, fields and
 !                                      ! forces of previous stage are used
@@ -3339,7 +3312,7 @@ SUBROUTINE TimeStepByRosenbrock()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old, time
-USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma !,RKdtFrac, RK_inc,RK_inflow,RK_fillSF
+USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma 
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
@@ -3365,8 +3338,7 @@ USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver,          ONLY:Particle_GMRES
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
-USE MOD_PICDepo_Vars,            ONLY:PartSource,DoDeposition
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
+!USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
 USE MOD_Particle_Vars,           ONLY:PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
                                      ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,MeshHasReflectiveBCs
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
@@ -3417,15 +3389,14 @@ IMPLICIT NONE
 REAL               :: tstage
 ! implicit 
 REAL               :: coeff,coeff_inv,coeff_loc,dt_inv_loc
-INTEGER            :: iElem,i,j,k
+!INTEGER            :: i,j
 REAL               :: tRatio, LorentzFacInv
-REAL               :: DeltaU(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 ! particle surface flux
 ! RK counter
-INTEGER            :: iCounter, iStage2
+INTEGER            :: iCounter
 #ifdef PARTICLES
 REAL               :: PartDeltaX(1:6), PartRHS(1:6), Norm_P2, Pt_tmp(1:6), PartRHS_tild(1:6),FieldAtParticle_loc(1:6)
-REAL               :: dtFrac,RandVal, LorentzFac,PartState_tmp(1:6), Pt_loc(1:6), v_tild(1:3),rtmp
+REAL               :: RandVal!, LorentzFac
 REAL               :: AbortCrit
 INTEGER            :: iPart,nParts
 REAL               :: n_loc(1:3)
@@ -4247,7 +4218,7 @@ USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
 #ifdef PARTICLES
 USE MOD_PICDepo,                 ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
+USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
 USE MOD_part_RHS,                ONLY : CalcPartRHS
 USE MOD_part_emission,           ONLY : ParticleInserting
 USE MOD_DSMC,                    ONLY : DSMC_main
@@ -4255,7 +4226,7 @@ USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_part_tools,              ONLY : UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -4435,16 +4406,15 @@ USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
 #ifdef PARTICLES
 USE MOD_PICDepo,                 ONLY:Deposition!, DepositionMPF
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_PIC_Vars,                ONLY:PIC
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, dt_maxwell, MaxwellIterNum
 USE MOD_part_RHS,                ONLY:CalcPartRHS
 USE MOD_part_emission,           ONLY:ParticleInserting
 USE MOD_DSMC,                    ONLY:DSMC_main
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
-USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -4457,7 +4427,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: i,rk, iLoop
+INTEGER               :: rk, iLoop
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 #ifdef PP_POIS
 REAL                  :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -4623,7 +4593,7 @@ USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
 #ifdef PARTICLES
 USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
 USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
@@ -4639,12 +4609,12 @@ USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,      ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars,       ONLY:  DoExternalParts
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,TriaTracking !,MeasureTrackTime
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,DoRefMapping,TriaTracking !,MeasureTrackTime
 USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
@@ -5386,14 +5356,14 @@ SUBROUTINE TimeStep_LD()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,          ONLY:dt,time
+USE MOD_TimeDisc_Vars,          ONLY:dt
 #ifdef PARTICLES
 USE MOD_Particle_Vars,          ONLY:PartState, LastPartPos, PDM,PEM
 USE MOD_LD_Vars,                ONLY:LD_RHS
 USE MOD_LD,                     ONLY:LD_main
 USE MOD_part_tools,             ONLY:UpdateNextFreePosition
 USE MOD_part_emission,          ONLY:ParticleInserting
-USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
@@ -5467,12 +5437,12 @@ USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM, WriteMacroVol
 USE MOD_LD_Vars,          ONLY : LD_DSMC_RHS
 USE MOD_LD,               ONLY : LD_main
 USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_LD_DSMC_TOOLS
+!USE MOD_LD_DSMC_TOOLS
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC_Vars,        ONLY : DSMC
 USE MOD_LD_DSMC_DOMAIN_DEC
-USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeasureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #endif
 #ifdef MPI
@@ -5618,22 +5588,26 @@ SUBROUTINE InitTimeStep()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-#ifdef PARTICLES
-USE MOD_PARTICLE_Vars,      ONLY: ManualTimeStep, useManualTimestep
-#if (PP_TimeDiscMethod==200)
-USE MOD_PARTICLE_Vars,      ONLY: dt_maxwell,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
-USE MOD_Particle_Mesh_Vars, ONLY: GEO
-USE MOD_TimeDisc_Vars,      ONLY: IterDisplayStep
-#endif
-#endif /*PARTICLES*/
+USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
+USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
 USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
 #endif
-USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
-USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
+#ifdef PARTICLES
+USE MOD_Particle_Vars,      ONLY: ManualTimeStep, useManualTimestep
+#endif /*PARTICLES*/
+#if (PP_TimeDiscMethod==200)
+USE MOD_Particle_Vars,      ONLY: dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_TimeDisc_Vars,      ONLY: IterDisplayStep,IterDisplayStepUser
+#endif
 #if (PP_TimeDiscMethod==201)                                                                                                         
-USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum 
+USE MOD_TimeDisc_Vars,      ONLY: dt_temp, MaximumIterNum
+#endif
+#if (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201)  
+USE MOD_Equation_Vars,      ONLY: c
+USE MOD_Particle_Mesh_Vars, ONLY: GEO
+USE MOD_Particle_Vars,      ONLY: dt_maxwell!,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

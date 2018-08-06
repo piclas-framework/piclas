@@ -122,7 +122,7 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
   USE MOD_Globals
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : Species, PEM
+  USE MOD_Particle_Vars,        ONLY : Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

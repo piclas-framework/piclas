@@ -33,9 +33,9 @@ SUBROUTINE CalcMacCellLDValues()
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollisMode, LD_MultiTemperaturMod
   USE MOD_LD_internal_Temp
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-#if (PP_TimeDiscMethod==1001)
-  USE MOD_LD_DSMC_TOOLS,          ONLY : LD_DSMC_Mean_Bufferzone_A_Val
-#endif
+!#if (PP_TimeDiscMethod==1001)
+!  USE MOD_LD_DSMC_TOOLS,          ONLY : LD_DSMC_Mean_Bufferzone_A_Val
+!#endif
 #if (PP_TimeDiscMethod!=1001)
   USE MOD_Mesh_Vars,              ONLY : ElemToSide, SideToElem
 #endif

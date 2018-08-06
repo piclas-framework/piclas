@@ -50,7 +50,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -58,7 +58,6 @@ USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Mesh_Vars,              ONLY:BC
 ! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
-USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
@@ -82,7 +81,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: WallModeltype, adsorbindex
+INTEGER                              :: adsorbindex
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
@@ -129,18 +128,16 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,TriNum=TriNum)
+#ifndef IMPA
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,flip=flip,TriNum=TriNum)
+#else
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+#endif /*NOT IMPA*/ 
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! Decide which WallModel is used
-      IF (useDSMC) THEN
-        WallModeltype = DSMC%WallModel
-      ELSE
-        WallModeltype = 0
-      END IF
-      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -151,7 +148,7 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
-      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
@@ -172,7 +169,7 @@ CASE(2) !PartBound%ReflectiveBC)
             PDM%ParticleInside(iPart) = .FALSE.
 #ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
-		        DoPartInNewton(iPart) = .FALSE.
+            DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -282,7 +279,7 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -290,7 +287,6 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
-USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 #if defined(IMPA)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 USE MOD_Particle_Vars,          ONLY:DoPartInNewton
@@ -310,7 +306,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID, WallModeltype, adsorbindex
+INTEGER                              :: BCSideID, adsorbindex
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -356,19 +352,17 @@ CASE(2) !PartBound%ReflectiveBC)
   !---- swap species?
   BCSideID=PartBCSideList(SideID)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,BCSideID=BCSideID)
+#ifndef IMPA
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,flip,BCSideID=BCSideID)
+#else
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+#endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! Decide which WallModel is used
-      IF (useDSMC) THEN
-        WallModeltype = DSMC%WallModel
-      ELSE
-        WallModeltype = 0
-      END IF
       BCSideID=PartBCSideList(SideID)
-      IF ((WallModeltype.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -379,7 +373,7 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         END IF
-      ELSE IF ((WallModeltype.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
@@ -400,7 +394,7 @@ CASE(2) !PartBound%ReflectiveBC)
             PDM%ParticleInside(iPart) = .FALSE.
 #ifdef IMPA
             PartIsImplicit(iPart) = .FALSE.
-  			    DoPartInNewton(iPart) = .FALSE.
+            DoPartInNewton(iPart) = .FALSE.
 #endif /*IMPA*/
             alpha=-1.
           END IF
@@ -513,7 +507,7 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a
 #endif
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+!USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -566,8 +560,15 @@ CASE(2) !PartAuxBC%ReflectiveBC)
 !print*,iPart,alpha,PartState(iPart,4:6)
 !print*,iPart,alpha,LastPartPos(iPart,1:3),PartState(iPart,1:3)
   IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,flip=-1, &
-      IsSpeciesSwap=IsSpeciesSwap,AuxBCIdx=AuxBCIdx)
+! CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1, &
+!      IsSpeciesSwap=IsSpeciesSwap,flip=-1,AuxBCIdx=AuxBCIdx)
+#ifndef IMPA
+    CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,IsSpeciesSwap=IsSpeciesSwap, &
+      flip=-1,AuxBCIdx=AuxBCIdx)
+#else
+    CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,IsSpeciesSwap=IsSpeciesSwap)
+#endif /*NOT IMPA*/
+ 
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
@@ -607,15 +608,13 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,PartSideToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PEM
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
-USE MOD_Equation_Vars, ONLY: c2_inv
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_LD_Vars,                ONLY: useLD
@@ -628,12 +627,15 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #elif (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,          ONLY:PDM
 #endif
-USE MOD_TimeDisc_Vars,          ONLY:iStage
 #if defined(IMPA)
 ! USE MOD_TimeDisc_Vars,        ONLY:RK_inflow
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit !,PartQ,PartDeltaX
 ! USE MOD_LinearSolver_Vars,    ONLY:PartXK
 #endif /*IMPA*/
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars,          ONLY:PEM
+USE MOD_TimeDisc_Vars,          ONLY:iStage
+#endif
 #ifdef ROS
 USE MOD_TimeDisc_Vars,          ONLY:RK_inflow
 #endif /*ROS*/
@@ -654,7 +656,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3),WallVelo(3),intersec(3),r_vec(3),axis(3),cos2inv
+REAL                                 :: v_old(1:3),n_loc(1:3),WallVelo(3),intersec(3),r_vec(3),axis(3),cos2inv!,v_2(1:3),v_aux(1:3)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !#if defined(LSERK)
 !REAL                                 :: absPt_temp
@@ -922,334 +924,316 @@ PEM%NormVec(PartID,1:3)=n_loc
 END SUBROUTINE PerfectReflection
 
 
-#ifdef IMPA
-SUBROUTINE PerfectReflectionIMEXRotation(PartTrajectory,alpha,lengthPartTrajectory,SideID,PartID,n_loc,Symmetry)
-!===================================================================================================================================
-! rotate the particle position and Runge-Kutta Stages for the IMEX PIC approach
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:MyRank
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
-USE MOD_TimeDisc_Vars,          ONLY:iStage
-USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
-USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:RK_inflow
-USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a,RK_b,nRKStages
-USE MOD_Particle_Vars,          ONLY:PartLorentzType
-USE MOD_Equation_Vars,          ONLY:c2_inv
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-INTEGER,INTENT(IN)                   :: SideID
-INTEGER,INTENT(IN)                   :: PartID
-REAL,INTENT(IN)                      :: n_loc(3)
-LOGICAL,INTENT(IN)                   :: Symmetry
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                              :: iCounter,iStage2
-REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
-REAL                                 :: dtFrac ! (used for recomputation of previsous positions
-REAL                                 :: LorentzFacInv
-REAL                                 :: deltaPos(1:3),lengthRK
-REAL                                 :: PartStageLoc(1:6,1:nRKStages)
-REAL                                 :: R_PartXKloc(1:6)
-REAL                                 :: PartStateNloc(1:6)
-!===================================================================================================================================
-
-IF(SUM(ABS(PEM%NormVec(PartID,1:3))).GT.0)THEN
-  IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
-END IF
-PEM%NormVec(PartID,1:3)=n_loc
-RETURN
-
-! reconstruct of the path-length to get the correct timing
-! the intersection point is computed by comparing the distance between 
-! |Intersectionpoint-PartStateN| to |SUM dt F|
-IF(PartIsImplicit(PartID))THEN
-  ! if a particle is initial rotated at ta certain plane, PartStateN is rotated/recomputed to be
-  ! outside of the mesh. If the particle moves towards the boundary condition in the next RK stage
-  ! or Newton step the particle enters the domain from the outside. Hence, it is NOT supposed to 
-  ! be rotated. 
-  ! CAUTION: the particle is NOT tracked from PartStateN to PartStateStage because both values
-  ! can be located outside of the mesh. Hence, the particle is moved on the interection point 
-  ! between PartPosition-iStage and PartPosition-iStage-1 
-  ! 
-  ! Check if PartStateN is already outside of the mesh, hence, no rotation is requried
-  deltaPos(1:3)=PartStateN(PartID,1:3)-LastPartPos(PartID,1:3)
-  !IF(DOT_PRODUCT(deltaPos,n_loc).GT.0.)THEN
-  !  ! VARIANT A)
-  !  ! IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  !  ! VARIANT A) cannot be used, because the particle may be located outside
-  !  ! VARIANT B)
-  !  ! move particle position to intersection point, following trajectory is zero
-  !  PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
-  !  PartTrajectory          = -deltaPos
-  !  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-  !                           +PartTrajectory(2)*PartTrajectory(2) &
-  !                           +PartTrajectory(3)*PartTrajectory(3) )
-  !  IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
-  !  lengthPartTrajectory    = 0.
-  !  ! we have to stop the particle
-  !  ! and map the particle position to fix everything
-  !  PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
-  !  PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
-  !  ! prevent the particle Newton to continue
-  !  PartDeltaX(1:6,PartID) = 0.
-  !  ! and re-trace the particle, because the displacment step is limited
-  !  RETURN
-  !END IF
-  deltaPos(1:3)=ESDIRK_a(iStage,iStage)*R_PartXK(1:3,PartID)
-  DO iCounter=1,iStage-1
-    deltaPos(1:3) = deltaPos(1:3) + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
-  END DO ! iCounter=1,iStage-1
-ELSE
-  IF(iStage.GT.0)THEN
-    deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
-    DO iCounter=1,iStage-2
-      deltaPos(1:3) = deltaPos(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
-    END DO ! iCounter=1,iStage-1
-  ELSE
-    deltaPos = (PartState(PartID,1:3) -PartStateN(PartID,1:3))/dt
-    ! deltaPos(1:3)=RK_b(nRKStages)*PartStage(PartID,1:3,nRKStages)
-    ! DO iCounter=1,nRKStages-1
-    !   deltaPos(1:3) = deltaPos(1:3) + RK_b(iCounter)*PartStage(PartID,1:3,iCounter)
-    ! END DO ! iCounter=1,iStage-1
-  END IF
-END IF
-deltaPos=deltaPos*dt
-lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
-! LastPartPos is already at the intersection point
-deltaPos=LastPartPos(PartID,1:3)-PartStateN(PartID,1:3)
-dtFrac=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
-dtFrac=dtFrac / lengthRK
-
-dtFrac=alpha / lengthPartTrajectory
-
-! copy N_loc 
-!IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
-!  STOP 'second reflection aaarg!'
+!#ifdef IMPA
+!SUBROUTINE PerfectReflectionIMEXRotation(PartTrajectory,lengthPartTrajectory,SideID,PartID,n_loc,Symmetry)
+!!===================================================================================================================================
+!! rotate the particle position and Runge-Kutta Stages for the IMEX PIC approach
+!!===================================================================================================================================
+!! MODULES                                                                                                                          !
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+!USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
+!USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+!USE MOD_TimeDisc_Vars,          ONLY:iStage
+!USE MOD_Particle_Vars,          ONLY:PartQ,PartDeltaX
+!USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
+!USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+!USE MOD_Particle_Vars,          ONLY:PEM,PartIsImplicit
+!USE MOD_TimeDisc_Vars,          ONLY:iStage,dt,ESDIRK_a,ERK_a,RK_b,nRKStages
+!USE MOD_Particle_Vars,          ONLY:PartLorentzType
+!USE MOD_Equation_Vars,          ONLY:c2_inv
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES 
+!INTEGER,INTENT(IN)                   :: SideID
+!INTEGER,INTENT(IN)                   :: PartID
+!REAL,INTENT(IN)                      :: n_loc(3)
+!LOGICAL,INTENT(IN)                   :: Symmetry
+!!----------------------------------------------------------------------------------------------------------------------------------!
+!! OUTPUT VARIABLES
+!REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                              :: iCounter,iStage2
+!REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
+!REAL                                 :: dtFrac ! (used for recomputation of previsous positions
+!REAL                                 :: LorentzFacInv
+!REAL                                 :: deltaPos(1:3),lengthRK
+!!===================================================================================================================================
+!
+!
+!! reconstruct of the path-length to get the correct timing
+!! the intersection point is computed by comparing the distance between 
+!! |Intersectionpoint-PartStateN| to |SUM dt F|
+!IF(PartIsImplicit(PartID))THEN
+!  ! if a particle is initial rotated at ta certain plane, PartStateN is rotated/recomputed to be
+!  ! outside of the mesh. If the particle moves towards the boundary condition in the next RK stage
+!  ! or Newton step the particle enters the domain from the outside. Hence, it is NOT supposed to 
+!  ! be rotated. 
+!  ! CAUTION: the particle is NOT tracked from PartStateN to PartStateStage because both values
+!  ! can be located outside of the mesh. Hence, the particle is moved on the interection point 
+!  ! between PartPosition-iStage and PartPosition-iStage-1 
+!  ! 
+!  ! Check if PartStateN is already outside of the mesh, hence, no rotation is requried
+!  deltaPos(1:3)=PartStateN(PartID,1:3)-LastPartPos(PartID,1:3)
+!  IF(DOT_PRODUCT(deltaPos,n_loc).GT.0.)THEN
+!    ! VARIANT A)
+!    ! IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+!    ! VARIANT A) cannot be used, because the particle may be located outside
+!    ! VARIANT B)
+!    ! move particle position to intersection point, following trajectory is zero
+!    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+!    PartTrajectory          = -deltaPos
+!    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+!                             +PartTrajectory(2)*PartTrajectory(2) &
+!                             +PartTrajectory(3)*PartTrajectory(3) )
+!    IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
+!    lengthPartTrajectory    = 0.
+!    ! we have to stop the particle
+!    ! and map the particle position to fix everything
+!    PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
+!    PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
+!    ! prevent the particle Newton to continue
+!    PartDeltaX(1:6,PartID) = 0.
+!    ! and re-trace the particle, because the displacment step is limited
+!    RETURN
+!  END IF
+!  deltaPos(1:3)=ESDIRK_a(iStage,iStage)*R_PartXK(1:3,PartID)
+!  DO iCounter=1,iStage-1
+!    deltaPos(1:3) = deltaPos(1:3) + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+!  END DO ! iCounter=1,iStage-1
+!ELSE
+!  IF(iStage.GT.0)THEN
+!    deltaPos(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+!    DO iCounter=1,iStage-2
+!      deltaPos(1:3) = deltaPos(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+!    END DO ! iCounter=1,iStage-1
+!  ELSE
+!    deltaPos(1:3)=RK_b(nRKStages)*PartStage(PartID,1:3,nRKStages)
+!    DO iCounter=1,nRKStages-1
+!      deltaPos(1:3) = deltaPos(1:3) + RK_b(iCounter)*PartStage(PartID,1:3,iCounter)
+!    END DO ! iCounter=1,iStage-1
+!  END IF
 !END IF
-PEM%NormVec(PartID,1:3)=n_loc
+!deltaPos=deltaPos*dt
+!lengthRK=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+!! LastPartPos is already at the intersection point
+!deltaPos=LastPartPos(PartID,1:3)-PartStateN(PartID,1:3)
+!dtFrac=SQRT(DOT_PRODUCT(deltaPos,deltaPos))
+!dtFrac=dtFrac / lengthRK
+!
+!! rotate the Runge-Kutta coefficients into the new system 
+!! this rotation is a housholder rotation
+!RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
+!RotationMat(1,2) = -2*n_loc(1)*n_loc(2)
+!RotationMat(1,3) = -2*n_loc(1)*n_loc(3)
+!RotationMat(2,1) = RotationMat(1,2)
+!RotationMat(3,1) = RotationMat(1,3)
+!RotationMat(2,2) = 1.-2*n_loc(2)*n_loc(2)
+!RotationMat(2,3) = -2*n_loc(2)*n_loc(3)
+!RotationMat(3,2) = RotationMat(2,3)
+!RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
+!
+!IF(iStage.GT.0)THEN
+!  ! 0)
+!  ! if a particle is initial rotated at ta certain plane, PartStateN is rotated/recomputed to be
+!  ! outside of the mesh. If the particle moves towards the boundary condition in the next RK stage
+!  ! or Newton step the particle enters the domain from the outside. Hence, it is NOT supposed to 
+!  ! be rotated. 
+!  ! CAUTION: the particle is NOT tracked from PartStateN to PartStateStage because both values
+!  ! can be located outside of the mesh. Hence, the particle is moved on the interection point 
+!  ! between PartPosition-iStage and PartPosition-iStage-1 
+!  ! 
+!  ! Check if PartStateN is already outside of the mesh, hence, no rotation is requried
+!  deltaPos(1:3)=PartStateN(PartID,1:3)-LastPartPos(PartID,1:3)
+!  IF(DOT_PRODUCT(deltaPos,n_loc).GT.0.)THEN
+!    ! VARIANT A)
+!    ! IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+!    ! VARIANT A) cannot be used, because the particle may be located outside
+!    ! VARIANT B)
+!    ! move particle position to intersection point, following trajectory is zero
+!    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
+!    ! dummy value in part-trajectory 
+!    PartTrajectory          = -deltaPos
+!    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+!                             +PartTrajectory(2)*PartTrajectory(2) &
+!                             +PartTrajectory(3)*PartTrajectory(3) )
+!    IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
+!    lengthPartTrajectory    = 0.
+!    ! we have to stop the particle
+!    ! and map the particle position to fix everything
+!    PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
+!    PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
+!    RETURN
+!  END IF
+!  ! 1) rotate the acceleration depending if it is a symmetric or perfectly reflective wall 
+!  !    Why is there actually a difference between symmetric and PR walls?
+!  DO iCounter=1,iStage-1
+!    IF(Symmetry)THEN
+!      PartStage(PartID,4:6,iCounter)=PartStage(PartID,4:6,iCounter)-2.*DOT_PRODUCT(PartStage(PartID,4:6,iCounter),n_loc)*n_loc
+!    ELSE
+!      PartStage(PartID,4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
+!    END IF
+!  END DO ! iCoutner=1,iStage-1
+!  IF(PartIsImplicit(PartID))THEN
+!    ! We require the acceleration from the final particle position, which is unknown. This value is approximated
+!    ! by R_PartXK, under the assumption, that the value of the last Newton step is close enough.
+!    ! 1b) Rotate the function and position of the old state
+!    R_PartXK(1:3,PartID)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
+!    IF(Symmetry)THEN
+!      R_PartXK(4:6,PartID)=R_PartXK(4:6,PartID)-2.*DOT_PRODUCT(R_PartXK(4:6,PartID),n_loc)*n_loc
+!    ELSE
+!      R_PartXK(4:6,PartID)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
+!    END IF
+!    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
+!    DeltaP(4:6)=ESDIRK_A(iStage,iStage)*R_PartXK(4:6,PartID)
+!    DO iCounter=1,iStage-1
+!      DeltaP(4:6)=DeltaP(4:6)+ ESDIRK_A(iStage,iCounter)*PartStage(PartID,4:6,iCounter)
+!    END DO ! iCounter=1,iStage-1
+!    PartStateN(PartID,4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
+!    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
+!    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
+!      LorentzFacInv=1.0+DOT_PRODUCT(PartStateN(PartID,4:6),PartStateN(PartID,4:6))*c2_inv      
+!      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+!      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6)*LorentzFacInv
+!      DO iStage2=2,iStage-1
+!        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStage(PartID,4:6,1)
+!        DO iCounter=2,iStage2
+!          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+!        END DO ! iCounter=1,iStage2-1
+!        ! new momentum at iStage=2
+!        DeltaP(4:6)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+!        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
+!        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+!        PartStage(PartID,1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
+!      END DO ! iStage2,2,iStage
+!    ELSE ! PartStateN(4:6) is the velocity
+!      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6) 
+!      DO iStage2=2,iStage-1
+!        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStage(PartID,4:6,1)
+!        DO iCounter=2,iStage2
+!          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+!        END DO ! iCounter=1,iStage2-1
+!        ! new velocity during iStage=2
+!        PartStage(PartID,1:3,iStage2)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+!      END DO ! iStage2,2,iStage
+!    END IF
+!    ! 4) recompute the initial position at t^n and the position after the reflection at t^n+dt*C(iState)
+!    DeltaP(1:3)=ESDIRK_A(iStage,iStage)*R_PartXK(1:3,PartID)
+!    DO iCounter=1,iStage-1
+!      DeltaP(1:3)=DeltaP(1:3) + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+!    END DO ! iCoutner=1,iStage-1
+!    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt*dtFrac
+!    ! compute particle position AFTER reflection
+!    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt*(1.-dtFrac)
+!    ! recompute PartQ
+!    DeltaP = ESDIRK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
+!    DO iCounter=1,iStage-2
+!      DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
+!    END DO ! iCounter=1,iStage-2
+!    PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
+!    ! 5) Open Issue: what is now PartXK,F_PartXK,Norm_PartXK, etc???
+!    ! rotate PartXK do not roate...
+!    ! 5a1)
+!    ! PartXK(1:6,PartID)   =   PartState(PartID,1:6)
+!    ! 5a2)
+!    ! more baseline assuption form:
+!    PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
+!    ! rotate velocity vector
+!    PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
+!    ! recompute missing particle path
+!    ! 6) compute particle displacement
+!    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+!    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+!                             +PartTrajectory(2)*PartTrajectory(2) &
+!                             +PartTrajectory(3)*PartTrajectory(3) )
+!    IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
+!    ! new change in part-position is length of rest of tracing
+!    ! there is no need of an Armijo rule after the reflection...., because it would be brainfuck
+!    ! 7a1)
+!    ! PartDeltaX(1:6,PartID) = 0.
+!    ! this is the deltaX if the set PartXK at the wall = LastPartPos
+!    ! 7a2)
+!    PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
+!    ! the velocity/impulse change can be interpreted as the difference between these positions....
+!    IF(Symmetry)THEN
+!      PartDeltaX(4:6,PartID)=PartDeltaX(4:6,PartID)-2.*DOT_PRODUCT(PartDeltaX(4:6,PartID),n_loc)*n_loc
+!    ELSE
+!      PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
+!    END IF
+!    ! set lastElement for tracing
+!    IF(.NOT.DoRefMapping)THEN
+!      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+!    END IF
+!  ELSE
+!    ! explicit particle
+!    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
+!    DeltaP(4:6)=ERK_a(iStage,iStage-1)*PartStage(PartID,4:6,iStage-1)
+!    DO iCounter=1,iStage-2
+!      DeltaP(4:6)=DeltaP(4:6)+ ERK_a(iStage,iCounter)*PartStage(PartID,4:6,iCounter)
+!    END DO ! iCounter=1,iStage-1
+!    PartStateN(PartID,4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
+!    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
+!    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
+!      LorentzFacInv=1.0+DOT_PRODUCT(PartStateN(PartID,4:6),PartStateN(PartID,4:6))*c2_inv      
+!      LorentzFacInv=1.0/SQRT(LorentzFacInv)
+!      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6)*LorentzFacInv
+!      DO iStage2=2,iStage-1
+!        DeltaP(4:6) = ERK_a(iStage2,1)*PartStage(PartID,4:6,1)
+!        DO iCounter=2,iStage2
+!          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+!        END DO ! iCounter=1,iStage2-1
+!        ! new momentum at iStage=2
+!        DeltaP(4:6)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+!        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
+!        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+!        PartStage(PartID,1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
+!      END DO ! iStage2,2,iStage
+!    ELSE ! PartStateN(4:6) is the velocity
+!      PartStage(PartID,1:3,1) = PartStateN(PartID,4:6) 
+!      DO iStage2=2,iStage-1
+!        DeltaP(4:6) = ERK_a(iStage2,1)*PartStage(PartID,4:6,1)
+!        DO iCounter=2,iStage2
+!          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStage(PartID,4:6,iCounter)
+!        END DO ! iCounter=1,iStage2-1
+!        ! new velocity during iStage=2
+!        PartStage(PartID,1:3,iStage2)=PartStateN(PartID,4:6) + DeltaP(4:6)*dt
+!      END DO ! iStage2,2,iStage
+!    END IF
+!    ! 4) recompute the initial position at t^n
+!    DeltaP(1:3)=ERK_a(iStage,iStage-1)*PartStage(PartID,1:3,iStage-1)
+!    DO iCounter=1,iStage-2
+!      DeltaP(1:3)=DeltaP(1:3) + ERK_a(iStage,iCounter)*PartStage(PartID,1:3,iCounter)
+!    END DO ! iCoutner=1,iStage-1
+!    PartStateN(PartID,1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt *dtFrac
+!    ! compute particle position AFTER reflection
+!    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt *(1.-dtFrac)
+!    ! recompute missing particle path
+!    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+!    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+!                             +PartTrajectory(2)*PartTrajectory(2) &
+!                             +PartTrajectory(3)*PartTrajectory(3) )
+!    PartTrajectory=PartTrajectory/lengthPartTrajectory
+!    ! set lastElement for tracing
+!    IF(.NOT.DoRefMapping)THEN
+!      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
+!    END IF
+!  END IF
+!ELSE 
+!  ! only explicit particles 
+!  ! compute moved particle || rest of movement
+!  ! required for the final stage (iStage=0) is  u^n+1 = u^n + sum_i b(i)*F(u_i)
+!  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+!  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+!                           +PartTrajectory(2)*PartTrajectory(2) &
+!                           +PartTrajectory(3)*PartTrajectory(3) )
+!  PartTrajectory=PartTrajectory/lengthPartTrajectory
+!END IF
+!
+!END SUBROUTINE PerfectReflectionIMEXRotation
+!#endif /*IMPA*/
 
-! rotate the Runge-Kutta coefficients into the new system 
-! this rotation is a housholder rotation
-RotationMat(1,1) = 1.-2*n_loc(1)*n_loc(1)
-RotationMat(1,2) = -2*n_loc(1)*n_loc(2)
-RotationMat(1,3) = -2*n_loc(1)*n_loc(3)
-RotationMat(2,1) = RotationMat(1,2)
-RotationMat(3,1) = RotationMat(1,3)
-RotationMat(2,2) = 1.-2*n_loc(2)*n_loc(2)
-RotationMat(2,3) = -2*n_loc(2)*n_loc(3)
-RotationMat(3,2) = RotationMat(2,3)
-RotationMat(3,3) = 1.-2*n_loc(3)*n_loc(3)
-
-IF(iStage.GT.0)THEN
-  ! 0)
-  ! if a particle is initial rotated at ta certain plane, PartStateN is rotated/recomputed to be
-  ! outside of the mesh. If the particle moves towards the boundary condition in the next RK stage
-  ! or Newton step the particle enters the domain from the outside. Hence, it is NOT supposed to 
-  ! be rotated. 
-  ! CAUTION: the particle is NOT tracked from PartStateN to PartStateStage because both values
-  ! can be located outside of the mesh. Hence, the particle is moved on the interection point 
-  ! between PartPosition-iStage and PartPosition-iStage-1 
-  ! 
-  ! Check if PartStateN is already outside of the mesh, hence, no rotation is requried
-  ! deltaPos(1:3)=PartStateN(PartID,1:3)-LastPartPos(PartID,1:3)
-  ! IF(DOT_PRODUCT(deltaPos,n_loc).GT.0.)THEN
-  !   ! VARIANT A)
-  !   ! IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  !   ! VARIANT A) cannot be used, because the particle may be located outside
-  !   ! VARIANT B)
-  !   ! move particle position to intersection point, following trajectory is zero
-  !   PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
-  !   ! dummy value in part-trajectory 
-  !   PartTrajectory          = -deltaPos
-  !   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-  !                            +PartTrajectory(2)*PartTrajectory(2) &
-  !                            +PartTrajectory(3)*PartTrajectory(3) )
-  !   IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
-  !   lengthPartTrajectory    = 0.
-  !   ! we have to stop the particle
-  !   ! and map the particle position to fix everything
-  !   PartXK(1:3,PartID)     = LastPartPos(PartID,1:3) 
-  !   PartQ (1:3,PartID)     = LastPartPos(PartID,1:3) 
-  !   RETURN
-  ! END IF
-  ! 1) rotate the acceleration depending if it is a symmetric or perfectly reflective wall 
-  !    Why is there actually a difference between symmetric and PR walls?
-  DO iCounter=1,iStage-1
-    IF(Symmetry)THEN
-      PartStageLoc(4:6,iCounter)=PartStage(PartID,4:6,iCounter)-2.*DOT_PRODUCT(PartStage(PartID,4:6,iCounter),n_loc)*n_loc
-    ELSE
-      PartStageLoc(4:6,iCounter)=MATMUL(RotationMat,PartStage(PartID,4:6,iCounter))
-    END IF
-  END DO ! iCoutner=1,iStage-1
-  IF(PartIsImplicit(PartID))THEN
-    ! We require the acceleration from the final particle position, which is unknown. This value is approximated
-    ! by R_PartXK, under the assumption, that the value of the last Newton step is close enough.
-    ! 1b) Rotate the function and position of the old state
-    R_PartXKLoc(1:3)=MATMUL(RotationMat,R_PartXK(1:3,PartID))
-    IF(Symmetry)THEN
-      R_PartXKLoc(4:6)=R_PartXK(4:6,PartID)-2.*DOT_PRODUCT(R_PartXK(4:6,PartID),n_loc)*n_loc
-    ELSE
-      R_PartXKLoc(4:6)=MATMUL(RotationMat,R_PartXK(4:6,PartID))
-    END IF
-    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
-    DeltaP(4:6)=ESDIRK_A(iStage,iStage)*R_PartXKloc(4:6)
-    DO iCounter=1,iStage-1
-      DeltaP(4:6)=DeltaP(4:6)+ ESDIRK_A(iStage,iCounter)*PartStageLoc(4:6,iCounter)
-    END DO ! iCounter=1,iStage-1
-    PartStateNloc(4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
-    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
-    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
-      LorentzFacInv=1.0+DOT_PRODUCT(PartStateNloc(4:6),PartStateNloc(4:6))*c2_inv      
-      LorentzFacInv=1.0/SQRT(LorentzFacInv)
-      PartStageLoc(1:3,1) = PartStateNloc(4:6)*LorentzFacInv
-      DO iStage2=2,iStage-1
-        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStageLoc(4:6,1)
-        DO iCounter=2,iStage2
-          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStageLoc(4:6,iCounter)
-        END DO ! iCounter=1,iStage2-1
-        ! new momentum at iStage=2
-        DeltaP(4:6)=PartStateNloc(4:6) + DeltaP(4:6)*dt
-        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        PartStageLoc(1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
-      END DO ! iStage2,2,iStage
-    ELSE ! PartStateN(4:6) is the velocity
-      PartStageLoc(1:3,1) = PartStateNloc(4:6) 
-      DO iStage2=2,iStage-1
-        DeltaP(4:6) = ESDIRK_A(iStage2,1)*PartStageLoc(4:6,1)
-        DO iCounter=2,iStage2
-          DeltaP(4:6) =DeltaP(4:6) +  ESDIRK_A(iStage2,iCounter)*PartStageLoc(4:6,iCounter)
-        END DO ! iCounter=1,iStage2-1
-        ! new velocity during iStage=2
-        PartStageLoc(1:3,iStage2)=PartStateNloc(4:6) + DeltaP(4:6)*dt
-      END DO ! iStage2,2,iStage
-    END IF
-    ! 4) recompute the initial position at t^n and the position after the reflection at t^n+dt*C(iState)
-    DeltaP(1:3)=ESDIRK_A(iStage,iStage)*R_PartXKloc(1:3)
-    DO iCounter=1,iStage-1
-      DeltaP(1:3)=DeltaP(1:3) + ESDIRK_A(iStage,iCounter)*PartStageLoc(1:3,iCounter)
-    END DO ! iCoutner=1,iStage-1
-    PartStateNloc(1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt*dtFrac
-    ! compute particle position AFTER reflection
-    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt*(1.-dtFrac)
-    ! recompute PartQ
-    DeltaP = ESDIRK_a(iStage,iStage-1)*PartStageLoc(1:6,iStage-1)
-    DO iCounter=1,iStage-2
-      DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStageLoc(1:6,iCounter)
-    END DO ! iCounter=1,iStage-2
-    ! PartQ(1:6,PartID) = PartStateNloc(1:6) + dt* DeltaP
-    ! 5) Open Issue: what is now PartXK,F_PartXK,Norm_PartXK, etc???
-    ! rotate PartXK do not roate...
-    ! 5a1)
-    ! PartXK(1:6,PartID)   =   PartState(PartID,1:6)
-    ! 5a2)
-    ! more baseline assuption form:
-    ! PartXK(1:3,PartID) = LastPartPos(PartID,1:3) 
-    ! rotate velocity vector
-    ! PartXK(4:6,PartID)=MATMUL(RotationMat,PartXK(4:6,PartID))
-    ! recompute missing particle path
-    ! 6) compute particle displacement
-    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                             +PartTrajectory(2)*PartTrajectory(2) &
-                             +PartTrajectory(3)*PartTrajectory(3) )
-    IF(.NOT.ALMOSTZERO(lengthPartTrajectory)) PartTrajectory=PartTrajectory/lengthPartTrajectory
-    ! new change in part-position is length of rest of tracing
-    ! there is no need of an Armijo rule after the reflection...., because it would be brainfuck
-    ! 7a1)
-    ! PartDeltaX(1:6,PartID) = 0.
-    ! this is the deltaX if the set PartXK at the wall = LastPartPos
-    ! 7a2)
-    ! PartDeltaX(1:3,PartID) = lengthPartTrajectory*PartTrajectory
-    ! ! the velocity/impulse change can be interpreted as the difference between these positions....
-    ! IF(Symmetry)THEN
-    !   PartDeltaX(4:6,PartID)=PartDeltaX(4:6,PartID)-2.*DOT_PRODUCT(PartDeltaX(4:6,PartID),n_loc)*n_loc
-    ! ELSE
-    !   PartDeltaX(4:6,PartID)=MATMUL(RotationMat,PartDeltaX(4:6,PartID))
-    ! END IF
-    ! set lastElement for tracing
-    IF(.NOT.DoRefMapping)THEN
-      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
-    END IF
-  ELSE
-    ! explicit particle
-    ! 2) compute the initial velocity/momentum which is required to compute the final velocity (velo at wall)
-    DeltaP(4:6)=ERK_a(iStage,iStage-1)*PartStageLoc(4:6,iStage-1)
-    DO iCounter=1,iStage-2
-      DeltaP(4:6)=DeltaP(4:6)+ ERK_a(iStage,iCounter)*PartStageLoc(4:6,iCounter)
-    END DO ! iCounter=1,iStage-1
-    PartStateNloc(4:6) = PartState(PartID,4:6) - dt* DeltaP(4:6)
-    ! 3) recompute the velocity/momentum up to iStage [1,iStage]
-    IF(PartLorentzType.EQ.5)THEN ! is currently a relativistic momentum
-      LorentzFacInv=1.0+DOT_PRODUCT(PartStateNloc(4:6),PartStateNloc(4:6))*c2_inv      
-      LorentzFacInv=1.0/SQRT(LorentzFacInv)
-      PartStageLoc(1:3,1) = PartStateNloc(4:6)*LorentzFacInv
-      DO iStage2=2,iStage-1
-        DeltaP(4:6) = ERK_a(iStage2,1)*PartStageLoc(4:6,1)
-        DO iCounter=2,iStage2
-          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStageLoc(4:6,iCounter)
-        END DO ! iCounter=1,iStage2-1
-        ! new momentum at iStage=2
-        DeltaP(4:6)=PartStateNloc(4:6) + DeltaP(4:6)*dt
-        LorentzFacInv=1.0+DOT_PRODUCT(DeltaP(4:6),DeltaP(4:6))*c2_inv      
-        LorentzFacInv=1.0/SQRT(LorentzFacInv)
-        PartStageLoc(1:3,iStage2) = DeltaP(4:6)*LorentzFacInv
-      END DO ! iStage2,2,iStage
-    ELSE ! PartStateN(4:6) is the velocity
-      PartStageLoc(1:3,1) = PartStateNloc(4:6) 
-      DO iStage2=2,iStage-1
-        DeltaP(4:6) = ERK_a(iStage2,1)*PartStageLoc(4:6,1)
-        DO iCounter=2,iStage2
-          DeltaP(4:6) =DeltaP(4:6) +  ERK_a(iStage2,iCounter)*PartStageLoc(4:6,iCounter)
-        END DO ! iCounter=1,iStage2-1
-        ! new velocity during iStage=2
-        PartStageLoc(1:3,iStage2)=PartStateNloc(4:6) + DeltaP(4:6)*dt
-      END DO ! iStage2,2,iStage
-    END IF
-    ! 4) recompute the initial position at t^n
-    DeltaP(1:3)=ERK_a(iStage,iStage-1)*PartStageLoc(1:3,iStage-1)
-    DO iCounter=1,iStage-2
-      DeltaP(1:3)=DeltaP(1:3) + ERK_a(iStage,iCounter)*PartStageLoc(1:3,iCounter)
-    END DO ! iCoutner=1,iStage-1
-    PartStateNloc(1:3) = LastPartPos(PartID,1:3) - DeltaP(1:3)*dt *dtFrac
-    ! compute particle position AFTER reflection
-    PartState (PartID,1:3) = LastPartPos(PartID,1:3) + DeltaP(1:3)*dt *(1.-dtFrac)
-    ! recompute missing particle path
-    PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                             +PartTrajectory(2)*PartTrajectory(2) &
-                             +PartTrajectory(3)*PartTrajectory(3) )
-    PartTrajectory=PartTrajectory/lengthPartTrajectory
-    ! set lastElement for tracing
-    IF(.NOT.DoRefMapping)THEN
-      PEM%LastElement(PartID)=PartSideToElem(S2E_ELEM_ID,SideID)
-    END IF
-  END IF
-ELSE 
-  ! only explicit particles 
-  ! compute moved particle || rest of movement
-  ! required for the final stage (iStage=0) is  u^n+1 = u^n + sum_i b(i)*F(u_i)
-  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
-END IF
-
-END SUBROUTINE PerfectReflectionIMEXRotation
-#endif /*IMPA*/
 
 #ifdef ROS
 SUBROUTINE PerfectReflectionRosenbrockRotation(PartTrajectory,alpha,lengthPartTrajectory,SideID,PartID,n_loc,Symmetry)
@@ -1258,20 +1242,19 @@ SUBROUTINE PerfectReflectionRosenbrockRotation(PartTrajectory,alpha,lengthPartTr
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking,DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXK,PartXK
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:RK_inflow
 USE MOD_Particle_Vars,          ONLY:PEM
-USE MOD_TimeDisc_Vars,          ONLY:dt
+!USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Particle_Vars,          ONLY:PartLorentzType
 USE MOD_Equation_Vars,          ONLY:c2_inv
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:RK_a,dt_inv,RK_g,nRKStages,RK_inflow
+USE MOD_TimeDisc_Vars,          ONLY:RK_a,dt_inv,RK_g,nRKStages
 USE MOD_Particle_Vars,          ONLY:PartLorentzType,PartDtFrac,DoSurfaceFlux
 USE MOD_Equation_Vars,          ONLY:c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1287,7 +1270,7 @@ LOGICAL,INTENT(IN)                   :: Symmetry
 REAL,INTENT(INOUT)                  :: PartTrajectory(1:3), lengthPartTrajectory,alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iCounter,iStage2
+INTEGER                              :: iCounter
 REAL                                 :: RotationMat(1:3,1:3),DeltaP(1:6)
 REAL                                 :: dtFrac ! (used for recomputation of previsous positions
 REAL                                 :: LorentzFacInv
@@ -1974,8 +1957,12 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID,TriNum,AuxBCIdx)
-!----------------------------------------------------------------------------------------------------------------------------------!
+#ifndef IMPA
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,flip,BCSideID,TriNum,AuxBCIdx)
+#else
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,AuxBCIdx)
+#endif
+    !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
@@ -1985,7 +1972,6 @@ USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
@@ -1993,18 +1979,23 @@ USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
 #if defined(IMPA)
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit
-USE MOD_Particle_Vars,          ONLY:DoPartInNewton
+USE MOD_Particle_Vars,          ONLY:PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
+#ifndef IMPA
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
+#endif /*NOT IMPA*/
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES 
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID, flip
-INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+INTEGER,INTENT(IN)                :: PartID, SideID 
+#ifndef IMPA
+INTEGER,INTENT(IN),OPTIONAL       :: flip,BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
+#endif /*NOT IMPA*/
 INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -2016,7 +2007,9 @@ REAL                              :: RanNum
 REAL                              :: Xitild,EtaTild
 INTEGER                           :: p,q,SurfSideID,locBCID
 INTEGER                           :: iCC
+#ifndef IMPA
 REAL                              :: n_loc(1:3)
+#endif /*NOT IMPA*/
 LOGICAL                           :: IsAuxBC
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
@@ -2207,18 +2200,18 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PEM
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 #if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage,PEM
-USE MOD_TimeDisc_Vars,          ONLY:iStage,dt
+USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
+USE MOD_TimeDisc_Vars,          ONLY:iStage
 #endif /*IMPA || ROS*/
 #if defined(IMPA)
-USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a
+USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a!,dt
 USE MOD_Particle_Vars,          ONLY:PartQ
 USE MOD_LinearSolver_Vars,      ONLY:R_PartXk
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit
 #endif /*IMPA */
 #if defined(ROS)
 USE MOD_TimeDisc_Vars,          ONLY:RK_A
-USE MOD_LinearSolver_Vars,      ONLY:PartXk
+!USE MOD_LinearSolver_Vars,      ONLY:PartXk
 #endif /*ROS */
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -2634,18 +2627,19 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSp
 !===================================================================================================================================
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, PartSurfaceModel
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 !USE MOD_Particle_Vars          ,ONLY : PDM, LastPartPos
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, Adsorption, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_DSMC_SurfModel_Tools   ,ONLY: CalcBackgndPartAdsorb
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2669,8 +2663,7 @@ REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: adsorption_case
 INTEGER                          :: SurfSideID, SpecID
-REAL, PARAMETER                  :: PI=3.14159265358979323846
-REAL                             :: Norm_velo, Norm_Ec
+REAL                             :: Norm_velo!, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 !   REAL                             :: IntersectionPos(1:3)
@@ -2750,7 +2743,7 @@ SpecID = PartSpecies(PartID)
 #if (PP_TimeDiscMethod==42)  
 ! Update wallcollision counter
 Adsorption%AdsorpInfo(SpecID)%WallCollCount = Adsorption%AdsorpInfo(SpecID)%WallCollCount + 1
-IF (DSMC%WallModel.EQ.1) THEN
+IF (PartSurfaceModel.EQ.1) THEN
   Adsorption%AdsorpInfo(SpecID)%Accomodation = Adsorption%AdsorpInfo(SpecID)%Accomodation &
       + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
 END IF
@@ -2758,7 +2751,7 @@ END IF
 
 adsorption_case = 0
 AdsorptionEnthalpie = 0.
-SELECT CASE(DSMC%WallModel)
+SELECT CASE(PartSurfaceModel)
 CASE (1)
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
@@ -2794,8 +2787,8 @@ CASE (2)
   END IF
 CASE (3)
   Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-  Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL CalcBackgndPartAdsorb(p,q,SurfSideID,PartID,Norm_Ec,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+  !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 END SELECT
 
 SELECT CASE(adsorption_case)
@@ -3110,13 +3103,13 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle species change at contact an
 #endif
   ! Sample recombination coefficient
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    IF (DSMC%WallModel.EQ.2) THEN
+    IF (PartSurfaceModel.EQ.2) THEN
       DO iReact = 1,Adsorption%RecombNum
         IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
           SampWall(SurfSideID)%Reaction(1,SpecID,p,q) = SampWall(SurfSideID)%Reaction(1,SpecID,p,q) + 1
         END IF
       END DO
-    ELSE IF ( DSMC%WallModel.EQ.3) THEN
+    ELSE IF ( PartSurfaceModel.EQ.3) THEN
       DO iReact = 1,Adsorption%RecombNum
         IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
           SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
@@ -3341,7 +3334,8 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, Liquid, PolyatomMolDSMC
+USE MOD_SurfaceModel_Vars      ,ONLY: Liquid
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
@@ -3369,8 +3363,6 @@ REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Condensation_prob
 INTEGER                          :: adsorption_case
 INTEGER                          :: SurfSideID, SpecID
-REAL, PARAMETER                  :: PI=3.14159265358979323846
-REAL                             :: Norm_velo, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6), EvaporationEnthalpie
@@ -3440,9 +3432,6 @@ ELSE
     END SELECT
   END IF
 END IF
-
-!Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-!Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
 
 EvaporationEnthalpie = 0. ! negative at evaporation and positive at condensation
 

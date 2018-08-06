@@ -49,7 +49,7 @@ PUBLIC::OutputTrajectory
 CONTAINS
 
 
-SUBROUTINE IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,iPart,iLocSide,Element,TriNum)!, IntersectionPos)
+SUBROUTINE IntersectionWithWall(PartTrajectory,alpha,iPart,iLocSide,Element,TriNum)!, IntersectionPos)
 !===================================================================================================================================
 ! Compute the Intersection with bilinear surface by approximating the surface with two triangles
 !===================================================================================================================================
@@ -64,7 +64,7 @@ INTEGER,INTENT(IN)               :: iPart
 INTEGER,INTENT(IN)               :: iLocSide
 INTEGER,INTENT(IN)               :: Element  
 INTEGER,INTENT(IN)               :: TriNum
-REAL, INTENT(IN)                 :: PartTrajectory(1:3), lengthPartTrajectory
+REAL, INTENT(IN)                 :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)               :: alpha !,IntersectionPos(1:3)
@@ -74,7 +74,7 @@ INTEGER                          :: Node1, Node2
 REAL                             :: PoldX, PoldY, PoldZ, PnewX, PnewY, PnewZ, nx, ny, nz, nVal
 REAL                             :: bx,by,bz, ax,ay,az, dist!, PoldStarX, PoldStarY, PoldStarZ
 REAL                             :: xNod, yNod, zNod
-REAL                             :: Vector1(1:3), Vector2(1:3), VectorShift(1:3)
+REAL                             :: Vector1(1:3), Vector2(1:3)!, VectorShift(1:3)
 !===================================================================================================================================
 
 PoldX = lastPartPos(iPart,1)
@@ -357,7 +357,6 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha,SideDistance
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Globals,                 ONLY:myrank
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
@@ -524,7 +523,7 @@ END SUBROUTINE ComputePlanarCurvedIntersection
 
 
 SUBROUTINE ComputePlanarNonRectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
-                                                   ,iPart,flip,SideID,ElemCheck_Opt)
+                                                   ,iPart,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! robust version
@@ -532,18 +531,13 @@ SUBROUTINE ComputePlanarNonRectIntersection(isHit,PartTrajectory,lengthPartTraje
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
-USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,               ONLY:NGeo
 #endif /*CODE_ANALYZE*/
-#ifdef MPI
-USE MOD_Mesh_Vars,               ONLY:BC
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -551,8 +545,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-INTEGER,INTENT(IN)                :: iPart,SideID,flip
-LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
+INTEGER,INTENT(IN)                :: iPart,SideID
+!LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xitild,etatild
@@ -561,10 +555,9 @@ LOGICAL,INTENT(OUT)               :: isHit
 ! LOCAL VARIABLES
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
-REAL                              :: A,B,C,alphaNorm
+REAL                              :: B,C,alphaNorm!,A
 REAL                              :: xi(2),eta(2),t(2), scaleFac
-INTEGER                           :: InterType,nRoot
-LOGICAL                           :: ElemCheck
+INTEGER                           :: nRoot
 !===================================================================================================================================
 
 ! set alpha to minus one // no interesction
@@ -649,7 +642,8 @@ END SUBROUTINE ComputePlanarNonRectIntersection
 
 
 SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
-                                                   ,PartID,flip,SideID,ElemCheck_Opt,alpha2)
+                                                   ,PartID,SideID,ElemCheck_Opt,alpha2)
+                                                   ! ,PartID,flip,SideID,ElemCheck_Opt,alpha2)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! robust version
@@ -658,7 +652,7 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,Beziercliphit
+!USE MOD_Particle_Surfaces_Vars,  ONLY:Beziercliphit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
@@ -666,6 +660,7 @@ USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 #endif /*CODE_ANALYZE*/
 #ifdef MPI
 USE MOD_Mesh_Vars,               ONLY:BC
@@ -677,7 +672,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-INTEGER,INTENT(IN)                :: PartID,SideID,flip
+INTEGER,INTENT(IN)                :: PartID,SideID!,flip
 LOGICAL,INTENT(IN),OPTIONAL       :: ElemCheck_Opt
 REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -689,7 +684,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2), scaleFac, n_loc(1:3)
+REAL                              :: xi(2),eta(2),t(2), scaleFac!, n_loc(1:3)
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
 !===================================================================================================================================
@@ -1218,7 +1213,6 @@ USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBezier
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
 
@@ -1600,13 +1594,12 @@ RECURSIVE SUBROUTINE BezierClipRecursive(ClipMode,BezierControlPoints2D,LineNorm
 !================================================================================================================================
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec,BezierClipTolerance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit,BezierClipLineVectorMethod
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipMaxIter!,BezierClipTolerance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLineVectorMethod
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
+USE MOD_Globals,                 ONLY:UNIT_stdOut
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
@@ -1620,31 +1613,14 @@ INTEGER,INTENT(IN)                   :: SideID,PartID
 REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-! REAL,INTENT(INOUT),DIMENSION(:)      :: locAlpha
-! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locXi,locEta,locID
+! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locID
 INTEGER,INTENT(INOUT)                  :: iClipIter,nXiClip,nEtaClip,nInterSections
 INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3,0:NGeo,0:NGeo)      :: ReducedBezierControlPoints
-REAL,DIMENSION(0:NGeo,0:NGeo)        :: BezierControlPoints1D
-REAL,DIMENSION(3)                    :: IntersectionVector
 REAL                                 :: PatchDOF2D
-REAL                                 :: minmax(1:2,0:NGeo)
-REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
-REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
-INTEGER                              :: p,q,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
 !REAL                                 :: ZeroDistance,BezierClipTolerance2
-LOGICAL                              :: isNewIntersection
-INTEGER                              :: iClip,iInter
-REAL                                 :: alphaNorm
-REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
-INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
-REAL                                 :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
-REAL                                 :: XiBuf(0:NGeo,0:NGeo),EtaBuf(0:NGeo,0:NGeo)
-REAL                                 :: dmin,dmax
 !================================================================================================================================
 
 PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
@@ -1736,13 +1712,14 @@ SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonHit,BezierNewtonMaxIter,BezierControlPoints3D,epsilontol &
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonTolerance2,BezierNewtonMaxIter,BezierControlPoints3D,epsilontol &
                                      ,BezierNewtonGuess
-USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
+USE MOD_Particle_Vars,           ONLY:LastPartPos!,PartState
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars,  ONLY:D_Bezier
-USE MOD_Particle_Mesh_Vars,      ONLY:PartSideToElem
+!USE MOD_Particle_Mesh_Vars,      ONLY:PartSideToElem
 #ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierNewtonHit
 USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -2004,7 +1981,7 @@ INTEGER,INTENT(IN)                   :: b ! 0
 REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
+REAL                                 :: Length,doPro,dcorr!,alpha(2),dalpha
 REAL,DIMENSION(2)                    :: LXi, Leta, MBar
 REAL                                 :: LineNormVecOld(1:2,1:2)
 !================================================================================================================================
@@ -2194,13 +2171,13 @@ LineNormVec=LineNormVec/Length
 END SUBROUTINE calcLineNormVec
 
 
-SUBROUTINE CalcSminSmax(minmax,Smin,Smax,iter,PartID)
+SUBROUTINE CalcSminSmax(minmax,Smin,Smax,iter)
 !================================================================================================================================
 ! find upper and lower intersection with convex hull (or no intersection)
 ! find the largest and smallest roots of the convex hull, pre-sorted values minmax(:,:) are required
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance!,BezierClipHit
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -2211,7 +2188,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                      :: minmax(1:2,0:NGeo)
 INTEGER,INTENT(IN)                   :: iter
-INTEGER,INTENT(IN)                   :: PartID
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: Smin,Smax
@@ -2999,13 +2975,13 @@ SUBROUTINE CheckXiClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajectory
 !   year = {2002},
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec,BezierClipTolerance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray!,locAlpha
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,FacNchooseK!,BezierClipTolerance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierSplitLimit
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
+USE MOD_Globals,                 ONLY:UNIT_stdOut
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
@@ -3020,30 +2996,24 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 ! REAL,INTENT(INOUT),DIMENSION(:)      :: locAlpha
-! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locXi,locEta,locID
+! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locID
 INTEGER,INTENT(INOUT)                  :: iClipIter
 INTEGER,INTENT(INOUT)                  :: nXiClip,nEtaClip,nInterSections
 INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3,0:NGeo,0:NGeo)      :: ReducedBezierControlPoints
 REAL,DIMENSION(0:NGeo,0:NGeo)        :: BezierControlPoints1D
-REAL,DIMENSION(3)                    :: IntersectionVector
-REAL                                 :: PatchDOF2D
 REAL                                 :: minmax(1:2,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
-INTEGER                              :: p,q,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha,XiTmp
+INTEGER                              :: p,q,l
+REAL                                 :: XiMin,XiMax,XiSplit,XiTmp
 !REAL                                 :: ZeroDistance,BezierClipTolerance2
-LOGICAL                              :: isNewIntersection
-INTEGER                              :: iClip,iInter
-REAL                                 :: alphaNorm
-REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
+REAL                                 :: PlusXi,MinusXi
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
-REAL                                 :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
-REAL                                 :: XiBuf(0:NGeo,0:NGeo),EtaBuf(0:NGeo,0:NGeo)
+REAL                                 :: xiup(0:NGeo),xidown(0:NGeo)
+REAL                                 :: XiBuf(0:NGeo,0:NGeo)
 REAL                                 :: dmin,dmax
 INTEGER(KIND=2)                      :: tmpClipMode
 REAL,DIMENSION(2,2)                  :: tmpLineNormVec
@@ -3097,7 +3067,7 @@ END IF
 !             or split (if (XiMax-XiMin).GT.BezierSplitLimit) in Xi direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax2(minmax,XiMin,XiMax,nXiClip,iPart)
+CALL CalcSminSmax2(minmax,XiMin,XiMax,nXiClip)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -3480,13 +3450,13 @@ SUBROUTINE CheckEtaClip(ClipMode,BezierControlPoints2D,LineNormVec,PartTrajector
 !   year = {2002},
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec,BezierClipTolerance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:EtaArray!,locAlpha
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLocalTol,FacNchooseK!,BezierClipTolerance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierSplitLimit
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Globals,                 ONLY:MyRank,UNIT_stdOut
+USE MOD_Globals,                 ONLY:UNIT_stdOut
 #ifdef CODE_ANALYZE
+USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:OutputBezierControlPoints
 #endif /*CODE_ANALYZE*/
@@ -3501,30 +3471,24 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 ! REAL,INTENT(INOUT),DIMENSION(:)      :: locAlpha
-! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locXi,locEta,locID
+! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locID
 INTEGER,INTENT(INOUT)                  :: iClipIter
 INTEGER,INTENT(INOUT)                  :: nXiClip,nEtaClip,nInterSections
 INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3,0:NGeo,0:NGeo)      :: ReducedBezierControlPoints
 REAL,DIMENSION(0:NGeo,0:NGeo)        :: BezierControlPoints1D
-REAL,DIMENSION(3)                    :: IntersectionVector
-REAL                                 :: PatchDOF2D
 REAL                                 :: minmax(1:2,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
-INTEGER                              :: p,q,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha,EtaTmp
+INTEGER                              :: p,q,l
+REAL                                 :: EtaMin,EtaMax,EtaSplit,EtaTmp
 !REAL                                 :: ZeroDistance,BezierClipTolerance2
-LOGICAL                              :: isNewIntersection
-INTEGER                              :: iClip,iInter
-REAL                                 :: alphaNorm
-REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
+REAL                                 :: PlusEta,MinusEta!,MinusXi,PlusXi
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
-REAL                                 :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
-REAL                                 :: XiBuf(0:NGeo,0:NGeo),EtaBuf(0:NGeo,0:NGeo)
+REAL                                 :: etaup(0:NGeo),etadown(0:NGeo)
+REAL                                 :: EtaBuf(0:NGeo,0:NGeo)
 REAL                                 :: dmin,dmax
 INTEGER(KIND=2)                      :: tmpClipMode
 REAL,DIMENSION(2,2)                  :: tmpLineNormVec
@@ -3578,7 +3542,7 @@ END IF
 !             or split (if (EtaMax-EtaMin).GT.BezierSplitLimit) in Eta direction 
 
 ! calc Smin and Smax and check boundaries
-CALL CalcSminSmax2(minmax,Etamin,Etamax,nEtaClip,iPart)
+CALL CalcSminSmax2(minmax,Etamin,Etamax,nEtaClip)
 #ifdef CODE_ANALYZE
  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
    IF(iPart.EQ.PARTOUT)THEN
@@ -4009,7 +3973,7 @@ REAL,INTENT(IN)                      :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
 REAL,INTENT(INOUT)                   :: LineNormVec(1:2,1:2)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: Length,doPro,dCorr
+REAL                                 :: Length,doPro!,dCorr
 REAL,DIMENSION(2)                    :: LXi, Leta,Mbar,Mbar2
 !================================================================================================================================
 
@@ -4094,7 +4058,7 @@ LineNormVec(2,2) = Leta(1)
 END SUBROUTINE calcLineNormVec3
 
 
-SUBROUTINE CalcSminSmax2(minmax,Smin,Smax,iter,PartID)
+SUBROUTINE CalcSminSmax2(minmax,Smin,Smax,iter)
 !================================================================================================================================
 ! find upper and lower intersection with convex hull (or no intersection)
 ! find the largest and smallest roots of the convex hull, pre-sorted values minmax(:,:) are required
@@ -4104,7 +4068,7 @@ SUBROUTINE CalcSminSmax2(minmax,Smin,Smax,iter,PartID)
 ! 3) check if both ends have a sign change
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance!,BezierClipHit
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:UNIT_stdOut,MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -4115,7 +4079,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                      :: minmax(1:2,0:NGeo)
 INTEGER,INTENT(IN)                   :: iter
-INTEGER,INTENT(IN)                   :: PartID
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: Smin,Smax
@@ -4204,7 +4167,7 @@ SUBROUTINE ComputeAuxBCIntersection     (isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,            ONLY:PI !epsMach
+!USE MOD_Globals_Vars,           ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Particle_Boundary_Vars,  ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol

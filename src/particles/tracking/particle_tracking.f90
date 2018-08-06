@@ -281,7 +281,11 @@ END DO
 END SUBROUTINE ParticleTriaTracking
 
 
+#ifndef IMPA
+SUBROUTINE ParticleTracing(doParticle_In)
+#else
 SUBROUTINE ParticleTracing(doParticle_In,nInnerNewton_In)
+#endif /*NOT IMPA*/
 !===================================================================================================================================
 ! Routine for tracing moving particles, calculate intersection and boundary interaction
 ! in case of no reference tracking (dorefmapping = false)
@@ -303,7 +307,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
-USE MOD_Mesh_Vars,                   ONLY:OffSetElem,ElemBaryNGeo
+USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
@@ -319,6 +323,7 @@ USE MOD_Particle_Tracking_Vars,      ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Mesh_Vars,          ONLY:GEO
 USE MOD_TimeDisc_Vars,               ONLY:iStage
 USE MOD_Globals_Vars,                ONLY:epsMach
+USE MOD_Mesh_Vars,                   ONLY:ElemBaryNGeo
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime,LBElemPauseTime,LBElemSplitTime
@@ -328,7 +333,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
-INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
+#ifdef IMPA
+INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In 
+#endif /*IMPA*/
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -534,7 +542,7 @@ DO iPart=1,PDM%ParticleVecLength
             CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                           ,xi (ilocSide)      &
                                                                                           ,eta(ilocSide)      &
-                                                                                          ,iPart,flip,SideID,alpha2=alphaOld)
+                                                                                          ,iPart,SideID,alpha2=alphaOld)
           CASE(PLANAR_CURVED)
             CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                           ,xi (ilocSide)      &
@@ -563,7 +571,7 @@ DO iPart=1,PDM%ParticleVecLength
             CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                           ,xi (ilocSide)      &
                                                                                           ,eta(ilocSide)      &
-                                                                                          ,iPart,flip,SideID)
+                                                                                          ,iPart,SideID)
           CASE(PLANAR_CURVED)
             CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                           ,xi (ilocSide)      &
@@ -1024,7 +1032,6 @@ USE MOD_TimeDisc_Vars,           ONLY:iStage
 #endif /*IMPA OR ROS*/
 #if defined(IMPA)
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_TimeDisc_Vars,           ONLY:RK_inflow
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
@@ -1548,7 +1555,7 @@ DO WHILE(DoTracing)
         CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                          ,xi (ilocSide)      &
                                                                                          ,eta(ilocSide)      &
-                                                                                         ,PartID,flip,BCSideID &
+                                                                                         ,PartID,BCSideID &
                                                                                          ,alpha2=alphaOld)
       CASE(PLANAR_CURVED)
         CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -1581,7 +1588,7 @@ DO WHILE(DoTracing)
         CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                          ,xi (ilocSide)      &
                                                                                          ,eta(ilocSide)      &
-                                                                                         ,PartID,flip,BCSideID)
+                                                                                         ,PartID,BCSideID)
       CASE(PLANAR_CURVED)
         CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                       ,xi (ilocSide)      &
@@ -1713,7 +1720,7 @@ IF(BC(SideID).GT.0)THEN
     IF (TriNumTemp.NE.1 .AND. TriNumTemp.NE.2) CALL abort(&
 __STAMP__ &
 ,'ERROR in SelectInterSectionType for TriaTracking. TriNum is:',TriNumTemp)
-    CALL IntersectionWithWall(PartTrajectory,lengthPartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
+    CALL IntersectionWithWall(PartTrajectory,alpha,PartID,hitlocSide,ElemID,TriNumtemp)
   END IF
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
@@ -2186,7 +2193,7 @@ DO iLocSide=firstSide,LastSide
     CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                       ,xi (ilocSide)      &
                                                                                       ,eta(ilocSide)      &
-                                                                                      ,PartID,flip,BCSideID)
+                                                                                      ,PartID,BCSideID)
   CASE(PLANAR_CURVED)
     CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &

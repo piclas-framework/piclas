@@ -377,7 +377,7 @@ DO iElem=1,nElems
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
-    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N_quad,XCL_N_quad,Vdm_CLN_N,iElem)
+    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N_quad,Vdm_CLN_N,iElem)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
   ELSE
@@ -390,7 +390,7 @@ DO iElem=1,nElems
                          NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
-    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
+    CALL CalcElemLocalSurfMetrics(PP_N,JaCL_N,Vdm_CLN_N,iElem)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
   END IF
@@ -586,7 +586,7 @@ DO iLocSide=1,6
     DO q=0,Nloc; DO p=0,Nloc
       pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
       Ja_Face_l(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
-	  ! DEBUG old version
+    ! DEBUG old version
       !Ja_Face(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
     END DO; END DO ! p,q
   END DO ! dd
@@ -651,7 +651,9 @@ DO q=0,Nloc; DO p=0,Nloc
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 
-SUBROUTINE CalcElemLocalSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
+#ifdef maxwell
+#if defined(ROS) || defined(IMPA)
+SUBROUTINE CalcElemLocalSurfMetrics(Nloc,JaCL_N,Vdm_CLN_N,iElem)
 !===================================================================================================================================
 ! Compute the element-local normal vectors and SurfElem from element metrics. Input is JaCL_N, the 3D element metrics on 
 ! Cebychev-Lobatto points. The orientation of the element-local vectors correspond to the volume-DOFs ijk
@@ -659,7 +661,7 @@ SUBROUTINE CalcElemLocalSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
-USE MOD_Mesh_Vars,   ONLY:ElemToSide,nSides,MortarType
+USE MOD_Mesh_Vars,   ONLY:ElemToSide
 USE MOD_Mesh_Vars,   ONLY:NormalDirs,TangDirs,NormalSigns
 USE MOD_Mesh_Vars,   ONLY:nVecLoc,SurfLoc
 USE MOD_Mappings,    ONLY:CGNS_SideToVol2
@@ -673,26 +675,23 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: Nloc                                  !< (IN) polynomial degree
 INTEGER,INTENT(IN) :: iElem                                 !< (IN) element index
 REAL,INTENT(IN)    :: JaCL_N(1:3,1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) volume metrics of element
-REAL,INTENT(IN)    :: XCL_N(     1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo. interpolation points (CL)
 REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)           !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
+INTEGER            :: p,q,dd,iLocSide,SideID
 INTEGER            :: NormalDir,TangDir
 REAL               :: NormalSign
 REAL               :: Ja_Face_l(3,3,0:Nloc,0:Nloc)
-REAL               :: Mortar_Ja(3,3,0:Nloc,0:Nloc,4)
-REAL               :: Mortar_xGP( 3,0:Nloc,0:Nloc,4)
 REAL               :: tmp(        3,0:Nloc,0:Nloc)
 REAL               :: tmp2(        3,0:Nloc,0:Nloc)
 !==================================================================================================================================
 
 DO iLocSide=1,6
-  ! compute the local normVec and SurfElem form each element 
-  ! this is currently only required for the Maxwell case (HDG should be handled similar)
-  ! this allows to build the preconditioner with the correct normVecs and SurfElems
+ ! compute the local normVec and SurfElem form each element 
+ ! this is currently only required for the Maxwell case (HDG should be handled similar)
+ ! this allows to build the preconditioner with the correct normVecs and SurfElems
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide);
@@ -712,25 +711,27 @@ DO iLocSide=1,6
       tmp=JaCL_N(dd,1:3,:   ,:   ,Nloc)
     END SELECT
     CALL ChangeBasis2D(3,Nloc,Nloc,Vdm_CLN_N,tmp,tmp2)
-    ! turn into right hand system of side
+   ! turn into right hand system of side
     DO q=0,Nloc; DO p=0,Nloc
       Ja_Face_l(dd,1:3,p,q)=tmp2(:,p,q)
     END DO; END DO ! p,q
   END DO ! dd
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide)
-  ! compute Surf and normal vector in ijk orientation of volume
+ ! compute Surf and normal vector in ijk orientation of volume
   DO q=0,Nloc; DO p=0,Nloc
     Surfloc (  p,q,iLocSide,iElem) = SQRT(SUM(Ja_Face_l(NormalDir,:,p,q)**2))
     nVecLoc( :,p,q,iLocSide,iElem) = NormalSign*Ja_Face_l(NormalDir,:,p,q)/SurfLoc(p,q,iLocSide,iElem)
-    !TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
-    !                  *NormVec(:,p,q)
-    !TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
-    !TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
+   !TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) &
+   !                  *NormVec(:,p,q)
+   !TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(SUM(TangVec1(:,p,q)**2))
+   !TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
   END DO; END DO ! p,q
 
 END DO
 
 END SUBROUTINE CalcElemLocalSurfMetrics
+#endif /*ROS or IMPA*/
+#endif /*maxwell*/
 
 END MODULE MOD_Metrics
