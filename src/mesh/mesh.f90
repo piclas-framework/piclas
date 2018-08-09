@@ -105,7 +105,7 @@ USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 USE MOD_Mappings,               ONLY:InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes,InitParticleGeometry
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitParticleGeometry
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
@@ -416,10 +416,9 @@ CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 ALLOCATE(ElemBaryNGeo(1:3,1:nElems) )
 CALL BuildElementOrigin()
 
-#ifdef PARTICLES
-! init element volume
+! Initialize element volumes and characteristic lengths
 CALL InitElemVolumes()
-#endif
+
 DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
@@ -824,6 +823,87 @@ DO iElem=1,PP_nElems
 END DO ! iElem
 
 END SUBROUTINE BuildElementOrigin
+
+
+SUBROUTINE InitElemVolumes()
+!===================================================================================================================================
+! Calculate Element volumes for later use in particle routines
+!===================================================================================================================================
+! MODULES                                               ! MODULES
+#ifdef MPI
+USE mpi
+#endif /*MPI*/
+USE MOD_PreProc
+USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,IERROR,mpiroot,abort
+USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Particle_Vars      ,ONLY: usevMPF
+USE MOD_ReadInTools
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem
+INTEGER           :: i,j,k
+INTEGER           :: ALLOCSTAT
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
+ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+END IF
+ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+      __STAMP__&
+      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
+END IF
+
+#ifdef PARTICLSE
+usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
+IF(usevMPF) THEN
+  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
+  END IF
+  GEO%DeltaEvMPF(:) = 0.0
+END IF
+#endif /* PARTICLSE */
+
+! Calculate element volumes and characteristic lengths
+DO iElem=1,nElems
+  !--- Calculate and save volume of element iElem
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  GEO%Volume(iElem) = 0.
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    GEO%Volume(iElem)   = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+  END DO; END DO; END DO
+  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
+END DO
+
+GEO%LocalVolume=SUM(GEO%Volume)
+#ifdef MPI
+CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#else
+GEO%MeshVolume=GEO%LocalVolume
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
+
+SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitElemVolumes
 
 
 SUBROUTINE FinalizeMesh()
