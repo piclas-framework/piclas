@@ -70,7 +70,11 @@ CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PAR
 CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Factors for td200/201'//&
                                                                     ' overrelaxation/subcycling', '1.0')
-CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator', '0')
+CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
+                                                               'Choose nRandomSeeds'//&
+                                                               '=-1    Random'//&
+                                                               '= 0    Debugging withhard-coded deterministic numbers'//&
+                                                               '> 0    Debugging with numbers from ini.', '-2')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '0', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
@@ -2342,16 +2346,12 @@ END IF
 #endif
 #endif
 
-nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
+nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','-2')
 CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
-ALLOCATE(seeds(SeedSize))
+ALLOCATE(Seeds(SeedSize))
 IF(nRandomSeeds.EQ.-1) THEN
-  ! PSEUDO RANDOM Case
-  CALL RANDOM_SEED(GET = Seeds(1:SeedSize))
-#if USE_MPI
-  Seeds(1:SeedSize)=Seeds(1:SeedSize)+PartMPI%MyRank
-#endif
-  CALL RANDOM_SEED(PUT = Seeds(1:SeedSize))
+  ! ensures different random numbers through irreproducable random seeds (via System_clock)
+  CALL InitRandomSeed(SeedSize,Seeds)
 ELSE IF(nRandomSeeds.EQ.0) THEN
   ! hard-coded deterministic random numbers
   ! compiler specific number of seeds needed
@@ -3062,6 +3062,49 @@ FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
 
 
+
+
+SUBROUTINE InitRandomSeed(SeedSize,Seeds)
+!===================================================================================================================================
+!> Initialize pseudo random numbers: Create Random_seed array
+!===================================================================================================================================
+! MODULES
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
+#endif
+! IMPLICIT VARIABLE HANDLING
+!===================================================================================================================================
+
+IMPLICIT NONE
+! VARIABLES
+INTEGER,INTENT(IN)             :: SeedSize
+INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER                        :: iSeed,clock
+
+!CHARACTER(LEN=30)              :: filename
+!==================================================================================================================================
+#ifdef MPI
+ CALL SYSTEM_CLOCK(COUNT=clock)
+! MISSING PROGRAM to send clock_var to all procs -> to make sure it's well seeded
+  DO iSeed=1,SeedSize
+    Seeds(iSeed)=PartMPI%MyRank*SeedSize*3+iSeed-1
+  END DO
+  Seeds = clock + 37 * Seeds
+#endif
+#ifndef MPI
+CALL SYSTEM_CLOCK(COUNT=clock)
+  DO iSeed=1,SeedSize
+    Seeds(iSeed)=iSeed-1
+  END DO
+  Seeds = clock + 37 * Seeds
+  CALL RANDOM_SEED(PUT = Seeds)
+#endif
+
+END SUBROUTINE InitRandomSeed
+
+
 SUBROUTINE DeterministicRandomSeeds(SeedSize,DeterministicSeeds)
 !===================================================================================================================================
 !> Will include HDF5 print and read command for restart
@@ -3075,13 +3118,13 @@ USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: SeedSize
+INTEGER,INTENT(IN)             :: SeedSize
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)            :: DeterministicSeeds(SeedSize)
+INTEGER,INTENT(INOUT)            :: DeterministicSeeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                     :: iSeed
-!CHARACTER(LEN=30)           :: filename
+INTEGER                        :: iSeed
+!CHARACTER(LEN=30)              :: filename
 !==================================================================================================================================
 DO iSeed=1,SeedSize
 DeterministicSeeds(iSeed)=iSeed
@@ -3094,7 +3137,7 @@ END DO
 !filename=TRIM(ProjectName)//'_State_000_PLATZHALTER'
 !open(unit=unit_stdout,file='filename'
 
-END SUBROUTINE
+END SUBROUTINE DeterministicRandomSeeds
 
 
 END MODULE MOD_ParticleInit
