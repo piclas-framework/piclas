@@ -3085,14 +3085,6 @@ INTEGER                        :: iSeed,clock
 
 !CHARACTER(LEN=30)              :: filename
 !==================================================================================================================================
-#ifdef MPI
- CALL SYSTEM_CLOCK(COUNT=clock)
-! MISSING PROGRAM to send clock_var to all procs -> to make sure it's well seeded
-  DO iSeed=1,SeedSize
-    Seeds(iSeed)=PartMPI%MyRank*SeedSize*3+iSeed-1
-  END DO
-  Seeds = clock + 37 * Seeds
-#endif
 #ifndef MPI
 CALL SYSTEM_CLOCK(COUNT=clock)
   DO iSeed=1,SeedSize
@@ -3101,7 +3093,14 @@ CALL SYSTEM_CLOCK(COUNT=clock)
   Seeds = clock + 37 * Seeds
   CALL RANDOM_SEED(PUT = Seeds)
 #endif
-
+#ifdef MPI 
+ CALL SYSTEM_CLOCK(COUNT=clock)
+! MISSING PROGRAM to send clock_var to all procs -> to make sure it's well seeded
+  DO iSeed=1,SeedSize
+    Seeds(iSeed)=(PartMPI%MyRank+1)*iSeed-1
+  END DO
+  Seeds = clock + 37 * Seeds
+#endif
 END SUBROUTINE InitRandomSeed
 
 
@@ -3118,7 +3117,7 @@ USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: SeedSize
+INTEGER,INTENT(IN)               :: SeedSize
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)            :: DeterministicSeeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
