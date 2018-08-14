@@ -1617,7 +1617,7 @@ CASE('shape_function','shape_function_simple')
         END IF
         CALL calcSfSource(1 &
           ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*SFdepoLayersMPF(iLayer)*w_sf &
-          ,Vec1,Vec2,Vec3,layerPartPos,iPart,const_opt=ConstantSFdepoLayers)
+          ,Vec1,Vec2,Vec3,layerPartPos,-iPart,const_opt=ConstantSFdepoLayers)
       END DO ! iPart
       IF (iLayer.EQ.NbrOfSFdepoLayers .AND. ConstantSFdepoLayers) THEN
         SFdepoLayersAlreadyDone=.TRUE.
@@ -1662,7 +1662,7 @@ CASE('shape_function','shape_function_simple')
         CALL calcSfSource(4 &
           ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
           *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,layerPartPos,iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
+          ,Vec1,Vec2,Vec3,layerPartPos,-iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
       END DO ! iPart2
     END IF !SFResampleAnalyzeSurfCollis
 
@@ -1671,13 +1671,13 @@ CASE('shape_function','shape_function_simple')
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
       END DO
     ELSE
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4 &
           ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
       END DO
     END IF ! usevMPF
     ! deallocate external state
