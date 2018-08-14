@@ -56,7 +56,7 @@ REAL,ALLOCATABLE    :: Domega(:,:)
 REAL,ALLOCATABLE    :: Lomega_m(:),Lomega_p(:)
 !CG parameters
 INTEGER             :: PrecondType=0  !0: none 1: block diagonal 2: only diagonal 3:Identity, debug
-INTEGER             :: MaxIterCG, MaxIterFixPoint
+INTEGER             :: MaxIterCG, MaxIterFixPoint, OutIterCG
 REAL                :: EpsCG,EpsNonLinear
 LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.

@@ -53,6 +53,8 @@ CALL prms%CreateRealOption(     'NormNonlinearDevLimit'  , 'TODO-DEFINE-PARAMETE
 CALL prms%CreateRealOption(     'EpsNonLinear'           , 'TODO-DEFINE-PARAMETER', '1.0E-6')
 CALL prms%CreateIntOption(      'PrecondType'            , 'TODO-DEFINE-PARAMETER', '2')
 CALL prms%CreateRealOption(     'epsCG'                  , 'TODO-DEFINE-PARAMETER', '1.0E-6')
+CALL prms%CreateIntOption(      'OutIterCG'              , 'TODO-DEFINE-PARAMETER', '1')
+
 CALL prms%CreateLogicalOption(  'useRelativeAbortCrit'   , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateIntOption(      'maxIterCG'              , 'TODO-DEFINE-PARAMETER', '500')
 CALL prms%CreateLogicalOption(  'OnlyPostProc'           , 'TODO-DEFINE-PARAMETER', '.FALSE.')
@@ -168,6 +170,7 @@ END IF
 !CG parameters
 PrecondType=GETINT('PrecondType','2')
 epsCG=GETREAL('epsCG','1.0E-6')
+OutIterCG=GETINT('OutIterCG','1')
 useRelativeAbortCrit=GETLOGICAL('useRelativeAbortCrit','.FALSE.')
 maxIterCG=GETINT('maxIterCG','500')
 
@@ -1120,7 +1123,7 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit
+USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1224,6 +1227,9 @@ DO iter=1,MaxIterCG
 !    SWRITE(UNIT_StdOut,'(132("-"))')
     RETURN
   END IF !converged
+  IF (MOD(iter , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
+    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iter, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
+  END IF
 
   IF(PrecondType.NE.0) THEN
     CALL ApplyPrecond(R,Z)
@@ -1234,7 +1240,7 @@ DO iter=1,MaxIterCG
   V=Z+(rz2/rz1)*V
   rz1=rz2
 END DO ! iter 
-SWRITE(*,*)'CG sovler not converged in ',iter, 'iterations!!'
+SWRITE(*,*)'CG solver not converged in ',iter, 'iterations!!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE CG_solver
