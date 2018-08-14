@@ -74,7 +74,7 @@ CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds
                                                                'Choose nRandomSeeds'//&
                                                                '=-1    Random'//&
                                                                '= 0    Debugging withhard-coded deterministic numbers'//&
-                                                               '> 0    Debugging with numbers from ini.', '-2')
+                                                               '> 0    Debugging with numbers from ini.', '0')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '0', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
@@ -2369,15 +2369,17 @@ ELSE IF(nRandomSeeds.GT.0) THEN
       Seeds(iSeed)= GETINT('Particle-RandomSeed'//TRIM(hilf))
     END DO
   ELSE IF(nRandomSeeds.GT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
-    CALL ABORT(&
-     __STAMP__&
-     ,'Too many seeds provided in ini') 
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Uses DeterministicRandomSeeds() instead.'
+    CALL DeterministicRandomSeeds(SeedSize,Seeds)
+!    CALL ABORT(&
+!     __STAMP__&
+!     ,'Too many seeds provided in ini') 
   ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds
-    CALL ABORT(&
-      __STAMP__&
-      ,'Not enough seeds provided in ini.')
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Uses DeterministicRandomSeeds() instead.'
+    CALL DeterministicRandomSeeds(SeedSize,Seeds)
+!    CALL ABORT(&
+!      __STAMP__&
+!      ,'Not enough seeds provided in ini.')
   END IF
 ELSE 
   SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
@@ -3080,7 +3082,7 @@ INTEGER,INTENT(IN)             :: SeedSize
 INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                        :: iSeed,DateTime(8),ProcessID
+INTEGER                        :: iSeed,DateTime(8),ProcessID,iStat,OpenFileID
 INTEGER(INT64)                 :: Clock
 !==================================================================================================================================
 !Alternatively, if better seeding is wished
@@ -3088,19 +3090,31 @@ INTEGER(INT64)                 :: Clock
 !https://gcc.gnu.org/onlinedocs/gcc-4.8.4/gfortran/RANDOM_005fSEED.html
 !as well as
 !https://stackoverflow.com/questions/37409038/why-is-the-fortran-random-seed-input-an-array
-  CALL SYSTEM_CLOCK(COUNT=Clock)
-  IF (Clock == 0) THEN
-    CALL DATE_AND_TIME(values=DateTime)
-    Clock = (DateTime(1) - 1970) * 365_int64 * 24 * 60 * 60 * 1000 + DateTime(2) * 31_int64 * 24 * 60 * 60 * 1000 &
-      + DateTime(3) * 24_int64 * 60 * 60 * 1000 + DateTime(5) * 60 * 60 * 1000 &
-      + DateTime(6) * 60 * 1000 + DateTime(7) * 1000 + DateTime(8)
+ 
+! First try if the OS provides a random number generator
+  OPEN(NEWUNIT=OpenFileID, FILE="/dev/urandom", ACCESS="stream", &
+       FORM="unformatted", ACTION="read", STATUS="old", IOSTAT=iStat)
+  IF (iStat == 0) then
+       READ(OpenFileID) Seeds 
+       CLOSE(OpenFileID)
+    ELSE
+       ! Fallback to XOR:ing the current time and pid. The PID is
+       ! useful in case one launches multiple instances of the same
+       ! program in parallel.
+    CALL SYSTEM_CLOCK(COUNT=Clock)
+    IF (Clock == 0) THEN
+      CALL DATE_AND_TIME(values=DateTime)
+      Clock = (DateTime(1) - 1970) * 365_int64 * 24 * 60 * 60 * 1000 + DateTime(2) * 31_int64 * 24 * 60 * 60 * 1000 &
+        + DateTime(3) * 24_int64 * 60 * 60 * 1000 + DateTime(5) * 60 * 60 * 1000 &
+        + DateTime(6) * 60 * 1000 + DateTime(7) * 1000 + DateTime(8)
+    END IF
+    ProcessID = GETPID() !gnu compiler
+                         !intel compiler
+    Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
+    DO iSeed = 1, SeedSize
+      Seeds(iSeed) = GoodSeeds(Clock)
+    END DO
   END IF
-  ProcessID = GETPID() !gnu compiler
-                       !intel processor
-  Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
-  DO iSeed = 1, SeedSize
-    Seeds(iSeed) = GoodSeeds(Clock)
-  END DO
   CALL RANDOM_SEED(PUT=Seeds)
 CONTAINS
 FUNCTION GoodSeeds(Hilf)
