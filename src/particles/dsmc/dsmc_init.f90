@@ -116,12 +116,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
                                           , 'Flag for T-V-E-R\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
                                           '[FALSE] relaxation.' , '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-DSMC-WallModel'&
-                                                 , 'Define Model used for surface chemistry. If >0 then look in section DSMC Surface.\n'//&
-                                              '0: Maxwell scattering\n'//&
-                                          '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
-                                           '2: Recombination model\n'//&
-                                              '3: surface reconstruction / UBI-QEP', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
                                           , 'Set [TRUE] to model electronic states of atoms and molecules.' , '.FALSE.')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
@@ -388,18 +382,15 @@ USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
 USE MOD_PARTICLE_Vars,              ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
-USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, SolidSimFlag
+USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
-USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars,     ONLY: nAdaptiveBC, PartBound
-USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_Particle_Surfaces_Vars,     ONLY: BCdata_auxSF
-USE MOD_Liquid_Boundary,            ONLY: Init_Liquid_Boundary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -467,12 +458,6 @@ __STAMP__&
   DSMC%ReservoirRateStatistic = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
-  IF (SolidSimFlag) THEN
-    !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
-    DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0')
-  ELSE
-    DSMC%WallModel = 0
-  END IF
   LD_MultiTemperaturMod=GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -792,9 +777,9 @@ __STAMP__&
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC))
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
+          WRITE(UNIT=hilf2,FMT='(I0)') iInit
+          hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
           IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            WRITE(UNIT=hilf2,FMT='(I0)') iInit
-            hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','0.')
             SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%TRot*SpecDSMC(iSpec)%Surfaceflux(iInit)%TVib.EQ.0.) THEN
@@ -809,7 +794,7 @@ __STAMP__&
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
-,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
             END IF
           END IF
         END DO !SurfaceFluxBCs
@@ -851,7 +836,7 @@ __STAMP__&
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
               CALL Abort(&
 __STAMP__&
-,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+,' Error! Telec not defined in Part-SpeciesXX-SurfacefluxXX-Tempelec for iSpec, iInit',iSpec,REAL(iInit))
             END IF
             currentBC = Species(iSpec)%Surfaceflux(iInit)%BC !go through sides if present in proc...
             IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
@@ -1108,7 +1093,7 @@ __STAMP__&
       END IF
     END DO
     CALL DSMC_chemical_init()
-  ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
+  ELSE IF ((PartSurfaceModel.GT.0 .OR. LiquidSimFlag) .AND. CollisMode.GT.1) THEN
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1214,35 +1199,6 @@ __STAMP__&
 
   END IF !CollisMode.GT.0
 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Initialize surface model (Adsorption/Desorption/Reactions) variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
-    IF (.NOT.DSMC%CalcSurfaceVal) THEN
-      CALL InitParticleBoundarySampling()
-      SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
-    END IF
-    IF ((DSMC%WallModel.EQ.1)) CALL abort(&
-      __STAMP__&
-      ,'Error: WallModel 1 not working!')
-    CALL InitDSMCSurfModel()
-  ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.LE.1) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Error in DSMC-Surface model init - wrong collismode!')
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Initialize liquid surfaces (Evaporation/Condensation) variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF (LiquidSimFlag) THEN
-    IF (.NOT.DSMC%CalcSurfaceVal) THEN
-      CALL InitParticleBoundarySampling()
-      SWRITE(UNIT_stdOut,'(A)')'WARNING: Particles-DSMC-CalcSurfaceVal == FALSE!'
-    END IF
-    CALL Init_Liquid_Boundary()
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-  
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -1436,7 +1392,11 @@ SDEALLOCATE(ChemReac%CEXa)
 SDEALLOCATE(ChemReac%CEXb)
 SDEALLOCATE(ChemReac%MEXa)
 SDEALLOCATE(ChemReac%MEXb)
+SDEALLOCATE(ChemReac%ELa)
+SDEALLOCATE(ChemReac%ELb)
+SDEALLOCATE(ChemReac%DoScat)
 SDEALLOCATE(ChemReac%ReactInfo)
+SDEALLOCATE(ChemReac%TLU_FileName)
 SDEALLOCATE(ChemReac%ReactNumRecomb)
 SDEALLOCATE(ChemReac%Hab)
 SDEALLOCATE(CollInf%Coll_Case)

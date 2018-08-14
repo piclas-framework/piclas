@@ -58,6 +58,12 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
+                                'Define Model used for particle surface interaction. If >0 then look in section SurfaceModel.\n'//&
+                                '0: Maxwell scattering\n'//&
+                                '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
+                                '2: Recombination model\n'//&
+                                '3: (SMCR with UBI-QEP, TST and TCE)', '0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -817,7 +823,7 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidCatalytic'  &
-                                , 'Flag for defining solid surface to be treated catalytically (for wallmodel>0).', '.FALSE.'&
+                                , 'Flag for defining solid surface to be treated catalytically (for surfacemodel>0).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
                                 , 'Set Species of Solid Boundary. (currently not used)', '0', numberedmulti=.TRUE.)
@@ -931,7 +937,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -942,6 +948,7 @@ USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
+USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
@@ -993,13 +1000,15 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag) THEN
   CALL InitParticleBoundarySampling()
 END IF
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
+  IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
+  IF (LiquidSimFlag) CALL InitLiquidSurfaceModel()
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
@@ -1205,6 +1214,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif /* ROSENBROCK */
 
 #if IMPA
@@ -1222,15 +1252,27 @@ __STAMP__&
   ,' Cannot allocate PartDtFrac arrays!')
 END IF
 PartDtFrac=1.
-! ALLOCATE(StagePartPos(1:PDM%maxParticleNumber,1:3) &
-!         ,PEM%StageElement(1:PDM%maxParticleNumber) ,  STAT=ALLOCSTAT) 
-! IF (ALLOCSTAT.NE.0) THEN
-!   CALL abort(&
-! __STAMP__&
-!   ,' Cannot allocate the stage position and element arrays!')
-! END IF
-! StagePartPos=0
-! PEM%StageElement=0
+ALLOCATE(PEM%ElementN(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%ElementN=0
+ALLOCATE(PEM%NormVec(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the normal vector for reflections!')
+END IF
+PEM%NormVec=0
+ALLOCATE(PEM%PeriodicMoved(1:PDM%maxParticleNumber),STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+   CALL abort(&
+ __STAMP__&
+   ,' Cannot allocate the stage position and element arrays!')
+END IF
+PEM%PeriodicMoved=.FALSE.
 #endif
 
 IF(DoRefMapping)THEN
@@ -1279,9 +1321,6 @@ PartState=0.
 Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
-
-! initialize of adsorbed particle tracking 
-KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
 
@@ -2097,6 +2136,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+#if defined(IMPA) || defined(ROS)
+MeshHasReflectiveBCs=.FALSE.
+#endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
@@ -2146,6 +2188,9 @@ __STAMP__&
      END IF
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
      PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp','0')
@@ -2195,6 +2240,9 @@ __STAMP__&
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
+#if defined(IMPA) || defined(ROS)
+     MeshHasReflectiveBCs=.TRUE.
+#endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
@@ -2300,6 +2348,20 @@ IF ( ALMOSTEQUAL(overrelax_factor,1.0) .AND. .NOT.ALMOSTEQUAL(dt_part_ratio,3.8)
 END IF
 #endif
 #endif
+
+! initialization of surface model flags
+KeepWallParticles = .FALSE.
+IF (SolidSimFlag) THEN
+  !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
+  PartSurfaceModel = GETINT('Particles-SurfaceModel','0')
+ELSE
+  PartSurfaceModel = 0
+END IF
+IF (PartSurfaceModel.GT.0 .AND. .NOT.useDSMC) THEN
+  CALL abort(&
+__STAMP__&
+,'Cant use surfacemodel>0 withoput useDSMC flag!')
+END IF
 
 !--- initialize randomization (= random if one or more seeds are 0 or random is wanted)
 nrSeeds = GETINT('Part-NumberOfRandomSeeds','0')
@@ -2911,6 +2973,9 @@ SDEALLOCATE(PartStage)
 SDEALLOCATE(PartStateN)
 SDEALLOCATE(PartQ)
 SDEALLOCATE(PartDtFrac)
+SDEALLOCATE(PEM%ElementN)
+SDEALLOCATE(PEM%NormVec)
+SDEALLOCATE(PEM%PeriodicMoved)
 #endif /*defined(ROS) || defined(IMPA)*/
 #if defined(IMPA)
 SDEALLOCATE(F_PartXk)

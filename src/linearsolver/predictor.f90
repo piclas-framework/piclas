@@ -91,17 +91,23 @@ SUBROUTINE Predictor(iStage,dt,FieldStage)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,          ONLY: U,Un
-USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast,Upredict,tpast
-USE MOD_TimeDisc_Vars,    ONLY: time,iter
+USE MOD_DG_Vars,              ONLY: U,Un
+USE MOD_LinearSolver_Vars,    ONLY: LinSolverRHS,Upast,tpast
+USE MOD_TimeDisc_Vars,        ONLY: time,iter
+#if (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,    ONLY: Upredict
+#endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,    ONLY: Upredict
+#endif
 #if (PP_TimeDiscMethod==120)  || defined(ROS) || (PP_TimeDiscMethod==123)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c
+USE MOD_TimeDisc_Vars,        ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,        ONLY: RK_c,RK_bsO3,RK_bs,RK_b
 #endif
 #if (PP_TimeDiscMethod==101)  || (PP_TimeDiscMethod==121)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,        ONLY: RK_c,RK_bs,RK_b
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -121,7 +127,7 @@ REAL               :: tphi2
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==122)
 REAL               :: tphi2,tphi3
 #endif
-INTEGER            :: iCounter,iStage2
+INTEGER            :: iCounter
 INTEGER            :: iElem,i,j,k,iVar
 REAL               :: DeltaT_inv
 !===================================================================================================================================
@@ -225,38 +231,46 @@ END IF
 END SUBROUTINE Predictor
 
 #if defined(PARTICLES) && IMPA
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 SUBROUTINE PartPredictor(iStage,dt,PartID)
+#else
+SUBROUTINE PartPredictor(iStage,PartID)
+#endif
 !===================================================================================================================================
 ! predicts the new Stage-value to decrease computational time
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars,    ONLY: PartState
-USE MOD_Particle_Vars,    ONLY: PartStage, PartQ,PartStateN
-#if (PP_TimeDiscMethod==122)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
-#endif
+USE MOD_Particle_Vars,    ONLY: PartState,PartQ
 #if (PP_TimeDiscMethod==121)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
+#endif
+#if (PP_TimeDiscMethod==122)
+USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+!USE MOD_Particle_Vars,    ONLY: PartStage,PartStateN
+#endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,    ONLY: PartStage,PartStateN
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)           :: iStage
-REAL,INTENT(IN)              :: dt
 INTEGER,INTENT(IN)           :: PartID
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+REAL,INTENT(IN)              :: dt
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL               :: tphi
-#if (PP_TimeDiscMethod==121) 
-REAL               :: tphi2
-#endif
 #if (PP_TimeDiscMethod==122) 
-REAL               :: tphi3,tphi2
+REAL               :: tphi3
+#endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+REAL               :: tphi,tphi2
 #endif
 INTEGER            :: iCounter
 !===================================================================================================================================
@@ -327,18 +341,23 @@ SUBROUTINE StorePredictor()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars,          ONLY:U,Ut,Un
-USE MOD_LinearSolver_Vars,ONLY:Upast,Upredict,tpast
-USE MOD_TimeDisc_Vars,    ONLY:dt,iStage,nRKStages,time
-USE MOD_LinearSolver_Vars,ONLY:FieldStage,ImplicitSource
+USE MOD_DG_Vars,              ONLY:U
+USE MOD_LinearSolver_Vars,    ONLY:Upast,tpast
+USE MOD_TimeDisc_Vars,        ONLY:iStage,nRKStages,time,dt
 #if (PP_TimeDiscMethod==120) || defined(ROS) || (PP_TimeDiscMethod==123)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c
-#endif
-#if (PP_TimeDiscMethod==122)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,        ONLY: RK_c
 #endif
 #if (PP_TimeDiscMethod==121)
-USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs,RK_b
+USE MOD_TimeDisc_Vars,        ONLY: RK_c,RK_bs,RK_b
+USE MOD_DG_Vars,              ONLY:Ut,Un
+#endif
+#if (PP_TimeDiscMethod==122)
+USE MOD_TimeDisc_Vars,        ONLY: RK_c,RK_bsO3,RK_bs,RK_b
+USE MOD_LinearSolver_Vars,    ONLY:FieldStage,ImplicitSource,Upredict
+#endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,    ONLY:FieldStage, ImplicitSource,Upredict
+USE MOD_DG_Vars,              ONLY:Ut,Un
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -348,13 +367,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                    :: iStage2, iCounter
-REAL                       :: tphi
 #if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121)
-REAL               :: tphi2
+REAL                       :: tphi2
 #endif
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==122)
-REAL               :: tphi2,tphi3
+REAL                       :: tphi2,tphi3
+#endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+INTEGER                    :: iStage2, iCounter
+REAL                       :: tphi
 #endif
 !===================================================================================================================================
 

@@ -1234,7 +1234,6 @@ USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
 #endif  /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
-USE MOD_LoadBalance_Vars,       ONLY: PerformLBSample
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -3379,7 +3378,7 @@ INTEGER                          :: SourceSize
 REAL                             :: Fac(1:SourceSize_in), Fac2(1:SourceSize_in)
 #endif
 INTEGER                          :: iCase, ind
-REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3)
+REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
 LOGICAL                          :: DoCycle, DoNotDeposit
 REAL                             :: SFfixDistance, SFfixDistance2
@@ -3505,6 +3504,9 @@ ELSE ! NbrOfSFdepoFixes.NE.0
               END IF
               ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
               Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
+              ! change velocity
+              n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
+              Fac(1:3) = Fac2(1:3) -2.*DOT_PRODUCT(Fac2(1:3),n_loc)*n_loc 
               IF (SFfixIdx2.NE.0) THEN !check if new position would not reach a dof because of the other plane
                 SFfixDistance2 = SFdepoFixesGeo(SFfixIdx2,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx2,1,1)) &
                   + SFdepoFixesGeo(SFfixIdx2,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx2,1,2)) &

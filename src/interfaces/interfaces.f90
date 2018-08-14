@@ -190,8 +190,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 ! LOCAL VARIABLES
 INTEGER             :: iElem,i,j,k,m
 REAL                :: r
-LOGICAL                          :: DoGeometry ! Check if DOF is inside/outside of a rotationally symmetric geometry
-REAL              :: rInterpolated
+REAL                :: rInterpolated
 !===================================================================================================================================
 ! Display region information (how elements are checked + min-max region extensions)
 IF(PRESENT(DisplayInfo))THEN
@@ -839,7 +838,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
 REAL                            :: array_shift
-INTEGER                         :: I,J
+INTEGER                         :: I
 INTEGER                         :: dim_2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1052,13 +1051,12 @@ SUBROUTINE InterpolateGeometry(x_IN,dim_x,dim_y,x_OUT)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interfaces_Vars, ONLY:GeometryIsSet,Geometry,GeometryMin,GeometryMax,GeometryNPoints
+USE MOD_Interfaces_Vars, ONLY:Geometry,GeometryMin,GeometryMax,GeometryNPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !REAL,ALLOCATABLE                :: temp_array(:)            !< temporary array
-INTEGER                         :: I,J
 INTEGER                         :: location
 REAL                            :: x1,x2,y1,y2,m
 INTEGER                         :: location_Upper,location_Lower

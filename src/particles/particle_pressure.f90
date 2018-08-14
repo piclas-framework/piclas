@@ -1359,7 +1359,7 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
 ! Checks how many particles are inside including their temperature/energy
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,         ONLY: BoltzmannConst, Pi
+  USE MOD_Globals_Vars,         ONLY: BoltzmannConst
   USE MOD_Particle_Vars
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

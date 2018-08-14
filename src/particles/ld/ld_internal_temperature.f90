@@ -88,7 +88,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
          / (8.0*BoltzmannConst*PartStateBulkValues(iPartIndx,4)) )**0.5 &
          / (5.81E-21*NumDensTot)
     
-    DoFConstV = 1.0 + 2/3*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4) &
+    DoFConstV = 1.0 + 2./3.*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4) &
               / (EXP(SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4)) - 1.0)
     VibRelaxProbLD = 1/DoFConstV * (1.0 - EXP(-DoFConstV*dt/TauV))
 

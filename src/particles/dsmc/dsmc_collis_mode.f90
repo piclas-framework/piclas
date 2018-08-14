@@ -29,7 +29,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, PartState, usevMPF, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_part_tools,             ONLY : DiceUnitVector
@@ -46,8 +46,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
-  INTEGER                       :: iVec
-  REAL                          :: iRan, RanVec(3)
+  REAL                          :: RanVec(3)
 !===================================================================================================================================
 
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
@@ -94,7 +93,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 
 END SUBROUTINE DSMC_Elastic_Col
 
-SUBROUTINE DSMC_Scat_Col(iPair, iElem)
+SUBROUTINE DSMC_Scat_Col(iPair)
 !===================================================================================================================================
 ! Performs a collision with the possibility of a CEX. In the calculation of the new particle velocities a scattering angle is used,
 ! which is interpolated from a lookup table.
@@ -111,7 +110,6 @@ SUBROUTINE DSMC_Scat_Col(iPair, iElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -296,8 +294,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF!, Debug_Energy
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, usevMPF, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -317,11 +314,10 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
-  INTEGER                       :: iVec
   REAL (KIND=8)                 :: iRan
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
   REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
-  REAL                          :: MaxColQua, RanVec(3)                        ! Max. Quantum Number
+  REAL                          :: RanVec(3)                        ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
@@ -609,8 +605,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, usevMPF, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -630,7 +625,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz                 ! random relativ velo
-  INTEGER                       :: iVec, iSpec, jSpec, iDOF, iPolyatMole, DOFRelax
+  INTEGER                       :: iSpec, jSpec, iDOF, iPolyatMole, DOFRelax
   REAL (KIND=8)                 :: iRan
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
   REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
@@ -2489,7 +2484,7 @@ __STAMP__&
 ! ############################################################################################################################### !
       iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       IF (ChemReac%DoScat(iReac)) THEN! MEX
-        CALL DSMC_Scat_Col(iPair, iElem)
+        CALL DSMC_Scat_Col(iPair)
       ELSE
         sigmaCEX = (ChemReac%CEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%CRela2) + ChemReac%CEXb(iReac))
         sigmaMEX = (ChemReac%MEXa(iReac)*0.5*LOG10(Coll_pData(iPair)%CRela2) + ChemReac%MEXb(iReac))
@@ -2659,7 +2654,8 @@ __STAMP__&
 __STAMP__&
 ,' ERROR! Atomic electron shell has to be initalized.')
           END IF
-          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
+!          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
 !-----------------------------------------------------------------------------------------------------------------------------------
         ELSE
         ! traditional Recombination

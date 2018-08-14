@@ -490,7 +490,7 @@ USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec,PoyntingMainDir
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor,S,STEM
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
-USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,DielectricMuR,ElemToDielectric,isDielectricInterFace
+USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 USE MOD_Globals         ,ONLY: abort
 #ifdef MPI
@@ -994,7 +994,7 @@ SUBROUTINE SetDielectricFaceProfileForPoynting()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars ,ONLY: DielectricConstant_inv,Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
+USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
 USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricMu
 USE MOD_Mesh_Vars       ,ONLY: nSides
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
