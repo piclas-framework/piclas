@@ -2346,7 +2346,7 @@ END IF
 #endif
 #endif
 
-nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','-2')
+nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
 CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
 ALLOCATE(Seeds(SeedSize))
 IF(nRandomSeeds.EQ.-1) THEN
@@ -3069,9 +3069,8 @@ SUBROUTINE InitRandomSeed(SeedSize,Seeds)
 !> Initialize pseudo random numbers: Create Random_seed array
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
-#endif
+
+USE ISO_FORTRAN_ENV,           ONLY: INT64
 ! IMPLICIT VARIABLE HANDLING
 !===================================================================================================================================
 
@@ -3081,26 +3080,40 @@ INTEGER,INTENT(IN)             :: SeedSize
 INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                        :: iSeed,clock
-
-!CHARACTER(LEN=30)              :: filename
+INTEGER                        :: iSeed,DateTime(8),ProcessID
+INTEGER(INT64)                 :: Clock
 !==================================================================================================================================
-#ifndef MPI
-CALL SYSTEM_CLOCK(COUNT=clock)
-  DO iSeed=1,SeedSize
-    Seeds(iSeed)=iSeed-1
+!Alternatively, if better seeding is wished
+!Resources
+!https://gcc.gnu.org/onlinedocs/gcc-4.8.4/gfortran/RANDOM_005fSEED.html
+!as well as
+!https://stackoverflow.com/questions/37409038/why-is-the-fortran-random-seed-input-an-array
+  CALL SYSTEM_CLOCK(COUNT=Clock)
+  IF (Clock == 0) THEN
+    CALL DATE_AND_TIME(values=DateTime)
+    Clock = (DateTime(1) - 1970) * 365_int64 * 24 * 60 * 60 * 1000 + DateTime(2) * 31_int64 * 24 * 60 * 60 * 1000 &
+      + DateTime(3) * 24_int64 * 60 * 60 * 1000 + DateTime(5) * 60 * 60 * 1000 &
+      + DateTime(6) * 60 * 1000 + DateTime(7) * 1000 + DateTime(8)
+  END IF
+  ProcessID = GETPID() !gnu compiler
+                       !intel processor
+  Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
+  DO iSeed = 1, SeedSize
+    Seeds(iSeed) = GoodSeeds(Clock)
   END DO
-  Seeds = clock + 37 * Seeds
-  CALL RANDOM_SEED(PUT = Seeds)
-#endif
-#ifdef MPI 
- CALL SYSTEM_CLOCK(COUNT=clock)
-! MISSING PROGRAM to send clock_var to all procs -> to make sure it's well seeded
-  DO iSeed=1,SeedSize
-    Seeds(iSeed)=(PartMPI%MyRank+1)*iSeed-1
-  END DO
-  Seeds = clock + 37 * Seeds
-#endif
+  CALL RANDOM_SEED(PUT=Seeds)
+CONTAINS
+FUNCTION GoodSeeds(Hilf)
+  INTEGER           :: GoodSeeds
+  INTEGER(INT64)    :: Hilf 
+  IF (Hilf == 0) THEN
+    Hilf = 104729
+  ELSE
+    Hilf = MOD(Hilf, 4294967296_INT64)
+  END IF
+    Hilf = MOD(Hilf * 279470273_INT64, 4294967291_INT64)
+    GoodSeeds = INT(MOD(Hilf, INT(HUGE(0),INT64)), KIND(0))
+END FUNCTION GoodSeeds
 END SUBROUTINE InitRandomSeed
 
 
