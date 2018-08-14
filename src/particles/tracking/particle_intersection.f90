@@ -890,14 +890,14 @@ IF (nRoot.EQ.1) THEN
           END IF
         END IF
       END IF
+      alphaNorm=t(1)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         alpha=t(1)!/LengthPartTrajectory
@@ -956,14 +956,14 @@ ELSE
           END IF
         END IF
       END IF
+      alphaNorm=t(1)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
@@ -1004,14 +1004,14 @@ ELSE
           END IF
         END IF
       END IF
+      alphaNorm=t(2)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(2),' | t: ',t(2),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(2)/lengthPartTrajectory
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
         IF(InterType.EQ.1)THEN
