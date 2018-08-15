@@ -3108,8 +3108,7 @@ INTEGER(INT64)                 :: Clock
         + DateTime(3) * 24_int64 * 60 * 60 * 1000 + DateTime(5) * 60 * 60 * 1000 &
         + DateTime(6) * 60 * 1000 + DateTime(7) * 1000 + DateTime(8)
     END IF
-    ProcessID = GETPID() !gnu compiler
-                         !intel compiler
+    ProcessID = GetPID_C()
     Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
     DO iSeed = 1, SeedSize
       Seeds(iSeed) = GoodSeeds(Clock)
@@ -3128,6 +3127,15 @@ FUNCTION GoodSeeds(Hilf)
     Hilf = MOD(Hilf * 279470273_INT64, 4294967291_INT64)
     GoodSeeds = INT(MOD(Hilf, INT(HUGE(0),INT64)), KIND(0))
 END FUNCTION GoodSeeds
+INTERFACE
+  FUNCTION GetPID_C() BIND (C, name='getpid')
+    !GETPID() is an intrinstic compiler function in gnu. This routine ensures the portability with other compilers. 
+    ! minic C typedef : rename C_INT PID_T
+    USE ISO_C_BINDING,      ONLY: PID_T => C_INT
+    IMPLICIT NONE
+    INTEGER(KIND=PID_T)        :: GetPID_C
+  END FUNCTION GetPID_C
+END INTERFACE
 END SUBROUTINE InitRandomSeed
 
 
