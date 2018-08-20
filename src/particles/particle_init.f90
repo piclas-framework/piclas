@@ -2285,9 +2285,17 @@ ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
-    IF (BoundaryType(iBC,1).EQ.0) THEN
+    IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
       SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+    ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
+      IF(DoRefMapping)THEN
+        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
+                                  ' orientation of SideNormVec is unknown.'
+     CALL abort(&
+__STAMP__&
+,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+      END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
