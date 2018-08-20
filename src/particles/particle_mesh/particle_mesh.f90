@@ -679,6 +679,7 @@ SDEALLOCATE(TracingBCInnerSides)
 SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
+SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%CharLength)
@@ -3643,6 +3644,7 @@ INTEGER                                  :: NGeo3,NGeo2,PVID
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
 LOGICAL                                  :: isCurvedSide,isRectangular
+REAL                                     :: ScalarProduct
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -3878,7 +3880,14 @@ DO iSide=1,nPartSides
   PVID=SidePeriodicType(iSide)
   IF(PVID.EQ.0) CYCLE
   Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-  IF(DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1).GT.0) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
+  IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    CALL abort(&
+__STAMP__&
+        , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
+  END IF
 END DO ! iSide=1,nPartSides
 
 ! fill Element type checking sides
@@ -5185,7 +5194,7 @@ IF(MapPeriodicSides)THEN
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
   ! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
-  !    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+  !    are build from the other element. Now two BezierControlPoints exists which are shifted by the SidePeriodicVector
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -5210,7 +5219,7 @@ IF(MapPeriodicSides)THEN
         PVID = BoundaryType(BCID,BC_ALPHA) 
         ! loop over bc to get the NEW BC type
         DO iBC = 1,nBCs
-          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEn
+          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEN
             BC(newSideID)=iBC 
             EXIT
           END IF
@@ -5226,6 +5235,12 @@ IF(MapPeriodicSides)THEN
                                            ,SideSlabInterVals(1:6,iSide)                                               &
                                            ,BoundingBoxIsEmpty(iSide)                                                  )
         ! sanity check
+        ! check flip of master element, has to be zero, because of master side
+        IF(PartElemToSide(E2S_FLIP   ,locSideID,ElemID).NE.0)THEN
+          CALL abort(&
+                __STAMP__&
+                , ' Periodic Side is no master side!')
+        END IF
         xTest(1:3) = BezierControlPoints3D(1:3,0,0,iSide)
         xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
