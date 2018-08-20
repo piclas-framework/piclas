@@ -18,6 +18,7 @@ INTERFACE AnalyzeSurface
   MODULE PROCEDURE AnalyzeSurface
 END INTERFACE
 
+#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 INTERFACE WriteDataHeaderInfo
   MODULE PROCEDURE WriteDataHeaderInfo
 END INTERFACE
@@ -25,6 +26,7 @@ END INTERFACE
 INTERFACE WriteDataInfo
   MODULE PROCEDURE WriteDataInfo
 END INTERFACE
+#endif /* DSMC*/
 
 PUBLIC:: InitSurfModelAnalyze
 PUBLIC:: AnalyzeSurface
@@ -133,15 +135,17 @@ USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
-USE MOD_Particle_Vars             ,ONLY: nSpecies, PartSurfaceModel
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*MPI*/
-#if ( PP_TimeDiscMethod ==42)
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
+#if ( PP_TimeDiscMethod ==42) 
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
-#endif
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
+#endif /* DSMC*/
+#if ( PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod==4)
+USE MOD_Particle_Vars             ,ONLY: nSpecies, PartSurfaceModel
+#endif /* DSMC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,6 +417,7 @@ IF (PartMPI%MPIROOT) THEN
 END SUBROUTINE AnalyzeSurface
 
 
+#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize)
 !===================================================================================================================================
 !> writes OutputCounter-AttribNamestring-iLoop into WRITEFORMAT output
@@ -514,6 +519,7 @@ IF(PRESENT(LogicalScalar)) THEN
   WRITE(unit_index,'(L2)',ADVANCE='NO') LogicalScalar
 END IF
 END SUBROUTINE WriteDataInfo
+#endif /*DSMC*/
 
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
