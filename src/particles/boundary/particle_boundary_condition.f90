@@ -2201,7 +2201,6 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars,          ONLY:PartStateN,PartStage
-USE MOD_TimeDisc_Vars,          ONLY:iStage
 #endif /*IMPA || ROS*/
 #if defined(IMPA)
 USE MOD_TimeDisc_Vars,          ONLY:ESDIRK_a,ERK_a!,dt
@@ -2232,10 +2231,6 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3)
-#if defined(IMPA) || defined(ROS)
-REAL                                 :: DeltaP(1:6)
-INTEGER                              :: iCounter
-#endif /*IMPA*/
 REAL                                 :: epsLength
 INTEGER                              :: PVID,moved(2),locSideID
 !===================================================================================================================================
@@ -2306,92 +2301,9 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-! recompute ne trajectory and length of remaining vector
-! PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-! lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-!                          +PartTrajectory(2)*PartTrajectory(2) &
-!                          +PartTrajectory(3)*PartTrajectory(3) )
-! PartTrajectory=PartTrajectory/lengthPartTrajectory
-  
-!#ifdef IMEX 
-!! recompute PartStateN to kill jump in integration through periodic BC
-!IF(iStage.GT.0)THEN
-!  PartStateN(PartID,1:6) = PartState(PartID,1:6)
-!  DO iCounter=1,iStage-1
-!    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-!                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-!  END DO
-!END IF
-!#endif /*IMEX*/
-
-
 #if defined(ROS) || defined(IMPA)
 PEM%PeriodicMoved(PartID)=.TRUE.
 #endif
-!#ifdef ROS
-!IF(iStage.GT.0)THEN
-!  ! compute explicit contribution which is
-!  DeltaP = RK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
-!  DO iCounter=1,iStage-2
-!    DeltaP=DeltaP+RK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-!  END DO ! iCounter=1,iStage-2
-!  ! recompute the old position at t^n
-!  PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
-!  ! PartQ is non-shifted, I think
-!  ! remains non-altered, because no change
-!  !! compute contribution of 1/dt* sum_j=1^iStage-1 c(i,j) = diag(gamma)-gamma^inv
-!  !PartQ(1:6,iPart) = RK_g(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
-!  !DO iCounter=1,iStage-2
-!  !  PartQ(1:6,iPart) = PartQ(1:6,iPart) +RK_g(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-!  !END DO ! iCounter=1,iStage-2
-!  !PartQ(1:6,iPart) = dt_inv*PartQ(1:6,iPart)
-!  ! no-idea what happens with PartXK
-!  !PartXK(1:6,PartID)   = PartStateN(PartID,1:6)
-!END IF
-!#endif /*ROS*/
-
-!PartShiftVector = OldPartPos - NewPartPos = -SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-! #ifdef IMPA 
-! ! recompute PartStateN to kill jump in integration through periodic BC
-! IF(iStage.GT.0)THEN
-!   IF(PartIsImplicit(PartID))THEN
-!     ! implicit particle
-!     ! caution because of implicit particle
-!     ! PartState^(n+1) = PartState^n - sum_i=1^istage-1 a_istage,i F(u,partstate^i) - a_istage,istage dt F(U,PartState^(n+1))
-!     ! old RK Stages
-!     DeltaP=0.
-!     DO iCounter=1,iStage-1
-!       DeltaP=DeltaP + ESDIRK_A(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-!     END DO
-!     ! actually, this is the WRONG R_PartXK, instead, we would have to use the 
-!     ! new value, which is not yet computed, hence, convergence issues...
-!     ! we are using the value of the last iteration under the assumption, that this 
-!     ! value may be close enough
-!     ! if still trouble in convergence, the exact position should be used :(
-!     DeltaP=DeltaP*dt + ESDIRK_A(iStage,iStage)*dt*R_PartXK(1:6,PartID)
-!     ! recompute the old position at t^n
-!     PartStateN(PartID,1:6) = PartState(PartID,1:6) - DeltaP
-!     ! next, recompute PartQ instead of shifting...
-!     DeltaP = ESDIRK_a(iStage,iStage-1)*PartStage(PartID,1:6,iStage-1)
-!     DO iCounter=1,iStage-2
-!       DeltaP = DeltaP + ESDIRK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-!     END DO ! iCounter=1,iStage-2
-!     PartQ(1:6,PartID) = PartStateN(PartID,1:6) + dt* DeltaP
-!     !PartQ(1:3,PartID) = PartQ(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-!     ! and move all the functions
-!     ! PartXK  is not YET updated, it is updated, if the Newton step will be accepted 
-!     ! F_PartX0 is not changing, because of difference should middle out?!?
-!     !PartXK(1:3,PartID) = PartXK(1:3,PartID) - SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-!  ELSE
-!    ! explicit particle
-!    DeltaP=0.
-!    DO iCounter=1,iStage-1
-!      DeltaP = DeltaP + ERK_a(iStage,iCounter)*PartStage(PartID,1:6,iCounter)
-!    END DO
-!    PartStateN(PartID,1:6) = PartState(PartID,1:6) -dt*DeltaP
-!  END IF
-! END IF
-!#endif /*IMPA*/
 
 ! refmapping and tracing
 ! move particle from old element to new element
