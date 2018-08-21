@@ -2136,8 +2136,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
-MeshHasReflectiveBCs=.FALSE.
+PartMeshHasReflectiveBCs=.FALSE.
 #endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
@@ -2189,7 +2190,7 @@ __STAMP__&
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
@@ -2235,13 +2236,14 @@ __STAMP__&
      END IF
   CASE('periodic')
      PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
+     PartMeshHasPeriodicBCs = .TRUE.
   CASE('simple_anode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)

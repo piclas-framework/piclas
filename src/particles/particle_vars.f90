@@ -297,8 +297,9 @@ INTEGER                                  :: nSpecies                         ! n
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
+LOGICAL                                  :: PartMeshHasPeriodicBCs
 #if defined(IMPA) || defined(ROS)
-LOGICAL                                  :: MeshHasReflectiveBCs
+LOGICAL                                  :: PartMeshHasReflectiveBCs
 #endif
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
