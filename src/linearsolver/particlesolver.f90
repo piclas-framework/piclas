@@ -703,13 +703,8 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Mesh_Vars,      ONLY:nTotalElems
 USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,PartNewtonRelaxation
-USE MOD_Mesh_Vars,               ONLY:OffSetElem,nElems
-USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 #ifdef MPI
-USE MOD_MPI_Vars,                ONLY:OffSetElemMPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
@@ -737,14 +732,11 @@ REAL                         :: lambda, Norm_PartX,DeltaX_Norm
 REAL                         :: LorentzFacInv,Xtilde(1:6), DeltaX(1:6)
 LOGICAL                      :: DoSetLambda
 INTEGER                      :: nLambdaReduce,nMaxLambdaReduce=10
-!INTEGER                      :: tmpElemID
 #ifdef MPI
-INTEGER                      :: GlobalElemID,GlobalElemID2,iElem,ProcID
-LOGICAL                      :: Found
 #if USE_LOADBALANCE
 REAL                         :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#endif 
+#endif /*MPI*/
 REAL                         :: n_loc(1:3), PartStateTmp(1:6)
 LOGICAL                      :: ReMap
 !===================================================================================================================================
