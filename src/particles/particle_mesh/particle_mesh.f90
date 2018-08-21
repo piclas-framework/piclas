@@ -3626,6 +3626,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Vars,                      ONLY:PartMeshHasPeriodicBCs
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3879,6 +3880,7 @@ DO iSide=1,nPartSides
   END IF
   PVID=SidePeriodicType(iSide)
   IF(PVID.EQ.0) CYCLE
+  IF(.NOT.PartMeshHasPeriodicBCs) CYCLE
   Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
   ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
   IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN

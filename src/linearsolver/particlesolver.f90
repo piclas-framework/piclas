@@ -241,7 +241,7 @@ USE MOD_PreProc
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
-                                     ,MeshHasReflectiveBCs
+                                     ,PartMeshHasReflectiveBCs
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
@@ -325,7 +325,7 @@ IF(opt)THEN ! compute zero state
       ! compute Lorentz force at particle's position
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       reMap=.FALSE.
-      IF(MeshHasReflectiveBCs)THEN
+      IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
@@ -340,7 +340,7 @@ IF(opt)THEN ! compute zero state
         reMap=.TRUE.
         PEM%PeriodicMoved(iPart)=.FALSE.
       END IF
-      IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       IF(reMap)THEN
         PartState(iPart,1:6)=PartXK(1:6,iPart)+PartDeltaX(1:6,iPart)
@@ -401,7 +401,7 @@ ELSE
       LastPartPos(iPart,3)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
       reMap=.FALSE.
-      IF(MeshHasReflectiveBCs)THEN
+      IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           reMap=.TRUE.
           PEM%NormVec(iPart,1:3)=0.
@@ -693,7 +693,7 @@ USE MOD_Globals
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
 USE MOD_Particle_Vars,           ONLY:PartState,F_PartXK,Norm_F_PartXK,PartQ,PartLorentzType,DoPartInNewton,PartLambdaAccept &
                                      ,PartDeltaX,PEM,PDM,LastPartPos,Pt,Norm_F_PartX0,PartDtFrac,PartStateN &
-                                     ,MeshHasReflectiveBCs!,StagePartPos
+                                     ,PartMeshHasReflectiveBCs!,StagePartPos
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoPrintConvInfo
 USE MOD_LinearSolver_Vars,       ONLY:Part_alpha, Part_sigma
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
@@ -763,7 +763,7 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(iPart,3)=PartStateN(iPart,3)
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
     ! and disable periodic movement
-    IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,:)=0.
+    IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,:)=0.
     PEM%PeriodicMoved(iPart)=.FALSE.
     ! new part: of Armijo algorithm: check convergence
     ! compute new function value
@@ -867,7 +867,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! compute lorentz force at particles position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     reMap=.FALSE.
-    IF(MeshHasReflectiveBCs)THEN
+    IF(PartMeshHasReflectiveBCs)THEN
       IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
         n_loc=PEM%NormVec(iPart,1:3)
         ! particle is actually located outside, hence, it moves in the mirror field
@@ -1011,7 +1011,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       LastPartPos(iPart,2)=PartStateN(iPart,2)
       LastPartPos(iPart,3)=PartStateN(iPart,3)
       PEM%lastElement(iPart)=PEM%ElementN(iPart)
-      IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+      IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
       PEM%PeriodicMoved(iPart)=.FALSE.
       ! recompute part state
       PartState(iPart,1:6)=PartXK(:,iPart)+lambda*PartDeltaX(:,iPart)
@@ -1083,7 +1083,7 @@ DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
       ! compute lorentz-force at particle's position
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       reMap=.FALSE.
-      IF(MeshHasReflectiveBCs)THEN
+      IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field

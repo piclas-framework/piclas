@@ -2053,7 +2053,7 @@ USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage,PartXk
 USE MOD_Predictor,               ONLY:PartPredictor,PredictorType
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac & 
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
-                                      , Pt,LastPartPos,DelayTime,PartState,MeshHasReflectiveBCs,PartDeltaX
+                                      , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
@@ -2267,7 +2267,7 @@ IF(time.GE.DelayTime)THEN
   CALL PartVeloToImp(VeloToImp=.TRUE.) 
   PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
   PEM%ElementN(1:PDM%ParticleVecLength)  =PEM%Element(1:PDM%ParticleVecLength)
-  IF(MeshHasReflectiveBCs) PEM%NormVec(1:PDM%ParticleVecLength,1:3) =0.
+  IF(PartMeshHasReflectiveBCs) PEM%NormVec(1:PDM%ParticleVecLength,1:3) =0.
   PEM%PeriodicMoved(1:PDM%ParticleVecLength) = .FALSE.
   IF(iter.EQ.0)THEN ! caution with emission: fields should also be interpolated to new particles, this is missing
                     ! or should be done directly during emission...
@@ -2348,7 +2348,7 @@ IF(time.GE.DelayTime)THEN
           PartStateN(iPart,4:6) = PartState(iPart,4:6) 
           ! gives entry point into domain
           PEM%ElementN(iPart)      = PEM%Element(iPart)
-          IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)   = 0.
+          IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)   = 0.
           PEM%PeriodicMoved(iPart) = .FALSE.
           CALL RANDOM_NUMBER(RandVal)
           PartDtFrac(iPart)=RandVal
@@ -2450,7 +2450,7 @@ DO iStage=2,nRKStages
       IF(PartIsImplicit(iPart))THEN
         ! caution, implicit is already back-roated for the computation of Pt and Velocity/Momentum
         reMap=.FALSE.
-        IF(MeshHasReflectiveBCs)THEN
+        IF(PartMeshHasReflectiveBCs)THEN
           IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
             PEM%NormVec(iPart,1:3)=0.
             reMap=.TRUE.
@@ -2479,7 +2479,7 @@ DO iStage=2,nRKStages
       ELSE ! PartIsExplicit
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
         reMap=.FALSE.
-        IF(MeshHasReflectiveBCs)THEN
+        IF(PartMeshHasReflectiveBCs)THEN
           IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
             n_loc=PEM%NormVec(iPart,1:3)
             ! particle is actually located outside, hence, it moves in the mirror field
@@ -2556,7 +2556,7 @@ DO iStage=2,nRKStages
         LastPartPos(iPart,3)  =PartStateN(iPart,3)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
         ! delete rotation || periodic movement
-        IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) = 0.
+        IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) = 0.
         PEM%PeriodicMoved(iPart) =.FALSE.
         ! compute explicit push
         PartState(iPart,1:6) = ERK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
@@ -2690,7 +2690,7 @@ DO iStage=2,nRKStages
         LastPartPos(iPart,2)=PartStateN(iPart,2)
         LastPartPos(iPart,3)=PartStateN(iPart,3)
         PEM%lastElement(iPart)=PEM%ElementN(iPart)
-        IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) =0.
+        IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3) =0.
         PEM%PeriodicMoved(iPart) = .FALSE.
 !        IF(PartDtFrac(iPart).NE.1.)THEN
 !          ! particles in backward step cannot be moved, because it is unknown if they remain inside of the domain
@@ -3085,7 +3085,7 @@ IF (time.GE.DelayTime) THEN
       ! PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       reMap=.FALSE.
-      IF(MeshHasReflectiveBCs)THEN
+      IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
@@ -3340,7 +3340,7 @@ USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Mesh,           ONLY:CountPartsPerElem
 !USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource
 USE MOD_Particle_Vars,           ONLY:PartLorentzType,doParticleMerge,PartPressureCell,PartDtFrac,PartStateN,PartStage,PartQ &
-                                     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,MeshHasReflectiveBCs
+                                     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
@@ -3652,7 +3652,7 @@ IF(time.GE.DelayTime)THEN
     LastPartPos(iPart,3)  =PartStateN(iPart,3)
     ! copy date 
     PEM%lastElement(iPart)=PEM%ElementN(iPart)
-    IF(MeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
+    IF(PartMeshHasReflectiveBCs) PEM%NormVec(iPart,1:3)=0.
     PEM%PeriodicMoved(iPart) = .FALSE.
     ! build RHS of particle with current DG solution and particle position
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
@@ -3916,7 +3916,7 @@ DO iStage=2,nRKStages
       ! hence the fields for the matrix-vector-multiplication shall NOT be updated
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle_loc(1:6))
       reMap=.FALSE.
-      IF(MeshHasReflectiveBCs)THEN
+      IF(PartMeshHasReflectiveBCs)THEN
         IF(SUM(ABS(PEM%NormVec(iPart,1:3))).GT.0.)THEN
           n_loc=PEM%NormVec(iPart,1:3)
           ! particle is actually located outside, hence, it moves in the mirror field
@@ -3941,7 +3941,7 @@ DO iStage=2,nRKStages
           PartState(iPart,1:6)=PartState(iPart,1:6)+RK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
         END DO ! iCounter=1,iStage-2
         PartState(iPart,1:6)=PartStateN(iPart,1:6)+PartState(iPart,1:6)
-      END IF ! MeshHasReflectiveBCs
+      END IF ! PartMeshHasReflectiveBCs
       ! compute particle RHS at time^n
       SELECT CASE(PartLorentzType)
       CASE(0)
