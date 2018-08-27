@@ -442,10 +442,13 @@ USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
-USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
+#if !defined(LSERK)
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
+#endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
 USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis
@@ -453,10 +456,10 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 #endif
-#if (PP_TimeDiscMethod!=42)
+#if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_LD_Vars                ,ONLY: useLD
 USE MOD_Particle_Vars          ,ONLY: DelayTime
-#endif /*PP_TimeDiscMethod!=42*/
+#endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #else /* no Particles*/
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
@@ -762,7 +765,7 @@ IF(OutPut)THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-#elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#elif defined(LSERK)
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
   IF(dt.EQ.tEndDiff)THEN
     ! volume data

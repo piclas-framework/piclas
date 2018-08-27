@@ -2136,8 +2136,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
-MeshHasReflectiveBCs=.FALSE.
+PartMeshHasReflectiveBCs=.FALSE.
 #endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
@@ -2189,7 +2190,7 @@ __STAMP__&
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
@@ -2235,13 +2236,14 @@ __STAMP__&
      END IF
   CASE('periodic')
      PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
+     PartMeshHasPeriodicBCs = .TRUE.
   CASE('simple_anode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
@@ -2285,9 +2287,17 @@ ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
-    IF (BoundaryType(iBC,1).EQ.0) THEN
+    IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
       SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+    ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
+      IF(DoRefMapping)THEN
+        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
+                                  ' orientation of SideNormVec is unknown.'
+     CALL abort(&
+__STAMP__&
+,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+      END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)

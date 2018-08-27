@@ -3361,8 +3361,6 @@ REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
-REAL                             :: RandN_save
-LOGICAL                          :: RandN_in_Mem
 !===================================================================================================================================
 IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
 __STAMP__&
@@ -3398,8 +3396,6 @@ __STAMP__&
 ,'PO: force temperature!!')
 END IF
 
-RandN_in_Mem=.FALSE.
-
 !IF (.NOT.DoZigguratSampling) THEN !polar method
   Velosq = 2
   DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -3411,24 +3407,16 @@ RandN_in_Mem=.FALSE.
   Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
     Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
   Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
-  IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
-    Vec3D(3) = RandN_save*SQRT(BoltzmannConst*Tz/ &
-      Species(FractNbr)%MassIC)                                !z-Komponente
-    RandN_in_Mem=.FALSE.
-  ELSE
-    Velosq = 2
-    DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-      CALL RANDOM_NUMBER(RandVal)
-      Velo1 = 2.*RandVal(1) - 1.
-      Velo2 = 2.*RandVal(2) - 1.
-      Velosq = Velo1**2 + Velo2**2
-    END DO
-    Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
-      Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
-    RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-    RandN_in_Mem=.TRUE.
-  END IF
+  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
 !ELSE !ziggurat method
 !  Velo1 = rnor()
 !  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente

@@ -130,7 +130,7 @@ DO iElem=1,PP_nElems
     IF(SideIndex(SideID).EQ.0)THEN
       PVID=SidePeriodicType(SideID)
       Vec1=0.
-      IF(PVID.NE.0) Vec1=- SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+      IF(PVID.NE.0) Vec1= SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
       ! check if an overlap is possible
       DO iDir=1,3 ! x,y,z
         ! check for SideInSide at the beginning of the loop
@@ -528,7 +528,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
         ! since the (moved) sides are checked individually
         firstBezierPoint=0
         lastBezierPoint=NGeo
-        Vec1(1:3)=-SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+        Vec1(1:3)= SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         ! loop over all send sides, you do not have to check the halo mesh like in the svn-trunk
         ! the distance-x,y,z check is cheaper than a modified check here and similar fast
         DO iSide=1,nExternalSides
