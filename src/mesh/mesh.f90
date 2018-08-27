@@ -859,13 +859,13 @@ ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+      ,'ERROR in InitElemGeometry: Cannot allocate GEO%Volume!')
 END IF
 ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
       __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
+      ,'ERROR in InitElemGeometry: Cannot allocate GEO%CharLength!')
 END IF
 
 #ifdef PARTICLES
