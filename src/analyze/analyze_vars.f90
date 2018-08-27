@@ -29,6 +29,11 @@ LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and
 #ifdef CODE_ANALYZE
 LOGICAL           :: DoCodeAnalyzeOutput         !< print code analyze info to CodeAnalyze.csv (default is TRUE)
 #endif /* CODE_ANALYZE */
+LOGICAL           :: CalcPointsPerWavelength     !< Flag to compute the points per wavelength in each cell (assume equidistant DOF
+!                                                !< distribution within each cell
+!                                                !< PPW = (p+1)*lambda / GEO%CharLength
+!                                                !<   GEO%CharLength = (V_cell)^(1/3)          characteristic length in the cell
+REAL,ALLOCATABLE  :: PPWCell(:)                  !< Points per wavelength for each cell
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

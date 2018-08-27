@@ -188,9 +188,15 @@ END IF
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
 IF(CalcPointsPerShapeFunction)THEN
+  ! calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
   PPSCell=0.0
   CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
+  ! assume Cartesian grid and calculate to total number including neighbor DOFs
+  ALLOCATE( PPSCellEqui(1:PP_nElems) )
+  PPSCellEqui=0.0
+  CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
+  ! 
   VolumeShapeFunction = 4./3.*PI*(r_sf**3)
   SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('VolumeShapeFunction')   &
                                                     ,' | ',VolumeShapeFunction   ,' | ',TRIM('OUTPUT'),' | '
@@ -198,7 +204,8 @@ IF(CalcPointsPerShapeFunction)THEN
   SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Max DOFs in Shape-Function per cell')   &
                                                     ,' | ',DOF   ,' | ',TRIM('OUTPUT'),' | '
   DO iElem = 1, nElems
-    PPSCell(iElem) = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+    PPSCellEqui(iElem) =       (VolumeShapeFunction/GEO%Volume(iElem)) * DOF
   END DO ! iElem = 1, nElems
 END IF
 !--------------------------------------------------------------------------------------------------------------------
@@ -3144,7 +3151,6 @@ DO iElem=1,PP_nElems
   IF(QuasiNeutralityCell(iElem).LE.0.0) CYCLE ! ignore cells in which quasi neutrality is not possible
   DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
                                  (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
-                             WRITE (*,*) "DebyeLengthCell(iElem) =", DebyeLengthCell(iElem),ElectronTemperatureCell(iElem)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateDebyeLengthCell

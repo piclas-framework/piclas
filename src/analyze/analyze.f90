@@ -81,6 +81,7 @@ CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 #endif
+CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
@@ -105,25 +106,33 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
-USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
-USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
-USE MOD_ReadInTools,          ONLY:GETLOGICAL
+USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
+USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell
+USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
+USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL
 #ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep
-USE MOD_Analyze_Vars,         ONLY:doAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
-USE MOD_TimeAverage_Vars,     ONLY:doCalcTimeAverage
-USE MOD_TimeAverage,          ONLY:InitTimeAverage
+USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
+USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+#ifdef maxwell
+USE MOD_Equation_vars, ONLY: Wavelength
+#endif /* maxwell */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=40)                :: DefStr
+CHARACTER(LEN=40)   :: DefStr
+INTEGER             :: iElem
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
@@ -135,34 +144,57 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
-DoCalcErrorNorms  =GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
+DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze=GETINT('NAnalyze',DefStr) 
+NAnalyze = GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
-Analyze_dt=GETREAL('Analyze_dt','0.')
-nSkipAnalyze=GETINT('nSkipAnalyze','1')
-doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
+Analyze_dt        = GETREAL('Analyze_dt','0.')
+nSkipAnalyze      = GETINT('nSkipAnalyze','1')
+doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 #ifndef PARTICLES 
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
-DoAnalyze = .FALSE. 
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+DoAnalyze       = .FALSE. 
+CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
 IF(CalcEpot) DoAnalyze = .TRUE. 
 #endif /*PARTICLES*/ 
 
-AnalyzeInitIsDone=.TRUE.
+AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! init Poynting-Integral
 IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
+! Points Per Wavelength
+CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength'  ,'.FALSE.')
+IF(CalcPointsPerWavelength)THEN
+  ! calculate cell local number excluding neighbor DOFs
+  ALLOCATE( PPWCell(1:PP_nElems) )
+  PPWCell=0.0
+  CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
+  ! Calculate PPW for each cell
+#ifdef maxwell
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
+                                                    ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
+#else
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
+                                                    ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
+#endif /* maxwell */
+  DO iElem = 1, nElems
+#ifdef maxwell
+    PPWCell(iElem)     = (PP_N+1)*Wavelength/GEO%CharLength(iElem)
+#else
+    PPWCell(iElem)     = (PP_N+1)/GEO%CharLength(iElem)
+#endif /* maxwell */
+  END DO ! iElem = 1, nElems
+END IF
 END SUBROUTINE InitAnalyze
 
 
