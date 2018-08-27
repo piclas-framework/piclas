@@ -3085,14 +3085,11 @@ SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !> Initialize pseudo random numbers: Create Random_seed array
 !===================================================================================================================================
 ! MODULES
-
-USE ISO_FORTRAN_ENV,           ONLY: INT64
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
 !===================================================================================================================================
-
 IMPLICIT NONE
 ! VARIABLES
 INTEGER,INTENT(IN)             :: nRandomSeeds
@@ -3148,10 +3145,10 @@ INTEGER(KIND=8)                 :: Clock,AuxilaryClock
         IF (AuxilaryClock == 0) THEN
           AuxilaryClock = 104729
         ELSE
-          AuxilaryClock = MOD(AuxilaryClock, 4294967296_INT64)
+          AuxilaryClock = MOD(AuxilaryClock, 4294967296_8)
         END IF
-        AuxilaryClock = MOD(AuxilaryClock * 279470273_INT64, 4294967291_INT64)
-        GoodSeeds = INT(MOD(AuxilaryClock, INT(HUGE(0),INT64)), KIND(0))
+        AuxilaryClock = MOD(AuxilaryClock * 279470273_8, 4294967291_8)
+        GoodSeeds = INT(MOD(AuxilaryClock, INT(HUGE(0),KIND=8)), KIND(0))
         Seeds(iSeed) = GoodSeeds
     END DO
   END IF
