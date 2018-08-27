@@ -868,7 +868,7 @@ IF (ALLOCSTAT.NE.0) THEN
       ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
 END IF
 
-#ifdef PARTICLSE
+#ifdef PARTICLES
 usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 IF(usevMPF) THEN
   ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
@@ -879,7 +879,7 @@ __STAMP__&
   END IF
   GEO%DeltaEvMPF(:) = 0.0
 END IF
-#endif /* PARTICLSE */
+#endif /* PARTICLES */
 
 ! Calculate element volumes and characteristic lengths
 DO iElem=1,nElems
