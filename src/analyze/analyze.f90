@@ -180,12 +180,19 @@ IF(CalcPointsPerWavelength)THEN
   PPWCell=0.0
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
+#ifdef maxwell
   SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
-                                                    ,' | ',1.0   ,' | ',TRIM('OUTPUT'),' | '
-  WRITE (*,*) "Wave =", Wavelength
-  read*
+                                                    ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
+#else
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
+                                                    ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
+#endif /* maxwell */
   DO iElem = 1, nElems
+#ifdef maxwell
     PPWCell(iElem)     = (PP_N+1)*Wavelength/GEO%CharLength(iElem)
+#else
+    PPWCell(iElem)     = (PP_N+1)/GEO%CharLength(iElem)
+#endif /* maxwell */
   END DO ! iElem = 1, nElems
 END IF
 END SUBROUTINE InitAnalyze
