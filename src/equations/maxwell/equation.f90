@@ -354,6 +354,7 @@ DO iRefState=1,nTmp
     ELSE
       BeamAmpFac=Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
     END IF
+    ! Beam spot size (waist radius, where the beam radius has a minimum)
     omega_0 = GETREAL ('omega_0','1.')
     omega_0_2inv =2.0/(omega_0**2)
     somega_0_2 =1.0/(omega_0**2)
@@ -398,7 +399,13 @@ DO iRefState=1,nTmp
       SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ','tActive (laser pulse time)',&
                                                          ' | ', tActive,' | ','CALCUL.',' | '
     END SELECT
-!stop
+
+    ! determine total pulse energy
+    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')&
+      ' | ','total beam energy',&
+      ' | ', &
+      (BeamAmpFac**2)*PI*eps0*(omega_0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*(EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1),&
+      ' | ','CALCUL.',' | '
   END SELECT
 END DO
 
