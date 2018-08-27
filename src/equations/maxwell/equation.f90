@@ -90,23 +90,23 @@ CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Radius of Input TE wave, if wave is '//&
                                                      ' inserted over a plane' , '0.0')
 
-CALL prms%CreateRealOption(     'WaveLength'       , 'TODO-DEFINE-PARAMETER' , '1.')
-CALL prms%CreateRealArrayOption('WaveVector'       , 'TODO-DEFINE-PARAMETER', '0. , 0. , 1.')
-CALL prms%CreateLogicalOption(  'UseWaveVectorE0dir','TODO-DEFINE-PARAMETER\n'//&
-                                                     'User defined E_0 unit vector in combination with WaveVector' , '.FALSE.')
-CALL prms%CreateRealArrayOption('WaveVectorE0dir'  , 'TODO-DEFINE-PARAMETER\nIs not used on default', '0. , 0. , 1.')
-CALL prms%CreateRealArrayOption('WaveBasePoint'    , 'TODO-DEFINE-PARAMETER', '0.5 , 0.5 , 0.')
-CALL prms%CreateRealOption(     'I_0'              , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Max. intensity' , '1.')
-CALL prms%CreateRealOption(     'sigma_t'          , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%CreateRealOption(     'WaveLength'       , 'Wavelength of the electromagnetic wave.' , '1.')
+CALL prms%CreateRealArrayOption('WaveVector'       , 'Direction of traveling wave.', '0. , 0. , 1.')
+CALL prms%CreateLogicalOption(  'UseWaveVectorE0dir','User defined E_0 unit vector in combination with WaveVector' , '.FALSE.')
+CALL prms%CreateRealArrayOption('WaveVectorE0dir'  , 'Direction vector for the electric field\n'//&
+                                                     ' (is not used on default, only when UseWaveVectorE0dir=T)', '0. , 0. , 1.')
+CALL prms%CreateRealArrayOption('WaveBasePoint'    , 'Vector to the position of the beam origin', '0.5 , 0.5 , 0.')
+CALL prms%CreateRealOption(     'I_0'              , 'Maximum intensity of the beam' , '1.')
+CALL prms%CreateRealOption(     'sigma_t'          , 'First of two definitions for the pulse duration:\n'//&
                                                      'Can be used instead of tFWHM (time For Full '//&
-                                                     'Wave Half Maximum)' , '0.')
-CALL prms%CreateRealOption(     'tFWHM'            , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Time For Full Wave Half Maximum' , '0.')
-CALL prms%CreateRealOption(     'Beam_a0'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Value to scale max. electric field' , '-1.0')
-CALL prms%CreateRealOption(     'omega_0'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Spot size and inv of spot size' , '1.0')
+                                                     'Wave Half Maximum)\ntFWHM = 2*sqrt(2*ln(2))*sigma_t' , '0.')
+CALL prms%CreateRealOption(     'tFWHM'            , 'Second of two definitions for the pulse duration, '//&
+                                                     'Time For Full Wave Half Maximum '//&
+                                                     '(pulse duration within which the intensity'//&
+                                                     'amplitude is higher than 50% of its maximum)' , '0.')
+CALL prms%CreateRealOption(     'Beam_a0'          , 'Dimensionless beam amplitude \n'//&
+                                                     '(value for scaling the max. electric field)' , '-1.0')
+CALL prms%CreateRealOption(     'omega_0'          , 'Beam spot size (waist radius, where the beam radius has a minimum)' , '1.0')
 CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Boundary Condition State File', 'no file found')
 CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
@@ -327,7 +327,7 @@ DO iRefState=1,nTmp
     ! ONLY FOR CASE(14,15,16)
     ! -------------------------------------------------------------------
     ! spatial Gaussian beam, only in x,y or z direction
-    ! additional tFWHM is a temporal gauss
+    ! additional tFWHM is a temporal Gaussian
     ! note:
     ! 14: Gaussian pulse is initialized IN the domain
     ! 15: Gaussian pulse is a boundary condition, HENCE tDelayTime is used
@@ -344,9 +344,9 @@ DO iRefState=1,nTmp
       __STAMP__&
       ,' Input of pulse length is wrong.')
     END IF
-    ! in 15: scaling by a_0 or intensity
+    ! In 15: scaling by a_0 or intensity
     Beam_a0 = GETREAL ('Beam_a0','-1.0')
-    ! decide if pulse maxima is scaled by intensity or a_0 parameter
+    ! Decide if pulse maximum is scaled by intensity or a_0 parameter
     BeamEta=2.*SQRT(mu0/eps0)
     IF(Beam_a0.LE.0.0)THEN
       Beam_a0 = 0.0
