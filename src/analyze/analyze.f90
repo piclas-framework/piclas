@@ -181,10 +181,10 @@ IF(CalcPointsPerWavelength)THEN
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
 #ifdef maxwell
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
                                                     ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
 #else
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
                                                     ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
 #endif /* maxwell */
   DO iElem = 1, nElems

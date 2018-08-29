@@ -36,19 +36,19 @@ INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
 ! planar wave and gaussian beam
-REAL              :: E_0(1:3)                               !> electric field vector of wave
-REAL              :: BeamEta                                !> impedance factor (2*impedance): BeamEta=2.*SQRT(mu0/eps0)
+REAL              :: E_0                                    !> electric field amplitude maximum
+REAL              :: E_0_vec(1:3)                           !> electric field unit vector of wave
+REAL              :: BeamEta                                !> impedance: BeamEta=SQRT(mu0/eps0)
 REAL              :: BeamWaveNumber                         !> wave number: BeamWaveNumber= 2*pi/WaveLength
 REAL              :: BeamOmegaW                             !> angular frequency: BeamOmegaW = WaveNumber*c
 INTEGER           :: BeamIdir1,BeamIdir2,BeamMainDir        !> wave beam direction aux variables
 REAL              :: WaveVector(1:3)                        !> wave vector
-REAL              :: WaveVectorE0dir(1:3)                   !> vector in which E_0 points (must be perpendicular to WaveVector)
+REAL              :: WaveVectorE0dir(1:3)                   !> vector in which E_0_vec points (must be perpendicular to WaveVector)
 LOGICAL           :: UseWaveVectorE0dir                     !> Use WaveVectorE0dir True/False (Default=.FALSE.)
 REAL              :: WaveLength                             !> wave length
 REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point || origin
 REAL              :: tFWHM                                  !> time for full wave half maximum
 REAL              :: Beam_a0                                !> value to scale max. electric field
-REAL              :: BeamAmpFac                             !> decide if pulse maxima is scaled by intensity or a_0 parameter
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
