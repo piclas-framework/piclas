@@ -436,12 +436,12 @@ IF(time.EQ.tEnd)RETURN
 DO !iter_t=0,MaxIter 
 
 #if (PP_TimeDiscMethod==201)
-!  IF (vMax.EQ.0) THEN
-!    dt_max_particles = dt_maxwell
-!  ELSE
-!    dt_max_particles = 3.8*dt_maxwell*c/(vMax)!the 3.8 is a factor that lead to a timestep of 2/3*min_celllength
-!                      ! this factor should be adjusted
-!  END IF
+! IF (vMax.EQ.0) THEN
+!   dt_max_particles = dt_maxwell
+! ELSE
+!   dt_max_particles = 3.8*dt_maxwell*c/(vMax)!the 3.8 is a factor that lead to a timestep of 2/3*min_celllength
+!                     ! this factor should be adjusted
+! END IF
   IF (iter.LE.MaximumIterNum) THEN
       dt_max_particles = dt_maxwell ! initial evolution of field with maxwellts
   ELSE
