@@ -152,7 +152,8 @@ NAnalyze = GETINT('NAnalyze',DefStr)
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
-Analyze_dt        = GETREAL('Analyze_dt','0.')
+WRITE(DefStr,WRITEFORMAT) HUGE(1.)
+Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze','1')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
