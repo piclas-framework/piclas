@@ -340,13 +340,13 @@ DO iRefState=1,nTmp
       I_0     = GETREAL ('I_0','1.')
       ! Decide if pulse maximum is scaled by intensity or a_0 parameter
       BeamEta=SQRT(mu0/eps0)
-      IF(Beam_a0.LE.0.0)THEN
+      IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
         !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','Beam_a0 (calculated from I_0)',&
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
             ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmegaW),' | ','CALCUL.',' | '
-      ELSE
+      ELSE ! use Beam_a0 for defining the amplitude
         E_0        = Beam_a0*c*ElectronMass*BeamOmegaW/ElectronCharge
         !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
@@ -417,11 +417,6 @@ DO iRefState=1,nTmp
             ' | ','total beam energy per area [J/m^2]',&
             ' | ', &
             eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmegaW**2)*(sigma_t**2))+1),&
-            ' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy per area [J/m^2]',&
-            ' | ', &
-            eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1),&
             ' | ','CALCUL.',' | '
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
             ' | ','total beam energy per area [J/cm^2]',&
