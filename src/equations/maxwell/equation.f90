@@ -343,14 +343,17 @@ DO iRefState=1,nTmp
       IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
-        !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','Beam_a0 (calculated from I_0)',&
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
             ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmegaW),' | ','CALCUL.',' | '
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0:     E_0',&
+            ' | ', E_0,' | ','CALCUL.',' | '
       ELSE ! use Beam_a0 for defining the amplitude
         E_0        = Beam_a0*c*ElectronMass*BeamOmegaW/ElectronCharge
         !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
             ' | ', E_0**2/(2*BeamEta),' | ','CALCUL.',' | '
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: E_0',&
+            ' | ', E_0,' | ','CALCUL.',' | '
       END IF
 
       ! Pulse duration
