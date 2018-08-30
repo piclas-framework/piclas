@@ -123,8 +123,9 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 #ifdef maxwell
-USE MOD_Equation_vars, ONLY: Wavelength
+USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -152,7 +153,7 @@ NAnalyze = GETINT('NAnalyze',DefStr)
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
-WRITE(DefStr,WRITEFORMAT) HUGE(1.)
+WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze','1')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
