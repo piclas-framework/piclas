@@ -726,7 +726,6 @@ DO !iter_t=0,MaxIter
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t
-!CALL FinalizeAnalyze
 END SUBROUTINE TimeDisc
 
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
