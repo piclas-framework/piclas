@@ -104,6 +104,7 @@ CALL prms%CreateRealOption(     'tFWHM'            , 'Second of two definitions 
                                                      'Time For Full Wave Half Maximum '//&
                                                      '(pulse duration within which the intensity'//&
                                                      'amplitude is higher than 50% of its maximum)' , '0.')
+CALL prms%CreateRealOption(     'BeamEnergy'       , 'Total beam energy [J]' , '-1.0')
 CALL prms%CreateRealOption(     'Beam_a0'          , 'Dimensionless beam amplitude \n'//&
                                                      '(value for scaling the max. electric field)' , '-1.0')
 CALL prms%CreateRealOption(     'omega_0'          , 'Beam spot size (waist radius, where the beam radius has a minimum)' , '1.0')
@@ -157,6 +158,7 @@ REAL                             :: PulseCenter
 REAL,ALLOCATABLE                 :: nRoots(:)
 LOGICAL                          :: DoSide(1:nSides)
 INTEGER                          :: locType,locState,iSide
+REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
@@ -335,27 +337,6 @@ DO iRefState=1,nTmp
       ! 16 : Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0
       WaveBasePoint = GETREALARRAY('WaveBasePoint',3,'0.5 , 0.5 , 0.')
 
-      ! In 15: scaling by dimensionless laser amplitude Beam_a0 or optical intensity I_0
-      Beam_a0 = GETREAL ('Beam_a0','-1.0')
-      I_0     = GETREAL ('I_0','1.')
-      ! Decide if pulse maximum is scaled by intensity or a_0 parameter
-      BeamEta=SQRT(mu0/eps0)
-      IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
-        Beam_a0    = 0.0
-        E_0        = SQRT(2.0*BeamEta*I_0)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
-            ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmegaW),' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0:     E_0',&
-            ' | ', E_0,' | ','CALCUL.',' | '
-      ELSE ! use Beam_a0 for defining the amplitude
-        E_0        = Beam_a0*c*ElectronMass*BeamOmegaW/ElectronCharge
-        !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
-            ' | ', E_0**2/(2*BeamEta),' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: E_0',&
-            ' | ', E_0,' | ','CALCUL.',' | '
-      END IF
-
       ! Pulse duration
       sigma_t       = GETREAL ('sigma_t','0.')
       tFWHM         = GETREAL ('tFWHM','0.')
@@ -373,6 +354,39 @@ DO iRefState=1,nTmp
       omega_0      = GETREAL ('omega_0','1.')
       omega_0_2inv = 2.0/(omega_0**2)
       somega_0_2   = 1.0/(omega_0**2)
+
+      ! Energy
+      BeamEnergy    = GETREAL ('BeamEnergy','-1.0')
+      BeamEta       = SQRT(mu0/eps0)
+
+      IF((BeamEnergy.GT.0.0).AND.(RefStates(iRefState).NE.121))THEN ! only for 3D beams
+        Beam_a0=-1.0
+        I_0 = (BeamEnergy/(eps0*(omega_0**2)*c*((PI/2.)**(3./2.))*sigma_t*(EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)))&
+            / (2*BeamEta)
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from BeamEnergy: I_0',&
+            ' | ', I_0,' | ','CALCUL.',' | '
+      ELSE
+        ! In 15: scaling by dimensionless laser amplitude Beam_a0 or optical intensity I_0
+        Beam_a0 = GETREAL ('Beam_a0','-1.0')
+        I_0     = GETREAL ('I_0','1.')
+      END IF
+      ! Decide if pulse maximum is scaled by intensity or a_0 parameter
+      IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
+        Beam_a0    = 0.0
+        E_0        = SQRT(2.0*BeamEta*I_0)
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
+            ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmegaW),' | ','CALCUL.',' | '
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0:     E_0',&
+            ' | ', E_0,' | ','CALCUL.',' | '
+      ELSE ! use Beam_a0 for defining the amplitude
+        E_0        = Beam_a0*c*ElectronMass*BeamOmegaW/ElectronCharge
+        !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
+            ' | ', E_0**2/(2*BeamEta),' | ','CALCUL.',' | '
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: E_0',&
+            ' | ', E_0,' | ','CALCUL.',' | '
+      END IF
+
 
       IF(ALMOSTEQUAL(ABS(WaveVector(1)),1.))THEN ! wave in x-direction
         BeamIdir1   = 2
@@ -416,23 +430,30 @@ DO iRefState=1,nTmp
       ! Determine total pulse energy
       SELECT CASE(RefStates(iRefState))
       CASE(121) ! Pulsed plane wave (pure BC or mixed IC+BC) with infinite spot size
+        ! total beam energy in 2D is an energy per area -> [J/m^2]
+        BeamEnergy_loc=eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmegaW**2)*(sigma_t**2))+1)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy per area [J/m^2]',&
-            ' | ', &
-            eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmegaW**2)*(sigma_t**2))+1),&
-            ' | ','CALCUL.',' | '
+            ' | ',' total beam energy per area [J/m^2]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy per area [J/cm^2]',&
-            ' | ', &
-            eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)*1e4,&
-            ' | ','CALCUL.',' | '
-      CASE(15,16) ! Pulsed pure BC or mixed IC+BC with spot size
+            ' | ','total beam energy per area [J/cm^2]',' | ',BeamEnergy_loc/1.e4,' | ','CALCUL.',' | '
+      CASE(14,15,16) ! 3D pulse with spot size
+        ! total beam energy
+        BeamEnergy_loc=(E_0**2)*PI*eps0*(omega_0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*&
+            (EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy [J]',&
-            ' | ', &
-            (E_0**2)*PI*eps0*(omega_0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*&
-            (EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1),&
-            ' | ','CALCUL.',' | '
+            ' | ','total beam energy [J]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
+
+        ! beam spot area
+        BeamArea_loc    = PI*(omega_0**2)
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
+            ' | ','beam spot area (from waist radius) [m^2]',' | ',BeamArea_loc,' | ','CALCUL.',' | '
+        
+        ! beam fluency
+        BeamFluency_loc = BeamEnergy_loc / BeamArea_loc
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
+            ' | ','beam fluency [J/m^2]',' | ',BeamFluency_loc  ,' | ','CALCUL.',' | '
+        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
+            ' | ','beam fluency [J/cm^2]',' | ',BeamFluency_loc/1.e4,' | ','CALCUL.',' | '
       END SELECT 
     END IF
   END SELECT

@@ -48,6 +48,7 @@ LOGICAL           :: UseWaveVectorE0dir                     !> Use WaveVectorE0d
 REAL              :: WaveLength                             !> wave length
 REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point || origin
 REAL              :: tFWHM                                  !> time for full wave half maximum
+REAL              :: BeamEnergy                             !> Total beam energy [J]
 REAL              :: Beam_a0                                !> value to scale max. electric field
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
