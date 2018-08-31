@@ -191,9 +191,9 @@ IF(CalcPointsPerWavelength)THEN
 #endif /* maxwell */
   DO iElem = 1, nElems
 #ifdef maxwell
-    PPWCell(iElem)     = (PP_N+1)*Wavelength/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/GEO%CharLength(iElem)
 #else
-    PPWCell(iElem)     = (PP_N+1)/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/GEO%CharLength(iElem)
 #endif /* maxwell */
   END DO ! iElem = 1, nElems
 END IF
