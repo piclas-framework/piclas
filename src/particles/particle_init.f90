@@ -88,7 +88,7 @@ CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds
                                                                '=-1    Random'//&
                                                                '= 0    Debugging withhard-coded deterministic numbers'//&
                                                                '> 0    Debugging with numbers from ini.', '0')
-CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Flag to perform Poisson sampling'//&
@@ -2362,6 +2362,7 @@ END IF
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
 CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
 ALLOCATE(Seeds(SeedSize))
+Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
 IF(nRandomSeeds.EQ.-1) THEN
   ! ensures different random numbers through irreproducable random seeds (via System_clock)
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
@@ -2375,26 +2376,21 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
 CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
-  ! ini needs n=SeedSize seeds 
-  IF (nRandomSeeds.EQ.SeedSize) THEN
-    DO iSeed=1,SeedSize
-      WRITE(UNIT=hilf,FMT='(I0)') iSeed
-      Seeds(iSeed)= GETINT('Particle-RandomSeed'//TRIM(hilf))
-    END DO
-    CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
-  ELSE IF(nRandomSeeds.GT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Uses DeterministicRandomSeeds() instead.'
-    CALL DeterministicRandomSeeds(SeedSize,Seeds)
-!    CALL ABORT(&
-!    __STAMP__&
-!    ,'Too many seeds provided in ini') 
+  IF(nRandomSeeds.GT.SeedSize) THEN
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Uses DeterministicRandomSeeds() instead.'
-    CALL DeterministicRandomSeeds(SeedSize,Seeds)
-!    CALL ABORT(&
-!     __STAMP__&
-!     ,'Not enough seeds provided in ini.')
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
+    DO iSeed=1,MIN(SeedSize,nRandomSeeds)
+      WRITE(UNIT=hilf,FMT='(I0)') iSeed
+      Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
+    END DO
+  IF (ALL(Seeds(:).EQ.0)) THEN
+      CALL ABORT(&
+     __STAMP__&
+     ,'Not all seeds can be set to zero ')
+  END IF
+    CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE 
   SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
   'Choose nRandomSeeds'//&
@@ -3131,16 +3127,17 @@ INTEGER(KIND=8)                 :: Clock,AuxilaryClock
       Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
       AuxilaryClock=Clock
       DO iSeed = 1, SeedSize
-        IF (nRandomSeeds.GT.0) THEN
-          AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
-        END IF  
 #ifdef MPI
         IF (nRandomSeeds.EQ.0) THEN
           AuxilaryClock=AuxilaryClock+PartMPI%MyRank
         ELSE IF(nRandomSeeds.GT.0) THEN
           AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
         ELSE
-        END IF 
+        END IF
+#else
+        IF (nRandomSeeds.GT.0) THEN
+          AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
+        END IF
 #endif
         IF (AuxilaryClock == 0) THEN
           AuxilaryClock = 104729
@@ -3154,41 +3151,6 @@ INTEGER(KIND=8)                 :: Clock,AuxilaryClock
   END IF
   CALL RANDOM_SEED(PUT=Seeds)
 END SUBROUTINE InitRandomSeed
-
-
-SUBROUTINE DeterministicRandomSeeds(SeedSize,DeterministicSeeds)
-!===================================================================================================================================
-!> Will include HDF5 print and read command for restart
-!===================================================================================================================================
-! MODULES
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
-#endif
-! IMPLICIT VARIABLE HANDLING
-!===================================================================================================================================
-
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: SeedSize
-! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)            :: DeterministicSeeds(SeedSize)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-INTEGER                        :: iSeed
-!CHARACTER(LEN=30)              :: filename
-!==================================================================================================================================
-DO iSeed=1,SeedSize
-DeterministicSeeds(iSeed)=iSeed
-#ifdef MPI
-DeterministicSeeds(iSeed)=iSeed+PartMPI%MyRank
-#endif
-END DO
-
-!! write seeds into HDF5 file
-!filename=TRIM(ProjectName)//'_State_000_PLATZHALTER'
-!open(unit=unit_stdout,file='filename'
-
-END SUBROUTINE DeterministicRandomSeeds
 
 
 END MODULE MOD_ParticleInit
