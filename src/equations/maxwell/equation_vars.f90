@@ -53,7 +53,8 @@ REAL              :: Beam_a0                                !> value to scale ma
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM
-REAL              :: Beam_w0,Beam_w0_2inv,sBeam_w0_2        !> spot size and inv of spot size
+REAL              :: Beam_w0,Beam_w0_2inv,sBeam_w0_2        !> spot size and inv of spot size (waist radius, smallest radius where
+!                                                           !> the optical intensity drops to 1/e^2)
 REAL              :: omega_0                                !> old variable name for Beam_w0 (remove in 2019)
 REAL              :: tActive                                !> active time for laser pulse
 REAL              :: TEScale                                !> scaling of input TE-wave strength
