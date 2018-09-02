@@ -107,7 +107,9 @@ CALL prms%CreateRealOption(     'tFWHM'            , 'Second of two definitions 
 CALL prms%CreateRealOption(     'BeamEnergy'       , 'Total beam energy [J]' , '-1.0')
 CALL prms%CreateRealOption(     'Beam_a0'          , 'Dimensionless beam amplitude \n'//&
                                                      '(value for scaling the max. electric field)' , '-1.0')
-CALL prms%CreateRealOption(     'omega_0'          , 'Beam spot size (waist radius, where the beam radius has a minimum)' , '1.0')
+CALL prms%CreateRealOption(     'Beam_w0'          , 'Beam spot size (waist radius, where the beam radius has a minimum) \n'//&
+                                                     '; the old variable name is "omega_0"' , '1.0')
+CALL prms%CreateRealOption(     'omega_0'          , 'old variable for "Beam_w0"; remove this variable in 2019', '1.0')
 CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Boundary Condition State File', 'no file found')
 CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
@@ -287,9 +289,9 @@ DO iRefState=1,nTmp
     ! planar wave input: get wavelength and set wave number angular frequency
     WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
     BeamWaveNumber=2.*PI/WaveLength
-    BeamOmegaW=BeamWaveNumber*c
-    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamOmegaW is ', BeamOmegaW       , ' [Hz]'
-    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamPeriod is ', 2.*PI/BeamOmegaW , ' [s]'
+    BeamOmega=BeamWaveNumber*c
+    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamOmega is ', BeamOmega       , ' [Hz]'
+    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamPeriod is ', 2.*PI/BeamOmega , ' [s]'
 
     ! set wave vector: direction of traveling wave
     WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
@@ -351,9 +353,15 @@ DO iRefState=1,nTmp
       END IF
 
       ! Beam spot size (waist radius, where the beam radius has a minimum)
-      omega_0      = GETREAL ('omega_0','1.')
-      omega_0_2inv = 2.0/(omega_0**2)
-      somega_0_2   = 1.0/(omega_0**2)
+      omega_0   = GETREAL ('omega_0','-1.')
+      IF(omega_0.LE.0.0)THEN
+        Beam_w0 = GETREAL ('Beam_w0','1.')
+      ELSE
+        Beam_w0 = omega_0
+        SWRITE(UNIT_StdOut,'(A)')'Setting Beam_w0=omega_0 (value read from old variable definition)'
+      END IF
+      Beam_w0_2inv = 2.0/(Beam_w0**2)
+      sBeam_w0_2   = 1.0/(Beam_w0**2)
 
       ! Energy
       BeamEnergy    = GETREAL ('BeamEnergy','-1.0')
@@ -361,7 +369,7 @@ DO iRefState=1,nTmp
 
       IF((BeamEnergy.GT.0.0).AND.(RefStates(iRefState).NE.121))THEN ! only for 3D beams
         Beam_a0=-1.0
-        I_0 = (BeamEnergy/(eps0*(omega_0**2)*c*((PI/2.)**(3./2.))*sigma_t*(EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)))&
+        I_0 = (BeamEnergy/(eps0*(Beam_w0**2)*c*((PI/2.)**(3./2.))*sigma_t*(EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)))&
             / (2*BeamEta)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from BeamEnergy: I_0',&
             ' | ', I_0,' | ','CALCUL.',' | '
@@ -375,11 +383,11 @@ DO iRefState=1,nTmp
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
-            ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmegaW),' | ','CALCUL.',' | '
+            ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmega),' | ','CALCUL.',' | '
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0:     E_0',&
             ' | ', E_0,' | ','CALCUL.',' | '
       ELSE ! use Beam_a0 for defining the amplitude
-        E_0        = Beam_a0*c*ElectronMass*BeamOmegaW/ElectronCharge
+        E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElectronCharge
         !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
             ' | ', E_0**2/(2*BeamEta),' | ','CALCUL.',' | '
@@ -431,20 +439,20 @@ DO iRefState=1,nTmp
       SELECT CASE(RefStates(iRefState))
       CASE(121) ! Pulsed plane wave (pure BC or mixed IC+BC) with infinite spot size
         ! total beam energy in 2D is an energy per area -> [J/m^2]
-        BeamEnergy_loc=eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmegaW**2)*(sigma_t**2))+1)
+        BeamEnergy_loc=eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmega**2)*(sigma_t**2))+1)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
             ' | ',' total beam energy per area [J/m^2]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
             ' | ','total beam energy per area [J/cm^2]',' | ',BeamEnergy_loc/1.e4,' | ','CALCUL.',' | '
       CASE(14,15,16) ! 3D pulse with spot size
         ! total beam energy
-        BeamEnergy_loc=(E_0**2)*PI*eps0*(omega_0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*&
+        BeamEnergy_loc=(E_0**2)*PI*eps0*(Beam_w0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*&
             (EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
             ' | ','total beam energy [J]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
 
         ! beam spot area
-        BeamArea_loc    = PI*(omega_0**2)
+        BeamArea_loc    = PI*(Beam_w0**2)
         SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
             ' | ','beam spot area (from waist radius) [m^2]',' | ',BeamArea_loc,' | ','CALCUL.',' | '
         
@@ -497,8 +505,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
                                      , sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
-                                     ,BeamOmegaW, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,omega_0,&
-                                      TERadius,somega_0_2,xDipole,tActive,TEModeRoot
+                                     ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
+                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot
 USE MOD_Equation_Vars,           ONLY:TEMode
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
@@ -802,7 +810,7 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
   resu(6)=(COS(t)-1.)*resu(6)
 
 CASE(12) ! planar wave test case
-  resu(1:3)=E_0_vec*COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x)-BeamOmegaW*t)
+  resu(1:3)=E_0_vec*COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x)-BeamOmega*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
   resu(7:8)=0.
 CASE(121) ! like CASE(12), but with pulsed wave: boundary condition (BC)
@@ -811,7 +819,7 @@ CASE(121) ! like CASE(12), but with pulsed wave: boundary condition (BC)
   ELSE
     ASSOCIATE( t => t - 4*sigma_t , & ! t: add arbitrary time shift
                k => BeamWaveNumber, & ! k: wave number
-               w => BeamOmegaW)       ! w: angular frequency
+               w => BeamOmega)       ! w: angular frequency
       resu(1:3)=E_0*E_0_vec*COS(k*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-w*t)*EXP(-0.25*(t/sigma_t)**2)
       resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
       resu(7:8)=0.
@@ -824,13 +832,13 @@ CASE(14) ! 1 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial condition 
          ! beam insert is done by a paraxial assumption focus is at basepoint
          ! intensity * Gaussian filter in transversal and longitudinal direction
   spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                        & ! <------ NEW formulation 
-                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  omega_0  )**2)     & ! <------ NEW formulation 
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)     & ! <------ NEW formulation 
                           -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )    ! <------ NEW formulation 
   !spatialWindow = EXP(    -0.5*((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
-                            !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     &
+                            !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv     &
                        !-0.25*(x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2/((sigma_t*c)**2)  )
   ! build final coefficients
-  timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*(t-ABS(WaveBasePoint(BeamMainDir))/c))
+  timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*(t-ABS(WaveBasePoint(BeamMainDir))/c))
   resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
   resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
   resu(7:8)=0.
@@ -845,13 +853,13 @@ CASE(15) ! 2 of 3: Gauß-shape with perfect focus (w(z)=w_0): boundary condition
     tShift=t-4*sigma_t
     ! intensity * Gaussian filter in transversal and longitudinal direction
     spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
-                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*somega_0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
+                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
     !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! <------- OLD formulation
-                          !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)  ! <------- OLD formulation
+                          !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)  ! <------- OLD formulation
     ! build final coefficients
     !WaveBasePoint(BeamMainDir)=0.  ! was set to zero, why?
     ! pulse displacement is arbitrarily set to 4 (no beam initially in domain)
-    timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
+    timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
     ! temporal window
     !temporalWindow=EXP(-(tShift/sigma_t)**2)     ! <------ NEW formulation
     temporalWindow=EXP(-0.25*(tShift/sigma_t)**2) ! <------ NEW formulation: test #3
@@ -872,23 +880,23 @@ CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary
     tShift=t-ABS(WaveBasePoint(BeamMainDir))/c ! substitution: shift to wave base point position
     IF(t.LT.dt)THEN ! initial condiction: IC
       spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                      & ! <------ NEW formulation 
-                                (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  omega_0  )**2)   & ! <------ NEW formulation 
+                                (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)   & ! <------ NEW formulation 
                               -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )  ! <------ NEW formulation 
       !spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  & <------- OLD formulation
-      !                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv     & <------- OLD formulation
+      !                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv     & <------- OLD formulation
       !                     -0.5*(x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2/((sigma_t*c)**2)  ) <------- OLD formulation
-      timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
+      timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
       resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
     ELSE ! boundary condiction: BC
       tShiftBC=t+(WaveBasePoint(BeamMainDir)-x(BeamMainDir))/c ! shift to wave base point position
       ! intensity * Gaussian filter in transversal and longitudinal direction
       spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
-                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*somega_0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
      !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! <------- OLD formulation
-                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)  ! <------- OLD formulation
+                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)  ! <------- OLD formulation
      !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
-                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*omega_0_2inv)
-      timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmegaW*tShift)
+                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)
+      timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
       temporalWindow=EXP(-0.25*(tShiftBC/sigma_t)**2) ! <------ NEW formulation: test #3
      !temporalWindow=EXP( -0.5*(tShiftBC/sigma_t)**2) ! <------- OLD formulation
       resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac*temporalWindow
