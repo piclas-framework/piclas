@@ -819,7 +819,7 @@ CASE(121) ! like CASE(12), but with pulsed wave: boundary condition (BC)
   ELSE
     ASSOCIATE( t => t - 4*sigma_t , & ! t: add arbitrary time shift
                k => BeamWaveNumber, & ! k: wave number
-               w => BeamOmega)       ! w: angular frequency
+               w => BeamOmega)        ! w: angular frequency
       resu(1:3)=E_0*E_0_vec*COS(k*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-w*t)*EXP(-0.25*(t/sigma_t)**2)
       resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
       resu(7:8)=0.
@@ -831,74 +831,55 @@ CASE(14) ! 1 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial condition 
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
          ! beam insert is done by a paraxial assumption focus is at basepoint
          ! intensity * Gaussian filter in transversal and longitudinal direction
-  spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                        & ! <------ NEW formulation 
-                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)     & ! <------ NEW formulation 
-                          -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )    ! <------ NEW formulation 
-  !spatialWindow = EXP(    -0.5*((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  &
-                            !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv     &
-                       !-0.25*(x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2/((sigma_t*c)**2)  )
+  spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                        &
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)     &
+                          -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )
   ! build final coefficients
   timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*(t-ABS(WaveBasePoint(BeamMainDir))/c))
   resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
   resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
   resu(7:8)=0.
-CASE(15) ! 2 of 3: Gauß-shape with perfect focus (w(z)=w_0): boundary condition (BC)
+CASE(15) ! 2 of 3: Gauss-shape with perfect focus (w(z)=w_0): boundary condition (BC)
          ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
-         ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
-  !IF (t.GT.8*sigma_t) THEN ! pulse has passesd -> return 
-  IF(t.GT.tActive)THEN ! pulse has passesd -> return
+         ! beam insert is done by a paraxial assumption focus is at base point and should be on BC
+  IF(t.GT.tActive)THEN ! Pulse has passed -> return
     resu(1:8)=0.
   ELSE
     tShift=t-4*sigma_t
     ! intensity * Gaussian filter in transversal and longitudinal direction
-    spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
-                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
-    !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! <------- OLD formulation
-                          !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)  ! <------- OLD formulation
-    ! build final coefficients
-    !WaveBasePoint(BeamMainDir)=0.  ! was set to zero, why?
+    spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
+                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)
     ! pulse displacement is arbitrarily set to 4 (no beam initially in domain)
     timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
     ! temporal window
-    !temporalWindow=EXP(-(tShift/sigma_t)**2)     ! <------ NEW formulation
-    temporalWindow=EXP(-0.25*(tShift/sigma_t)**2) ! <------ NEW formulation: test #3
-    !temporalWindow=EXP(-0.5*(tShift/sigma_t)**2) ! <------- OLD formulation
+    temporalWindow=EXP(-0.25*(tShift/sigma_t)**2)
     resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac*temporalWindow
     resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
     resu(7:8)=0.
   END IF
-CASE(16) ! 3 of 3: Gauß-shape with perfect focus (w(z)=w_0): initial & boundary condition (BC)
-         ! spatial gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
+CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary condition (BC)
+         ! spatial Gauss beam, still planar wave scaled by intensity spatial and temporal filter are defined according to 
          ! Thiele 2016: "Modelling laser matter interaction with tightly focused laser pules in electromagnetic codes"
-         ! beam insert is done by a paraxial assumption focus is at basepoint and should be on BC
-  !IF(t.GT.3*ABS(WaveBasePoint(BeamMainDir))/c)THEN ! pulse has passesd -> return 
-  IF(t.GT.tActive)THEN ! pulse has passesd -> return
+         ! beam insert is done by a paraxial assumption focus is at base point and should be on BC
+  IF(t.GT.tActive)THEN ! Pulse has passed -> return
     resu(1:8)=0.
   ELSE
     ! IC (t=0) or BC (t>0)
     tShift=t-ABS(WaveBasePoint(BeamMainDir))/c ! substitution: shift to wave base point position
-    IF(t.LT.dt)THEN ! initial condiction: IC
-      spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                      & ! <------ NEW formulation 
-                                (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)   & ! <------ NEW formulation 
-                              -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )  ! <------ NEW formulation 
-      !spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                  & <------- OLD formulation
-      !                          (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv     & <------- OLD formulation
-      !                     -0.5*(x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2/((sigma_t*c)**2)  ) <------- OLD formulation
+    IF(t.LT.dt)THEN ! Initial condition: IC
+      spatialWindow = EXP(    -((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+                      &
+                                (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)/((  Beam_w0  )**2)   &
+                              -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2)  )
       timeFac=COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
       resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
     ELSE ! boundary condiction: BC
       tShiftBC=t+(WaveBasePoint(BeamMainDir)-x(BeamMainDir))/c ! shift to wave base point position
       ! intensity * Gaussian filter in transversal and longitudinal direction
-      spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&                                   ! <------ NEW formulation
-                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)    ! <------ NEW formulation
-     !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&               ! <------- OLD formulation
-                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)  ! <------- OLD formulation
-     !spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
-                           !(x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*Beam_w0_2inv)
+      spatialWindow = EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
+                            (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2) ! (x^2+y^2)/(w_0^2)
       timeFac =COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift)
-      temporalWindow=EXP(-0.25*(tShiftBC/sigma_t)**2) ! <------ NEW formulation: test #3
-     !temporalWindow=EXP( -0.5*(tShiftBC/sigma_t)**2) ! <------- OLD formulation
+      temporalWindow=EXP(-0.25*(tShiftBC/sigma_t)**2)
       resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac*temporalWindow
     END IF
     resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3)) 
