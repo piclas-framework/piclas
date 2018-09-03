@@ -160,7 +160,7 @@ USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
 USE MOD_Equation_Vars      ,ONLY: smu0
-USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv
+USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 #ifdef MPI
   USE MOD_Globals
 #endif
@@ -305,8 +305,12 @@ DO iELEM = 1, nElems
         iPoyntingSide = iPoyntingSide + 1
 
         ! check if dielectric regions are involved
-        IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
-          CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+        IF(DoDielectric)THEN
+          IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
+            CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+          ELSE
+            CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
+          END IF
         ELSE
           CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         END IF

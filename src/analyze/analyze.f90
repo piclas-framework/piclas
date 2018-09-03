@@ -123,8 +123,9 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 #ifdef maxwell
-USE MOD_Equation_vars, ONLY: Wavelength
+USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -133,6 +134,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
 INTEGER             :: iElem
+REAL                :: PPWCellMax,PPWCellMin
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
@@ -152,7 +154,8 @@ NAnalyze = GETINT('NAnalyze',DefStr)
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
-Analyze_dt        = GETREAL('Analyze_dt','0.')
+WRITE(DefStr,WRITEFORMAT) TEnd
+Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze','1')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
@@ -181,19 +184,35 @@ IF(CalcPointsPerWavelength)THEN
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
 #ifdef maxwell
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
                                                     ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
 #else
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
                                                     ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
 #endif /* maxwell */
+  PPWCellMin=HUGE(1.)
+  PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
 #ifdef maxwell
-    PPWCell(iElem)     = (PP_N+1)*Wavelength/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/GEO%CharLength(iElem)
 #else
-    PPWCell(iElem)     = (PP_N+1)/GEO%CharLength(iElem)
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/GEO%CharLength(iElem)
 #endif /* maxwell */
+    PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
+    PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
   END DO ! iElem = 1, nElems
+#ifdef MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMin , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMax , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  ELSE
+    CALL MPI_REDUCE(PPWCellMin   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(PPWCellMax   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+    ! in this case the receive value is not relevant. 
+  END IF
+#endif /*MPI*/
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MIN(PPWCell)'),' | ',PPWCellMin   ,' | ',TRIM('OUTPUT'),' | '
+  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MAX(PPWCell)'),' | ',PPWCellMax   ,' | ',TRIM('OUTPUT'),' | '
 END IF
 END SUBROUTINE InitAnalyze
 
@@ -230,12 +249,13 @@ SUBROUTINE CalcError(time,L_2_Error)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,      ONLY:Elem_xGP,sJ
-USE MOD_Equation_Vars,  ONLY:IniExactFunc
-USE MOD_Analyze_Vars,   ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_DG_Vars,        ONLY:U
-USE MOD_Equation,       ONLY:ExactFunc
-USE MOD_ChangeBasis,    ONLY:ChangeBasis3D
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_DG_Vars            ,ONLY: U
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -247,22 +267,16 @@ REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solutio
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(PP_nVar),U_exact(PP_nVar),L_2_Error2(PP_nVar),L_Inf_Error2(PP_nVar)
+REAL                          :: L_Inf_Error(PP_nVar),U_exact(PP_nVar)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL                          :: Volume,IntegrationWeight
-#ifdef MPI
-REAL                          :: Volume2
-#endif
+REAL                          :: IntegrationWeight
 CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
-L_Inf_Error2(:)=-1.E10
-L_2_Error2(:)=0.
-Volume=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
    ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
@@ -284,26 +298,23 @@ DO iElem=1,PP_nElems
          IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
          ! To sum over the elements, We compute here the square of the L_2 error
          L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
-         Volume = Volume + IntegrationWeight 
        END DO ! k
      END DO ! l
    END DO ! m
 END DO ! iElem=1,PP_nElems
 #ifdef MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,PP_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,PP_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error,L_2_Error2,PP_nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
-    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,PP_nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_2_Error   , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+    CALL MPI_REDUCE(L_Inf_Error , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant. 
   END IF
 #endif /*MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
-L_2_Error = SQRT(L_2_Error/Volume)
+L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 
 ! Graphical output
 IF(MPIroot) THEN
