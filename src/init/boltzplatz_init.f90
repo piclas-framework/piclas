@@ -71,7 +71,7 @@ USE MOD_LinearSolver,       ONLY:InitLinearSolver
 !#ifdef IMEX
 !USE MOD_CSR,                ONLY:InitCSR
 !#endif /*IMEX*/
-USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
+USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
 #ifdef MPI
 USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
@@ -122,6 +122,7 @@ IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
+  RestartNullifySolution=.FALSE.
   !BuildNewMesh       =.FALSE. !not used anymore?
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
