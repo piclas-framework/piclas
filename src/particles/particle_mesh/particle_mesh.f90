@@ -38,10 +38,6 @@ INTERFACE SingleParticleToExactElementNoMap
   MODULE PROCEDURE SingleParticleToExactElementNoMap
 END INTERFACE
 
-INTERFACE InitElemVolumes
-  MODULE PROCEDURE InitElemVolumes
-END INTERFACE
-
 INTERFACE MapRegionToElem
   MODULE PROCEDURE MapRegionToElem
 END INTERFACE
@@ -92,7 +88,7 @@ END INTERFACE
 
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
-PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
+PUBLIC::MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
@@ -679,6 +675,7 @@ SDEALLOCATE(TracingBCInnerSides)
 SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
+SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%CharLength)
@@ -2704,78 +2701,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
-SUBROUTINE InitElemVolumes()
-!===================================================================================================================================
-! Calculate Element volumes for later use in particle routines
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Mesh_Vars,          ONLY:nElems,sJ
-USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_Interpolation_Vars, ONLY:wGP
-USE MOD_Particle_Vars,      ONLY:usevMPF
-USE MOD_ReadInTools
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: i,j,k
-INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-!===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
-END IF
-ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
-END IF
-usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-IF(usevMPF) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
-END IF
-DO iElem=1,nElems
-  !--- Calculate and save volume of element iElem
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  GEO%Volume(iElem) = 0.
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem)     = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
-  END DO; END DO; END DO
-  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
-END DO
-
-GEO%LocalVolume=SUM(GEO%Volume)
-#ifdef MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
-
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |                ', GEO%MeshVolume
-
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitElemVolumes
-
 
 SUBROUTINE ReShapeBezierSides()
 !===================================================================================================================================
@@ -3625,6 +3550,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Vars,                      ONLY:PartMeshHasPeriodicBCs
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3643,6 +3569,7 @@ INTEGER                                  :: NGeo3,NGeo2,PVID
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
 LOGICAL                                  :: isCurvedSide,isRectangular
+REAL                                     :: ScalarProduct
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -3877,8 +3804,16 @@ DO iSide=1,nPartSides
   END IF
   PVID=SidePeriodicType(iSide)
   IF(PVID.EQ.0) CYCLE
+  IF(.NOT.PartMeshHasPeriodicBCs) CYCLE
   Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-  IF(DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1).GT.0) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
+  IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    CALL abort(&
+__STAMP__&
+        , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
+  END IF
 END DO ! iSide=1,nPartSides
 
 ! fill Element type checking sides
@@ -5185,7 +5120,7 @@ IF(MapPeriodicSides)THEN
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
   ! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
-  !    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+  !    are build from the other element. Now two BezierControlPoints exists which are shifted by the SidePeriodicVector
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -5210,7 +5145,7 @@ IF(MapPeriodicSides)THEN
         PVID = BoundaryType(BCID,BC_ALPHA) 
         ! loop over bc to get the NEW BC type
         DO iBC = 1,nBCs
-          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEn
+          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEN
             BC(newSideID)=iBC 
             EXIT
           END IF
@@ -5226,6 +5161,12 @@ IF(MapPeriodicSides)THEN
                                            ,SideSlabInterVals(1:6,iSide)                                               &
                                            ,BoundingBoxIsEmpty(iSide)                                                  )
         ! sanity check
+        ! check flip of master element, has to be zero, because of master side
+        IF(PartElemToSide(E2S_FLIP   ,locSideID,ElemID).NE.0)THEN
+          CALL abort(&
+                __STAMP__&
+                , ' Periodic Side is no master side!')
+        END IF
         xTest(1:3) = BezierControlPoints3D(1:3,0,0,iSide)
         xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
         IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)

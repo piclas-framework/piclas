@@ -3361,8 +3361,6 @@ REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
-REAL                             :: RandN_save
-LOGICAL                          :: RandN_in_Mem
 !===================================================================================================================================
 IF(PRESENT(iInit).AND.PRESENT(Temperature))CALL abort(&
 __STAMP__&
@@ -3398,8 +3396,6 @@ __STAMP__&
 ,'PO: force temperature!!')
 END IF
 
-RandN_in_Mem=.FALSE.
-
 !IF (.NOT.DoZigguratSampling) THEN !polar method
   Velosq = 2
   DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -3411,24 +3407,16 @@ RandN_in_Mem=.FALSE.
   Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
     Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
   Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
-  IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
-    Vec3D(3) = RandN_save*SQRT(BoltzmannConst*Tz/ &
-      Species(FractNbr)%MassIC)                                !z-Komponente
-    RandN_in_Mem=.FALSE.
-  ELSE
-    Velosq = 2
-    DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-      CALL RANDOM_NUMBER(RandVal)
-      Velo1 = 2.*RandVal(1) - 1.
-      Velo2 = 2.*RandVal(2) - 1.
-      Velosq = Velo1**2 + Velo2**2
-    END DO
-    Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
-      Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
-    RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-    RandN_in_Mem=.TRUE.
-  END IF
+  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
 !ELSE !ziggurat method
 !  Velo1 = rnor()
 !  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente
@@ -4547,7 +4535,8 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC, PartStateIntEn, Liquid
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn
+USE MOD_SurfaceModel_Vars      ,ONLY : Adsorption, Liquid
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
@@ -4762,11 +4751,10 @@ __STAMP__&
           midpoint(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
-        IF (useDSMC .AND. (.NOT. KeepWallParticles) .AND. noAdaptive) THEN
-          IF ( (SolidSimFlag .AND. (DSMC%WallModel.GT.0)) .OR. &
-            (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
+        IF (noAdaptive) THEN
+          IF (PartSurfaceModel.GT.0 .OR. (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              IF (SolidSimFlag .AND. (DSMC%WallModel.GT.0) .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) ) THEN
+              IF (PartSurfaceModel.GT.0 .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) ) THEN
                 ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
               ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0) &
                   .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) )THEN
@@ -4788,7 +4776,7 @@ __STAMP__&
                 END IF
               END IF !TriaSurfaceFlux
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
-          END IF !SolidSimFlag .OR. LiquidSimFlag
+          END IF !PartSurfaceModel .OR. LiquidSimFlag
         END IF
 
 !----- 1.: set positions
@@ -5016,51 +5004,49 @@ __STAMP__&
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
-              IF ( useDSMC .OR. LiquidSimFlag) THEN
-                IF ( (DSMC%WallModel.GT.0 .AND. SolidSimFlag) .OR. LiquidSimFlag) THEN
-                  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
-                      .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-                    IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
-                      ! first check if linked list is initialized and initialize if neccessary
-                      IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
-                        ALLOCATE(currentSurfFluxPart)
-                        IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                          Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
-                          Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-                        END IF
-                      ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
-                      ! create linke to next surfflux-part from current list
-                      ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
-                          ALLOCATE(currentSurfFluxPart%next)
-                        END IF
-                        currentSurfFluxPart => currentSurfFluxPart%next
+              IF (PartSurfaceModel.GT.0 .OR. LiquidSimFlag) THEN
+                IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
+                    .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+                  IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+                    ! first check if linked list is initialized and initialize if neccessary
+                    IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
+                      ALLOCATE(currentSurfFluxPart)
+                      IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
                         Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
                         Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
-                      ! surfaceflux has already list but new particle is being inserted
-                      ! create linke to next surfflux-part from current list
-                      ELSE
-                        IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
-                          ALLOCATE(currentSurfFluxPart%next)
-                        END IF
-                        currentSurfFluxPart => currentSurfFluxPart%next
-                        Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
                       END IF
-                      ! save index and sideinfo for current to be inserted particle
-                      currentSurfFluxPart%PartIdx = ParticleIndexNbr
-                      IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
-                        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
-                        currentSurfFluxPart%SideInfo(1) = iSide
-                        currentSurfFluxPart%SideInfo(2) = iSample
-                        currentSurfFluxPart%SideInfo(3) = jSample
-                      ELSE
-                        IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1))
-                        currentSurfFluxPart%SideInfo(1) = SurfMesh%SideIDToSurfID(SideID)
+                    ! check if surfaceflux has already list (happens if second etc. surfaceflux is considered)
+                    ! create linke to next surfflux-part from current list
+                    ELSE IF (.NOT. ASSOCIATED(Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart)) THEN
+                      IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                        ALLOCATE(currentSurfFluxPart%next)
                       END IF
-                    END IF ! reflective bc
-                  END IF ! sampling is on (CalcSurfaceVal)
-                END IF ! wallmodel or liquidsim
-              END IF ! useDSMC or liquid
+                      currentSurfFluxPart => currentSurfFluxPart%next
+                      Species(iSpec)%Surfaceflux(iSF)%firstSurfFluxPart => currentSurfFluxPart
+                      Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                    ! surfaceflux has already list but new particle is being inserted
+                    ! create linke to next surfflux-part from current list
+                    ELSE
+                      IF (.NOT. ASSOCIATED(currentSurfFluxPart%next)) THEN
+                        ALLOCATE(currentSurfFluxPart%next)
+                      END IF
+                      currentSurfFluxPart => currentSurfFluxPart%next
+                      Species(iSpec)%Surfaceflux(iSF)%lastSurfFluxPart  => currentSurfFluxPart
+                    END IF
+                    ! save index and sideinfo for current to be inserted particle
+                    currentSurfFluxPart%PartIdx = ParticleIndexNbr
+                    IF (.NOT.TriaTracking .AND. (nSurfSample.GT.1)) THEN
+                      IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1:3))
+                      currentSurfFluxPart%SideInfo(1) = iSide
+                      currentSurfFluxPart%SideInfo(2) = iSample
+                      currentSurfFluxPart%SideInfo(3) = jSample
+                    ELSE
+                      IF (.NOT. ALLOCATED(currentSurfFluxPart%SideInfo)) ALLOCATE(currentSurfFluxPart%SideInfo(1))
+                      currentSurfFluxPart%SideInfo(1) = SurfMesh%SideIDToSurfID(SideID)
+                    END IF
+                  END IF ! reflective bc
+                END IF ! sampling is on (CalcSurfaceVal)
+              END IF ! wallmodel or liquidsim
               IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) THEN
                 PartState(ParticleIndexNbr,4:5) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
               ELSE IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !PartState is used as drift for case of MB-distri!

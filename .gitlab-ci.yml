@@ -679,13 +679,13 @@ intel_PIC_maxwell_bgfield:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_bgfield/ ; fi
 
-intel_QDS:
-  <<: *defaults_intel
-  stage: reggie_nightly
-  tags:
-    - withmodules
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
+#intel_QDS:
+  #<<: *defaults_intel
+  #stage: reggie_nightly
+  #tags:
+    #- withmodules
+  #script:
+    #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
 
 intel_feature_LoadBalance:
   <<: *defaults_intel
@@ -773,4 +773,4 @@ intel_QDS:
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/feature_QDS/ ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi

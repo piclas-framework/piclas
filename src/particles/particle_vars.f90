@@ -18,6 +18,12 @@ LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! F
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
 LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
 LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
+INTEGER               :: PartSurfaceModel                                    ! Model used for wall interaction
+                                                                             ! 0 perfect/diffusive reflection
+                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
+                                                                             ! 2 Recombination coefficient (Laux model)
+                                                                             ! 3 adsorption/desorption + chemical interaction 
+                                                                             !   (SMCR with UBI-QEP, TST and TCE)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
@@ -291,8 +297,9 @@ INTEGER                                  :: nSpecies                         ! n
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
+LOGICAL                                  :: PartMeshHasPeriodicBCs
 #if defined(IMPA) || defined(ROS)
-LOGICAL                                  :: MeshHasReflectiveBCs
+LOGICAL                                  :: PartMeshHasReflectiveBCs
 #endif
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle

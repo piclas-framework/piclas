@@ -295,11 +295,7 @@ DO iQDSElems=1,nQDSElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-#ifdef PP_HDG
-        CALL QDS_ExactFunc(QDSIniExactFunc,     Elem_xGP(1:3,i,j,k,iQDSElems),QDSMacroValues(1:QDSnVar_macro,i,j,k,iQDSElems))
-#else
         CALL QDS_ExactFunc(QDSIniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iQDSElems),QDSMacroValues(1:QDSnVar_macro,i,j,k,iQDSElems))
-#endif
       END DO ! i
     END DO ! j
   END DO !k
