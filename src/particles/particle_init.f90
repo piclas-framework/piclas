@@ -90,10 +90,10 @@ CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PAR
                                                                 'Factors for td200/201'//&
                                                                     ' overrelaxation/subcycling', '1.0')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
-                                                                'Choose nRandomSeeds'//&
-                                                                '=-1    Random'//&
-                                                                '= 0    Debugging withhard-coded deterministic numbers'//&
-                                                                '> 0    Debugging-friendly with numbers from ini.', '0')
+                                                                'Choose nRandomSeeds \n'//&
+                                                                '=-1    Random \n'//&
+                                                                '= 0    Debugging-friendly with hard-coded deterministic numbers\n'//&
+                                                                '> 0    Debugging-friendly with numbers from ini. ', '0')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
