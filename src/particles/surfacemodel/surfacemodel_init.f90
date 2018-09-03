@@ -899,6 +899,10 @@ IF (ALLOCATED(SurfCoverageRecvBuf)) THEN
   END DO
   DEALLOCATE(SurfCoverageRecvBuf)
 END IF
+SDEALLOCATE(SurfModelExchange%nSidesSend)
+SDEALLOCATE(SurfModelExchange%nSidesRecv)
+SDEALLOCATE(SurfModelExchange%SendRequest)
+SDEALLOCATE(SurfModelExchange%RecvRequest)
 #endif /*MPI*/
 
 #if (PP_TimeDiscMethod==42)
