@@ -3123,17 +3123,21 @@ INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
 ! LOCAL VARIABLES
 INTEGER                        :: iSeed,DateTime(8),ProcessID,iStat,OpenFileID,GoodSeeds
 INTEGER(KIND=8)                :: Clock,AuxilaryClock
+LOGICAL                        :: uRandomExists
 !==================================================================================================================================
+
+uRandomExists=.FALSE.
 IF (nRandomSeeds.NE.-1) THEN
-  Clock=1536679165842_8
-  ProcessID=3671
+  Clock     = 1536679165842_8
+  ProcessID = 3671
 ELSE
 ! First try if the OS provides a random number generator
   OPEN(NEWUNIT=OpenFileID, FILE="/dev/urandom", ACCESS="stream", &
        FORM="unformatted", ACTION="read", STATUS="old", IOSTAT=iStat)
   IF (iStat.EQ.0) THEN
-    READ(OpenFileID) Seeds 
+    READ(OpenFileID) Seeds
     CLOSE(OpenFileID)
+    uRandomExists=.TRUE.
   ELSE
     ! Fallback to XOR:ing the current time and pid. The PID is
     ! useful in case one launches multiple instances of the same
@@ -3152,7 +3156,7 @@ ELSE
     ProcessID = GetPID_C()
   END IF
 END IF
-IF(iStat.NE.0) THEN
+IF(.NOT. uRandomExists) THEN
   Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
   AuxilaryClock=Clock
   DO iSeed = 1, SeedSize
@@ -3161,7 +3165,6 @@ IF(iStat.NE.0) THEN
       AuxilaryClock=AuxilaryClock+PartMPI%MyRank
     ELSE IF(nRandomSeeds.GT.0) THEN
       AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
-    ELSE
     END IF
 #else
     IF (nRandomSeeds.GT.0) THEN
@@ -3179,6 +3182,7 @@ IF(iStat.NE.0) THEN
   END DO
 END IF
 CALL RANDOM_SEED(PUT=Seeds)
+
 END SUBROUTINE InitRandomSeed
 
 
