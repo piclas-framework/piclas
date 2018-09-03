@@ -45,7 +45,7 @@ END INTERFACE
 INTERFACE PortabilityGetPID
   FUNCTION GetPID_C() BIND (C, name='getpid')
     !GETPID() is an intrinstic compiler function in gnu. This routine ensures the portability with other compilers. 
-    USE ISO_C_BINDING,      ONLY: PID_T => C_INT
+    USE ISO_C_BINDING,         ONLY: PID_T => C_INT
     IMPLICIT NONE
     INTEGER(KIND=PID_T)        :: GetPID_C
   END FUNCTION GetPID_C
@@ -84,10 +84,10 @@ CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PAR
                                                                 'Factors for td200/201'//&
                                                                     ' overrelaxation/subcycling', '1.0')
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
-                                                               'Choose nRandomSeeds'//&
-                                                               '=-1    Random'//&
-                                                               '= 0    Debugging withhard-coded deterministic numbers'//&
-                                                               '> 0    Debugging with numbers from ini.', '0')
+                                                                'Choose nRandomSeeds'//&
+                                                                '=-1    Random'//&
+                                                                '= 0    Debugging withhard-coded deterministic numbers'//&
+                                                                '> 0    Debugging-friendly with numbers from ini.', '0')
 CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
@@ -2367,12 +2367,9 @@ IF(nRandomSeeds.EQ.-1) THEN
   ! ensures different random numbers through irreproducable random seeds (via System_clock)
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.EQ.0) THEN
-  ! hard-coded deterministic random numbers
-  ! compiler specific number of seeds needed
  !   IF (Restart) THEN
  !   CALL !numbers from state file
  ! ELSE IF (.NOT.Restart) THEN
-  ! array with numbers
 CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
@@ -2381,16 +2378,16 @@ ELSE IF(nRandomSeeds.GT.0) THEN
   ELSE IF(nRandomSeeds.LT.SeedSize) THEN
     SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
-    DO iSeed=1,MIN(SeedSize,nRandomSeeds)
-      WRITE(UNIT=hilf,FMT='(I0)') iSeed
-      Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
-    END DO
+  DO iSeed=1,MIN(SeedSize,nRandomSeeds)
+    WRITE(UNIT=hilf,FMT='(I0)') iSeed
+    Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
+  END DO
   IF (ALL(Seeds(:).EQ.0)) THEN
-      CALL ABORT(&
+    CALL ABORT(&
      __STAMP__&
      ,'Not all seeds can be set to zero ')
   END IF
-    CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE 
   SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
   'Choose nRandomSeeds'//&
@@ -3094,62 +3091,63 @@ INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                        :: iSeed,DateTime(8),ProcessID,iStat,OpenFileID,GoodSeeds
-INTEGER(KIND=8)                 :: Clock,AuxilaryClock
+INTEGER(KIND=8)                :: Clock,AuxilaryClock
 !==================================================================================================================================
- 
+IF (nRandomSeeds.NE.-1) THEN
+  Clock=1536679165842_8
+  ProcessID=3671
+ELSE
 ! First try if the OS provides a random number generator
   OPEN(NEWUNIT=OpenFileID, FILE="/dev/urandom", ACCESS="stream", &
        FORM="unformatted", ACTION="read", STATUS="old", IOSTAT=iStat)
-  IF (iStat == 0) then
-       READ(OpenFileID) Seeds 
-       CLOSE(OpenFileID)
-    ELSE
-       ! Fallback to XOR:ing the current time and pid. The PID is
-       ! useful in case one launches multiple instances of the same
-       ! program in parallel.
-      IF(nRandomSeeds.EQ.-1) THEN
-        CALL SYSTEM_CLOCK(COUNT=Clock)
-        IF (Clock == 0) THEN
-          CALL DATE_AND_TIME(values=DateTime)
-          Clock =(DateTime(1) - 1970) * 365_8 * 24 * 60 * 60 * 1000 &
-                + DateTime(2) * 31_8 * 24 * 60 * 60 * 1000 &
-                + DateTime(3) * 24_8 * 60 * 60 * 1000 &
-                + DateTime(5) * 60 * 60 * 1000 &
-                + DateTime(6) * 60 * 1000 &
-                + DateTime(7) * 1000 &
-                + DateTime(8)
-        END IF
-        ProcessID = GetPID_C()
-      ELSE 
-        Clock=1536679165842_8
-        ProcessID=3671
-      END IF
-      Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
-      AuxilaryClock=Clock
-      DO iSeed = 1, SeedSize
-#ifdef MPI
-        IF (nRandomSeeds.EQ.0) THEN
-          AuxilaryClock=AuxilaryClock+PartMPI%MyRank
-        ELSE IF(nRandomSeeds.GT.0) THEN
-          AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
-        ELSE
-        END IF
-#else
-        IF (nRandomSeeds.GT.0) THEN
-          AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
-        END IF
-#endif
-        IF (AuxilaryClock == 0) THEN
-          AuxilaryClock = 104729
-        ELSE
-          AuxilaryClock = MOD(AuxilaryClock, 4294967296_8)
-        END IF
-        AuxilaryClock = MOD(AuxilaryClock * 279470273_8, 4294967291_8)
-        GoodSeeds = INT(MOD(AuxilaryClock, INT(HUGE(0),KIND=8)), KIND(0))
-        Seeds(iSeed) = GoodSeeds
-    END DO
+  IF (iStat.EQ.0) THEN
+    READ(OpenFileID) Seeds 
+    CLOSE(OpenFileID)
+  ELSE
+    ! Fallback to XOR:ing the current time and pid. The PID is
+    ! useful in case one launches multiple instances of the same
+    ! program in parallel.
+    CALL SYSTEM_CLOCK(COUNT=Clock)
+    IF (Clock .EQ. 0) THEN
+      CALL DATE_AND_TIME(values=DateTime)
+      Clock =(DateTime(1) - 1970) * 365_8 * 24 * 60 * 60 * 1000 &
+      + DateTime(2) * 31_8 * 24 * 60 * 60 * 1000 &
+      + DateTime(3) * 24_8 * 60 * 60 * 1000 &
+      + DateTime(5) * 60 * 60 * 1000 &
+      + DateTime(6) * 60 * 1000 &
+      + DateTime(7) * 1000 &
+      + DateTime(8)
+    END IF
+    ProcessID = GetPID_C()
   END IF
-  CALL RANDOM_SEED(PUT=Seeds)
+END IF
+IF(iStat.NE.0) THEN
+  Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
+  AuxilaryClock=Clock
+  DO iSeed = 1, SeedSize
+#ifdef MPI
+    IF (nRandomSeeds.EQ.0) THEN
+      AuxilaryClock=AuxilaryClock+PartMPI%MyRank
+    ELSE IF(nRandomSeeds.GT.0) THEN
+      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
+    ELSE
+    END IF
+#else
+    IF (nRandomSeeds.GT.0) THEN
+      AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
+    END IF
+#endif
+    IF (AuxilaryClock .EQ. 0) THEN
+      AuxilaryClock = 104729
+    ELSE
+      AuxilaryClock = MOD(AuxilaryClock, 4294967296_8)
+    END IF
+    AuxilaryClock = MOD(AuxilaryClock * 279470273_8, 4294967291_8)
+    GoodSeeds = INT(MOD(AuxilaryClock, INT(HUGE(0),KIND=8)), KIND(0))
+    Seeds(iSeed) = GoodSeeds
+  END DO
+END IF
+CALL RANDOM_SEED(PUT=Seeds)
 END SUBROUTINE InitRandomSeed
 
 
