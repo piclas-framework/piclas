@@ -4601,7 +4601,6 @@ __STAMP__&
             ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
             IF(ElemID.LE.0) CYCLE
             IF(ElemID.EQ.iElem) THEN
-              IF(iElem.EQ.49.AND.NBElemID.EQ.40) print*,'test'
               ! check if periodic side
               SideID=PartElemToSide(E2S_SIDE_ID,ilocSide2,NBElemID)    
               ! check for ref-mapping or tracing
