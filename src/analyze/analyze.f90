@@ -81,6 +81,7 @@ CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
 #endif
+CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
 CALL prms%CreateIntOption(    'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
@@ -105,25 +106,33 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
-USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
-USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
-USE MOD_ReadInTools,          ONLY:GETLOGICAL
+USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
+USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell
+USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
+USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL
 #ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep
-USE MOD_Analyze_Vars,         ONLY:doAnalyze,CalcEpot
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
-USE MOD_TimeAverage_Vars,     ONLY:doCalcTimeAverage
-USE MOD_TimeAverage,          ONLY:InitTimeAverage
+USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
+USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+#ifdef maxwell
+USE MOD_Equation_vars, ONLY: Wavelength
+#endif /* maxwell */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=40)                :: DefStr
+CHARACTER(LEN=40)   :: DefStr
+INTEGER             :: iElem
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(&
@@ -135,34 +144,57 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
-DoCalcErrorNorms  =GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
+DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms' ,'.FALSE.')
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze=GETINT('NAnalyze',DefStr) 
+NAnalyze = GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 
 ! Get the time step for performing analyzes and integer for skipping certain steps
-Analyze_dt=GETREAL('Analyze_dt','0.')
-nSkipAnalyze=GETINT('nSkipAnalyze','1')
-doCalcTimeAverage   =GETLOGICAL('CalcTimeAverage'  ,'.FALSE.') 
+Analyze_dt        = GETREAL('Analyze_dt','0.')
+nSkipAnalyze      = GETINT('nSkipAnalyze','1')
+doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 #ifndef PARTICLES 
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
-DoAnalyze = .FALSE. 
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+DoAnalyze       = .FALSE. 
+CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
 IF(CalcEpot) DoAnalyze = .TRUE. 
 #endif /*PARTICLES*/ 
 
-AnalyzeInitIsDone=.TRUE.
+AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! init Poynting-Integral
 IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
+! Points Per Wavelength
+CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength'  ,'.FALSE.')
+IF(CalcPointsPerWavelength)THEN
+  ! calculate cell local number excluding neighbor DOFs
+  ALLOCATE( PPWCell(1:PP_nElems) )
+  PPWCell=0.0
+  CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
+  ! Calculate PPW for each cell
+#ifdef maxwell
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
+                                                    ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
+#else
+  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
+                                                    ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
+#endif /* maxwell */
+  DO iElem = 1, nElems
+#ifdef maxwell
+    PPWCell(iElem)     = (PP_N+1)*Wavelength/GEO%CharLength(iElem)
+#else
+    PPWCell(iElem)     = (PP_N+1)/GEO%CharLength(iElem)
+#endif /* maxwell */
+  END DO ! iElem = 1, nElems
+END IF
 END SUBROUTINE InitAnalyze
 
 
@@ -403,6 +435,7 @@ SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -411,23 +444,29 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_DSMC_Vars              ,ONLY: DSMC,useDSMC, iter_macvalout,iter_macsurfvalout
-USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution, useDSMC
-USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
+USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
+USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
+USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
+USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
+#if !defined(LSERK)
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
+#endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
+USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
 USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
+USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 #endif
-#if (PP_TimeDiscMethod!=42)
+#if (PP_TimeDiscMethod!=42) && !defined(LSERK)
 USE MOD_LD_Vars                ,ONLY: useLD
 USE MOD_Particle_Vars          ,ONLY: DelayTime
-#endif /*PP_TimeDiscMethod!=42*/
+#endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
 #else /* no Particles*/
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
@@ -586,12 +625,13 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (DoAnalyze)  THEN
+IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
 #ifdef PARTICLES 
   ! particle analyze
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
     ! initial analysis is only performed for NO restart
     CALL AnalyzeParticles(OutputTime)
+    CALL AnalyzeSurface(OutputTime)
   ELSE
     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
     IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
@@ -603,11 +643,17 @@ IF (DoAnalyze)  THEN
         IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
            .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
            CALL AnalyzeParticles(OutputTime)
+        IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+           .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+           CALL AnalyzeSurface(OutputTime)
       END IF
     ELSE
       IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
          .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
          CALL AnalyzeParticles(OutputTime)
+      IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
+         .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
+         CALL AnalyzeSurface(OutputTime)
    END IF
   END IF
 #if defined(LSERK)
@@ -615,6 +661,7 @@ IF (DoAnalyze)  THEN
   IF(LastIter) CALL AnalyzeParticles(OutputTime)
 #else
   IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
+  IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
 #endif
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
@@ -699,12 +746,10 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides 
       SampWall(iSide)%State=0.
-      IF (useDSMC) THEN
-      IF (DSMC%WallModel.GT.0) THEN
+      IF (PartSurfaceModel.GT.0) THEN
         SampWall(iSide)%Adsorption=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
-      END IF
       END IF
     END DO
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
@@ -727,7 +772,7 @@ IF(OutPut)THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-#elif (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#elif defined(LSERK)
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
   IF(dt.EQ.tEndDiff)THEN
     ! volume data

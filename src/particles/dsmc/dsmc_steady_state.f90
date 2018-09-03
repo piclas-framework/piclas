@@ -611,6 +611,11 @@ SUBROUTINE SteadyStateDetection_main()
 ! Sampling of macroscopic properties (over nSamplingIters) for reduction of variance and autocorrelation effects (Step 1)
   CALL SteadyStateDetection_Sampling()
   
+  ! initialize all flow properties to check with false
+  CheckVelo = .FALSE.
+  CheckEnerg= .FALSE.
+  CheckIntEn= .FALSE.
+  CheckDens = .FALSE.
   ! Set the flow properties to check
   CheckVelo(1) = .TRUE.  ! x - velocity
   !CheckVelo(2) = .TRUE.  ! y - velocity
@@ -622,7 +627,6 @@ SUBROUTINE SteadyStateDetection_main()
   !CheckIntEn(2) = .TRUE. ! vibrational energy
   !CheckIntEn(3) = .TRUE. ! electronic state
   !CheckDens = .TRUE.   ! density
-CheckDens=.false. !initialize somehow?!
    
   iSamplingIters = iSamplingIters + 1
   

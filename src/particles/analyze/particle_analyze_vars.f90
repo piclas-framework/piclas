@@ -19,13 +19,6 @@ LOGICAL                       :: CalcEint                            !< Compute 
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
-LOGICAL                       :: CalcSurfNumSpec                     !< Calculate the number of simulated particles per species 
-                                                                     !< on surfaces
-LOGICAL                       :: CalcEvaporation                     !< Calculate rate of evaporation [kg/s]
-LOGICAL                       :: CalcSurfCoverage                    !< Calculate the surface coverage for each species
-LOGICAL                       :: CalcAccomodation                    !< Calculate the surface accommodation coefficient
-LOGICAL                       :: CalcAdsorbRates                     !< Calculate the adsorption probabilities of species
-LOGICAL                       :: CalcSurfRates                       !< Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
 LOGICAL                       :: VeloDirs(4)                         !< Select the direction for velocity computation
 LOGICAL                       :: TrackParticlePosition               !< Track the particle movement
@@ -47,8 +40,9 @@ REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    !< Energy a
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     !< Flag to compute the Debye length (min and max) in each cell
 LOGICAL                       :: CalcPICTimeStep                     !< Flag to compute the PIC time step (min and max) in each cell
-LOGICAL                       :: CalcElectronDensity                 !< Flag to compute the electron density in each cell
+LOGICAL                       :: CalcElectronIonDensity              !< Flag to compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Flag to compute the electron temperature in each cell
+LOGICAL                       :: CalcPlasmaParameter                 !< Flag to compute the plasma parameter in each cell
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons 
 LOGICAL                       :: CalcPlasmaFrequency                 !< Flag to compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Flag to compute the points per Debye length:
@@ -56,13 +50,23 @@ LOGICAL                       :: CalcPointsPerDebyeLength            !< Flag to 
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Flag to compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 
-LOGICAL                       :: CalcIonizationDegree                !< Flag to compute the ionization degree per cell
+LOGICAL                       :: CalcIonizationDegree                !< Flag to compute the ionization degree and quasi neutrality
+!                                                                    !< in each cell
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
+REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
-REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value)
+REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
+                                                                     !<   calculate cell local number excluding neighbor DOFs
+REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
+                                                                     !<   assume Cartesian grid and calculate to total number 
+                                                                     !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
+REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Approximated PIC Time Step (mean cell value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
+REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
+REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
+REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
 REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              !< Plasma electron frequency (cell mean value)
 
