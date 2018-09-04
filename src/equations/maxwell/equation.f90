@@ -109,6 +109,7 @@ CALL prms%CreateRealOption(     'Beam_a0'          , 'Dimensionless beam amplitu
                                                      '(value for scaling the max. electric field)' , '-1.0')
 CALL prms%CreateRealOption(     'Beam_w0'          , 'Beam spot size (waist radius, where the beam radius has a minimum) \n'//&
                                                      '; the old variable name is "omega_0"' , '1.0')
+CALL prms%CreateRealOption(     'Beam_t0'          , 'starting time of the (pulsed) electromagnetic wave. ' , '0.0')
 CALL prms%CreateRealOption(     'omega_0'          , 'old variable for "Beam_w0"; remove this variable in 2019', '1.0')
 CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Boundary Condition State File', 'no file found')
@@ -190,6 +191,7 @@ fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
+Beam_t0            = GETREAL('Beam_t0','0.0')
 
 c_test = 1./SQRT(eps0*mu0)
 IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
@@ -288,9 +290,9 @@ DO iRefState=1,nTmp
            ' Hz (chosen mode)'
   CASE(12,121,14,15,16)
     ! planar wave input: get wavelength and set wave number angular frequency
-    WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
-    BeamWaveNumber=2.*PI/WaveLength
-    BeamOmega=BeamWaveNumber*c
+    WaveLength     = GETREAL('WaveLength','1.')
+    BeamWaveNumber = 2.*PI/WaveLength
+    BeamOmega      = BeamWaveNumber*c
     CALL PrintOption('BeamOmega [Hz]','CALCUL.',RealOpt=BeamOmega)
     CALL PrintOption('BeamPeriod [s]','CALCUL.',RealOpt=2.*PI/BeamOmega)
 
@@ -425,6 +427,7 @@ DO iRefState=1,nTmp
         ELSE
           tActive = 8*sigma_t
         END IF
+        tActive = tActive+Beam_t0
         CALL PrintOption('tActive (laser pulse time)','CALCUL.',RealOpt=tActive)
       END SELECT
 
@@ -483,7 +486,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu) 
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -493,14 +496,14 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
                                      , sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
                                      ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
-                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot
+                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot,Beam_t0
 USE MOD_Equation_Vars,           ONLY:TEMode
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: t_IN
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
@@ -527,7 +530,11 @@ REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,s
 INTEGER                         :: MG,nG
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: kz
+REAL                            :: t ! local time
 !===================================================================================================================================
+! Apply time shift if needed
+t=t_IN - Beam_t0 ! default: Beam_t0 = 0.
+
 Cent=x
 SELECT CASE (ExactFunction)
 CASE(0) ! Particles
