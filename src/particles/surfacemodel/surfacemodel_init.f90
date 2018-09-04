@@ -496,6 +496,7 @@ USE MOD_ReadInTools            ,ONLY: GETSTR,GETREAL
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Vars ,ONLY: offSetSurfSide, nSurfBC
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_ReadInTools            ,ONLY: PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -616,12 +617,13 @@ __STAMP__&
     SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BC-SIDES IN COVERAGE-INIT FILE... '
     CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.TRUE.)
     nSurfBC_HDF5 = INT(HSize(1),4)
-    SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
+    CALL PrintOption('Number of Surface BCs','HDF5',IntOpt=nSurfBC_HDF5)
     IF (MPIROOT) THEN
       ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
       CALL ReadAttribute(File_ID,'BC_Surf',nSurfBC_HDF5,StrArray=SurfBCName_HDF5)
       DO iName = 1,nSurfBC_HDF5
-        SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
+        WRITE(UNIT=hilf,FMT='(I0)') iName
+        CALL PrintOption('BC'//ADJUSTL(TRIM(hilf))//'Name','HDF5',StrOpt=SurfBCName_HDF5(iName))
       END DO
     END IF
     SWRITE(UNIT_stdOut,'(A)')' DONE!'

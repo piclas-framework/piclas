@@ -126,6 +126,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -184,11 +185,9 @@ IF(CalcPointsPerWavelength)THEN
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
 #ifdef maxwell
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
-                                                    ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Wavelength for PPWCell','OUTPUT',RealOpt=Wavelength)
 #else
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
-                                                    ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Wavelength for PPWCell (fixed to 1.0)','OUTPUT',RealOpt=1.0)
 #endif /* maxwell */
   PPWCellMin=HUGE(1.)
   PPWCellMax=-HUGE(1.)
@@ -211,8 +210,8 @@ IF(CalcPointsPerWavelength)THEN
     ! in this case the receive value is not relevant. 
   END IF
 #endif /*MPI*/
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MIN(PPWCell)'),' | ',PPWCellMin   ,' | ',TRIM('OUTPUT'),' | '
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MAX(PPWCell)'),' | ',PPWCellMax   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('MIN(PPWCell)','CALCUL.',RealOpt=PPWCellMin)
+  CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
 END SUBROUTINE InitAnalyze
 

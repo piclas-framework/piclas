@@ -150,6 +150,7 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -198,11 +199,9 @@ IF(CalcPointsPerShapeFunction)THEN
   CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
   ! 
   VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('VolumeShapeFunction')   &
-                                                    ,' | ',VolumeShapeFunction   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)
   DOF                 = REAL((PP_N+1)**3)
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Max DOFs in Shape-Function per cell')   &
-                                                    ,' | ',DOF   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
   DO iElem = 1, nElems
     PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
     PPSCellEqui(iElem) =       (VolumeShapeFunction/GEO%Volume(iElem)) * DOF

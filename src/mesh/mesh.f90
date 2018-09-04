@@ -94,32 +94,33 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
-USE MOD_IO_HDF5,                ONLY:AddToElemData,ElementOut
-USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
-!-----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn,            ONLY:readMesh
-USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
-USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
-USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Metrics,                ONLY:CalcMetrics
-USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
-USE MOD_Mappings,               ONLY:InitMappings
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+!-----------------------------------------------------------------------------------------------------------------------------------                                                                                             ! -----------------------------------------------------------------------------------------------------------------------------------
+USE MOD_Mesh_ReadIn            ,ONLY: readMesh
+USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Metrics                ,ONLY: CalcMetrics
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt
+USE MOD_Mappings               ,ONLY: InitMappings
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitParticleGeometry
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
-USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
+USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
+USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
+USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
 #ifdef MPI
-USE MOD_Prepare_Mesh,           ONLY:exchangeFlip
+USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
+USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE 
-USE MOD_LoadBalance_Vars,       ONLY: DoLoadBalance
-USE MOD_Restart_Vars,           ONLY: DoInitialAutoRestart
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
+USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/ 
+USE MOD_ReadInTools            ,ONLY: PrintOption
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -184,8 +185,7 @@ DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
 #if USE_LOADBALANCE 
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
-  SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("Loadbalancing or InitialAutoRestart enabled ->")&
-    ,TRIM(" DoWriteStateToHDF5"),' | ',DoWriteStateToHDF5 ,' | ',TRIM("INFO"),' | '
+  CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
 #endif /*USE_LOADBALANCE*/ 
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)

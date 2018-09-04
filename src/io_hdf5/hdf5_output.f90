@@ -2122,12 +2122,13 @@ SUBROUTINE WriteIMDStateToHDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
-USE MOD_Mesh_Vars,             ONLY: MeshFile
-USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_Particle_Vars ,ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
+USE MOD_Mesh_Vars     ,ONLY: MeshFile
+USE MOD_Restart_Vars  ,ONLY: DoRestart
 #ifdef MPI
-USE MOD_MPI,                   ONLY:FinalizeMPI
+USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif /*MPI*/
+USE MOD_ReadInTools   ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2162,14 +2163,13 @@ IF(.NOT.DoRestart)THEN
       __STAMP__&
       ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
     END IF
-
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDtimestep')   ,' | ',IMDtimestep   ,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDanalyzeIter'),' | ',IMDanalyzeIter,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDTimeScale')  ,' | ',IMDTimeScale  ,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDLengthScale'),' | ',IMDLengthScale,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDNumber')     ,' | ',IMDNumber     ,' | ',TRIM('OUTPUT'),' | '
+    CALL PrintOption('IMDtimestep'    , 'OUTPUT' , RealOpt=IMDtimestep)
+    CALL PrintOption('IMDanalyzeIter' , 'OUTPUT' , IntOpt=IMDanalyzeIter)
+    CALL PrintOption('IMDTimeScale'   , 'OUTPUT' , RealOpt=IMDTimeScale)
+    CALL PrintOption('IMDLengthScale' , 'OUTPUT' , RealOpt=IMDLengthScale)
+    CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('t')             ,' | ',t             ,' | ',TRIM('OUTPUT'),' | '
+    CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
     SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t

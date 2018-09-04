@@ -690,28 +690,29 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY:IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
-USE MOD_Particle_Vars,         ONLY:DoPoissonRounding,DoTimeDepInflow
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars,         ONLY:Species,PDM,PartState,OutputVpiWarnings
-USE MOD_Particle_Mesh_Vars,    ONLY:GEO
-USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt
-USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
-USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping, TriaTracking
-USE MOD_PICInterpolation,      ONLY:InterpolateVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY:VariableExternalField
-USE MOD_PICInterpolation_vars, ONLY:useVariableExternalField
-USE MOD_Equation_vars,         ONLY:c_inv
-USE MOD_LD,                    ONLY:LD_SetParticlePosition
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
+USE MOD_Timedisc_Vars          ,ONLY: dt
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac
+USE MOD_Particle_Mesh          ,ONLY: SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
+USE MOD_PICInterpolation_Vars  ,ONLY: VariableExternalField
+USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField
+USE MOD_Equation_vars          ,ONLY: c_inv
+USE MOD_LD                     ,ONLY: LD_SetParticlePosition
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-USE MOD_Timedisc_Vars,         ONLY:DoDisplayIter, iter, IterDisplayStep
+USE MOD_Timedisc_Vars          ,ONLY: DoDisplayIter, iter, IterDisplayStep
 #endif
+USE MOD_ReadInTools            ,ONLY: PrintOption
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'                                                                               
@@ -1818,8 +1819,8 @@ __STAMP__&
           END IF
         END IF
         read(StrTmp,*,iostat=io_error)  IMDNumber
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,a33,a3,a7,a3)')' | ',TRIM("IMD *.chkpt file"),' | ', TRIM(StrTmp),' | ',TRIM("OUTPUT"),' | '
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("IMDNumber")       ,' | ', IMDNumber   ,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('IMD *.chkpt file','OUTPUT',StrOpt=StrTmp)
+        CALL PrintOption('IMDNumber','OUTPUT',IntOpt=IMDNumber)
         Nshift=0
         xMin=HUGE(1.)
         yMin=HUGE(1.)
@@ -1896,7 +1897,7 @@ __STAMP__&
         SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') yMin*1.e9,yMax*1.e9
         SWRITE(UNIT_stdOut,'(A25,A25)')  "z-Min [nm]","z-Max [nm]"
         SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') zMin*1.e9,zMax*1.e9
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("IMD Particles Found"),' | ',(i-Nshift)-1,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('IMD Particles Found','OUTPUT',IntOpt=(i-Nshift)-1)
       ELSE ! TRIM(IMDAtomFile) = 'no file found' -> exit
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
       END IF

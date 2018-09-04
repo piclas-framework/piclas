@@ -69,12 +69,13 @@ SUBROUTINE InitRestart()
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
-USE MOD_ReadInTools,        ONLY: GETLOGICAL, GETINT
-USE MOD_LoadBalance_Vars,   ONLY: LoadBalanceSample
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT
+USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
+USE MOD_ReadInTools        ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -129,12 +130,10 @@ ELSE
   IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
   IF (IAR_PerformPartWeightLB) THEN
     InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-    SWRITE(UNIT_StdOut,'(a3,a,a,a3,I33,a3,a7,a3)')' | ',TRIM(" InitialAutoRestart-PartWeightLoadBalance = T :"),&
-      TRIM(" InitialAutoRestartSample"),' | ', InitialAutoRestartSample   ,' | ',TRIM("INFO"),' | '
+    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
   ELSE IF (InitialAutoRestartSample.EQ.0) THEN
     IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-    SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("InitialAutoRestartSample = 0 :")&
-      ,TRIM(" InitialAutoRestart-PartWeightLoadBalance"),' | ', IAR_PerformPartWeightLB ,' | ',TRIM("INFO"),' | '
+    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
   END IF
 #endif /*USE_LOADBALANCE*/
 END IF
