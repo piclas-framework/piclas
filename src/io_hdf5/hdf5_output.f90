@@ -94,28 +94,29 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,              ONLY:U
-USE MOD_Globals_Vars,          ONLY:ProjectName
-USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
-USE MOD_Equation_Vars,        ONLY:StrVarNames
-USE MOD_Restart_Vars,         ONLY:RestartFile
+USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Globals_Vars  ,ONLY: ProjectName
+USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars ,ONLY: StrVarNames
+USE MOD_Restart_Vars  ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
+USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars,        ONLY:E,Phi
+USE MOD_Equation_Vars ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
-USE MOD_Mesh_Vars,            ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
+USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars,        ONLY:E
+USE MOD_Equation_Vars ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars,        ONLY:B
+USE MOD_Equation_Vars ,ONLY: B
 #else
-USE MOD_Equation_Vars,        ONLY:E,B
+USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
+USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,6 +150,8 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
+REAL                           :: OutputTime_loc
+REAL                           :: PreviousTime_loc
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
@@ -156,23 +159,34 @@ StartT=MPI_WTIME()
 #else
 CALL CPU_TIME(StartT)
 #endif
+
+! set local variables for output and previous times
+IF(OutputTimeFixed.GT.0.0)THEN
+  SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
+  OutputTime_loc   = OutputTimeFixed
+  PreviousTime_loc = OutputTimeFixed
+ELSE
+  OutputTime_loc   = OutputTime
+  IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
+END IF
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
 RestartFile=Filename
 #ifdef PP_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*PP_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('State',OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('State',OutputTime_loc,PreviousTime_loc)
 END IF
 
 ! Reopen file and write DG solution
