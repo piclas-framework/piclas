@@ -427,8 +427,8 @@ DO iRefState=1,nTmp
         ELSE
           tActive = 8*sigma_t
         END IF
-        tActive = tActive+Beam_t0
         CALL PrintOption('tActive (laser pulse time)','CALCUL.',RealOpt=tActive)
+        CALL PrintOption('pulse will end at tActive+Beam_t0','CALCUL.',RealOpt=tActive+Beam_t0)
       END SELECT
 
       ! Determine total pulse energy
