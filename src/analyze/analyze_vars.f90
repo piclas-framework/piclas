@@ -24,6 +24,7 @@ LOGICAL           :: DoAnalyze                   !< perform analyze
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
+LOGICAL           :: CalcEtot                    !< Computation of the total energy (summed up)
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 #ifdef CODE_ANALYZE
