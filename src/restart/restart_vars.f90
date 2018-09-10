@@ -26,5 +26,6 @@ CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
 REAL               :: RestartWallTime ! wall time at the beginning of a simulation OR when a restart is performed via Load Balance
+LOGICAL            :: RestartNullifySolution ! set the DG solution to zero (ignore the DG solution in the state file)
 !===================================================================================================================================
 END MODULE MOD_Restart_Vars

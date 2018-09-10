@@ -1544,31 +1544,31 @@ SUBROUTINE GetFIBGM(ElemToBGM)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
-USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_Globals
+USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
+USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
+USE MOD_PICDepo              ,ONLY: InitializeDeposition
+USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
-USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 #endif /*PP_HDG*/
-USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep
+USE MOD_Equation_Vars        ,ONLY: c
+USE MOD_Particle_Vars        ,ONLY: manualtimestep
 #if (PP_TimeDiscMethod==201)
-USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
 #endif
-USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
-USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
+USE MOD_Particle_Mesh_Vars   ,ONLY: FIBGMCellPadding
+USE MOD_PICDepo_Vars         ,ONLY: DepositionType, r_sf
+USE MOD_Particle_MPI_Vars    ,ONLY: PartMPI
+USE MOD_Particle_Mesh_Vars   ,ONLY: NbrOfCases,casematrix
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc_Vars,                      ONLY: RK_c,nRKStages
+USE MOD_TimeDisc_Vars        ,ONLY: RK_c,nRKStages
 #endif
-
+USE MOD_ReadInTools          ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1715,13 +1715,13 @@ globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
                  + (GEO%ymaxglob-GEO%yminglob)**2 & 
                  + (GEO%zmaxglob-GEO%zminglob)**2 ) 
 IF(halo_eps.GT.globalDiag)THEN
-  SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |       unlimited halo distance  |    ',halo_eps 
+  CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
   SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
   halo_eps=globalDiag
 END IF
 
 halo_eps2=halo_eps*halo_eps
-SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
 #ifdef MPI

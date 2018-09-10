@@ -109,6 +109,7 @@ CALL prms%CreateRealOption(     'Beam_a0'          , 'Dimensionless beam amplitu
                                                      '(value for scaling the max. electric field)' , '-1.0')
 CALL prms%CreateRealOption(     'Beam_w0'          , 'Beam spot size (waist radius, where the beam radius has a minimum) \n'//&
                                                      '; the old variable name is "omega_0"' , '1.0')
+CALL prms%CreateRealOption(     'Beam_t0'          , 'starting time of the (pulsed) electromagnetic wave. ' , '0.0')
 CALL prms%CreateRealOption(     'omega_0'          , 'old variable for "Beam_w0"; remove this variable in 2019', '1.0')
 CALL prms%CreateStringOption(   'BCStateFile'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Boundary Condition State File', 'no file found')
@@ -132,18 +133,19 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,            ONLY:PI,ElectronMass,ElectronCharge
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElectronCharge
 USE MOD_ReadInTools
 #ifdef PARTICLES
-USE MOD_Interpolation_Vars,      ONLY:InterpolationInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars 
-USE MOD_TimeDisc_Vars,           ONLY:TEnd
-USE MOD_Mesh_Vars,               ONLY:BoundaryType,nBCs,BC
-USE MOD_Globals_Vars,            ONLY:EpsMach
-USE MOD_Mesh_Vars,               ONLY:xyzMinMax,nSides,nBCSides
-USE MOD_Mesh,                    ONLY:GetMeshMinMaxBoundaries
-USE MOD_Utils,                   ONLY:RootsOfBesselFunctions
+USE MOD_TimeDisc_Vars      ,ONLY: TEnd
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
+USE MOD_Globals_Vars       ,ONLY: EpsMach
+USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
+USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
+USE MOD_ReadInTools        ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -189,6 +191,7 @@ fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
+Beam_t0            = GETREAL('Beam_t0','0.0')
 
 c_test = 1./SQRT(eps0*mu0)
 IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
@@ -287,11 +290,11 @@ DO iRefState=1,nTmp
            ' Hz (chosen mode)'
   CASE(12,121,14,15,16)
     ! planar wave input: get wavelength and set wave number angular frequency
-    WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
-    BeamWaveNumber=2.*PI/WaveLength
-    BeamOmega=BeamWaveNumber*c
-    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamOmega is ', BeamOmega       , ' [Hz]'
-    SWRITE(UNIT_stdOut,'(A,E25.14E3,A)') ' BeamPeriod is ', 2.*PI/BeamOmega , ' [s]'
+    WaveLength     = GETREAL('WaveLength','1.')
+    BeamWaveNumber = 2.*PI/WaveLength
+    BeamOmega      = BeamWaveNumber*c
+    CALL PrintOption('BeamOmega [Hz]','CALCUL.',RealOpt=BeamOmega)
+    CALL PrintOption('BeamPeriod [s]','CALCUL.',RealOpt=2.*PI/BeamOmega)
 
     ! set wave vector: direction of traveling wave
     WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
@@ -371,8 +374,7 @@ DO iRefState=1,nTmp
         Beam_a0=-1.0
         I_0 = (BeamEnergy/(eps0*(Beam_w0**2)*c*((PI/2.)**(3./2.))*sigma_t*(EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)))&
             / (2*BeamEta)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from BeamEnergy: I_0',&
-            ' | ', I_0,' | ','CALCUL.',' | '
+        CALL PrintOption('calculated from BeamEnergy: I_0','CALCUL.',RealOpt=I_0)
       ELSE
         ! In 15: scaling by dimensionless laser amplitude Beam_a0 or optical intensity I_0
         Beam_a0 = GETREAL ('Beam_a0','-1.0')
@@ -382,17 +384,12 @@ DO iRefState=1,nTmp
       IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0: Beam_a0',&
-            ' | ', E_0*ElectronCharge/(c*ElectronMass*BeamOmega),' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from I_0:     E_0',&
-            ' | ', E_0,' | ','CALCUL.',' | '
+        CALL PrintOption('calculated from I_0: Beam_a0','CALCUL.',RealOpt=E_0*ElectronCharge/(c*ElectronMass*BeamOmega))
+        CALL PrintOption('calculated from I_0:     E_0','CALCUL.',RealOpt=E_0)
       ELSE ! use Beam_a0 for defining the amplitude
         E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElectronCharge
-        !SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','I_0 (calculated from Beam_a0)',&
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: I_0',&
-            ' | ', E_0**2/(2*BeamEta),' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','calculated from Beam_a0: E_0',&
-            ' | ', E_0,' | ','CALCUL.',' | '
+        CALL PrintOption('calculated from Beam_a0: I_0','CALCUL.',RealOpt=E_0**2/(2*BeamEta))
+        CALL PrintOption('calculated from Beam_a0: E_0','CALCUL.',RealOpt=E_0)
       END IF
 
 
@@ -418,8 +415,7 @@ DO iRefState=1,nTmp
       SELECT CASE(RefStates(iRefState))
       CASE(121,15,16) ! pure BC or mixed IC+BC
         IF(RefStates(iRefState).EQ.16)THEN
-          SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','tActive (old for BC=16)',&
-              ' | ', 3*ABS(WaveBasePoint(BeamMainDir))*c_inv,' | ','CALCUL.',' | '
+          CALL PrintOption('tActive (old for BC=16)','CALCUL.',RealOpt=3*ABS(WaveBasePoint(BeamMainDir))*c_inv)
           ! get xyzMinMax
           CALL GetMeshMinMaxBoundaries()
           PulseCenter = WaveBasePoint(BeamMainDir) - (xyzMinMax(2*BeamMainDir)+xyzMinMax(2*BeamMainDir-1))/2
@@ -431,8 +427,8 @@ DO iRefState=1,nTmp
         ELSE
           tActive = 8*sigma_t
         END IF
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ','tActive (laser pulse time)',&
-            ' | ', tActive,' | ','CALCUL.',' | '
+        CALL PrintOption('tActive (laser pulse time)','CALCUL.',RealOpt=tActive)
+        CALL PrintOption('pulse will end at tActive+Beam_t0','CALCUL.',RealOpt=tActive+Beam_t0)
       END SELECT
 
       ! Determine total pulse energy
@@ -440,28 +436,22 @@ DO iRefState=1,nTmp
       CASE(121) ! Pulsed plane wave (pure BC or mixed IC+BC) with infinite spot size
         ! total beam energy in 2D is an energy per area -> [J/m^2]
         BeamEnergy_loc=eps0*(E_0**2)*SQRT(PI/2.0)*sigma_t*(EXP(-2.*(BeamOmega**2)*(sigma_t**2))+1)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ',' total beam energy per area [J/m^2]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy per area [J/cm^2]',' | ',BeamEnergy_loc/1.e4,' | ','CALCUL.',' | '
+        CALL PrintOption(' total beam energy per area [J/m^2]','CALCUL.',RealOpt=BeamEnergy_loc)
+        CALL PrintOption('total beam energy per area [J/cm^2]','CALCUL.',RealOpt=BeamEnergy_loc/1.e4)
       CASE(14,15,16) ! 3D pulse with spot size
         ! total beam energy
         BeamEnergy_loc=(E_0**2)*PI*eps0*(Beam_w0**2)*SQRT(PI)*c*(sigma_t/(2.*SQRT(2.)))*&
             (EXP(-2*(c**2)*(BeamWaveNumber**2)*(sigma_t**2))+1)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','total beam energy [J]',' | ',BeamEnergy_loc     ,' | ','CALCUL.',' | '
+        CALL PrintOption(' total beam energy [J]','CALCUL.',RealOpt=BeamEnergy_loc)
 
         ! beam spot area
         BeamArea_loc    = PI*(Beam_w0**2)
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','beam spot area (from waist radius) [m^2]',' | ',BeamArea_loc,' | ','CALCUL.',' | '
+        CALL PrintOption('beam spot area (from waist radius) [m^2]','CALCUL.',RealOpt=BeamArea_loc)
         
         ! beam fluency
         BeamFluency_loc = BeamEnergy_loc / BeamArea_loc
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','beam fluency [J/m^2]',' | ',BeamFluency_loc  ,' | ','CALCUL.',' | '
-        SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')&
-            ' | ','beam fluency [J/cm^2]',' | ',BeamFluency_loc/1.e4,' | ','CALCUL.',' | '
+        CALL PrintOption(' beam fluency [J/m^2]','CALCUL.',RealOpt=BeamFluency_loc)
+        CALL PrintOption('beam fluency [J/cm^2]','CALCUL.',RealOpt=BeamFluency_loc/1.e4)
       END SELECT 
     END IF
   END SELECT
@@ -496,7 +486,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu) 
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -506,14 +496,14 @@ USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
                                      , sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
                                      ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
-                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot
+                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot,Beam_t0
 USE MOD_Equation_Vars,           ONLY:TEMode
 USE MOD_TimeDisc_Vars,    ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: t_IN
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
@@ -540,7 +530,11 @@ REAL                            :: Bess_mG_R,Bess_mGM_R,Bess_mGP_R,costz,sintz,s
 INTEGER                         :: MG,nG
 !INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 REAL                            :: kz
+REAL                            :: t ! local time
 !===================================================================================================================================
+! Apply time shift if needed
+t=t_IN - Beam_t0 ! default: Beam_t0 = 0.
+
 Cent=x
 SELECT CASE (ExactFunction)
 CASE(0) ! Particles

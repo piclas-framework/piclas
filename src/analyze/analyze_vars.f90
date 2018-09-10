@@ -14,6 +14,7 @@ INTEGER           :: NAnalyze                    !< number of analyzation points
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
+REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
 INTEGER           :: nPoyntingIntPlanes          !< number of planes

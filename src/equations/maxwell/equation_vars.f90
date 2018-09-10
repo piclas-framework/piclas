@@ -50,6 +50,7 @@ REAL,DIMENSION(3) :: WaveBasePoint                          !> wave base point |
 REAL              :: tFWHM                                  !> time for full wave half maximum
 REAL              :: BeamEnergy                             !> Total beam energy [J]
 REAL              :: Beam_a0                                !> value to scale max. electric field
+REAL              :: Beam_t0                                !> starting time of the (pulsed) electromagnetic wave. Default t0 = 0
 REAL              :: tDelay                                 !> delay time filter for gaussian beam
 REAL              :: I_0                                    !> max. intensity
 REAL              :: sigma_t                                !> sigma_t can be used instead of tFWHM

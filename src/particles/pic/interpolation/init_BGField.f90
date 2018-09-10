@@ -29,16 +29,17 @@ SUBROUTINE InitializeBackgroundField
 ! MODULES
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
-USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Mesh_Vars,              ONLY:OffsetElem,nGlobalElems,MeshFile
-USE MOD_Preproc,                ONLY:PP_nElems
-USE MOD_ReadInTools,            ONLY:GETSTR,GETINT,GETREAL
-USE MOD_HDF5_Input,             ONLY:OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray
-USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType,NBG,BGType,BGField
-USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
-USE MOD_Interpolation_Vars,     ONLY:NodeType
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_Basis                 ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
+USE MOD_Basis                 ,ONLY: BarycentricWeights,InitializeVandermonde
+USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems,MeshFile
+USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray
+USE MOD_PICInterpolation_Vars ,ONLY: InterpolationType,NBG,BGType,BGField
+USE MOD_PICInterpolation_Vars ,ONLY: BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: NodeType
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -100,8 +101,8 @@ CALL ReadAttribute(File_ID,'VarNames',INT(Dims(1),4),StrArray=VarNames)
 
 CALL ReadAttribute(File_ID,'NBG',1,IntegerScalar=N_in)
 
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Rank of database',' | ',Rank,' | HDF5    | '
-SWRITE(UNIT_stdOut,'(A3,A30,A3,A33,A13)')' | ','NodeType of BG-Field',' | ',NodeType_BGField,' | HDF5    | '
+CALL PrintOption('Rank of database'     , 'HDF5' , IntOpt=Rank)
+CALL PrintOption('NodeType of BG-Field' , 'HDF5' , StrOpt=NodeType_BGField)
 
 IF(MPIRoot)THEN
   IF(TRIM(MeshFile).NE.TRIM(MeshFile_BGField))  CALL abort(&

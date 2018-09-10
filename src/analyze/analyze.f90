@@ -57,6 +57,7 @@ CALL prms%CreateLogicalOption('DoCalcErrorNorms' , 'Set true to compute L2 and L
 CALL prms%CreateRealOption(   'Analyze_dt'       , 'Specifies time intervall at which analysis routines are called.','0.')
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N.')
+CALL prms%CreateRealOption(   'OutputTimeFixed'  , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
 CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
 CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
@@ -108,7 +109,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
-USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
@@ -126,6 +127,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -157,6 +159,7 @@ CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 WRITE(DefStr,WRITEFORMAT) TEnd
 Analyze_dt        = GETREAL('Analyze_dt',DefStr)
 nSkipAnalyze      = GETINT('nSkipAnalyze','1')
+OutputTimeFixed   = GETREAL('OutputTimeFixed','-1.0')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
@@ -184,11 +187,9 @@ IF(CalcPointsPerWavelength)THEN
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
 #ifdef maxwell
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell')   &
-                                                    ,' | ',Wavelength   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Wavelength for PPWCell','OUTPUT',RealOpt=Wavelength)
 #else
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Wavelength for PPWCell (fixed to 1.0)')   &
-                                                    ,' | ',1.0          ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Wavelength for PPWCell (fixed to 1.0)','OUTPUT',RealOpt=1.0)
 #endif /* maxwell */
   PPWCellMin=HUGE(1.)
   PPWCellMax=-HUGE(1.)
@@ -211,8 +212,8 @@ IF(CalcPointsPerWavelength)THEN
     ! in this case the receive value is not relevant. 
   END IF
 #endif /*MPI*/
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MIN(PPWCell)'),' | ',PPWCellMin   ,' | ',TRIM('OUTPUT'),' | '
-  SWRITE(UNIT_StdOut,'(a3,A40,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('MAX(PPWCell)'),' | ',PPWCellMax   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('MIN(PPWCell)','CALCUL.',RealOpt=PPWCellMin)
+  CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
 END SUBROUTINE InitAnalyze
 
