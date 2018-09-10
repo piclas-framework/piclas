@@ -579,15 +579,15 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
         END IF
         IF (CalcEpot) THEN 
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-El',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-El',' '
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-Mag',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-Mag',' '
           OutputCounter = OutputCounter + 1
         END IF
         IF(CalcEpot .AND. CalcEtot)THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-pot',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-pot',' '
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcEkin) THEN
@@ -599,7 +599,7 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
         END IF
         IF(CalcEkin .AND. CalcEpot .AND. CalcEtot) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-kin+pot',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-kin+pot',' '
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcTemp) THEN
@@ -693,23 +693,28 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
           IF(CalcEint) THEN
             DO iSpec=1, nSpecAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EVib',iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Vib',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
             DO iSpec=1, nSpecAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-ERot',iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Rot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
             IF (DSMC%ElectronicModel) THEN
               DO iSpec = 1, nSpecAnalyze
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EElec',iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Elec',iSpec,' '
                 OutputCounter = OutputCounter + 1
               END DO
             END IF
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-ETotal',' '
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-TotalPart',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+          IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-Tot',' '
             OutputCounter = OutputCounter + 1
           END IF
           IF(CalcTemp) THEN
@@ -1065,6 +1070,10 @@ IF (PartMPI%MPIROOT) THEN
         END IF
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal
+      END IF
+      IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal+WEl+WMag
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies

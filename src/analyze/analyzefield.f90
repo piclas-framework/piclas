@@ -100,15 +100,15 @@ unit_index = 535
          WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
          IF (CalcEpot) THEN 
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
              OutputCounter = OutputCounter + 1
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
              OutputCounter = OutputCounter + 1
          END IF
          IF(CalcEpot .AND. CalcEtot)THEN
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-pot    '
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
              OutputCounter = OutputCounter + 1
          END IF
          WRITE(unit_index,'(A14)') ' ' 
