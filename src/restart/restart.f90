@@ -104,7 +104,27 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#ifdef PP_POIS
+#if (PP_nVar==8)
+  !The following arrays are read from the file
+  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+  !CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+  CALL abort(&
+      __STAMP__&
+      ,'InitRestart: This case is not implemented here. Fix this!')
+#else
+  !The following arrays are read from the file
+  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+  !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+  CALL abort(&
+      __STAMP__&
+      ,'InitRestart: This case is not implemented here. Fix this!')
+#endif
+#elif defined PP_HDG
+  CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#endif
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
   ELSE ! Use the solution in the restart file
