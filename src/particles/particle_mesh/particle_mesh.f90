@@ -4734,9 +4734,7 @@ INTEGER                :: TempNumElems
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists, HasHaloElem
 INTEGER                :: iElem, jNode
-#ifdef CODE_ANALYZE
 INTEGER                :: iNode
-#endif /*CODE_ANALYZE*/
 #ifdef MPI
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
