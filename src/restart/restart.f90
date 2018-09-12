@@ -68,8 +68,9 @@ SUBROUTINE InitRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT
+USE MOD_ReadInTools        ,ONLY: GETINT
 USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
 USE MOD_ReadInTools        ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
