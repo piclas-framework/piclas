@@ -264,11 +264,16 @@ USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 #endif /*USE_QDS_DG*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
+#ifdef MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+#endif /* MPI */
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout, DSMC
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+#if defined(MPI) && defined(USE_LOADBALANCE) && defined(PARTICLES)
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+#endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 #if (PP_TimeDiscMethod==201)
