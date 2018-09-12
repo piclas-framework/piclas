@@ -4778,6 +4778,14 @@ DO iElem=1,nElems
 END DO
 #endif /*MPI*/
 
+#ifdef CODE_ANALYZE
+DO iNode=1,nNodes
+  IF (HaloNeighNode(iNode)) THEN
+    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
+  END IF
+END DO
+#endif /*CODE_ANALYZE*/
+
 ! connect local elements using local node indeces 
 ! (mpi indeces are doubled indeces and not connected therefore done different)
 TempNumNodes(:)=0
@@ -4837,7 +4845,7 @@ END DO
 
 #ifdef MPI
 ! find all real neighbour elements for elements with halo neighbours 
-! recurively checking connected halo area
+! recursively checking connected halo area
 IF (nTotalElems.GT.PP_nElems) THEN
   DO iElem =1, PP_nElems
     TempHaloElems(1:500) = 0
@@ -4846,19 +4854,19 @@ IF (nTotalElems.GT.PP_nElems) THEN
       DO iLocSide = 1, 6
         ElemExists = .FALSE.
         Element = PartElemToElemAndSide(1,iLocSide,iElem)
-        !IF (Element.GT.PP_nElems) THEN
-        DO l=1, TempHaloNumElems
-          IF(Element.EQ.TempHaloElems(l)) THEN
-            ElemExists=.TRUE.
-            EXIT
+        IF (Element.GT.0) THEN !PP_nElems) THEN
+          DO l=1, TempHaloNumElems
+            IF(Element.EQ.TempHaloElems(l)) THEN
+              ElemExists=.TRUE.
+              EXIT
+            END IF
+          END DO
+          IF (.NOT.ElemExists) THEN
+            TempHaloNumElems = TempHaloNumElems + 1
+            TempHaloElems(TempHaloNumElems) = Element
           END IF
-        END DO
-        IF (.NOT.ElemExists) THEN
-          TempHaloNumElems = TempHaloNumElems + 1
-          TempHaloElems(TempHaloNumElems) = Element
+          CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
         END IF
-        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
-        !END IF
       END DO
       IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
 __STAMP__&
@@ -4885,10 +4893,10 @@ DO iElem=1,PP_nElems
   print*,'Rank: ',MyRank,'------ Neighbours are:'
   DO l=1,GEO%NumNeighborElems(iElem)
     IF (GEO%ElemToNeighElems(iElem)%ElemID(l).GT.PP_nElems) THEN
-      print*,offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
+      print*,'Rank: ',MyRank,offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
           + PartHaloElemToProc(NATIVE_ELEM_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))
     ELSE
-      print*,GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
+      print*,'Rank: ',MyRank,GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
     END IF
   END DO
 #else
@@ -4929,6 +4937,7 @@ REAL                   :: MPINodeCoord(3), ElemCoord(3)
 DO iLocSide = 1,6
   ElemExists = .FALSE.
   currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
+  IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
   !IF (currentElem.GT.PP_nElems) THEN
     DO l=1, TempHaloNumElems
       IF(currentElem.EQ.TempHaloElems(l)) THEN
@@ -4954,7 +4963,7 @@ DO iLocSide = 1,6
         IF (ElemDone) EXIT
       END DO
     END IF
-  !END IF
+  END IF
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
