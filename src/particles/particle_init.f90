@@ -1048,31 +1048,32 @@ SUBROUTINE InitializeVariables()
 ! Initialize the variables first 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
+USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
-USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC, BGGas
-USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
-USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
-USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
-USE MOD_PICInit,               ONLY:InitPIC
-USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem,MarkAuxBCElems
-USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
-USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
-USE MOD_TimeDisc_Vars,         ONLY:TEnd
+USE MOD_Particle_Vars
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
+USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
+USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
+USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
+USE MOD_PICInit                ,ONLY: InitPIC
+USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
+USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 #if defined(ROS) || defined (IMPA)
-USE MOD_TimeDisc_Vars,         ONLY: nRKStages
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif /*ROS*/
 #ifdef MPI
-USE MOD_Particle_MPI,          ONLY: InitEmissionComm
-USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
+USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1088,7 +1089,7 @@ INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAu
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
-LOGICAL               :: PartDens_OnlyInit                                                  !
+LOGICAL               :: PartDens_OnlyInit
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
