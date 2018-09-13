@@ -127,6 +127,7 @@ TYPE tGeometry
   ! periodic
   INTEGER                                :: nPeriodicVectors                  ! Number of periodic Vectors
   REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)              ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
+  REAL, ALLOCATABLE                      :: PeriodicVectorsLength(:)          ! PeriodicVectorsLength(1:nPeriodicVectors)
   INTEGER,ALLOCATABLE                    :: DirPeriodicVectors(:)             ! direction of periodic vectors
   LOGICAL                                :: directions(3)                     ! flag for direction
   ! required for cartesian BGM for desposition

@@ -592,6 +592,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
   PreTransEnergy = 1.0/2.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature ! per DOF
   MolNum = 0.0
   iPartIndx = PEM%pStart(iElem)
+  Xi_vibPerSpec(:) = 0.
   DO ipart = 1, nPart
     IF (SpecDSMC(PartSpecies(iPartIndx))%InterID .EQ. 2) THEN
       PreVibEnergyPerSpec(PartSpecies(iPartIndx)) = PreVibEnergyPerSpec(PartSpecies(iPartIndx)) + PartStateIntEn(iPartIndx,1)

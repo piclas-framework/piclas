@@ -291,6 +291,7 @@ END SUBROUTINE DatasetExists
 SUBROUTINE GetDataProps(DatasetName,nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
 ! MODULES
 USE MOD_Globals
+USE MOD_ReadInTools        ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -316,7 +317,7 @@ CALL H5DOPEN_F(File_ID, TRIM(DatasetName), Dset_ID, iError)
 CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
 ! Get number of dimensions of data space
 CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, Rank, iError)
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Rank of database',' | ',Rank,' | HDF5    | '
+CALL PrintOption('Rank of database','HDF5',IntOpt=Rank) ! 'HDF5.'
 ! Get size and max size of data space
 Dims   =0
 DimsMax=0
@@ -331,20 +332,20 @@ END IF
 ! Display data
 ! nVar = first array index
 nVar_HDF5 = INT(Dims(1),4)
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Number of variables nVar',' | ',nVar_HDF5,' | HDF5    | '
+CALL PrintOption('Number of variables nVar','HDF5',IntOpt=nVar_HDF5) ! 'HDF5.'
 ! N = index 2-4 of array, is expected to have the same value for each direction
 IF (Rank.EQ.2) THEN
   N_HDF5 = 1
 ELSE
   N_HDF5 = INT(Dims(Rank-1)-1)
 END IF
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Polynomial degree N',' | ',N_HDF5,' | HDF5    | '
+CALL PrintOption('Polynomial degree N','HDF5',IntOpt=N_HDF5) ! 'HDF5.'
 IF(PRESENT(NodeType_HDF5)) THEN
-  SWRITE(UNIT_stdOut,'(A3,A30,A3,A33,A13)')' | ','          Node type',' | ',TRIM(NodeType_HDF5),' | HDF5    | '
+  CALL PrintOption('Node type','HDF5',StrOpt=NodeType_HDF5) ! 'HDF5.'
 END IF
 ! nElems = index Rank of array
 nElems_HDF5 = INT(Dims(Rank),4)
-SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Number of Elements',' | ',nElems_HDF5,' | HDF5    | '
+CALL PrintOption('Number of Elements','HDF5',IntOpt=nElems_HDF5) ! 'HDF5.'
 
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')

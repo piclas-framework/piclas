@@ -117,6 +117,7 @@ USE MOD_TTM_Vars          ,ONLY: TTM_Cell_16,TTM_Cell_17,TTM_Cell_18
 USE MOD_StringTools       ,ONLY: STRICMP
 USE MOD_IO_hdf5
 USE MOD_HDF5_Input
+USE MOD_ReadInTools       ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,13 +167,11 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         DoImportTTMFile=.FALSE.
       ELSE
         FD_nElems=TTMGridFDdim(1)*TTMGridFDdim(2)*TTMGridFDdim(3)
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("FD_nElems") ,' | ', FD_nElems   ,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('FD_nElems','OUTPUT',IntOpt=FD_nElems)
         TTMCellVolume=fd_hx*fd_hy*fd_hz
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("TTM mesh cell volume"),' | ',TTMCellVolume,' | ',&
-            TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTM mesh cell volume','OUTPUT',RealOpt=TTMCellVolume)
         TTMTotalVolume=REAL(FD_nElems)*TTMCellVolume
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("TTM mesh total volume"),' | ',TTMTotalVolume,' | ',&
-            TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTM mesh total volume','OUTPUT',RealOpt=TTMTotalVolume)
         ALLOCATE( TTM_FD(1:11,TTMGridFDdim(1),TTMGridFDdim(2),TTMGridFDdim(3)) )
         TTM_FD=0.0
         ALLOCATE( ElemBaryFD(3,FD_nElems) )
@@ -211,7 +210,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
 
         READ(StrTmp,*,iostat=io_error)  i
         TTMNumber = i
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,i33,a3,a7,a3)')' | ',TRIM("TTMNumber")     ,' | ', TTMNumber   ,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTMNumber','OUTPUT',IntOpt=TTMNumber)
 
         iLineTTM=0
         DO i=1,1 ! header lines: currently 1 -> adjust?
@@ -267,10 +266,10 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         END IF
         CLOSE(ioUnit)
         SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid x"),' | ',ix,' | ',TRIM("OUTPUT"),' | '
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid y"),' | ',iy,' | ',TRIM("OUTPUT"),' | '
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid z"),' | ',iz,' | ',TRIM("OUTPUT"),' | '
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')' | ',TRIM("TTM FD grid points"),' | ',iLineTTM,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTM FD grid x'      , 'OUTPUT' , IntOpt=ix)
+        CALL PrintOption('TTM FD grid y'      , 'OUTPUT' , IntOpt=iy)
+        CALL PrintOption('TTM FD grid z'      , 'OUTPUT' , IntOpt=iz)
+        CALL PrintOption('TTM FD grid points' , 'OUTPUT' , IntOpt=iLineTTM)
 
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of nodes in FD grid points and DG bary centres -> assume they coincide
           SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
@@ -581,14 +580,10 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       omega_pe_max(2)=MAX(omega_pe_max(2),TTM_Cell_14(iElem))
     END IF
   END DO
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_min'),&
-      ' | ',omega_pe_min(1),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: omega_pe_max'),&
-      ' | ',omega_pe_max(1),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_min'),&
-      ' | ',omega_pe_min(2),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: omega_pe_max'),&
-      ' | ',omega_pe_max(2),' | ',TRIM("OUTPUT"),' | '
+  CALL PrintOption('TTM cold elec: omega_pe_min','OUTPUT',RealOpt=omega_pe_min(1))
+  CALL PrintOption('TTM cold elec: omega_pe_max','OUTPUT',RealOpt=omega_pe_max(1))
+  CALL PrintOption('TTM warm elec: omega_pe_min','OUTPUT',RealOpt=omega_pe_min(2))
+  CALL PrintOption('TTM warm elec: omega_pe_max','OUTPUT',RealOpt=omega_pe_max(2))
 
   ! get min/max PIC timestep (0.2 / plasma frequency)
   SWRITE(UNIT_StdOut,'(A)')' TTM - PIC Time Step approximation'
@@ -604,14 +599,10 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       dt_PIC_max(2)=MAX(dt_PIC_max(2),TTM_Cell_16(iElem))
     END IF
   END DO
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_PIC_min'),&
-      ' | ',dt_PIC_min(1),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM cold elec: dt_PIC_max'),&
-      ' | ',dt_PIC_max(1),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_PIC_min'),&
-      ' | ',dt_PIC_min(2),' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM warm elec: dt_PIC_max'),&
-      ' | ',dt_PIC_max(2),' | ',TRIM("OUTPUT"),' | '
+  CALL PrintOption('TTM cold elec: dt_PIC_min','OUTPUT',RealOpt=dt_PIC_min(1))
+  CALL PrintOption('TTM cold elec: dt_PIC_max','OUTPUT',RealOpt=dt_PIC_max(1))
+  CALL PrintOption('TTM warm elec: dt_PIC_min','OUTPUT',RealOpt=dt_PIC_min(2))
+  CALL PrintOption('TTM warm elec: dt_PIC_max','OUTPUT',RealOpt=dt_PIC_max(2))
 
   ! get min/max debye length
   SWRITE(UNIT_StdOut,'(A)')' TTM - Debye length'
@@ -623,10 +614,8 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       lambda_D_max=MAX(lambda_D_max,TTM_Cell_18(iElem))
     END IF
   END DO
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_min'),&
-      ' | ',lambda_D_min,' | ',TRIM("OUTPUT"),' | '
-  SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('TTM Debye length: lambda_D_max'),&
-      ' | ',lambda_D_max,' | ',TRIM("OUTPUT"),' | '
+  CALL PrintOption('TTM Debye length: lambda_D_min','OUTPUT',RealOpt=lambda_D_min)
+  CALL PrintOption('TTM Debye length: lambda_D_max','OUTPUT',RealOpt=lambda_D_max)
 
   ! Fill .csv file for analysis
   CALL WriteTTMdataToCSV()
@@ -651,7 +640,8 @@ SUBROUTINE GetFDGridCellSize(fd_hx,fd_hy,fd_hz)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_TTM_Vars
-USE MOD_Particle_Vars, ONLY:IMDLengthScale
+USE MOD_Particle_Vars ,ONLY: IMDLengthScale
+USE MOD_ReadInTools   ,ONLY: PrintOption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -704,7 +694,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
           Exit
         END IF
         fd_hx=fd_hx*IMDLengthScale
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hx")     ,' | ',fd_hx,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTM: fd_hx','OUTPUT',RealOpt=fd_hx)
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 
@@ -720,7 +710,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
             Exit
           END IF
           fd_hy=fd_hy*IMDLengthScale
-          SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hy")     ,' | ',fd_hy,' | ',TRIM("OUTPUT"),' | '
+          CALL PrintOption('TTM: fd_hy','OUTPUT',RealOpt=fd_hy)
           StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
         END IF
       END IF
@@ -740,7 +730,7 @@ DO !iLine=1,1 ! header lines: currently 1 -> adjust?
           Exit
         END IF
         fd_hz=fd_hz*IMDLengthScale
-        SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM("fd_hz")     ,' | ',fd_hz,' | ',TRIM("OUTPUT"),' | '
+        CALL PrintOption('TTM: fd_hz','OUTPUT',RealOpt=fd_hz)
         StrTmp=TRIM(StrTmp(IndNum+1:LEN(StrTmp)))
       END IF
 

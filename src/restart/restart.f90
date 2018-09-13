@@ -40,19 +40,24 @@ IMPLICIT NONE
 CALL prms%SetSection("Restart")
 !CALL prms%CreateLogicalOption('ResetTime', "Override solution time to t=0 on restart.", '.FALSE.')
 #if USE_LOADBALANCE
-CALL prms%CreateLogicalOption('DoInitialAutoRestart',"Set Flag for doing automatic initial restart with loadbalancing routines "// &
-  "after first 'InitialAutoRestartSample'-number of iterations.\n"// &
-  "Restart is done if Imbalance > 'Load-DeviationThreshold'."&
-  , '.FALSE.')
-CALL prms%CreateIntOption('InitialAutoRestartSample',"Define number of iterations at simulation start used for elemtime "// &
- "sampling before performing automatic initial restart.\n"// &
- "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
-  " DEFAULT: LoadBalanceSample.")
-CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance' &
-  ,  "Set flag for doing initial auto restart with partMPIWeight instead of"//&
-  " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
-  " If Flag [TRUE] InitialAutoRestartSample is set to 0 and vice versa.", '.FALSE.')
+CALL prms%CreateLogicalOption('DoInitialAutoRestart',&
+                               "Set Flag for doing automatic initial restart with loadbalancing routines "// &
+                               "after first 'InitialAutoRestartSample'-number of iterations.\n"// &
+                               "Restart is done if Imbalance > 'Load-DeviationThreshold'."&
+                               , '.FALSE.')
+CALL prms%CreateIntOption('InitialAutoRestartSample',&
+                               "Define number of iterations at simulation start used for elemtime "// &
+                               "sampling before performing automatic initial restart.\n"// &
+                               "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
+                               " DEFAULT: LoadBalanceSample.")
+CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance', &
+                               "Set flag for doing initial auto restart with partMPIWeight instead of"//&
+                               " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
+                               " If Flag [TRUE] InitialAutoRestartSample is set to 0 and vice versa.", '.FALSE.')
 #endif /*USE_LOADBALANCE*/
+CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
+                               "Set the DG solution to zero (ignore the DG solution in the state file)",&
+                               '.FALSE.')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -63,13 +68,15 @@ SUBROUTINE InitRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
-USE MOD_ReadInTools,        ONLY: GETLOGICAL, GETINT
-USE MOD_LoadBalance_Vars,   ONLY: LoadBalanceSample
+USE MOD_ReadInTools        ,ONLY: GETINT
+USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
+USE MOD_ReadInTools        ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -90,13 +97,47 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
+! Set the DG solution to zero (ignore the DG solution in the state file)
+RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
+
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
-  SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#ifdef PP_POIS
+#if (PP_nVar==8)
+  !The following arrays are read from the file
+  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+  !CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+  CALL abort(&
+      __STAMP__&
+      ,'InitRestart: This case is not implemented here. Fix this!')
+#else
+  !The following arrays are read from the file
+  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+  !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+  CALL abort(&
+      __STAMP__&
+      ,'InitRestart: This case is not implemented here. Fix this!')
+#endif
+#elif defined PP_HDG
+  CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#endif
+  IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
+    SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
+  ELSE ! Use the solution in the restart file
+    SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'"'
+    IF(PP_nVar.NE.nVar_Restart)THEN
+      SWRITE(UNIT_StdOut,'(A,I5)')"     PP_nVar =", PP_nVar
+      SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
+      CALL abort(&
+          __STAMP__&
+          ,'InitRestart: PP_nVar.NE.nVar_Restart (number of variables in restat file does no match the compiled equation system).')
+    END IF
+  END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   CALL CloseDataFile() 
@@ -110,12 +151,10 @@ ELSE
   IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
   IF (IAR_PerformPartWeightLB) THEN
     InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-    SWRITE(UNIT_StdOut,'(a3,a,a,a3,I33,a3,a7,a3)')' | ',TRIM(" InitialAutoRestart-PartWeightLoadBalance = T :"),&
-      TRIM(" InitialAutoRestartSample"),' | ', InitialAutoRestartSample   ,' | ',TRIM("INFO"),' | '
+    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
   ELSE IF (InitialAutoRestartSample.EQ.0) THEN
     IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-    SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("InitialAutoRestartSample = 0 :")&
-      ,TRIM(" InitialAutoRestart-PartWeightLoadBalance"),' | ', IAR_PerformPartWeightLB ,' | ',TRIM("INFO"),' | '
+    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
   END IF
 #endif /*USE_LOADBALANCE*/
 END IF
@@ -190,7 +229,7 @@ USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSi
 #if (USE_QDS_DG) || (!PP_HDG)
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
 #endif /*PP_HDG*/
-USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution
+USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
@@ -300,190 +339,171 @@ INTEGER                  :: i
 #endif
 !===================================================================================================================================
 IF(DoRestart)THEN
-  SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
 
-#ifdef PARTICLES
-    
-    ! DEPRECATED BECAUSE THE DATA IS NOW WRITTEN INTO THE NORMAL STATE FILE
-    ! 
-    !  IF(DoImportTTMFile)THEN ! read TTM data from "XXXXX_TTM_000.0XXXXXXXXXXX.h5"
-    !    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-    !      IndNum=INDEX(RestartFile,'State')
-    !      IF(IndNum.LE.0)CALL abort(&
-    !        __STAMP__&
-    !        ,' Restart file does not contain "State" character string?! Supply restart file for reading TTM data')
-    !      TTMRestartFile=TRIM(RestartFile(1:IndNum-1))//'TTM'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
-    !      CALL OpenDataFile(TTMRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-    !      ALLOCATE( TTM_DG(1:11,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
-    !      CALL DatasetExists(File_ID,'DG_Solution',TTM_DG_SolutionExists)
-    !      IF(TTM_DG_SolutionExists)THEN
-    !        CALL ReadArray('DG_Solution',5,(/11,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=TTM_DG)
-    !      ELSE
-    !        CALL abort(&
-    !          __STAMP__&
-    !          ,' Restart file does not contain "DG_Solution" in restart file for reading TTM data')
-    !      END IF
-    !      CALL CloseDataFile() 
-    !    ELSE! We need to interpolate the solution to the new computational grid
-    !      CALL abort(&
-    !        __STAMP__&
-    !        ,' Restart with changed polynomial degree not implemented for TTM!')
-    !    END IF
-    !  END IF
-    
-#endif /*PARTICLES*/
-
+  ! ===========================================================================
+  ! 1.) Read the field solution
+  ! ===========================================================================
+  IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
+    SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ELSE ! Use the solution in the restart file
+    SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
 #if USE_QDS_DG
-  IF(DoQDS)THEN ! read QDS data from "XXXXX_QDS_000.0XXXXXXXXXXX.h5"
-    IndNum=INDEX(RestartFile,'State')
-    IF(IndNum.LE.0)CALL abort(&
-      __STAMP__&
-      ,' Restart file does not contain "State" character string?! Supply restart file for reading QDS data')
-    QDSRestartFile=TRIM(RestartFile(1:IndNum-1))//'QDS'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
-    CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-    !ALLOCATE( QDSMacroValues(1:6,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
-    CALL DatasetExists(File_ID,'DG_Solution',QDS_DG_SolutionExists)
+    IF(DoQDS)THEN ! read QDS data from "XXXXX_QDS_000.0XXXXXXXXXXX.h5"
+      IndNum=INDEX(RestartFile,'State')
+      IF(IndNum.LE.0)CALL abort(&
+          __STAMP__&
+          ,' Restart file does not contain "State" character string?! Supply restart file for reading QDS data')
+      QDSRestartFile=TRIM(RestartFile(1:IndNum-1))//'QDS'//TRIM(RestartFile(IndNum+5:LEN(RestartFile)))
+      CALL OpenDataFile(QDSRestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      !ALLOCATE( QDSMacroValues(1:6,0:PP_N,0:PP_N,0:PP_N,PP_nElems) )
+      CALL DatasetExists(File_ID,'DG_Solution',QDS_DG_SolutionExists)
 
-    IF(.NOT.QDS_DG_SolutionExists)THEN
-      CALL abort(&
-        __STAMP__&
-        ,' Restart file does not contain "DG_Solution" in restart file for reading QDS data')
-    END IF
+      IF(.NOT.QDS_DG_SolutionExists)THEN
+        CALL abort(&
+            __STAMP__&
+            ,' Restart file does not contain "DG_Solution" in restart file for reading QDS data')
+      END IF
 
-    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-      CALL ReadArray('DG_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),OffsetElem,5,RealArray=QDSMacroValues)
-      DO iElem =1, nQDSElems
-        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-          QDSMacroValues(1  ,i,j,k,iElem) = QDSMacroValues(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
-          QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
-        END DO; END DO; END DO
-      END DO
-      CALL CloseDataFile() 
-    ELSE! We need to interpolate the solution to the new computational grid
-      ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
-      CALL ReadArray('DG_Solution',5,(/6,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-      DO iElem =1, nQDSElems
-        DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
-          U_local(1  ,i,j,k,iElem) = U_local(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
-          U_local(2:4,i,j,k,iElem) = U_local(2:4,i,j,k,iElem) * U_local(1,i,j,k,iElem)
-        END DO; END DO; END DO
-        CALL ChangeBasis3D(6,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),QDSMacroValues(:,:,:,:,iElem))
-      END DO
-      DEALLOCATE(U_local)
+      IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+        CALL ReadArray('DG_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),OffsetElem,5,RealArray=QDSMacroValues)
+        DO iElem =1, nQDSElems
+          DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+            QDSMacroValues(1  ,i,j,k,iElem) = QDSMacroValues(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
+            QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
+          END DO; END DO; END DO
+        END DO
+        CALL CloseDataFile() 
+      ELSE! We need to interpolate the solution to the new computational grid
+        ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
+        CALL ReadArray('DG_Solution',5,(/6,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        DO iElem =1, nQDSElems
+          DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
+            U_local(1  ,i,j,k,iElem) = U_local(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
+            U_local(2:4,i,j,k,iElem) = U_local(2:4,i,j,k,iElem) * U_local(1,i,j,k,iElem)
+          END DO; END DO; END DO
+          CALL ChangeBasis3D(6,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),QDSMacroValues(:,:,:,:,iElem))
+        END DO
+        DEALLOCATE(U_local)
+      END IF
     END IF
-  END IF
 #endif /*USE_QDS_DG*/
 
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  ! Read in time from restart file
-  !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  ! Read in state
-  IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    ! Read in time from restart file
+    !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
+    ! Read in state
+    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
 #else
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
 #endif
 #elif defined PP_HDG
-    CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
-    IF(DG_SolutionUExists)THEN
-      CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    ELSE
-      ! CALL abort(&
-      !     __STAMP__&
-      !     ,' DG_SolutionU does not exist in restart-file!')
-      ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
-      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    END IF
-    CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
-    IF(DG_SolutionLambdaExists)THEN
-      CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-      CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
-    ELSE
-      lambda=0.
-    END IF
+      CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+      IF(DG_SolutionUExists)THEN
+        CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      ELSE
+        ! CALL abort(&
+        !     __STAMP__&
+        !     ,' DG_SolutionU does not exist in restart-file!')
+        ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
+        CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      END IF
+      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+      IF(DG_SolutionLambdaExists)THEN
+        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      ELSE
+        lambda=0.
+      END IF
 #else
-    CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-      CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-      DO iPML=1,nPMLElems
-        U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
-      END DO ! iPML
-      DEALLOCATE(U_local)
-    END IF ! DoPML
+      CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      IF(DoPML)THEN
+        ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+        CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        DO iPML=1,nPMLElems
+          U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+        END DO ! iPML
+        DEALLOCATE(U_local)
+      END IF ! DoPML
 #endif
-    !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
-  ELSE! We need to interpolate the solution to the new computational grid
-    SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+      !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
+    ELSE! We need to interpolate the solution to the new computational grid
+      SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 #ifdef PP_POIS
 #if (PP_nVar==8)
-    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-    END DO
-    DEALLOCATE(U_local)
-
-    ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-    CALL ReadArray('DG_SolutionPhi',5,(/4,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
-    END DO
-    DEALLOCATE(U_local)
-#else
-    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-    END DO
-    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
-    END DO
-    DEALLOCATE(U_local)
-#endif
-#elif defined PP_HDG
-    CALL abort(&
-__STAMP__&
-,' Restart with changed polynomial degree not implemented for HDG!')
-!    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-!    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-!    DO iElem=1,PP_nElems
-!      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-!    END DO
-!    DEALLOCATE(U_local)
-    !CALL RestartHDG(U)     
-#else
-    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-    CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-    END DO
-    DEALLOCATE(U_local)
-    IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-      CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
       DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
-      DO iPML=1,nPMLElems
-        U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))
-      END DO ! iPML
-      DEALLOCATE(U_local,U_local2)
-    END IF ! DoPML
+      DEALLOCATE(U_local)
+
+      ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionPhi',5,(/4,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+#else
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      END DO
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
 #endif
-    SWRITE(UNIT_stdOut,*)' DONE!'
-  END IF
+#elif defined PP_HDG
+      CALL abort(&
+          __STAMP__&
+          ,' Restart with changed polynomial degree not implemented for HDG!')
+      !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      !    DO iElem=1,PP_nElems
+      !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      !    END DO
+      !    DEALLOCATE(U_local)
+      !CALL RestartHDG(U)     
+#else
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+      IF(DoPML)THEN
+        ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+        ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+        CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        DO iElem=1,PP_nElems
+          CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
+        END DO
+        DO iPML=1,nPMLElems
+          U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))
+        END DO ! iPML
+        DEALLOCATE(U_local,U_local2)
+      END IF ! DoPML
+#endif
+      SWRITE(UNIT_stdOut,*)' DONE!'
+    END IF ! IF(.NOT. InterpolateSolution)
+  END IF ! IF(.NOT. RestartNullifySolution)
+
 
 #ifdef PARTICLES
+  ! ===========================================================================
+  ! 2.) Read the particle solution
+  ! ===========================================================================
   implemented=.FALSE.
   IF(useDSMC.AND.(.NOT.(useLD)))THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
@@ -1282,7 +1302,7 @@ __STAMP__&
 #else
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
 #endif
-ELSE
+ELSE ! no restart
 #ifdef PARTICLES
   ! include initially collected particles for first call of field-solver (here because of consistency, but not used until timedisc)
   CALL ParticleCollectCharges(initialCall_opt=.TRUE.)
