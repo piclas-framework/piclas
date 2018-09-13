@@ -689,6 +689,7 @@ SDEALLOCATE(GEO%ElemSideNodeID)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
 SDEALLOCATE(GEO%ElemsOnNode)
+SDEALLOCATE(GEO%NeighNodesOnNode)
 SDEALLOCATE(GEO%NumNeighborElems)
 IF (ALLOCATED(GEO%ElemToNeighElems)) THEN
   DO iElem=1,nElems
@@ -702,6 +703,12 @@ IF (ALLOCATED(GEO%NodeToElem)) THEN
   END DO
 END IF
 SDEALLOCATE(GEO%NodeToElem)
+IF (ALLOCATED(GEO%NodeToNeighNode)) THEN
+  DO iNode=1,nNodes
+    SDEALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID)
+  END DO
+END IF
+SDEALLOCATE(GEO%NodeToNeighNode)
 
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
@@ -4764,7 +4771,7 @@ END DO
 
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
-GEO%NumNeighborElems(:)=-1
+GEO%NumNeighborElems(:)=0
 
 ! find all real neighbour elements for elements with halo neighbours 
 ! recursively checking connected halo area
@@ -4792,7 +4799,8 @@ DO iElem =1, PP_nElems
   END DO
   IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
 __STAMP__&
-,'ERROR in FindNeighbourElems! no Halo neighbour elements found altough there are some')
+,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
+  ! write local variables into global array
   GEO%NumNeighborElems(iElem) = TempHaloNumElems
   ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
   GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
@@ -4819,10 +4827,10 @@ __STAMP__&
           ElemDone = .TRUE.
         END IF
         IF (ElemDone) EXIT
-      END DO
+      END DO ! jNode=1,8
       IF (ElemDone) CYCLE
-    END DO
-  END DO
+    END DO ! iNode=1,8
+  END DO ! l=1,NumNeihborElems
 END DO ! iElem=1,PP_nElems
 
 ! check if current element already added to every node of the element and add to missing (elements for corner nodes not added yet)
@@ -4843,13 +4851,41 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-! write number of elements for corresponding nodes into GEO
+! write number of elements for corresponding proc global nodes into GEO structure
 ALLOCATE(GEO%ElemsOnNode(1:nNodes))
 ALLOCATE(GEO%NodeToElem(1:nNodes))
 DO iNode=1,nNodes
   GEO%ElemsOnNode(iNode) = TempElemsOnNode(iNode)
   ALLOCATE(GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)))
   GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)) = TempNodeToElem(iNode)%ElemID(1:TempElemsOnNode(iNode))
+END DO
+
+! fill array of neighbour nodes to proc global nodes
+ALLOCATE(GEO%NeighNodesOnNode(1:nNodes))
+ALLOCATE(GEO%NodeToNeighNode(1:nNodes))
+DO iNode=1,nNodes
+  TempHaloElems(:) = 0
+  TempHaloNumElems = 0
+  DO iElem=1,GEO%ElemsOnNode(iNode)
+    DO jNode=1,8
+      IF (GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.iNode) CYCLE
+      ElemExists=.false.
+      DO l=1, TempHaloNumElems
+        IF(GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.TempHaloElems(l)) THEN
+          ElemExists=.true.
+          CYCLE
+        END IF
+      END DO
+      IF(.NOT.ElemExists) THEN
+        TempHaloNumElems = TempHaloNumElems + 1
+        TempHaloElems(TempHaloNumElems) = GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))
+      END IF
+    END DO
+  END DO
+  ! write local variables into global array
+  ALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems))
+  GEO%NeighNodesOnNode(iNode)=TempHaloNumElems
+  GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems) = TempHaloElems(1:TempHaloNumElems)
 END DO
 
 #ifdef CODE_ANALYZE
@@ -4875,7 +4911,6 @@ END DO
 DO iNode=1,nNodes
   print*,'Rank: ',MyRank,'------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
 END DO
-  
 #endif /*CODE_ANALYZE*/
 
 SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD SUCCESSFUL '
