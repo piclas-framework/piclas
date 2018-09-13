@@ -94,28 +94,29 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,              ONLY:U
-USE MOD_Globals_Vars,          ONLY:ProjectName
-USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
-USE MOD_Equation_Vars,        ONLY:StrVarNames
-USE MOD_Restart_Vars,         ONLY:RestartFile
+USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Globals_Vars  ,ONLY: ProjectName
+USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars ,ONLY: StrVarNames
+USE MOD_Restart_Vars  ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,         ONLY:OutputSource,PartSource
+USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars,        ONLY:E,Phi
+USE MOD_Equation_Vars ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
-USE MOD_Mesh_Vars,            ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
+USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars,        ONLY:E
+USE MOD_Equation_Vars ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars,        ONLY:B
+USE MOD_Equation_Vars ,ONLY: B
 #else
-USE MOD_Equation_Vars,        ONLY:E,B
+USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
+USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -149,6 +150,8 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
+REAL                           :: OutputTime_loc
+REAL                           :: PreviousTime_loc
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
@@ -156,23 +159,34 @@ StartT=MPI_WTIME()
 #else
 CALL CPU_TIME(StartT)
 #endif
+
+! set local variables for output and previous times
+IF(OutputTimeFixed.GT.0.0)THEN
+  SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
+  OutputTime_loc   = OutputTimeFixed
+  PreviousTime_loc = OutputTimeFixed
+ELSE
+  OutputTime_loc   = OutputTime
+  IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
+END IF
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
 RestartFile=Filename
 #ifdef PP_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*PP_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('State',MeshFileName,OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('State',OutputTime_loc,PreviousTime_loc)
 END IF
 
 ! Reopen file and write DG solution
@@ -1011,8 +1025,8 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,SurfMesh,offSetSurfSide, PartBound
 ! IMPLICIT VARIABLE HANDLING
@@ -1032,8 +1046,8 @@ CHARACTER(LEN=255)             :: CoordID
 INTEGER                        :: sendbuf(1),recvbuf(1)
 #endif
 INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
-INTEGER                        :: iSurfPart, iSurf_glob, iSurf_loc, iSpec, nVar
-INTEGER                        :: iOffset, UsedSiteMapPos, SideID, SurfSideID, PartBoundID
+INTEGER                        :: iSpec, nVar
+INTEGER                        :: iOffset, UsedSiteMapPos, SideID, PartBoundID
 INTEGER                        :: iSurfSide, isubsurf, jsubsurf, iCoord, nSites, nSitesRemain, iPart, iVar
 INTEGER                        :: Coordinations          !number of PartInt and PartData coordinations
 INTEGER                        :: SurfPartIntSize        !number of entries in each line of PartInt
@@ -1043,8 +1057,7 @@ INTEGER,ALLOCATABLE            :: SurfPartData(:,:)
 REAL,ALLOCATABLE               :: SurfCalcData(:,:,:,:,:)
 !===================================================================================================================================
 ! first check if wallmodel defined and greater than 0 before writing any surface things into state
-IF(.NOT.useDSMC) RETURN
-IF(DSMC%WallModel.EQ.0) RETURN
+IF(PartSurfaceModel.EQ.0) RETURN
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! only pocs with real surfaces (not halo) in own proc write out
@@ -1060,7 +1073,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteAttributeToHDF5(File_ID,'Surface_BCs',nSurfBC,StrArray=SurfBCName)
   CALL WriteAttributeToHDF5(File_ID,'nSurfSample',1,IntegerScalar=nSurfSample)
-  CALL WriteAttributeToHDF5(File_ID,'WallModel',1,IntegerScalar=DSMC%WallModel)
+  CALL WriteAttributeToHDF5(File_ID,'WallModel',1,IntegerScalar=PartSurfaceModel)
   CALL WriteAttributeToHDF5(File_ID,'nSpecies',1,IntegerScalar=nSpecies)
   CALL CloseDataFile()
 #ifdef MPI
@@ -1068,7 +1081,7 @@ END IF
 #endif
 
 ! set names and write attributes in hdf5 files
-IF (DSMC%WallModel.EQ.3) THEN
+IF (PartSurfaceModel.EQ.3) THEN
   nVar = 4
 ELSE
   nVar = 1
@@ -1078,7 +1091,7 @@ iVar = 1
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
   StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'_Coverage'
-  IF (DSMC%WallModel.EQ.3) THEN
+  IF (PartSurfaceModel.EQ.3) THEN
     StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'_adsorbnum_tmp'
     StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'_desorbnum_tmp'
     StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'_reactnum_tmp'
@@ -1106,7 +1119,7 @@ DO iSurfSide = 1,SurfMesh%nSides
     DO jsubsurf = 1,nSurfSample
       DO isubsurf = 1,nSurfSample
         SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:) = Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:)
-        IF (DSMC%WallModel.EQ.3) THEN
+        IF (PartSurfaceModel.EQ.3) THEN
           SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:)
           SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:)
           SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:) = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)
@@ -1138,7 +1151,7 @@ SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
 ! save number of and positions of binded particles for all coordinations
-IF (DSMC%WallModel.EQ.3) THEN
+IF (PartSurfaceModel.EQ.3) THEN
   Coordinations    = 3
   SurfPartIntSize  = 3
   SurfPartDataSize = 2
@@ -1275,7 +1288,7 @@ IF (DSMC%WallModel.EQ.3) THEN
   SDEALLOCATE(StrVarNamesData)
   SDEALLOCATE(SurfPartInt)
   SDEALLOCATE(SurfPartData)
-END IF ! DSMC%WallModel.EQ.3
+END IF ! PartSurfaceModel.EQ.3
 
 
 
@@ -1291,7 +1304,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
-USE MOD_DSMC_Vars              ,ONLY: DSMC, useDSMC, SurfDistInfo, Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
@@ -1392,7 +1404,7 @@ END IF
 
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',MeshFileName,OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',OutputTime,PreviousTime)
 END IF
 
 ! Write timeaverages ---------------------------------------------------------------------------------------------------------------
@@ -1521,7 +1533,7 @@ CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_C
 END SUBROUTINE GenerateFileSkeleton
 
 
-SUBROUTINE GenerateNextFileInfo(TypeString,MeshFileName,OutputTime,PreviousTime)
+SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 !===================================================================================================================================
 !> Subroutine that opens the prvious written file on root processor and writes the necessary nextfile info
 !===================================================================================================================================
@@ -1529,8 +1541,6 @@ SUBROUTINE GenerateNextFileInfo(TypeString,MeshFileName,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
-USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars, ONLY:NodeType
 #ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM
@@ -1541,7 +1551,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
 REAL,INTENT(IN)                :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2127,12 +2136,13 @@ SUBROUTINE WriteIMDStateToHDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
-USE MOD_Mesh_Vars,             ONLY: MeshFile
-USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_Particle_Vars ,ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
+USE MOD_Mesh_Vars     ,ONLY: MeshFile
+USE MOD_Restart_Vars  ,ONLY: DoRestart
 #ifdef MPI
-USE MOD_MPI,                   ONLY:FinalizeMPI
+USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif /*MPI*/
+USE MOD_ReadInTools   ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2167,14 +2177,13 @@ IF(.NOT.DoRestart)THEN
       __STAMP__&
       ,'Could not find "checkpt_int" in '//TRIM(IMDInputFile)//' for IMDanalyzeIter!')
     END IF
-
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDtimestep')   ,' | ',IMDtimestep   ,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDanalyzeIter'),' | ',IMDanalyzeIter,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDTimeScale')  ,' | ',IMDTimeScale  ,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('IMDLengthScale'),' | ',IMDLengthScale,' | ',TRIM('OUTPUT'),' | '
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,I33,a3,a7,a3)')     ' | ',TRIM('IMDNumber')     ,' | ',IMDNumber     ,' | ',TRIM('OUTPUT'),' | '
+    CALL PrintOption('IMDtimestep'    , 'OUTPUT' , RealOpt=IMDtimestep)
+    CALL PrintOption('IMDanalyzeIter' , 'OUTPUT' , IntOpt=IMDanalyzeIter)
+    CALL PrintOption('IMDTimeScale'   , 'OUTPUT' , RealOpt=IMDTimeScale)
+    CALL PrintOption('IMDLengthScale' , 'OUTPUT' , RealOpt=IMDLengthScale)
+    CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
-    SWRITE(UNIT_StdOut,'(a3,a30,a3,E33.14E3,a3,a7,a3)')' | ',TRIM('t')             ,' | ',t             ,' | ',TRIM('OUTPUT'),' | '
+    CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
     SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
@@ -2515,7 +2524,7 @@ IF(MPIROOT)THEN
 END IF
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
-  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('QDS',TRIM(MeshFile),OutputTime,PreviousTime)
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('QDS',OutputTime,PreviousTime)
 END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'

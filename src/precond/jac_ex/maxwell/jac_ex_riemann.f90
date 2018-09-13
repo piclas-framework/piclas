@@ -130,9 +130,8 @@ SUBROUTINE ConstructJacRiemannDielectric(nVec_loc,SurfElem_loc,Aside,locSideID,E
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,      ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_Dielectric_Vars,    ONLY: DoDielectric,isDielectricElem, ElemToDielectric,DielectricConstant_inv
-USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_Equation_Vars,      ONLY: eta_c,c,c_corr,c_corr_c,c_corr_c2
+USE MOD_Dielectric_Vars,    ONLY: ElemToDielectric,DielectricConstant_inv
 USE MOD_ProlongToFace,      ONLY: ProlongToFace_Elementlocal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -149,7 +148,7 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)    :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_p(1:8,1:8)
-INTEGER                                          :: p,q,l
+INTEGER                                          :: p,q
 REAL                                             :: DielectricConstant_inv_Face(0:PP_N,0:PP_N)
 REAL                                             :: eta_c_dielectric,c_dielectric,c2_dielectric
 !===================================================================================================================================

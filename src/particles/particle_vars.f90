@@ -18,6 +18,12 @@ LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! F
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
 LOGICAL               :: SolidSimFlag                                        ! Flag telling if Solid boundary is existing
 LOGICAL               :: LiquidSimFlag                                       ! Flag telling if Liquid boundary is existing
+INTEGER               :: PartSurfaceModel                                    ! Model used for wall interaction
+                                                                             ! 0 perfect/diffusive reflection
+                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
+                                                                             ! 2 Recombination coefficient (Laux model)
+                                                                             ! 3 adsorption/desorption + chemical interaction 
+                                                                             !   (SMCR with UBI-QEP, TST and TCE)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
@@ -65,7 +71,6 @@ REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! P
                                                                              ! 2) fraction of time step for push (surface flux)
 #endif /*IMPA || ROS*/
 #if defined(IMPA)
-!REAL    , ALLOCATABLE :: StagePartPos(:,:)                                   ! (1:NParts,1:3) with 2nd index: x,y,z
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 REAL    , ALLOCATABLE :: PartDeltaX(:,:)                                     ! Change of particle during Newton step
 LOGICAL , ALLOCATABLE :: PartLambdaAccept(:)                                 ! Accept particle search direction
@@ -292,12 +297,18 @@ INTEGER                                  :: nSpecies                         ! n
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
+LOGICAL                                  :: PartMeshHasPeriodicBCs
+#if defined(IMPA) || defined(ROS)
+LOGICAL                                  :: PartMeshHasReflectiveBCs
+#endif
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
   INTEGER                , ALLOCATABLE   :: lastElement(:)  !      =>NULL()  ! Element number allocated
-!#if defined(IMPA)
-!  INTEGER                , ALLOCATABLE   :: StageElement(:)  !      =>NULL()  ! Element number allocated
-!#endif
+#if defined(IMPA) || defined(ROS)
+  INTEGER                , ALLOCATABLE   :: ElementN(:)  !      =>NULL()  ! Element number allocated
+  REAL                   , ALLOCATABLE   :: NormVec(:,:)  !      =>NULL()  ! Element number allocated
+  LOGICAL                , ALLOCATABLE   :: PeriodicMoved(:)                 ! flag, if the particle moved over periodic bcs
+#endif
                                                                              ! to each Particle at previous timestep
 !----------------------------------------------------------------------------!----------------------------------
                                                                              ! Following vectors are assigned in

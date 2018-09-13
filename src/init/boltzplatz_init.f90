@@ -71,7 +71,7 @@ USE MOD_LinearSolver,       ONLY:InitLinearSolver
 !#ifdef IMEX
 !USE MOD_CSR,                ONLY:InitCSR
 !#endif /*IMEX*/
-USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
+USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
 #ifdef MPI
 USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
@@ -84,6 +84,7 @@ USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
+USE MOD_SurfaceModel_Analyze,ONLY:InitSurfModelAnalyze
 USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver,     ONLY:InitPartSolver
@@ -121,6 +122,7 @@ IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
+  RestartNullifySolution=.FALSE.
   !BuildNewMesh       =.FALSE. !not used anymore?
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
@@ -171,6 +173,7 @@ CALL InitAnalyze()
 CALL InitRecordPoints()
 #ifdef PARTICLES
 CALL InitParticleAnalyze()
+CALL InitSurfModelAnalyze()
 #endif
 
 #ifdef PP_HDG
@@ -246,7 +249,7 @@ USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
-USE MOD_DSMC_SurfModelInit,        ONLY:FinalizeDSMCSurfModel
+USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
 USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
@@ -289,7 +292,7 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 CALL FinalizeFilter()
 #ifdef PARTICLES
-CALL FinalizeDSMCSurfModel()
+CALL FinalizeSurfaceModel()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()

@@ -320,20 +320,20 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound
                         + MeanBulkVelo(2) * T2Vec(2) &
                         + MeanBulkVelo(3) * T2Vec(3)
       DeltaM(1) = DeltaM(1) + dt * Area * ( &
-                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(1) &
+                  4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(1) &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(1) &
                 + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(1) )
       DeltaM(2) = DeltaM(2) + dt * Area * ( &
-                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(2) &
+                  4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(2) &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(2) &
                 + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(2) ) 
       DeltaM(3) = DeltaM(3) + dt * Area * ( &
-                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(3) &
+                  4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(3) &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(3) &
                 + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(3) )
       DeltaE = DeltaE + dt * Area * ( &
                ThermalCond * BulkTempDiff / CellCenterDiffDir &
-             + 4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * MeanBulkVeloDirN &
+             + 4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * MeanBulkVeloDirN &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * MeanBulkVeloDirT1 &
                 + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * MeanBulkVeloDirT2 )
     END IF

@@ -198,9 +198,10 @@ USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
 USE MOD_IO_HDF5
 #ifdef MPI
 USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nDeposPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem
+USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
+USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc

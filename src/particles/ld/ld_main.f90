@@ -32,7 +32,6 @@ SUBROUTINE LD_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LD_Vars
-USE MOD_TimeDisc_Vars,         ONLY : time
 USE MOD_Mesh_Vars,             ONLY : nElems, nSides
 USE MOD_Particle_Vars,         ONLY : PDM, PEM
 USE MOD_LD_mean_cell,          ONLY : CalcMacCellLDValues
@@ -41,7 +40,7 @@ USE MOD_LD_reassign_part_prop, ONLY : LD_reassign_prop
 USE MOD_LD_part_treat,         ONLY : LDPartTreament
 #if (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Vars,         ONLY : WriteMacroVolumeValues
-USE MOD_TimeDisc_Vars,         ONLY : TEnd
+USE MOD_TimeDisc_Vars,         ONLY : TEnd,time
 USE MOD_DSMC_Vars,             ONLY : DSMC
 #endif
 USE MOD_LD_Analyze

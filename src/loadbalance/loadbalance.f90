@@ -85,7 +85,8 @@ SUBROUTINE InitLoadBalance()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars
-USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
+USE MOD_ReadInTools      ,ONLY: GETLOGICAL, GETREAL, GETINT
+USE MOD_ReadInTools      ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -113,8 +114,7 @@ END IF
 #if USE_LOADBALANCE
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
-  SWRITE(UNIT_StdOut,'(a3,a45,a3,L33,a3,a7,a3)')' | ',TRIM("No LoadBalance (nProcessors=1): DoLoadBalance")       ,' | ',&
-      DoLoadBalance   ,' | ',TRIM("INFO"),' | '
+  CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
   DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
@@ -124,12 +124,10 @@ LoadBalanceSample   = GETINT('LoadBalanceSample')
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-  SWRITE(UNIT_StdOut,'(a3,a,a,a3,I33,a3,a7,a3)')' | ',TRIM("PartWeightLoadBalance = T :"),TRIM(" LoadBalanceSample"),' | ',&
-      LoadBalanceSample   ,' | ',TRIM("INFO"),' | '
+  CALL PrintOption('PartWeightLoadBalance = T : LoadBalanceSample','INFO',IntOpt=LoadBalanceSample)
 ELSE IF (LoadBalanceSample.EQ.0) THEN
   PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-  SWRITE(UNIT_StdOut,'(a3,a,a,a3,L33,a3,a7,a3)')' | ',TRIM("LoadbalanceSample = 0 :"),TRIM(" PartWeightLoadBalance"),' | ',&
-      PerformPartWeightLB ,' | ',TRIM("INFO"),' | '
+  CALL PrintOption('LoadbalanceSample = 0 : PartWeightLoadBalance','INFO',LogOpt=PerformPartWeightLB)
 END IF
 #else
 DoLoadBalance=.FALSE. ! deactivate loadbalance if no preproc flag is set

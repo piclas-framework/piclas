@@ -693,7 +693,7 @@ SUBROUTINE RiemannDielectric(F,U_L,U_R,nv,Dielectric_Master)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY:eta_c,c,c_corr,c_corr_c,c_corr_c2 !  eta_c = (c_corr-1.)*c
+USE MOD_Equation_Vars,   ONLY:c,c_corr,c_corr_c!  eta_c = (c_corr-1.)*c
 USE MOD_Equation_Vars,   ONLY:CentralFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

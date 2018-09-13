@@ -152,7 +152,6 @@ USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
 USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
 USE MOD_Equation_Vars,  ONLY:BCData,nBCByType
-USE MOD_PML_Vars,       ONLY:isPMLFace
 USE MOD_PML_Vars,       ONLY:PMLnVar, DoPML
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
 USE MOD_Dielectric_vars, ONLY:Dielectric_Master

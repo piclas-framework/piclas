@@ -221,7 +221,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
+USE MOD_DSMC_Vars              ,ONLY: CollisMode
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfCollis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -258,7 +258,7 @@ SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
 
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
-    IF (DSMC%WallModel.GT.0) THEN
+    IF (PartSurfaceModel.GT.0) THEN
       SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
                                         + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
@@ -362,14 +362,15 @@ SUBROUTINE CalcSurfaceValues(during_dt_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
-USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal,Adsorption,useDSMC
+USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal
+USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -385,7 +386,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 INTEGER                            :: iSpec,iSurfSide,p,q, iReact
 REAL                               :: TimeSample, ActualTime
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
-LOGICAL                            :: during_dt,calcWallModel
+LOGICAL                            :: during_dt
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -419,12 +420,7 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 CALL ExchangeSurfData()
 #endif
 
-calcWallModel=.FALSE.
-IF(useDSMC)THEN
-  IF(DSMC%WallModel.GT.0) calcWallModel=.TRUE.
-END IF
-
-IF(calcWallModel) THEN
+IF (PartSurfaceModel.GT.0) THEN
   ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
@@ -448,7 +444,7 @@ DO iSurfSide=1,SurfMesh%nSides
       MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      IF(calcWallModel) THEN
+      IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &
                                            +SampWall(iSurfSide)%State(7,p,q) &
@@ -474,7 +470,7 @@ DO iSurfSide=1,SurfMesh%nSides
           MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + SampWall(iSurfSide)%State(12+iSpec,p,q)/TimeSample
         END IF
         MacroSurfaceSpecVal(1,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%State(12+iSpec,p,q) / TimeSample
-        IF(calcWallModel) THEN
+        IF (PartSurfaceModel.GT.0) THEN
           ! calculate accomodation coefficient
           IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
             MacroSurfaceSpecVal(2,p,q,iSurfSide,iSpec) = 0.
@@ -1914,7 +1910,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: HODSMC, SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
@@ -1936,7 +1932,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
+INTEGER                        :: nVar, nVar_quality, nVarloc, nVarCount, ALLOCSTAT, iSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================

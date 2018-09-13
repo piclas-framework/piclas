@@ -38,10 +38,6 @@ INTERFACE SingleParticleToExactElementNoMap
   MODULE PROCEDURE SingleParticleToExactElementNoMap
 END INTERFACE
 
-INTERFACE InitElemVolumes
-  MODULE PROCEDURE InitElemVolumes
-END INTERFACE
-
 INTERFACE MapRegionToElem
   MODULE PROCEDURE MapRegionToElem
 END INTERFACE
@@ -92,7 +88,7 @@ END INTERFACE
 
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
-PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
+PUBLIC::MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
 PUBLIC::PartInElemCheck
@@ -248,7 +244,10 @@ ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'  Cannot allocate particle mesh vars!')
-
+! nullify
+PartElemToSide=-1
+PartSideToElem=-1
+PartElemToElemGlob=-1
 
 DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
 TriaTracking       = GETLOGICAL('TriaTracking','.FALSE.')
@@ -501,15 +500,16 @@ REAL   ,INTENT(IN)          :: Coord(1:3,1:4,1:nSides,1:nElems)
 CHARACTER(LEN=*),INTENT(IN) :: FileString           ! < Output file name
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,str_len,iSide
-INTEGER            :: INT
+INTEGER            :: iElem,nVTKElems,nVTKCells,ivtk=44,iSide!,iVal,iVar,str_len
+INTEGER(KIND=8)    :: Offset, nBytes
+INTEGER            :: IntegerType
 INTEGER            :: Vertex(3,nSides*nElems*2)
 INTEGER            :: NodeID,CellID,CellType
 CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200) :: Buffer
 CHARACTER(LEN=1)   :: lf!,components_string
 !CHARACTER(LEN=255) :: VarNameString
-REAL(KIND=4)       :: Float
+REAL(KIND=4)       :: FloatType
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE TRIA DATA TO VTX XML BINARY (VTU) FILE..."
 IF(nSides.LT.1)THEN
@@ -542,7 +542,7 @@ WRITE(StrOffset,'(I16)')Offset
 !    IF (VarNamePartCombine(iVar).EQ.0) THEN
 !      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNamePartVisu(iVar))//&
 !      '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)
+!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)
 !      WRITE(StrOffset,'(I16)')Offset
 !    ELSE IF (VarNamePartCombine(iVar).EQ.1) THEN
 !      str_len = LEN_TRIM(VarNamePartVisu(iVar))
@@ -555,7 +555,7 @@ WRITE(StrOffset,'(I16)')Offset
 !      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
 !      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
 !      WRITE(ivtk) TRIM(Buffer)
-!      Offset=Offset+SIZEOF(INT)+nVTKElems*SIZEOF(FLOAT)*VarNamePartCombineLen(iVar)
+!      Offset=Offset+SIZEOF(IntegerType)+nVTKElems*SIZEOF(FloatType)*VarNamePartCombineLen(iVar)
 !      WRITE(StrOffset,'(I16)')Offset
 !    END IF
 !  END DO
@@ -567,7 +567,7 @@ Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+3*nVTKElems*SIZEOF(FLOAT)
+Offset=Offset+SIZEOF(IntegerType)+3*nVTKElems*SIZEOF(FloatType)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify necessary cell data
@@ -575,12 +575,12 @@ Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Connectivity
 Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+nVTKCells*3*SIZEOF(INT)
+Offset=Offset+SIZEOF(IntegerType)+nVTKCells*3*SIZEOF(IntegerType)
 WRITE(StrOffset,'(I16)')Offset
 ! Offsets
 Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+SIZEOF(INT)+nVTKCells*SIZEOF(INT)
+Offset=Offset+SIZEOF(IntegerType)+nVTKCells*SIZEOF(IntegerType)
 WRITE(StrOffset,'(I16)')Offset
 ! Elem types
 Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
@@ -595,7 +595,7 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 
 ! Write binary raw data into append section
 ! Point data
-nBytes = nVTKElems*SIZEOF(FLOAT)
+nBytes = nVTKElems*SIZEOF(FloatType)
 !DO iVal=1,nVal
 !  IF (VarNamePartCombine(iVal).EQ.0) THEN
 !    WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
@@ -620,11 +620,11 @@ DO iElem=1,nElems
     NodeID=NodeID+4
   END DO
 END DO
-nBytes = 3*nVTKCells*SIZEOF(INT)
+nBytes = 3*nVTKCells*SIZEOF(IntegerType)
 WRITE(ivtk) nBytes
 WRITE(ivtk) Vertex(:,:)
 ! Offset
-nBytes = nVTKCells*SIZEOF(INT)
+nBytes = nVTKCells*SIZEOF(IntegerType)
 WRITE(ivtk) nBytes
 WRITE(ivtk) (Offset,Offset=3,3*nVTKCells,3)
 ! Cell type
@@ -675,6 +675,7 @@ SDEALLOCATE(TracingBCInnerSides)
 SDEALLOCATE(TracingBCTotalSides)
 SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
+SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%CharLength)
@@ -1102,11 +1103,11 @@ END IF
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
-SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,Sanity_Opt,Tol_Opt& 
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_Opt,&
 #ifdef CODE_ANALYZE
-        ,CodeAnalyze_Opt)
+    Sanity_Opt,Tol_Opt,CodeAnalyze_Opt)
 #else
-        )
+       Tol_Opt)
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! Checks if particle is in Element
@@ -1139,8 +1140,8 @@ INTEGER,INTENT(IN)                       :: ElemID,PartID
 REAL,INTENT(IN)                          :: PartPos_In(1:3)
 #ifdef CODE_ANALYZE
 LOGICAL,INTENT(IN),OPTIONAL              :: CodeAnalyze_Opt
-#endif /*CODE_ANALYZE*/
 LOGICAL,INTENT(IN),OPTIONAL              :: Sanity_Opt
+#endif /*CODE_ANALYZE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: FoundInElem
@@ -1210,7 +1211,7 @@ DO ilocSide=1,6
       CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
                                                                                        ,xi      &
                                                                                        ,eta      &
-                                                                                       ,PartID,flip,SideID &
+                                                                                       ,PartID,SideID &
                                                                                        ,ElemCheck_Opt=.TRUE.)
   CASE(CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID,ElemCheck_Opt=.TRUE.)
@@ -1385,8 +1386,6 @@ USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Mesh_Vars,                          ONLY:ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars,             ONLY:TriaTracking
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1523,7 +1522,9 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
+SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
 CALL BuildElementBasis()
+SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
   ! compute distance between each side associated with  the element and its origin
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
@@ -1543,31 +1544,31 @@ SUBROUTINE GetFIBGM(ElemToBGM)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
-USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_Globals
+USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
+USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
+USE MOD_PICDepo              ,ONLY: InitializeDeposition
+USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
-USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
 #endif /*PP_HDG*/
-USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep
+USE MOD_Equation_Vars        ,ONLY: c
+USE MOD_Particle_Vars        ,ONLY: manualtimestep
 #if (PP_TimeDiscMethod==201)
-USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
 #endif
-USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
-USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
+USE MOD_Particle_Mesh_Vars   ,ONLY: FIBGMCellPadding
+USE MOD_PICDepo_Vars         ,ONLY: DepositionType, r_sf
+USE MOD_Particle_MPI_Vars    ,ONLY: PartMPI
+USE MOD_Particle_Mesh_Vars   ,ONLY: NbrOfCases,casematrix
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc_Vars,                      ONLY: RK_c,nRKStages
+USE MOD_TimeDisc_Vars        ,ONLY: RK_c,nRKStages
 #endif
-
+USE MOD_ReadInTools          ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1714,13 +1715,13 @@ globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
                  + (GEO%ymaxglob-GEO%yminglob)**2 & 
                  + (GEO%zmaxglob-GEO%zminglob)**2 ) 
 IF(halo_eps.GT.globalDiag)THEN
-  SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |       unlimited halo distance  |    ',halo_eps 
+  CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
   SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
   halo_eps=globalDiag
 END IF
 
 halo_eps2=halo_eps*halo_eps
-SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
 #ifdef MPI
@@ -2700,78 +2701,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
-SUBROUTINE InitElemVolumes()
-!===================================================================================================================================
-! Calculate Element volumes for later use in particle routines
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Mesh_Vars,          ONLY:nElems,sJ
-USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_Interpolation_Vars, ONLY:wGP
-USE MOD_Particle_Vars,      ONLY:usevMPF
-USE MOD_ReadInTools
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: i,j,k
-INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-!===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
-ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
-END IF
-ALLOCATE(GEO%CharLength(nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR in InitParticleGeometry: Cannot allocate GEO%CharLength!')
-END IF
-usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-IF(usevMPF) THEN
-  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
-  END IF
-  GEO%DeltaEvMPF(:) = 0.0
-END IF
-DO iElem=1,nElems
-  !--- Calculate and save volume of element iElem
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  GEO%Volume(iElem) = 0.
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    GEO%Volume(iElem)     = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
-  END DO; END DO; END DO
-  GEO%CharLength(iElem) = GEO%Volume(iElem)**(1./3.) ! Calculate characteristic cell length: V^(1/3)
-END DO
-
-GEO%LocalVolume=SUM(GEO%Volume)
-#ifdef MPI
-CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
-#else
-GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
-
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |                ', GEO%MeshVolume
-
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitElemVolumes
-
 
 SUBROUTINE ReShapeBezierSides()
 !===================================================================================================================================
@@ -2780,7 +2709,7 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides,PartSideToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides,nPartPeriodicSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo,BC
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideDistance,SideNormVec
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -3618,9 +3547,10 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType,nPartSides
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,BC,NGeo,Vdm_CLNGeo1_CLNGeo,nSides,ElemBaryNGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,Vdm_CLNGeo1_CLNGeo,NGeo,Vdm_CLNGeo1_CLNGeo,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,PartBCSideList,nTotalBCSides,GEO
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Vars,                      ONLY:PartMeshHasPeriodicBCs
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3639,6 +3569,7 @@ INTEGER                                  :: NGeo3,NGeo2,PVID
 REAL                                     :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                     :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
 LOGICAL                                  :: isCurvedSide,isRectangular
+REAL                                     :: ScalarProduct
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -3873,8 +3804,16 @@ DO iSide=1,nPartSides
   END IF
   PVID=SidePeriodicType(iSide)
   IF(PVID.EQ.0) CYCLE
+  IF(.NOT.PartMeshHasPeriodicBCs) CYCLE
   Vec1=SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
-  IF(DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1).GT.0) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ScalarProduct=DOT_PRODUCT(SideNormVec(1:3,BCSideID),Vec1)
+  IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+  ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    CALL abort(&
+__STAMP__&
+        , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
+  END IF
 END DO ! iSide=1,nPartSides
 
 ! fill Element type checking sides
@@ -4208,6 +4147,7 @@ IF(DoRefMapping)THEN
 ELSE
   ALLOCATE(epsOneCell(1:PP_nElems))
 END IF
+epsOneCell=0.
 
 nLoop=nTotalElems
 IF(.NOT.DoRefMapping) nLoop=PP_nElems
@@ -4500,7 +4440,7 @@ SUBROUTINE ElemConnectivity()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
-                                 ,SidePeriodicType,nPartSides,nTotalSides,ElemToGlobalElemID
+                                 ,SidePeriodicType,ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,           ONLY:OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec
@@ -4540,10 +4480,11 @@ ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
                       ! if the connections points to an element which is not in MY region (MY elems + halo elems)
                       ! then this connection points to -1
 ALLOCATE(ElemToGlobalElemID(1:nTotalElems))
-
+! nullify
+PartElemToElemAndSide=-1
+ElemToGlobalElemID=-1
 
 ! now, map the PartElemToElemGlob to local elemids
-PartElemToElemAndSide=-1
 ! loop over all Elems and map the neighbor element to local coordinates
 DO iElem=1,nTotalElems
   IF(iElem.LE.nElems)THEN
@@ -4593,6 +4534,7 @@ DO iElem=1,nTotalElems
     ELSE
       BCSideID=SideID
     END IF
+    ! disable BCSideID, if it is NOT a periodic side
     IF(BCSideID.GT.0)THEN ! only BC faces 
       IF(SidePeriodicType(SideID).NE.0)THEN ! only periodic sides
         Vec1=SideNormVec(1:3,BCSideID)
@@ -4600,6 +4542,7 @@ DO iElem=1,nTotalElems
 __STAMP__&
         , ' Error in ElemConnectivity. No SideNormVec!',iElem,REAL(ilocSide))
       ELSE ! disable non-periodic  sides
+        Vec1=0.
         BCSideID=-1
       END IF
     END IF
@@ -4760,10 +4703,10 @@ SUBROUTINE NodeNeighbourhood()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, nTotalElems, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
 #ifdef MPI
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
 USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
 #endif /*MPI*/
@@ -4787,7 +4730,10 @@ INTEGER                :: TempElems(1:500)
 INTEGER                :: TempNumElems
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists, HasHaloElem
-INTEGER                :: iElem, iNode, jNode
+INTEGER                :: iElem, jNode
+#ifdef CODE_ANALYZE
+INTEGER                :: iNode
+#endif /*CODE_ANALYZE*/
 #ifdef MPI
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
@@ -5055,7 +5001,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
 INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
 INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
 LOGICAL                              :: MapPeriodicSides
-REAL                                 :: MinMax(1:2),MinMaxGlob(1:6)
+REAL                                 :: MinMax(1:2),MinMaxGlob(1:6),xTest(1:3)
 !===================================================================================================================================
 
 ! 1) loop over all sides and detect periodic sides
@@ -5138,16 +5084,25 @@ IF(MapPeriodicSides)THEN
   tmpnSides  =nTotalSides 
   nTotalSides=nTotalSides+nPartPeriodicSides
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  BezierControlPoints3d=-1.
   ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nTotalSides))
+  BezierControlPoints3DElevated=-1.
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
+  SideSlabNormals=-1.
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides))
+  SideSlabIntervals=-1.
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides))
+  BoundingBoxIsEmpty=.FALSE.
   ALLOCATE(BC(1:nTotalSides))
+  BC=-3
   ALLOCATE(MortarSlave2MasterInfo(1:nTotalSides))
+  MortarSlave2MasterInfo=-1
   ALLOCATE(MortarType(1:2,1:nTotalSides))
+  MortarType=-1
   ALLOCATE(PartSideToElem(1:5,1:nTotalSides))
-  ALLOCATE(SidePeriodicType(1:nTotalSides))
   PartSideToElem=-1
+  ALLOCATE(SidePeriodicType(1:nTotalSides))
+  SidePeriodicType=0
   !ALLOCATE(SidePeriodicDisplacement(1:3,1:nTotalSides))
 
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
@@ -5164,7 +5119,7 @@ IF(MapPeriodicSides)THEN
   SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
 
   ! 3) loop over the OLD sides and copy the corresponding SideXXX. The missing BezierControlPoints (periodic shifted values) 
-  !    are build from the other element. Now two BezierControlPoints existes which are shifted by the sideperiodicvector
+  !    are build from the other element. Now two BezierControlPoints exists which are shifted by the SidePeriodicVector
   nPartPeriodicSides=0
   DO iSide=1,tmpnSides
     IF(SidePeriodicType(iSide).NE.0)THEN
@@ -5189,7 +5144,7 @@ IF(MapPeriodicSides)THEN
         PVID = BoundaryType(BCID,BC_ALPHA) 
         ! loop over bc to get the NEW BC type
         DO iBC = 1,nBCs
-          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEn
+          IF(BoundaryType(iBC,BC_ALPHA).EQ.-PVID) THEN
             BC(newSideID)=iBC 
             EXIT
           END IF
@@ -5197,6 +5152,28 @@ IF(MapPeriodicSides)THEN
         MortarSlave2MasterInfo(newSideID) = DummyMortarSlave2MasterInfo(iSide)
         PVID=SidePeriodicType(iSide)
         SidePeriodicType(newSideID)=-SidePeriodicType(iSide) ! stored the inital alpha value
+        ! rebuild sides for sanity
+        CALL GetBezierControlPoints3D(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),ElemID,ilocSide_In=locSideID,SideID_In=iSide)
+        CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                             &
+                                           ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)     &
+                                           ,SideSlabNormals(1:3,1:3,iSide)                                             &
+                                           ,SideSlabInterVals(1:6,iSide)                                               &
+                                           ,BoundingBoxIsEmpty(iSide)                                                  )
+        ! sanity check
+        ! check flip of master element, has to be zero, because of master side
+        IF(PartElemToSide(E2S_FLIP   ,locSideID,ElemID).NE.0)THEN
+          CALL abort(&
+                __STAMP__&
+                , ' Periodic Side is no master side!')
+        END IF
+        xTest(1:3) = BezierControlPoints3D(1:3,0,0,iSide)
+        xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+        IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(2)+1e-8.LT.MinMaxGlob(2)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(3)+1e-8.LT.MinMaxGlob(3)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(1)-1e-8.GT.MinMaxGlob(4)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(2)-1e-8.GT.MinMaxGlob(5)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
+        IF(xTest(3)-1e-8.GT.MinMaxGlob(6)) SidePeriodicType(iSide)=-SidePeriodicType(iSide)
       END IF
       ! the flip has to be set to -1, artificial master side
       PartElemToSide(E2S_FLIP   ,NBlocSideID,NBElemID) = 0
@@ -5257,6 +5234,17 @@ IF(MapPeriodicSides)THEN
                                          ,SideSlabNormals(1:3,1:3,newSideID)                                         &
                                          ,SideSlabInterVals(1:6,newSideID)                                           &
                                          ,BoundingBoxIsEmpty(newSideID)                                              )
+
+      ! sanity check
+      xTest(1:3) = BezierControlPoints3D(1:3,0,0,newSideID)
+      PVID=SidePeriodicType(newSideID)
+      xTest      = xTest + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
+      IF(xTest(1)+1e-8.LT.MinMaxGlob(1)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(2)+1e-8.LT.MinMaxGlob(2)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(3)+1e-8.LT.MinMaxGlob(3)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(1)-1e-8.GT.MinMaxGlob(4)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(2)-1e-8.GT.MinMaxGlob(5)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
+      IF(xTest(3)-1e-8.GT.MinMaxGlob(6)) SidePeriodicType(newSideID)=-SidePeriodicType(newSideID)
     END IF
   END DO ! iSide=1,tmpnSides
   ! deallocate dummy  
@@ -5325,8 +5313,8 @@ SUBROUTINE MarkAllBCSides()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Mesh_Vars,               ONLY:nSides
-USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,SidePeriodicType,nTotalBCSides,nPartSides
-USE MOD_Mesh_Vars,               ONLY:BC,nBCSides,BoundaryType
+USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,nTotalBCSides,nPartSides
+USE MOD_Mesh_Vars,               ONLY:BC,nBCSides
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5339,7 +5327,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSide, BCID
+INTEGER             :: iSide
 !===================================================================================================================================
 
 ! PartBCSideList is increased, due to the periodic sides
@@ -5655,7 +5643,7 @@ SUBROUTINE MarkAuxBCElems()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+USE MOD_Particle_Boundary_Vars,             ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

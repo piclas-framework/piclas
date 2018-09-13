@@ -32,6 +32,20 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC")
 
+#ifdef CODE_ANALYZE
+CALL prms%CreateLogicalOption('PIC-DoInterpolationAnalytic'      , "Use an analytic/algebraic function for PIC interpolation "//&
+                                                                   "(ifdef CODE_ANALYZE)",&
+                                                                   '.FALSE.')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-Type'   , "Type of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of AnalyticInterpolation-Method for calculating the "//&
+                                                                   "EM field's value for the particle (ifdef CODE_ANALYZE)",'0')
+
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
+#endif /*CODE_ANALYZE*/
+
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "TODO-DEFINE-PARAMETER\n"//&
                                                                 "Type of Interpolation-Method to calculate"//&
                                                                 " the EM field's value for the particle", 'particle_position')

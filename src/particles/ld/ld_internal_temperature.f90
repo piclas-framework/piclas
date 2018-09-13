@@ -88,7 +88,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
          / (8.0*BoltzmannConst*PartStateBulkValues(iPartIndx,4)) )**0.5 &
          / (5.81E-21*NumDensTot)
     
-    DoFConstV = 1.0 + 2/3*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4) &
+    DoFConstV = 1.0 + 2./3.*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4) &
               / (EXP(SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4)) - 1.0)
     VibRelaxProbLD = 1/DoFConstV * (1.0 - EXP(-DoFConstV*dt/TauV))
 
@@ -592,6 +592,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
   PreTransEnergy = 1.0/2.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature ! per DOF
   MolNum = 0.0
   iPartIndx = PEM%pStart(iElem)
+  Xi_vibPerSpec(:) = 0.
   DO ipart = 1, nPart
     IF (SpecDSMC(PartSpecies(iPartIndx))%InterID .EQ. 2) THEN
       PreVibEnergyPerSpec(PartSpecies(iPartIndx)) = PreVibEnergyPerSpec(PartSpecies(iPartIndx)) + PartStateIntEn(iPartIndx,1)

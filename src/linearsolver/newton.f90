@@ -66,7 +66,7 @@ REAL,INTENT(OUT)           :: Delta_Norm_R
 REAL,INTENT(OUT)           :: Delta_Norm_Rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: X,DeltaX,DeltaX_Rel
+REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
@@ -193,7 +193,7 @@ USE MOD_HDG_Vars,                ONLY:EpsCG,useRelativeAbortCrit
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, eps_LinearSolver,nDOFGlobalMPI_inv
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
+USE MOD_LinearSolver_Vars,       ONLY:FullEisenstatWalker,FullgammaEW,DoPrintConvInfo,Eps_FullNewton,fulletamax
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:DoFullNewton,DoFieldUpdate,PartNewtonLinTolerance
 USE MOD_LinearSolver_Vars,       ONLY:PartRelaxationFac,PartRelaxationFac0,DoPartRelaxation,AdaptIterRelaxation0
@@ -202,7 +202,7 @@ USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping,TriaTracking
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM !,StagePartPos
+USE MOD_Particle_Vars,           ONLY:PartState, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
@@ -230,19 +230,20 @@ REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff,Norm_Diff_old, Delta_Norm_R0,Delta_Norm_Rel0 
+REAL                       :: Norm_R0,Norm_R,Norm_Rold, Delta_Norm_R0,Delta_Norm_Rel0!, Norm_Diff,Norm_Diff_old
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
-INTEGER                    :: nFullNewtonIter,Mode
+INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
+INTEGER                    :: Mode
 INTEGER                    :: iPart,iCounter
-REAL                       :: tmpFac, relToleranceOld
+REAL                       :: tmpFac, relToleranceOld, relTolerancePart
 INTEGER                    :: AdaptIterRelaxation
 #if USE_LOADBALANCE
 REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-REAL                       :: relTolerance,relTolerancePart,Criterion
+REAL                       :: relTolerance,Criterion
 LOGICAL                    :: IsConverged
 #ifdef PP_HDG
 INTEGER(KIND=8)            :: iter=0
@@ -277,17 +278,15 @@ END IF
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! here: could use deposition as hiding, not done yet
-  IF(DoPartRelaxation)THEN
-    IF(DoRefMapping)THEN
-      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-      CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+  IF(DoRefMapping)THEN
+    ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    CALL ParticleRefTracking(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
+  ELSE
+    IF (TriaTracking) THEN
+      CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      IF (TriaTracking) THEN
-        CALL ParticleTriaTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      ELSE
-        ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-        CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
-      END IF
+      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      CALL ParticleTracing(doParticle_In=PartisImplicit(1:PDM%ParticleVecLength)) 
     END IF
   END IF
   DO iPart=1,PDM%ParticleVecLength
