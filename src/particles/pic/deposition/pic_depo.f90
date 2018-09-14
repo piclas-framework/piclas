@@ -3430,9 +3430,13 @@ ELSE ! NbrOfSFdepoFixes.NE.0
               END IF
               ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
               Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
-              ! change velocity
-              n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
-              Fac(1:3) = Fac2(1:3) -2.*DOT_PRODUCT(Fac2(1:3),n_loc)*n_loc 
+#if !(defined (PP_HDG) && (PP_nVar==1))
+              IF (SourceSize.EQ.4) THEN
+                ! change velocity
+                n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
+                Fac(1:3) = Fac2(1:3) -2.*DOT_PRODUCT(Fac2(1:3),n_loc)*n_loc 
+              END IF
+#endif
               IF (SFfixIdx2.NE.0) THEN !check if new position would not reach a dof because of the other plane
                 SFfixDistance2 = SFdepoFixesGeo(SFfixIdx2,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx2,1,1)) &
                   + SFdepoFixesGeo(SFfixIdx2,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx2,1,2)) &
