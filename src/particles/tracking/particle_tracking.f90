@@ -336,7 +336,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 #ifdef IMPA
 INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In 
 #endif /*IMPA*/
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1000,6 +999,14 @@ DO iPart=1,PDM%ParticleVecLength
   END IF ! Part inside
 END  DO ! iPart=1,PDM%ParticleVecLength
 #endif
+
+#ifdef IMPA
+IF(PRESENT(nInnerNewton_In))THEN
+  IF(nInnerNewton_In.EQ.-3)THEN
+    IPWRITE(UNIt_stdOut,'(I0,A18,I0)') ' nInnerNewton_In ', nInnerNewton_In
+  END IF
+END IF
+#endif /*IMPA*/
 
 END SUBROUTINE ParticleTracing
 
@@ -1779,12 +1786,7 @@ USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
 #endif /*MPI*/
 #ifdef IMPA
-USE MOD_Particle_Vars,               ONLY: PartQ
-USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
-USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
-USE MOD_LinearSolver_Vars,           ONLY: PartXK
-USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c
-USE MOD_Particle_Vars,               ONLY: PartIsImplicit,PEM
+USE MOD_Particle_Vars,               ONLY: PEM
 #endif /*IMPA*/
 #ifdef ROS
 USE MOD_Particle_Vars,               ONLY: PEM
@@ -1801,10 +1803,6 @@ LOGICAL,INTENT(OUT),OPTIONAL   :: isMovedOut
 INTEGER                         :: iPV
 REAL                            :: MoveVector(1:3)
 LOGICAL                         :: isMoved
-#ifdef IMPA
-INTEGER                         :: iCounter
-REAL                            :: DeltaP(6)
-#endif /*IMPA*/
 !===================================================================================================================================
 
 #ifdef MPI
@@ -2065,52 +2063,6 @@ IF(isMoved)THEN
   PEM%PeriodicMoved(PartID)=.TRUE.
 #endif
 END IF
-
-! IF(isMoved)THEN
-! !#ifdef IMEX 
-! !  ! recompute PartStateN to kill jump in integration through periodic BC
-! !  IF(iStage.GT.0)THEN
-! !    PartStateN(PartID,1:6) = PartState(PartID,1:6)
-! !    DO iCounter=1,iStage-1
-! !      PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-! !                        - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-! !    END DO
-! !  END IF
-! !#endif /*IMEX*/
-! 
-! #ifdef IMPA 
-!   ! recompute PartStateN to kill jump in integration through periodic BC
-!   IF(iStage.GT.0)THEN
-!     IF(PartIsImplicit(PartID))THEN
-!       ! partshift-vector is pointing from parallel-pos to old pos
-!       PartStateN(PartID,1:6) = PartState(PartID,1:6)
-!       ! explicit particle
-!       DeltaP=0.
-!       DO iCounter=1,iStage-1
-!         DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-!       END DO
-!       PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
-! #ifdef MPI
-!       PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
-!       ! and move all the functions
-!       ! F_PartX0 is not changing, because of difference
-!       PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
-! #endif /*MPI*/
-!       ! brainfuck, does F_PartXK(:,PartID) is changed?
-!       ! init: F_PartXK=F_PartXK0 
-!       ! sanity check for parallel...
-!    ELSE
-!      PartStateN(PartID,1:6) = PartState(PartID,1:6)
-!      ! explicit particle
-!      DO iCounter=1,iStage-1
-!        PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-!                               - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-!      END DO
-!    END IF
-!   END IF
-! #endif /*IMPA*/
-! END IF
-
 
 IF(PRESENT(isMovedOut)) isMovedOut=isMoved
 
@@ -2632,9 +2584,6 @@ USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars,          ONLY:PartStateN
-#endif 
 #ifdef MPI
 USE MOD_MPI_Vars,               ONLY:offsetElemMPI
 #endif /*MPI*/
@@ -2681,8 +2630,8 @@ IF(   (PartState(PartID,1).GT.GEO%xmaxglob) &
   .OR.(PartState(PartID,3).LT.GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(PartID)
 #ifdef IMPA
-      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(PartID)
-      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(PartID)
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                        ' PartIsImplicit ', PartIsImplicit(PartID)
+      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                   ' PartDtFrac ', PartDtFrac(PartID)
 #endif /*IMPA*/
   IPWRITE(UNIt_stdOut,'(I0,A18,3(X,E27.16))')                  ' LastPartPos    ', LastPartPos(PartID,1:3)
   IPWRITE(UNIt_stdOut,'(I0,A18,3(X,E27.16))')                  ' Velocity       ', PartState(PartID,4:6)

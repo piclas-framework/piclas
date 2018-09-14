@@ -366,7 +366,7 @@ IMPLICIT NONE                                                                   
     PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React2Inx, 1)
     PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React2Inx, 2)
     IF (DSMC%ElectronicModel) THEN
-      PartStateIntEn(NonReacPart2, 3)  = PartStateIntEn(React2Inx, 3)
+      PartStateIntEn(NonReacPart, 3)  = PartStateIntEn(React2Inx, 3)
     END IF
     PEM%Element(NonReacPart)        = PEM%Element(React2Inx)
     PartMPF(NonReacPart)            = PartMPF(React2Inx) - ReacMPF ! MPF of non-reacting particle part = MPF Diff

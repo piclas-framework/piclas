@@ -38,6 +38,19 @@ INTERFACE Ident
   MODULE PROCEDURE Ident
 END INTERFACE
 
+INTERFACE InitRandomSeed
+  MODULE PROCEDURE InitRandomSeed
+END INTERFACE
+
+INTERFACE PortabilityGetPID
+  FUNCTION GetPID_C() BIND (C, name='getpid')
+    !GETPID() is an intrinstic compiler function in gnu. This routine ensures the portability with other compilers. 
+    USE ISO_C_BINDING,         ONLY: PID_T => C_INT
+    IMPLICIT NONE
+    INTEGER(KIND=PID_T)        :: GetPID_C
+  END FUNCTION GetPID_C
+END INTERFACE
+
 PUBLIC::InitParticles,FinalizeParticles
 
 PUBLIC::DefineParametersParticles
@@ -76,8 +89,12 @@ CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PAR
 CALL prms%CreateRealOption(     'Particles-overrelax_factor'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Factors for td200/201'//&
                                                                     ' overrelaxation/subcycling', '1.0')
-CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator', '0')
-CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
+                                                                'Choose nRandomSeeds \n'//&
+                                                                '=-1    Random \n'//&
+                                                                '= 0    Debugging-friendly with hard-coded deterministic numbers\n'//&
+                                                                '> 0    Debugging-friendly with numbers from ini. ', '0')
+CALL prms%CreateIntOption(      'Particles-RandomSeed[$]'     , 'Seed [$] for Random Number Generator', '1', numberedmulti=.TRUE.)
 
 CALL prms%CreateLogicalOption(  'Particles-DoPoissonRounding' , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Flag to perform Poisson sampling'//&
@@ -1031,31 +1048,32 @@ SUBROUTINE InitializeVariables()
 ! Initialize the variables first 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
+USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound,nAdaptiveBC,PartAuxBC
-USE MOD_Particle_Boundary_Vars,ONLY:nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds,GEO
-USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Surfaces_Vars,ONLY:BCdata_auxSF
-USE MOD_DSMC_Vars,             ONLY:useDSMC, DSMC, BGGas
-USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK
-USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
-USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
-USE MOD_PICInit,               ONLY:InitPIC
-USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem,MarkAuxBCElems
-USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
-USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
-USE MOD_TimeDisc_Vars,         ONLY:TEnd
+USE MOD_Particle_Vars
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
+USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
+USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
+USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
+USE MOD_PICInit                ,ONLY: InitPIC
+USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
+USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 #if defined(ROS) || defined (IMPA)
-USE MOD_TimeDisc_Vars,         ONLY: nRKStages
+USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif /*ROS*/
 #ifdef MPI
-USE MOD_Particle_MPI,          ONLY: InitEmissionComm
-USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
+USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1066,13 +1084,12 @@ USE MOD_LoadBalance_Vars,      ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit, iPartBound, iSeed, iCC
-INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
+INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude, nRandomSeeds
 INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
-LOGICAL               :: TrueRandom, PartDens_OnlyInit                                                  !
-INTEGER,ALLOCATABLE   :: iSeeds(:)
+LOGICAL               :: PartDens_OnlyInit
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
@@ -2136,8 +2153,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
   ALLOCATE(PartBound%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nPartBound))
 END IF
 !--
+PartMeshHasPeriodicBCs=.FALSE.
 #if defined(IMPA) || defined(ROS)
-MeshHasReflectiveBCs=.FALSE.
+PartMeshHasReflectiveBCs=.FALSE.
 #endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
@@ -2189,7 +2207,7 @@ __STAMP__&
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
      PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
@@ -2235,13 +2253,14 @@ __STAMP__&
      END IF
   CASE('periodic')
      PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
+     PartMeshHasPeriodicBCs = .TRUE.
   CASE('simple_anode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleAnodeBC
   CASE('simple_cathode')
      PartBound%TargetBoundCond(iPartBound) = PartBound%SimpleCathodeBC
   CASE('symmetric')
 #if defined(IMPA) || defined(ROS)
-     MeshHasReflectiveBCs=.TRUE.
+     PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
@@ -2285,9 +2304,17 @@ ALLOCATE(PartBound%MapToPartBC(1:nBCs))
 PartBound%MapToPartBC(:)=-10
 DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
-    IF (BoundaryType(iBC,1).EQ.0) THEN
+    IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
       SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+    ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
+      IF(DoRefMapping)THEN
+        SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
+                                  ' orientation of SideNormVec is unknown.'
+     CALL abort(&
+__STAMP__&
+,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+      END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
@@ -2363,61 +2390,45 @@ __STAMP__&
 ,'Cant use surfacemodel>0 withoput useDSMC flag!')
 END IF
 
-!--- initialize randomization (= random if one or more seeds are 0 or random is wanted)
-nrSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-IF (nrSeeds.GT.0) THEN
-   ALLOCATE(seeds(1:nrSeeds))
-   DO iSeed = 1, nrSeeds
-      WRITE(UNIT=hilf,FMT='(I0)') iSeed
-      seeds(iSeed) = GETINT('Particles-RandomSeed'//TRIM(hilf),'0')
-   END DO
-END IF
-
-CALL RANDOM_SEED(Size = SeedSize)                       ! Check for number of needed Seeds
-TrueRandom = .FALSE.                             ! FALSE for defined random seed
-
-! to be stored in HDF5-state file!!!
-IF (nrSeeds.GT.0) THEN
-   IF (nrSeeds.NE.SeedSize) THEN
-      IF(printRandomSeeds)THEN
-        IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
-        IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
-      END IF
-      TrueRandom = .TRUE.
-   END IF
-   DO iSeed = 1, nrSeeds
-      IF (Seeds(iSeed).EQ.0) THEN
-         IF(printRandomSeeds)THEN
-           IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
-           IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
-         END IF
-         TrueRandom = .TRUE.
-      END IF
-   END DO
-ELSE
-   TrueRandom = .TRUE.
-END IF
-
-IF (TrueRandom) THEN
-   CALL RANDOM_SEED()
-ELSE
-#ifdef MPI
-   Seeds(1:SeedSize) = Seeds(1:SeedSize)+PartMPI%MyRank
-#endif
-   CALL RANDOM_SEED(PUT = Seeds(1:SeedSize))
-END IF
-
-ALLOCATE(iseeds(SeedSize))
-iseeds(:)=0
-CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
-! to be stored in HDF5-state file!!!
-IF(printRandomSeeds)THEN
-  IPWRITE(UNIT_StdOut,*) 'Random seeds in PIC_init:'
-  DO iSeed = 1,SeedSize
-     IPWRITE(UNIT_StdOut,*) iseeds(iSeed)
+!--- initialize randomization
+nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
+CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
+ALLOCATE(Seeds(SeedSize))
+Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
+IF(nRandomSeeds.EQ.-1) THEN
+  ! ensures different random numbers through irreproducable random seeds (via System_clock)
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE IF(nRandomSeeds.EQ.0) THEN
+ !   IF (Restart) THEN
+ !   CALL !numbers from state file
+ ! ELSE IF (.NOT.Restart) THEN
+CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE IF(nRandomSeeds.GT.0) THEN
+  ! read in numbers from ini
+  IF(nRandomSeeds.GT.SeedSize) THEN
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
+    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  END IF
+  DO iSeed=1,MIN(SeedSize,nRandomSeeds)
+    WRITE(UNIT=hilf,FMT='(I0)') iSeed
+    Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
   END DO
+  IF (ALL(Seeds(:).EQ.0)) THEN
+    CALL ABORT(&
+     __STAMP__&
+     ,'Not all seeds can be set to zero ')
+  END IF
+  CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+ELSE 
+  SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
+  'Choose nRandomSeeds'//&
+  '=-1    pseudo random'//&
+  '= 0    hard-coded deterministic numbers'//&
+  '> 0    numbers from ini. Expected ',SeedSize,'seeds.'
 END IF
-DEALLOCATE(iseeds)
+
+
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
@@ -2825,7 +2836,6 @@ __STAMP__&
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
 
-
 END SUBROUTINE InitializeVariables
 
 
@@ -3091,5 +3101,90 @@ INTEGER :: j
 mat = 0.
 FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
+
+
+
+
+SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
+!===================================================================================================================================
+!> Initialize pseudo random numbers: Create Random_seed array
+!===================================================================================================================================
+! MODULES
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
+#endif
+! IMPLICIT VARIABLE HANDLING
+!===================================================================================================================================
+IMPLICIT NONE
+! VARIABLES
+INTEGER,INTENT(IN)             :: nRandomSeeds
+INTEGER,INTENT(IN)             :: SeedSize
+INTEGER,INTENT(INOUT)          :: Seeds(SeedSize)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER                        :: iSeed,DateTime(8),ProcessID,iStat,OpenFileID,GoodSeeds
+INTEGER(KIND=8)                :: Clock,AuxilaryClock
+LOGICAL                        :: uRandomExists
+!==================================================================================================================================
+
+uRandomExists=.FALSE.
+IF (nRandomSeeds.NE.-1) THEN
+  Clock     = 1536679165842_8
+  ProcessID = 3671
+ELSE
+! First try if the OS provides a random number generator
+  OPEN(NEWUNIT=OpenFileID, FILE="/dev/urandom", ACCESS="stream", &
+       FORM="unformatted", ACTION="read", STATUS="old", IOSTAT=iStat)
+  IF (iStat.EQ.0) THEN
+    READ(OpenFileID) Seeds
+    CLOSE(OpenFileID)
+    uRandomExists=.TRUE.
+  ELSE
+    ! Fallback to XOR:ing the current time and pid. The PID is
+    ! useful in case one launches multiple instances of the same
+    ! program in parallel.
+    CALL SYSTEM_CLOCK(COUNT=Clock)
+    IF (Clock .EQ. 0) THEN
+      CALL DATE_AND_TIME(values=DateTime)
+      Clock =(DateTime(1) - 1970) * 365_8 * 24 * 60 * 60 * 1000 &
+      + DateTime(2) * 31_8 * 24 * 60 * 60 * 1000 &
+      + DateTime(3) * 24_8 * 60 * 60 * 1000 &
+      + DateTime(5) * 60 * 60 * 1000 &
+      + DateTime(6) * 60 * 1000 &
+      + DateTime(7) * 1000 &
+      + DateTime(8)
+    END IF
+    ProcessID = GetPID_C()
+  END IF
+END IF
+IF(.NOT. uRandomExists) THEN
+  Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
+  AuxilaryClock=Clock
+  DO iSeed = 1, SeedSize
+#ifdef MPI
+    IF (nRandomSeeds.EQ.0) THEN
+      AuxilaryClock=AuxilaryClock+PartMPI%MyRank
+    ELSE IF(nRandomSeeds.GT.0) THEN
+      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
+    END IF
+#else
+    IF (nRandomSeeds.GT.0) THEN
+      AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
+    END IF
+#endif
+    IF (AuxilaryClock .EQ. 0) THEN
+      AuxilaryClock = 104729
+    ELSE
+      AuxilaryClock = MOD(AuxilaryClock, 4294967296_8)
+    END IF
+    AuxilaryClock = MOD(AuxilaryClock * 279470273_8, 4294967291_8)
+    GoodSeeds = INT(MOD(AuxilaryClock, INT(HUGE(0),KIND=8)), KIND(0))
+    Seeds(iSeed) = GoodSeeds
+  END DO
+END IF
+CALL RANDOM_SEED(PUT=Seeds)
+
+END SUBROUTINE InitRandomSeed
+
 
 END MODULE MOD_ParticleInit

@@ -150,6 +150,7 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -188,17 +189,22 @@ END IF
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
 IF(CalcPointsPerShapeFunction)THEN
+  ! calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPSCell(1:PP_nElems) )
   PPSCell=0.0
   CALL AddToElemData(ElementOut,'PPSCell',RealArray=PPSCell(1:PP_nElems))
+  ! assume Cartesian grid and calculate to total number including neighbor DOFs
+  ALLOCATE( PPSCellEqui(1:PP_nElems) )
+  PPSCellEqui=0.0
+  CALL AddToElemData(ElementOut,'PPSCellEqui',RealArray=PPSCellEqui(1:PP_nElems))
+  ! 
   VolumeShapeFunction = 4./3.*PI*(r_sf**3)
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('VolumeShapeFunction')   &
-                                                    ,' | ',VolumeShapeFunction   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('VolumeShapeFunction','OUTPUT',RealOpt=VolumeShapeFunction)
   DOF                 = REAL((PP_N+1)**3)
-  SWRITE(UNIT_StdOut,'(a3,a57,a3,E34.14E3,a3,a7,a3)')' | ',TRIM('Max DOFs in Shape-Function per cell')   &
-                                                    ,' | ',DOF   ,' | ',TRIM('OUTPUT'),' | '
+  CALL PrintOption('Max DOFs in Shape-Function per cell','OUTPUT',RealOpt=DOF)
   DO iElem = 1, nElems
-    PPSCell(iElem) = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+    PPSCell(iElem)     = MIN(1.,VolumeShapeFunction/GEO%Volume(iElem)) * DOF
+    PPSCellEqui(iElem) =       (VolumeShapeFunction/GEO%Volume(iElem)) * DOF
   END DO ! iElem = 1, nElems
 END IF
 !--------------------------------------------------------------------------------------------------------------------
@@ -427,7 +433,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #if ( PP_TimeDiscMethod ==42)
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
@@ -463,9 +468,7 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: iCov
 INTEGER             :: ii, iunit, iCase, iTvib,jSpec
-INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies) 
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 CHARACTER(LEN=350)  :: hilf
 REAL                :: NumSpecTmp(nSpecAnalyze)
@@ -2980,7 +2983,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,iElem,nElectronsPerCell(1:PP_nElems),ElemID,Method
+INTEGER :: iPart,iElem,ElemID,Method
+REAL    :: nElectronsPerCell(1:PP_nElems)
 REAL    ::  PartVandV2(1:PP_nElems,1:6)
 REAL    :: Mean_PartV2(1:3)
 REAL    :: MeanPartV_2(1:3)
@@ -2988,7 +2992,7 @@ REAL    ::   TempDirec(1:3)
 !===================================================================================================================================
 ! nullify
 ElectronTemperatureCell=0.
-nElectronsPerCell      =0
+nElectronsPerCell      =0.
 
 ! hard-coded
 Method=1 ! 0: <E> = (3/2)*<k_B*T> (keeps drift velocity, hence, over-estimates the temperature when drift becomes important)
@@ -3025,13 +3029,14 @@ END DO ! iPart
 SELECT CASE(Method)
 CASE(0) ! 2.0   for distributions where the drift is negligible
   DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).EQ.0) CYCLE
-    ! <E> = (3/2)*<k_B*T>
-    ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*REAL(nElectronsPerCell(iElem))*BoltzmannConst)
+    IF(nElectronsPerCell(iElem).GT.0.) THEN
+      ! <E> = (3/2)*<k_B*T>
+      ElectronTemperatureCell(iElem)  = 2.*ElectronTemperatureCell(iElem)/(3.*nElectronsPerCell(iElem)*BoltzmannConst)
+    END IF
   END DO ! iElem=1,PP_nElems
 CASE(1) ! 2.1   remove drift from distribution
   DO iElem=1,PP_nElems
-    IF(nElectronsPerCell(iElem).LT.2) THEN ! only calculate the temperature when more than one electron are present
+    IF(nElectronsPerCell(iElem).LT.2.) THEN ! only calculate the temperature when more than one electron are present
       ElectronTemperatureCell(iElem) = 0.0
     ELSE
       ! Compute velocity averages
@@ -3145,7 +3150,6 @@ DO iElem=1,PP_nElems
   IF(QuasiNeutralityCell(iElem).LE.0.0) CYCLE ! ignore cells in which quasi neutrality is not possible
   DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
                                  (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
-                             WRITE (*,*) "DebyeLengthCell(iElem) =", DebyeLengthCell(iElem),ElectronTemperatureCell(iElem)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateDebyeLengthCell
@@ -3189,7 +3193,6 @@ SUBROUTINE CalculateIonizationCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
-USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,usevMPF,PartMPF,PEM
 USE MOD_Preproc                ,ONLY:PP_nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

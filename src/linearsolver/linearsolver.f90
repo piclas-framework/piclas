@@ -1222,7 +1222,9 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     tPrecond=tPrecond+tend-tStart
     CALL CPU_TIME(tStart)
 #endif /* IMPLICIT_ANALYZE */
-    CALL MatrixVector(t,coeff,V,V) ! or V,Vt and V=Vt
+    CALL MatrixVector(t,coeff,V,Vt) ! or V,Vt and V=Vt
+    ! copy Vt to V in order to remove warnings
+    V=Vt
     ! left preconditioner
 #ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)
@@ -1256,7 +1258,9 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
     tPrecond=tPrecond+tend-tStart
     CALL CPU_TIME(tStart)
 #endif /* IMPLICIT_ANALYZE */
-    CALL MatrixVector(t,coeff,Tvec,TVec) ! or Tvec,Tvect;  Tvec=TvecT
+    CALL MatrixVector(t,coeff,Tvec,TVect) ! or Tvec,Tvect;  Tvec=TvecT
+    ! copy Tvect to Tvec in order to remove warnings
+    Tvec=TVect
     ! left preconditioner
 #ifdef IMPLICIT_ANALYZE
     CALL CPU_TIME(tend)

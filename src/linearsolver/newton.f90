@@ -233,16 +233,17 @@ REAL,INTENT(INOUT)         :: coeff
 REAL                       :: Norm_R0,Norm_R,Norm_Rold, Delta_Norm_R0,Delta_Norm_Rel0!, Norm_Diff,Norm_Diff_old
 REAL                       :: Delta_Norm_R, Delta_Norm_Rel
 REAL                       :: etaA,etaB,etaC,etaMax,taut
-INTEGER                    :: nFullNewtonIter,Mode
+INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
+INTEGER                    :: Mode
 INTEGER                    :: iPart,iCounter
-REAL                       :: tmpFac, relToleranceOld
+REAL                       :: tmpFac, relToleranceOld, relTolerancePart
 INTEGER                    :: AdaptIterRelaxation
 #if USE_LOADBALANCE
 REAL                       :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
-REAL                       :: relTolerance,relTolerancePart,Criterion
+REAL                       :: relTolerance,Criterion
 LOGICAL                    :: IsConverged
 #ifdef PP_HDG
 INTEGER(KIND=8)            :: iter=0

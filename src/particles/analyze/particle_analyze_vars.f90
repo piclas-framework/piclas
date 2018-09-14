@@ -55,7 +55,11 @@ LOGICAL                       :: CalcIonizationDegree                !< Flag to 
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
-REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value)
+REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
+                                                                     !<   calculate cell local number excluding neighbor DOFs
+REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
+                                                                     !<   assume Cartesian grid and calculate to total number 
+                                                                     !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
 REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Approximated PIC Time Step (mean cell value)
