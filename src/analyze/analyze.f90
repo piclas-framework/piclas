@@ -286,8 +286,6 @@ INTEGER                       :: PartSource_nVar
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
-L_Inf_Error2(:)=-1.E10
-L_2_Error2(:)=0.
 #ifdef PARTICLES
 IF (DoDeposition .AND. RelaxDeposition) THEN
 #if (defined (PP_HDG) && (PP_nVar==1))
