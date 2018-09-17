@@ -243,7 +243,7 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE CalcError(time,L_2_Error)
+SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -265,16 +265,16 @@ REAL,INTENT(IN)               :: time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
+REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(PP_nVar),U_exact(PP_nVar)
+REAL                          :: U_exact(PP_nVar)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: IntegrationWeight
-CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -317,12 +317,6 @@ END DO ! iElem=1,PP_nElems
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 
-! Graphical output
-IF(MPIroot) THEN
-  WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
-  WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
-  WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
-END IF
 END SUBROUTINE CalcError
 
 SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
@@ -524,11 +518,13 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
+REAL                          :: L_Inf_Error(PP_nVar)
 REAL                          :: CalcTime
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
+CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -555,7 +551,7 @@ END IF
 IF(forceAnalyze.OR.Output)THEN
   IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
-    CALL CalcError(OutputTime,L_2_Error)
+    CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
   END IF
 END IF
@@ -819,8 +815,8 @@ IF(OutPut)THEN
 #endif
 END IF
 
-! meassure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
-! allows non-synchronous meassurement of particle tracking
+! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
+! Allows non-synchronous measurement of particle tracking
 IF(OutPut .AND. MeasureTrackTime)THEN
 #ifdef MPI
   IF(MPIRoot) THEN
@@ -879,11 +875,22 @@ IF (DoAnalyze)  THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
+! Time for analysis
 EndAnalyzeTime=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
 
-! Output Info
+!----------------------------------------------------------------------------------------------------------------------------------
+! Output info
+!----------------------------------------------------------------------------------------------------------------------------------
 IF(forceAnalyze.OR.Output)THEN
+  IF(DoCalcErrorNorms) THEN
+    ! Graphical output
+    IF(MPIroot) THEN
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
+    END IF
+  END IF
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
