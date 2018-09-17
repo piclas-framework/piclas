@@ -161,7 +161,7 @@ CALL CPU_TIME(StartT)
 #endif
 
 ! set local variables for output and previous times
-IF(OutputTimeFixed.GT.0.0)THEN
+IF(OutputTimeFixed.GE.0.0)THEN
   SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
   OutputTime_loc   = OutputTimeFixed
   PreviousTime_loc = OutputTimeFixed
