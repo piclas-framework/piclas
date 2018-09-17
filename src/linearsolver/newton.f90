@@ -70,6 +70,7 @@ REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
+LOGICAL                    :: warning_linear
 #ifdef MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*MPI*/
@@ -118,11 +119,16 @@ DO iElem=1,PP_nElems
   END DO ! k=0,PP_N
 END DO ! iElem=1,PP_nElems
 #else /*HDG*/
+warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
   END DO; END DO; END DO !i,j,k    
-END DO !iElem 
+END DO !iElem
+IF (warning_linear) THEN
+  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+END IF
 DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
