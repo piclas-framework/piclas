@@ -530,10 +530,9 @@ CHARACTER(LEN=40)             :: formatStr
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
-! not for first iteration (when analysis is called within RK steps)
+! Not for first iteration (when analysis is called within RK steps)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
-!IF(iter.EQ.0) RETURN
 #endif
 StartAnalyzeTime=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
@@ -563,20 +562,20 @@ IF (CalcPoyntingInt) THEN
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
+    ! Initial analysis is only performed for NO restart
     CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
   ELSE
-     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+     ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
 #if defined(LSERK)
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
       IF(iter.GT.1)THEN
-        ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+        ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
         ! is triggered with prolong-to-face, which would else be missing    
         IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
         IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)  CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
       END IF
     ELSE
-      ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+      ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
       ! is triggered with prolong-to-face, which would else be missing    
       IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
       IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
@@ -622,18 +621,18 @@ END IF
 #endif
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! PIC & DG-Sovler
+! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
 #ifdef PARTICLES 
-  ! particle analyze
+  ! Particle analyze
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
+    ! Initial analysis is only performed for NO restart
     CALL AnalyzeParticles(OutputTime)
     CALL AnalyzeSurface(OutputTime)
   ELSE
-    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+    ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
 #if defined(IMPA) || defined(ROS)
       IF(iter.GE.1)THEN
 #else
