@@ -519,7 +519,6 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
-REAL                          :: CalcTime
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/

@@ -1829,15 +1829,15 @@ IF(PRESENT(RealOpt))THEN
   Counter=Counter+1
 END IF
 IF(PRESENT(IntOpt))THEN
-  fmtValue='I'//fmtValue
+  fmtValue='I'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 IF(PRESENT(LogOpt))THEN
-  fmtValue='L'//fmtValue
+  fmtValue='L'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 IF(PRESENT(StrOpt))THEN
-  fmtValue='A'//fmtValue
+  fmtValue='A'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 
