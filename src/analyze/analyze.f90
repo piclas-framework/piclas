@@ -528,6 +528,7 @@ REAL                          :: CalcTime
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -538,6 +539,8 @@ CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 !IF(iter.EQ.0) RETURN
 #endif
+StartAnalyzeTime=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
 
 LastIter=.FALSE.
 IF(PRESENT(LastIter_in))THEN
@@ -550,22 +553,10 @@ END IF
 
 ! Calculate error norms
 IF(forceAnalyze.OR.Output)THEN
-    CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error)
-    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,CalcTime,L_2_Error)
-  END IF
-  IF(MPIroot) THEN
-    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
-    IF (OutputTime.GT.0.) THEN
-      WRITE(UNIT_StdOut,'(132("."))')
-      WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
-      WRITE(UNIT_StdOut,'(132("-"))')
-    ELSE
-      WRITE(UNIT_StdOut,'(132("="))')
-    END IF
+    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
   END IF
 END IF
 
@@ -887,6 +878,24 @@ IF (DoAnalyze)  THEN
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
+
+EndAnalyzeTime=BOLTZPLATZTIME()
+SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
+
+! Output Info
+IF(forceAnalyze.OR.Output)THEN
+  IF(MPIroot) THEN
+    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
+    IF (OutputTime.GT.0.) THEN
+      WRITE(UNIT_StdOut,'(132("."))')
+      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
+      WRITE(UNIT_StdOut,'(132("-"))')
+    ELSE
+      WRITE(UNIT_StdOut,'(132("="))')
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE PerformAnalyze
 

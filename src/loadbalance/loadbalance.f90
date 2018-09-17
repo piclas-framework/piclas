@@ -401,7 +401,7 @@ END IF
 ! Measure init duration
 LB_Time=BOLTZPLATZTIME()
 InitializationWallTime=LB_Time-LB_StartTime
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
@@ -455,7 +455,7 @@ ELSE
   IF(ABS(TargetWeight).EQ.0.)THEN
     CurrentImbalance = 0.
   ELSE IF(ABS(TargetWeight).LT.0.0)THEN
-    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A1)')&
         ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
     CurrentImbalance = HUGE(1.0)
   ELSE

@@ -284,7 +284,7 @@ END IF
 IF(DoDisplayIter)THEN
   IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
     time=BOLTZPLATZTIME()
-    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
     SWRITE(UNIT_stdOut,'(132("-"))')
   END IF
 END IF
