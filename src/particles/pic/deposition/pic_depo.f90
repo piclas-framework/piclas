@@ -3298,10 +3298,10 @@ LOGICAL, INTENT(IN), OPTIONAL    :: const_opt
 #if (defined (PP_HDG) && (PP_nVar==1))
 !yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
 INTEGER, PARAMETER               :: SourceSize=1
-REAL                             :: Fac(1:1), Fac2(1:1)
+REAL                             :: Fac(4:4), Fac2(4:4)
 #else
 INTEGER                          :: SourceSize
-REAL                             :: Fac(1:SourceSize_in), Fac2(1:SourceSize_in)
+REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
 #endif
 INTEGER                          :: iCase, ind
 REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
@@ -3483,9 +3483,9 @@ IMPLICIT NONE
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
 #if (defined (PP_HDG) && (PP_nVar==1))
-REAL, INTENT(IN)                 :: Fac(1:1)
+REAL, INTENT(IN)                 :: Fac(4:4)
 #else
-REAL, INTENT(IN)                 :: Fac(1:SourceSize)
+REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 #endif
 LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3547,7 +3547,7 @@ DO kk = kmin,kmax
               END DO
               IF (const) THEN
                 IF (SourceSize.EQ.1) THEN
-                  PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
+                  PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
@@ -3555,7 +3555,7 @@ DO kk = kmin,kmax
                 END IF
               ELSE !.NOT.const
                 IF (SourceSize.EQ.1) THEN
-                  PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+                  PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
@@ -3594,9 +3594,9 @@ IMPLICIT NONE
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
 #if (defined (PP_HDG) && (PP_nVar==1))
-REAL, INTENT(IN)                 :: Fac(1:1)
+REAL, INTENT(IN)                 :: Fac(4:4)
 #else
-REAL, INTENT(IN)                 :: Fac(1:SourceSize)
+REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
 #endif
 LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3641,7 +3641,7 @@ DO ElemID=1,PP_nElems
     END DO
     IF (const) THEN
       IF (SourceSize.EQ.1) THEN
-        PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(1) * S1
+        PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
@@ -3649,7 +3649,7 @@ DO ElemID=1,PP_nElems
       END IF
     ELSE !.NOT.const
       IF (SourceSize.EQ.1) THEN
-        PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(1) * S1
+        PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
 #if !(defined (PP_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
