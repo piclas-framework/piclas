@@ -2074,7 +2074,7 @@ DO iSpec = 1, nSpecies
   IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
   IF(IsIMDSpecies)THEN
     IMDSpeciesID(iIMDSpec)=iSpec
-    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     iIMDSpec=iIMDSpec+1
   END IF
 END DO

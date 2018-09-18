@@ -646,7 +646,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -667,7 +667,7 @@ REAL(KIND=8)                    :: SumOne    ! both summs
 
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
-JToEv = 1.602176565E-19
+JToEv = ElementaryCharge
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0

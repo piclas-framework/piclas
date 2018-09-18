@@ -17,8 +17,12 @@ INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
+INTERFACE CalculateBRElectronDensityCell
+  MODULE PROCEDURE CalculateBRElectronDensityCell
+END INTERFACE
 
-PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge 
+
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronDensityCell
 !===================================================================================================================================
 
 CONTAINS
@@ -189,6 +193,56 @@ IF (PartMPI%MPIRoot) THEN
 END IF
 
 END SUBROUTINE CalcDepositedCharge
+
+SUBROUTINE CalculateBRElectronDensityCell(iElem,ElectronDensityCell) 
+!===================================================================================================================================
+! calcs average number density of BR in electrons per cell
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,            ONLY:nElems, sJ
+USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
+#if defined(IMPA)
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
+#else
+USE MOD_PICDepo_Vars,         ONLY:PartSource
+#endif
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL              :: ElectronDensityCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: i,j,k
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: ChargeLoc
+!===================================================================================================================================
+ElectronDensityCell=0.
+DO iElem=1,nElems
+  !--- Calculate and save volume of element iElem
+  ChargeLoc=0. 
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if defined(IMPA)
+    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+#else
+    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+#endif
+  END DO; END DO; END DO
+  ElectronDensityCell = ElectronDensityCell + ChargeLoc
+END DO
+
+END SUBROUTINE CalculateBRElectronDensityCell
 
 
 END MODULE MOD_PIC_Analyze

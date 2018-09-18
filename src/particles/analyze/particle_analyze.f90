@@ -2874,6 +2874,7 @@ PURE FUNCTION PARTISELECTRON(PartID)
 ! check if particle is an electron (species-charge = -1.609)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2891,7 +2892,7 @@ INTEGER            :: SpeciesID
 PartIsElectron=.FALSE.
 SpeciesID = PartSpecies(PartID)
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-1.60217653E-19)).EQ.1) PartIsElectron=.TRUE.
+IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PartIsElectron=.TRUE.
 
 END FUNCTION PARTISELECTRON
 
@@ -2903,6 +2904,7 @@ SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Preproc                ,ONLY:PP_nElems
@@ -2928,7 +2930,7 @@ ElectronDensityCell=0.
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
-    charge = Species(PartSpecies(iPart))%ChargeIC/1.60217653E-19
+    charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
     ElemID = PEM%Element(iPart)
     IF(PARTISELECTRON(iPart))THEN ! electrons
       IF(usevMPF) THEN
@@ -2955,7 +2957,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF ! ParticleInside
 END DO ! iPart
 
-! loop over all elements and divide by volume 
+! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/GEO%Volume(iElem)
        IonDensityCell(iElem)=IonDensityCell(iElem)     /GEO%Volume(iElem)
@@ -3065,7 +3067,7 @@ SUBROUTINE CalculatePlasmaFrequencyCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,PlasmaFrequencyCell
-USE MOD_Globals_Vars           ,ONLY:ElectronCharge,ElectronMass
+USE MOD_Globals_Vars           ,ONLY:ElementaryCharge,ElectronMass
 USE MOD_Equation_Vars          ,ONLY:Eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3083,7 +3085,7 @@ PlasmaFrequencyCell=0.
 
 ! loop over all elements and compute the plasma frequency with the use of the electron density
 DO iElem=1,PP_nElems
-  PlasmaFrequencyCell(iElem) = SQRT((ElectronDensityCell(iElem)*ElectronCharge*ElectronCharge)/(ElectronMass*Eps0))
+  PlasmaFrequencyCell(iElem) = SQRT((ElectronDensityCell(iElem)*ElementaryCharge*ElementaryCharge)/(ElectronMass*Eps0))
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
@@ -3128,7 +3130,7 @@ SUBROUTINE CalculateDebyeLengthCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc                ,ONLY:PP_nElems
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
-USE MOD_Globals_Vars           ,ONLY:ElectronCharge, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
 USE MOD_Equation_Vars          ,ONLY:Eps0
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3149,7 +3151,7 @@ DO iElem=1,PP_nElems
   IF(ElectronDensityCell(iElem).LE.0.0) CYCLE ! ignore cells in which no electrons are present
   IF(QuasiNeutralityCell(iElem).LE.0.0) CYCLE ! ignore cells in which quasi neutrality is not possible
   DebyeLengthCell(iElem) = SQRT( (eps0*BoltzmannConst*ElectronTemperatureCell(iElem))/&
-                                 (ElectronDensityCell(iElem)*(ElectronCharge**2))       )
+                                 (ElectronDensityCell(iElem)*(ElementaryCharge**2))       )
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateDebyeLengthCell

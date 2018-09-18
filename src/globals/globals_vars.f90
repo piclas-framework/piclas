@@ -24,7 +24,8 @@ REAL                         :: sPI                                   !> inverse
 REAL                         :: epsMach,TwoepsMach                    !> TODO-DEFINE-PARAMETER
 REAL,PARAMETER               :: EuMas          = 0.577215664901533_8  !> Euler-Mascheroni constant
 REAL,PARAMETER               :: PlanckConst    = 6.62606957E-34       !> Planck constant [J s] SI-Unit!
-REAL,PARAMETER               :: ElectronCharge = 1.60217653e-19       !> charge of an electron
+REAL,PARAMETER               :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019, 
+                                                                      !> => negative charge of an electron, joule to eV, ...
 REAL,PARAMETER               :: ElectronMass   = 9.1093826E-31        !> mass of an electron
 REAL,PARAMETER               :: FileVersion    = 0.11                 !> FileVersion number saved in each hdf5 file with hdf5 header
 CHARACTER(LEN=255),PARAMETER :: ProgramName    = 'Boltzplatz'         !> name of this program

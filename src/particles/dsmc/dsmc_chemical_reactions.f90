@@ -347,7 +347,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
@@ -381,7 +381,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 !===================================================================================================================================
 
-  JToEv = 1.602176565E-19
+  JToEv = ElementaryCharge
   Xi_elec = 0.
   Telec = 0.
   EZeroTempToExec = 0.

@@ -22,7 +22,7 @@ SUBROUTINE XSec_Argon_DravinLotz(SpecToExec, iPair)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, SpecDSMC
   USE MOD_Equation_Vars,          ONLY : eps0
-  USE MOD_Globals_Vars,           ONLY : Pi
+  USE MOD_Globals_Vars,           ONLY : Pi, ElementaryCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -36,9 +36,9 @@ REAL                          :: JToEv, BohrRad, ElemCharge, Rydberg
 !===================================================================================================================================
 
 ! local constants
-JToEv = 1.602176565E-19 
+JToEv = ElementaryCharge
 BohrRad = 0.5291772109E-10
-ElemCharge = 1.602176565E-19
+ElemCharge = ElementaryCharge
 Rydberg = 13.60569253*JToEv
 
 !.... Elastic scattering cross section

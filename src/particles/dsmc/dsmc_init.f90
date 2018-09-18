@@ -377,7 +377,7 @@ SUBROUTINE InitDSMC()
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
 USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
-USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst
+USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
@@ -411,7 +411,7 @@ IMPLICIT NONE
   INTEGER               :: ii
 #endif
 !===================================================================================================================================
-  JToEv = 1.602176565E-19  
+  JToEv = ElementaryCharge
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
   
