@@ -1083,7 +1083,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PEM, usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb
@@ -1107,11 +1107,12 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3
 INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
 INTEGER                       :: nPartNode, PairForRec, nPair
-REAL, PARAMETER               :: JToEv = 1.602176565E-19
+REAL                          :: JToEv
 REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
 !===================================================================================================================================
+  JToEv=ElementaryCharge
 
   IF (ChemReac%NumOfReact.EQ.0) THEN
     CaseOfReaction = 0

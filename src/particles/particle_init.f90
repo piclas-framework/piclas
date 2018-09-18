@@ -130,10 +130,10 @@ CALL prms%CreateIntOption(      'NbrOfRegions'                , 'TODO-DEFINE-PAR
 CALL prms%CreateRealArrayOption('RegionBounds[$]'                , 'TODO-DEFINE-PARAMETER\nRegionBounds ((xmin,xmax,ymin,...)'//&
                                                                 '|1:NbrOfRegions)'&
                                                                 , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'RegionElectronRef'//&
-                                                                '((rho0,phi0,Te[eV])|1:NbrOfRegions)'&
+CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
                                                               , '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
+                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
@@ -1101,7 +1101,7 @@ INTEGER               :: dummy_int
 INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
-REAL                  :: particlenumber_tmp
+REAL                  :: particlenumber_tmp, phimax_tmp
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -2074,7 +2074,7 @@ DO iSpec = 1, nSpecies
   IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
   IF(IsIMDSpecies)THEN
     IMDSpeciesID(iIMDSpec)=iSpec
-    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     iIMDSpec=iIMDSpec+1
   END IF
 END DO
@@ -2720,7 +2720,16 @@ IF (NbrOfRegions .GT. 0) THEN
   ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
+    ! 1:3 - rho_ref, phi_ref, and Te[eV]
     RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
+    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
+    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
+    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
+      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
+        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
+      RegionElectronRef(2,iRegions) = phimax_tmp
+      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
+    END IF
   END DO
 END IF
 

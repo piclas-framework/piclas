@@ -34,7 +34,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,           ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
   USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
@@ -51,7 +51,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
   REAL                           :: JToEv
 !===================================================================================================================================
 
-  JToEv = 1.602176565E-19
+  JToEv = ElementaryCharge
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec','.TRUE.')

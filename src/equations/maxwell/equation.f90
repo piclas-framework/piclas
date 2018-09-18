@@ -133,7 +133,7 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElectronCharge
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
@@ -384,10 +384,10 @@ DO iRefState=1,nTmp
       IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
-        CALL PrintOption('calculated from I_0: Beam_a0','CALCUL.',RealOpt=E_0*ElectronCharge/(c*ElectronMass*BeamOmega))
+        CALL PrintOption('calculated from I_0: Beam_a0','CALCUL.',RealOpt=E_0*ElementaryCharge/(c*ElectronMass*BeamOmega))
         CALL PrintOption('calculated from I_0:     E_0','CALCUL.',RealOpt=E_0)
       ELSE ! use Beam_a0 for defining the amplitude
-        E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElectronCharge
+        E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElementaryCharge
         CALL PrintOption('calculated from Beam_a0: I_0','CALCUL.',RealOpt=E_0**2/(2*BeamEta))
         CALL PrintOption('calculated from Beam_a0: E_0','CALCUL.',RealOpt=E_0)
       END IF

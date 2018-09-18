@@ -22,6 +22,9 @@ END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
 END INTERFACE
+INTERFACE CalcSourceHDG
+  MODULE PROCEDURE CalcSourceHDG
+END INTERFACE
 INTERFACE DivCleaningDamping
   MODULE PROCEDURE DivCleaningDamping
 END INTERFACE
@@ -501,7 +504,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
+SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -534,12 +537,13 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-REAL                            :: x(3)    
-REAL,INTENT(IN),OPTIONAL     :: Phi     
+LOGICAL,INTENT(INOUT),OPTIONAL  :: warning_linear
+REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                             :: r1,r2, source_e
-REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
+REAL                            :: x(3)
+REAL                            :: r1,r2, source_e
+REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: RegionID
 !===================================================================================================================================
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
@@ -578,6 +582,7 @@ IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
       ELSE
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+        warning_linear = .TRUE.
       END IF
       !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
