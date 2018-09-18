@@ -3010,7 +3010,7 @@ IF (NbrOfRegions .GT. 0) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
     RegionID=GEO%ElemToRegion(iElem)
     IF (RegionID.GT.0) THEN
-      ElectronTemperatureCell(ElemID) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
+      ElectronTemperatureCell(iElem) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
     END IF
   END DO ! iElem=1,PP_nElems
   RETURN ! Mixed BR and kinetic electrons are not implemented yet!
