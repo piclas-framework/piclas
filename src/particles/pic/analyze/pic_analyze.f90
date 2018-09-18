@@ -17,12 +17,12 @@ INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
-INTERFACE CalculateBRElectronDensityCell
-  MODULE PROCEDURE CalculateBRElectronDensityCell
+INTERFACE CalculateBRElectronsPerCell
+  MODULE PROCEDURE CalculateBRElectronsPerCell
 END INTERFACE
 
 
-PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronDensityCell
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
 !===================================================================================================================================
 
 CONTAINS
@@ -194,55 +194,55 @@ END IF
 
 END SUBROUTINE CalcDepositedCharge
 
-SUBROUTINE CalculateBRElectronDensityCell(iElem,ElectronDensityCell) 
+SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell) 
 !===================================================================================================================================
-! calcs average number density of BR in electrons per cell
+! calcs integrated (physical) number of BR electrons in cell
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY:ElementaryCharge
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nElems, sJ
-USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
+USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
-#if defined(IMPA)
-USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
-#else
-USE MOD_PICDepo_Vars,         ONLY:PartSource
-#endif
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-#endif /*MPI*/
+USE MOD_Particle_Mesh_Vars,   ONLY:GEO
+USE MOD_Particle_Vars,        ONLY:RegionElectronRef
+USE MOD_DG_Vars,              ONLY:U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER           :: iElem
+INTEGER,INTENT(IN):: iElem, RegionID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL              :: ElectronDensityCell
+REAL,INTENT(OUT)  :: ElectronDensityCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: ChargeLoc
+REAL              :: source_e
 !===================================================================================================================================
 ElectronDensityCell=0.
-DO iElem=1,nElems
-  !--- Calculate and save volume of element iElem
-  ChargeLoc=0. 
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if defined(IMPA)
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+  source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+  CALL abort(&
+__STAMP__&
+,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
 #endif
-  END DO; END DO; END DO
-  ElectronDensityCell = ElectronDensityCell + ChargeLoc
-END DO
+  IF (source_e .LT. 0.) THEN
+    source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+    * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+  ELSE
+    source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+    * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+  END IF
+  ElectronDensityCell = ElectronDensityCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
+END DO; END DO; END DO
+ElectronDensityCell=ElectronDensityCell/ElementaryCharge
 
-END SUBROUTINE CalculateBRElectronDensityCell
+END SUBROUTINE CalculateBRElectronsPerCell
 
 
 END MODULE MOD_PIC_Analyze

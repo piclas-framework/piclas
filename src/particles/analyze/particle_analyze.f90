@@ -2903,11 +2903,13 @@ SUBROUTINE CalculateElectronIonDensityCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO,NbrOfRegions
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars          ,ONLY:Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_PIC_Analyze            ,ONLY:CalculateBRElectronsPerCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2916,7 +2918,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,ElemID
+INTEGER              :: iPart,iElem,ElemID,RegionID
 REAL                 :: charge
 !===================================================================================================================================
 
@@ -2956,6 +2958,17 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
   END IF ! ParticleInside
 END DO ! iPart
+IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
+  DO iElem=1,PP_nElems
+    RegionID=GEO%ElemToRegion(iElem)
+    IF (RegionID.GT.0) THEN
+      IF (ElectronDensityCell(iElem).NE.0.) CALL abort(&
+__STAMP__&
+,'Mixed BR and kinetic electrons are not implemented in CalculateElectronIonDensityCell yet!')
+      CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell(iElem))
+    END IF
+  END DO ! iElem=1,PP_nElems
+END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
@@ -2973,10 +2986,11 @@ SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,ElementaryCharge
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,NbrOfRegions
 USE MOD_Preproc               ,ONLY: PP_nElems
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartMPF,PartState
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartMPF,PartState,RegionElectronRef
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2985,13 +2999,23 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,iElem,ElemID,Method
+INTEGER :: iPart,iElem,ElemID,Method,RegionID
 REAL    :: nElectronsPerCell(1:PP_nElems)
 REAL    ::  PartVandV2(1:PP_nElems,1:6)
 REAL    :: Mean_PartV2(1:3)
 REAL    :: MeanPartV_2(1:3)
 REAL    ::   TempDirec(1:3)
 !===================================================================================================================================
+IF (NbrOfRegions .GT. 0) THEN ! check for BR electrons
+  DO iElem=1,PP_nElems
+    RegionID=GEO%ElemToRegion(iElem)
+    IF (RegionID.GT.0) THEN
+      ElectronTemperatureCell(ElemID) = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
+    END IF
+  END DO ! iElem=1,PP_nElems
+  RETURN ! Mixed BR and kinetic electrons are not implemented yet!
+END IF
+
 ! nullify
 ElectronTemperatureCell=0.
 nElectronsPerCell      =0.
