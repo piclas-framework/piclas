@@ -22,10 +22,6 @@ INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
 END INTERFACE
 
-INTERFACE CalcKineticEnergy
-  MODULE PROCEDURE CalcKineticEnergy
-END INTERFACE
-
 INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
@@ -47,7 +43,7 @@ INTERFACE CalculatePartElemData
 END INTERFACE
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: CalcKineticEnergy, CalcEkinPart, AnalyzeParticles, PartIsElectron
+PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 #if (PP_TimeDiscMethod==42)
@@ -792,7 +788,13 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
-  IF(CalcEkin) CALL CalcKineticEnergy(Ekin,EkinMax)
+  IF(CalcEkin)THEN
+    IF(CalcLaserInteraction)THEN
+      CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
+    ELSE
+      CALL CalcKineticEnergy(Ekin)
+    END IF
+  END IF
   IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
@@ -1358,7 +1360,125 @@ PartEkinOut=0.
 END SUBROUTINE CalcParticleBalance
 
 
-SUBROUTINE CalcKineticEnergy(Ekin,EkinMax)
+SUBROUTINE CalcKineticEnergy(Ekin)
+!===================================================================================================================================
+! compute the kinetic energy of particles
+! for velocity <1e3 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
+USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
+USE MOD_PARTICLE_Vars         ,ONLY: PartMPF, usevMPF
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+#ifndef PP_HDG
+USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
+#endif /*PP_HDG*/ 
+#ifdef MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: i
+REAL(KIND=8)                    :: partV2, GammaFac
+REAL                            :: Ekin_loc
+!===================================================================================================================================
+Ekin    = 0.!d0
+IF (nSpecAnalyze.GT.1) THEN
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+#ifndef PP_HDG
+      IF(DoPML)THEN
+        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+          CYCLE
+        END IF
+      ENDIF
+#endif /*PP_HDG*/ 
+      partV2 = PartState(i,4) * PartState(i,4) &
+              + PartState(i,5) * PartState(i,5) &
+              + PartState(i,6) * PartState(i,6)
+      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+        Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
+        IF(usevMPF) THEN
+          Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * PartMPF(i)
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * PartMPF(i)
+        ELSE
+          Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+        END IF != usevMPF
+      ELSE ! partV2 > 1e6
+        GammaFac = partV2*c2_inv
+        GammaFac = 1./SQRT(1.-GammaFac)
+        Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
+        IF(usevMPF) THEN
+          Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * PartMPF(i)
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * PartMPF(i)
+        ELSE
+          Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+        END IF !=usevMPF
+      END IF ! partV2
+    END IF ! (PDM%ParticleInside(i))
+  END DO ! i=1,PDM%ParticleVecLength
+ELSE ! nSpecAnalyze = 1 : only 1 species
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+#ifndef PP_HDG
+      IF(DoPML)THEN
+        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN
+          CYCLE
+        END IF
+      ENDIF
+#endif /*PP_HDG*/ 
+      partV2 = PartState(i,4) * PartState(i,4) &
+             + PartState(i,5) * PartState(i,5) &
+             + PartState(i,6) * PartState(i,6)
+      IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000000
+        Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
+        IF(usevMPF) THEN
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * PartMPF(i)
+        ELSE
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+        END IF ! usevMPF
+      ELSE ! partV2 > 1e6
+        GammaFac = partV2*c2_inv
+        GammaFac = 1./SQRT(1.-GammaFac)
+        Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
+        IF(usevMPF)THEN
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * PartMPF(i)
+        ELSE
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor
+        END IF ! useuvMPF
+
+      END IF ! par2
+    END IF ! particle inside
+  END DO ! particleveclength
+END IF
+
+#ifdef MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+ELSE
+  CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+END IF
+#endif /*MPI*/
+
+END SUBROUTINE CalcKineticEnergy
+
+
+SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 !===================================================================================================================================
 ! compute the kinetic energy of particles
 ! for velocity <1e3 non-relativistic formula is used, for larger velocities the relativistic kinetic energy is computed
@@ -1386,12 +1506,16 @@ REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i
-REAL(KIND=8)              :: partV2, GammaFac, Ekin_loc
+INTEGER                         :: i
+REAL(KIND=8)                    :: partV2, GammaFac
+REAL                            :: EkinMax_zPos,EkinMax_radius,Ekin_loc
 !===================================================================================================================================
 
 Ekin    = 0.!d0
-EkinMax = -1.
+EkinMax = -1.        
+! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
+EkinMax_radius = 6.0e-6
+EkinMax_zPos   = 13.0e-6
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
@@ -1429,7 +1553,9 @@ IF (nSpecAnalyze.GT.1) THEN
         END IF !=usevMPF
       END IF ! partV2
       ! Determine energy of the most energetic particle in [eV]
-      EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+        EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
+      END IF
     END IF ! (PDM%ParticleInside(i))
   END DO ! i=1,PDM%ParticleVecLength
 ELSE ! nSpecAnalyze = 1 : only 1 species
@@ -1466,7 +1592,9 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 
       END IF ! par2
       ! Determine energy of the most energetic particle in [eV]
-      EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+        EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
+      END IF
     END IF ! particle inside
   END DO ! particleveclength
 END IF
@@ -1481,7 +1609,7 @@ ELSE
 END IF
 #endif /*MPI*/
 
-END SUBROUTINE CalcKineticEnergy
+END SUBROUTINE CalcKineticEnergyAndMaximum
 
 
 
