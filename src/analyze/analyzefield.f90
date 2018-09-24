@@ -57,7 +57,7 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot,CalcEtot
 USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
@@ -100,10 +100,15 @@ unit_index = 535
          WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
          IF (CalcEpot) THEN 
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
              OutputCounter = OutputCounter + 1
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
+             OutputCounter = OutputCounter + 1
+         END IF
+         IF(CalcEpot .AND. CalcEtot)THEN
+           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
              OutputCounter = OutputCounter + 1
          END IF
          WRITE(unit_index,'(A14)') ' ' 
@@ -130,6 +135,10 @@ END IF
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
+   END IF
+   IF(CalcEpot .AND. CalcEtot) THEN
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
