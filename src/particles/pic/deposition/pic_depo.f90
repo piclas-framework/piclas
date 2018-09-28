@@ -33,7 +33,7 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Mesh_Vars              ,ONLY: nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems, nNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,wGP
 USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
@@ -140,6 +140,14 @@ CASE('cell_volweight')
   END DO
   DEALLOCATE(Vdm_tmp)
   DEALLOCATE(wGP_tmp, xGP_tmp)
+CASE('cell_volweight_mean', 'cell_volweight_mean2')
+  IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
+    ALLOCATE(CellVolWeightFac(0:PP_N))
+    CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+    CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+  END IF
+  ALLOCATE(CellLocNodes_Volumes(nNodes))
+  CALL CalcCellLocNodeVolumes()
 CASE('epanechnikov') 
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
   r2_sf = r_sf * r_sf 
@@ -1172,7 +1180,7 @@ USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
+USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ, nNodes
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
@@ -1214,6 +1222,7 @@ REAL                             :: radius2, S, S1, Fac(4)!, Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
+REAL, ALLOCATABLE                :: NodeSource(:,:), tempNodeSource(:,:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)!, caseShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
@@ -1400,6 +1409,100 @@ CASE('cell_volweight')
 #endif /*USE_LOADBALANCE*/
  END DO !iEle
  DEALLOCATE(BGMSourceCellVol)
+CASE('cell_volweight_mean','cell_volweight_mean2')
+  ALLOCATE(NodeSource(1:4,1:nNodes))
+  NodeSource = 0.0
+
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+!#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
+!      Charge = Species(PartSpecies(iPart))%MacroParticleFactor
+!#else
+      IF (usevMPF) THEN
+        Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+      ELSE
+        Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+!#endif
+      iElem = PEM%Element(iPart)
+      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
+      !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
+      TSource(:) = 0.0
+!#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
+!      IF (PartSpecies(iPart).EQ.1) THEN
+!        TSource(4) = Charge
+!      ELSE
+!        TSource(1) = Charge
+!      END IF
+!#else
+#if !(defined (PP_HDG) && (PP_nVar==1))
+      TSource(1) = PartState(iPart,4)*Charge
+      TSource(2) = PartState(iPart,5)*Charge
+      TSource(3) = PartState(iPart,6)*Charge
+#endif
+      TSource(4) = Charge
+!#endif
+
+      alpha1=(TempPartPos(1)+1.0)/2.0
+      alpha2=(TempPartPos(2)+1.0)/2.0
+      alpha3=(TempPartPos(3)+1.0)/2.0
+      NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) &
+        + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) &
+        + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) &
+        + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) &
+        + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) &
+        + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) &
+        + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) &
+        + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))
+      NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) &
+        + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+    END IF
+  END DO
+
+  DO iElem=1, nNodes
+    NodeSource(1:4,iElem) = NodeSource(1:4,iElem)/CellLocNodes_Volumes(iElem)
+  END DO
+
+  IF (TRIM(DepositionType).EQ.'cell_volweight_mean2') THEN
+    ALLOCATE(tempNodeSource(1:4,1:nNodes))
+    tempNodeSource = 0.0
+    DO iElem=1, nNodes
+      tempNodeSource(1:4,iElem) = NodeSource(1:4,iElem)
+      DO kk =1, GEO%NeighNodesOnNode(iElem)
+        tempNodeSource(1:4,iElem) = tempNodeSource(1:4,iElem) + NodeSource(1:4,GEO%NodeToNeighNode(iElem)%ElemID(kk))
+      END DO
+      tempNodeSource(1:4,iElem) = tempNodeSource(1:4,iElem) / (GEO%NeighNodesOnNode(iElem) + 1.0)
+    END DO
+    NodeSource = tempNodeSource
+  END IF
+
+
+  DO iElem = 1, nElems
+    DO kk = 0, PP_N
+      DO ll = 0, PP_N
+        DO mm = 0, PP_N
+         alpha1 = CellVolWeightFac(kk)
+         alpha2 = CellVolWeightFac(ll)
+         alpha3 = CellVolWeightFac(mm)
+         Partsource(1:4,kk,ll,mm,iElem) = NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) * (alpha1) * (alpha2) * (1-alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) * (alpha1) * (1-alpha2) * (alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) * (alpha1) * (alpha2) * (alpha3) + &
+              NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) * (1-alpha1) * (alpha2) * (alpha3)
+         END DO !mm
+       END DO !ll
+     END DO !kk
+   END DO !iEle
+   DEALLOCATE(NodeSource)
 CASE('epanechnikov') 
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
   IF(DoInnerParts)  tempcharge= 0.0
@@ -3225,6 +3328,64 @@ FUNCTION beta(z,w)
 !----------------------------------------------------------------------------------------------------------------------------------
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)                                                                    
 END FUNCTION beta 
+
+SUBROUTINE CalcCellLocNodeVolumes()
+!===================================================================================================================================
+!> Initialize sub-cell volumes around nodes
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: sJ, nElems
+USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_Basis              ,ONLY: InitializeVandermonde
+USE MOD_PICDepo_Vars       ,ONLY: CellLocNodes_Volumes
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL    :: Vdm_loc(0:1,0:PP_N), wGP_loc, xGP_loc(0:1), DetJac(1,0:1,0:1,0:1)
+REAL    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER :: j, k, l, iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+CellLocNodes_Volumes = 0.0
+IF (PP_N.NE.1) THEN
+  xGP_loc(0) = -0.5
+  xGP_loc(1) = 0.5
+  wGP_loc = 1.
+  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
+END IF
+DO iElem = 1, nElems
+  IF (PP_N.EQ.1) THEN
+    wGP_loc = wGP(0)
+    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
+      DetJac(1,j,k,l)=1./sJ(j,k,l,iElem)
+    END DO; END DO; END DO
+  ELSE
+    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
+      DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
+    END DO; END DO; END DO
+    CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+  END IF
+  ASSOCIATE( NodeVolume => CellLocNodes_Volumes(:),  &
+             NodeID     => GEO%ElemToNodeID(:,iElem) )
+    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
+    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
+    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
+    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
+    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
+    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
+    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
+    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+  END ASSOCIATE
+END DO
+
+END SUBROUTINE CalcCellLocNodeVolumes
 
 
 #ifdef donotcompilethis
