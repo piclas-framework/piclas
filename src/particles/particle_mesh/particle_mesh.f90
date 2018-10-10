@@ -5136,9 +5136,9 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
   IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
   CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
                 , NodeExchange%nNodesRecv(iProc)            &
-                , MPI_INTEGER                               &
+                , MPI_DOUBLE_PRECISION                      &
                 , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1314                                      &
+                , 1414                                      &
                 , PartMPI%COMM                              &
                 , NodeExchange%RecvRequest(iProc)           &
                 , IERROR )
@@ -5157,7 +5157,7 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
     iSendNode=iSendNode+1
     PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode)=iNode
     NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iProc)%COMMProcID))
-    NodeSendBuf(iProc)%content(iPos)=NodeID
+    NodeSendBuf(iProc)%content(iPos)=REAL(NodeID)
     iPos=iPos+1
   END DO ! iNode=1,nNodes
   IF(iSendNode.NE.NodeExchange%nNodesSend(iProc)) CALL abort(&
@@ -5175,9 +5175,9 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
   IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
   CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
                 , NodeExchange%nNodesSend(iProc)            &
-                , MPI_INTEGER                               &
+                , MPI_DOUBLE_PRECISION                      &
                 , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1314                                      &
+                , 1414                                      &
                 , PartMPI%COMM                              &
                 , NodeExchange%SendRequest(iProc)           &
                 , IERROR )
@@ -5205,7 +5205,7 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
   ALLOCATE(PartMPI%MPINodeNeighbor(iProc)%RecvList(NodeExchange%nNodesRecv(iProc)))
   iPos=1
   DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
-    NativeNodeID   = NodeRecvBuf(iProc)%content(iPos)
+    NativeNodeID   = INT(NodeRecvBuf(iProc)%content(iPos))
     IF(NativeNodeID.GT.nNodes)THEN
      CALL abort(&
 __STAMP__&
