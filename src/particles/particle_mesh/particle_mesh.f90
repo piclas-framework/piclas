@@ -1386,8 +1386,9 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
+USE MOD_Particle_MPI,                       ONLY:InitHALOMesh, AddHaloNodeData
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_PICDepo_Vars,                       ONLY:CellLocNodes_Volumes, DepositionType
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
@@ -1524,6 +1525,8 @@ IF (FindNeighbourElems) THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Communication ...'
   END IF
   CALL BuildLocNodeToHaloNodeComm()
+  ! calculate additional volumes and weightings for halo region if deposition type is "cell_volume_mean"
+  IF (TRIM(DepositionType).EQ.'cell_volweight_mean') CALL AddHaloNodeData(CellLocNodes_Volumes)
 #endif /*MPI*/
 END IF
 

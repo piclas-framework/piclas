@@ -34,7 +34,7 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Mesh_Vars              ,ONLY: nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems, nNodes
-USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
+USE MOD_Particle_Mesh_Vars     ,ONLY: Geo, FindNeighbourElems
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,wGP
 USE MOD_Basis                  ,ONLY: ComputeBernsteinCoeff
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
@@ -148,6 +148,7 @@ CASE('cell_volweight_mean', 'cell_volweight_mean2')
   END IF
   ALLOCATE(CellLocNodes_Volumes(nNodes))
   CALL CalcCellLocNodeVolumes()
+  FindNeighbourElems = .TRUE.
 CASE('epanechnikov') 
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
   r2_sf = r_sf * r_sf 
@@ -1194,6 +1195,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+USE MOD_Particle_MPI,           ONLY:AddHaloNodeData
 #endif  /*MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -1464,6 +1466,12 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
         + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
     END IF
   END DO
+#ifdef MPI
+  CALL AddHaloNodeData(NodeSource(1,:))
+  CALL AddHaloNodeData(NodeSource(2,:))
+  CALL AddHaloNodeData(NodeSource(3,:))
+  CALL AddHaloNodeData(NodeSource(4,:))
+#endif /*MPI*/
 
   DO iElem=1, nNodes
     NodeSource(1:4,iElem) = NodeSource(1:4,iElem)/CellLocNodes_Volumes(iElem)
@@ -3991,6 +3999,7 @@ SDEALLOCATE(NDepochooseK)
 SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
+SDEALLOCATE(CellLocNodes_Volumes)
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo
