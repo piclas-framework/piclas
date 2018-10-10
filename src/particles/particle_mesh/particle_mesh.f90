@@ -5163,7 +5163,7 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
   IF(iSendNode.NE.NodeExchange%nNodesSend(iProc)) CALL abort(&
 __STAMP__&
           ,' Message for node-exchange in init too short!',iProc)
-  IF(ANY(NodeSendBuf(iProc)%content.LE.0))THEN  
+  IF(ANY(NodeSendBuf(iProc)%content.LE.0))THEN
     IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iProc), ' to Proc ', iProc
     CALL abort(&
 __STAMP__&
