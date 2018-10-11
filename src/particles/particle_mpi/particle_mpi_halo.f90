@@ -2322,19 +2322,19 @@ __STAMP__&
   DEALLOCATE(DummyConcaveElemSide)
   ! HaloToProc
   IF(.NOT.ALLOCATED(PartHaloNodeToProc))THEN
-    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate PartHaloNodeToProc')
     PartHaloNodeToProc=-1
   ELSE
-    ALLOCATE(DummyHaloToProc(1:3,nNodes+1:nOldNodes))                                 
+    ALLOCATE(DummyHaloToProc(1:3,nNodes+1:nOldNodes))
     IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
       __STAMP__&
       ,'Could not allocate DummyHaloToProc (Nodes)')
     DummyHaloToProc=PartHaloNodeToProc
     DEALLOCATE(PartHaloNodeToProc)
-    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not reallocate PartHaloNodeToProc')
