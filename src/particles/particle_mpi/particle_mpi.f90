@@ -2619,10 +2619,10 @@ END DO ! iProc
 ! send
 DO iProc=1,PartMPI%nMPINodeNeighbors
   IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  ALLOCATE(PartMPI%MPINodeNeighbor(iProc)%SendList(NodeExchange%nNodesSend(iProc)))
-  PartMPI%MPINodeNeighbor(iProc)%SendList = 0
-  iSendNode=0
   iPos=1
+  ! zero send content buffers
+  NodeSendBuf(iProc)%content(:)= 0.
+  ! fill send content buffers
   DO iSendNode=1,NodeExchange%nNodesSend(iProc)
     NodeSendBuf(iProc)%content(iPos)=DataInReal(PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode))
     iPos=iPos+1
@@ -2647,13 +2647,13 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
     CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
-          ,' MPI Communication error', IERROR)
+          ,' MPI Communication error (Node data)', IERROR)
   END IF
   IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
     CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
-          ,' MPI Communication error', IERROR)
+          ,' MPI Communication error (Node data)', IERROR)
   END IF
 END DO ! iProc
 
@@ -2661,11 +2661,14 @@ END DO ! iProc
 DO iProc=1,PartMPI%nMPINodeNeighbors
   IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
   iPos=1
+  ! fill data-array with data from recv content buffers
   DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
     DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode))=DataInReal(PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)) &
         + NodeRecvBuf(iProc)%content(iPos)
     iPos=iPos+1
   END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
+  ! zero recv content buffers
+  NodeRecvBuf(iProc)%content(:)= 0.
 END DO ! iProc
 
 END SUBROUTINE AddHaloNodeData
