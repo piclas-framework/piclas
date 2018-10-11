@@ -5011,7 +5011,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: NodeIndexToSend(1:nNodes,0:PartMPI%nProcs-1)
 INTEGER             :: nDOF,ALLOCSTAT
-INTEGER             :: iProc, GlobalProcID,iNode,NodeID,iElem,iSendNode,iRecvNode,iPos,jNode
+INTEGER             :: iProc, iNode,NodeID,iElem,iSendNode,iRecvNode,iPos,jNode
 INTEGER,ALLOCATABLE :: recv_status_list(:,:)
 INTEGER             :: NativeNodeID, iMPINeighbor
 REAL                :: MPINodeCoord(3), ElemCoord(3)
