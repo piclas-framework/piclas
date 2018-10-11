@@ -18,6 +18,8 @@ REAL              :: OutputTimeFixed             !< fixed time for writing state
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
 INTEGER           :: nPoyntingIntPlanes          !< number of planes
+INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
+REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
 REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   !< plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
