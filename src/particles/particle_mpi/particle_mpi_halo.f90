@@ -1826,11 +1826,6 @@ ELSE ! DoRefMappping=F
           END DO
         END IF
       END DO ! ilocSide
-      IF (TriaTracking) THEN
-        DO iNode = 1,8
-          GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
-        END DO
-      END IF
       ! set native elemID
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
@@ -1841,6 +1836,9 @@ ELSE ! DoRefMappping=F
         ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       END IF
       IF (TriaTracking) THEN
+        DO iNode = 1,8
+          GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
+        END DO
         GEO%ConcaveElemSide(1:6,newElemID)    = RecvMsg%ConcaveElemSide(1:6,iElem)
       END IF
       ! list from ElemToElemGlob mapped to process local element
