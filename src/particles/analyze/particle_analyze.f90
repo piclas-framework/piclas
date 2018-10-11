@@ -67,6 +67,7 @@ CALL prms%SetSection("Particle Analyze")
 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Calculate Potential Energy.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
@@ -139,7 +140,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot,CalcEtot
 USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_Particle_Vars         ,ONLY: nSpecies
@@ -316,6 +317,7 @@ IF(nSpecies.GT.1) THEN
 ELSE
   nSpecAnalyze = 1
 END IF
+! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
   DoAnalyze = .TRUE.
@@ -352,6 +354,7 @@ CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
   DoAnalyze=.TRUE.
@@ -373,6 +376,7 @@ IF (CalcVelos) THEN
       ,'No VelocityDirections set in CalcVelos!')
   END IF
 END IF
+! Shape function efficiency
 CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
 IF (CalcShapeEfficiency) THEN
   DoAnalyze = .TRUE.
@@ -388,7 +392,10 @@ IF (CalcShapeEfficiency) THEN
 
   END SELECT
 END IF
-
+! check if total energy should be computed
+IF(DoAnalyze)THEN
+  CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
+END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
 ParticleAnalyzeInitIsDone=.TRUE.
@@ -411,7 +418,7 @@ SUBROUTINE AnalyzeParticles(Time)
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoAnalyze,CalcEpot
+USE MOD_Analyze_Vars           ,ONLY: DoAnalyze,CalcEpot,CalcEtot
 USE MOD_Particle_Analyze_Vars
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
@@ -574,10 +581,15 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
         END IF
         IF (CalcEpot) THEN 
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-El',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-El',' '
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-W-Mag',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-Mag',' '
+          OutputCounter = OutputCounter + 1
+        END IF
+        IF(CalcEpot .AND. CalcEtot)THEN
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-pot',' '
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcEkin) THEN
@@ -593,6 +605,11 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinMax-eV-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
+        END IF
+        IF(CalcEkin .AND. CalcEpot .AND. CalcEtot) THEN
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-kin+pot',' '
+          OutputCounter = OutputCounter + 1
         END IF
         IF (CalcTemp) THEN
           DO iSpec=1, nSpecAnalyze
@@ -685,23 +702,28 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
           IF(CalcEint) THEN
             DO iSpec=1, nSpecAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EVib',iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Vib',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
             DO iSpec=1, nSpecAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-ERot',iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Rot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
             IF (DSMC%ElectronicModel) THEN
               DO iSpec = 1, nSpecAnalyze
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EElec',iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Elec',iSpec,' '
                 OutputCounter = OutputCounter + 1
               END DO
             END IF
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-ETotal',' '
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-TotalPart',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+          IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-Tot',' '
             OutputCounter = OutputCounter + 1
           END IF
           IF(CalcTemp) THEN
@@ -973,6 +995,10 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
     END IF
+    IF (CalcEpot .AND. CalcEtot)THEN
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag
+    END IF
     IF (CalcEkin) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -984,6 +1010,10 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') EkinMax(iSpec)
       END DO
+    END IF
+    IF (CalcEpot .AND. CalcEkin .AND. CalcEtot) THEN
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Ekin(nSpecAnalyze) + WEl + WMag
     END IF
     IF (CalcTemp) THEN
       DO iSpec=1, nSpecAnalyze
@@ -1061,6 +1091,10 @@ IF (PartMPI%MPIROOT) THEN
         END IF
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal
+      END IF
+      IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal+WEl+WMag
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies

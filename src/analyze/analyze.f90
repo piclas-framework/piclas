@@ -81,6 +81,7 @@ CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info 
 #ifndef PARTICLES
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTotalEnergy', 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
 #endif
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
@@ -116,7 +117,7 @@ USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
 #ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot,CalcEtot
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
@@ -170,6 +171,9 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 DoAnalyze       = .FALSE. 
 CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
 IF(CalcEpot) DoAnalyze = .TRUE. 
+IF(DoAnalyze)THEN
+  CalcEtot        = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
+END IF
 #endif /*PARTICLES*/ 
 
 ! initialize time and counter for analyze measurement
