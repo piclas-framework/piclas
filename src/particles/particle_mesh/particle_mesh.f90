@@ -4983,7 +4983,7 @@ END DO
 
 END SUBROUTINE RecurseCheckNeighElems
 
-
+#ifdef MPI
 SUBROUTINE BuildLocNodeToHaloNodeComm()
 !===================================================================================================================================
 !> build all missing stuff for node communication, like
@@ -5238,6 +5238,7 @@ CALL MPI_BARRIER(PartMPI%Comm,iError)
 
 
 END SUBROUTINE BuildLocNodeToHaloNodeComm
+#endif /*MPI*/
 
 
 SUBROUTINE DuplicateSlavePeriodicSides() 
