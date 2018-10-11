@@ -2042,29 +2042,6 @@ ELSE
   PartHaloElemToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
   DEALLOCATE(DummyHaloToProc)
 END IF
-! HaloToProc
-IF(.NOT.ALLOCATED(PartHaloNodeToProc))THEN
-  ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate PartHaloNodeToProc')
-  PartHaloNodeToProc=-1
-ELSE
-  ALLOCATE(DummyHaloToProc(1:3,nNodes+1:nOldNodes))                                 
-  IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
-    __STAMP__&
-    ,'Could not allocate DummyHaloToProc (Nodes)')
-  DummyHaloToProc=PartHaloNodeToProc
-  DEALLOCATE(PartHaloNodeToProc)
-  ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'Could not reallocate PartHaloNodeToProc')
-  ! copy array to new
-  PartHaloNodeToProc=-1
-  PartHaloNodeToProc(1:3,nNodes+1:nOldNodes)    =DummyHaloToProc(1:3,nNodes+1:nOldNodes)
-  DEALLOCATE(DummyHaloToProc)
-END IF
 ! PartSideToElem
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(&
@@ -2343,6 +2320,29 @@ __STAMP__&
   GEO%ConcaveElemSide=.FALSE.
   GEO%ConcaveElemSide(1:6,1:nOldElems) = DummyConcaveElemSide(1:6,1:nOldElems)
   DEALLOCATE(DummyConcaveElemSide)
+  ! HaloToProc
+  IF(.NOT.ALLOCATED(PartHaloNodeToProc))THEN
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate PartHaloNodeToProc')
+    PartHaloNodeToProc=-1
+  ELSE
+    ALLOCATE(DummyHaloToProc(1:3,nNodes+1:nOldNodes))                                 
+    IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate DummyHaloToProc (Nodes)')
+    DummyHaloToProc=PartHaloNodeToProc
+    DEALLOCATE(PartHaloNodeToProc)
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)                                 
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not reallocate PartHaloNodeToProc')
+    ! copy array to new
+    PartHaloNodeToProc=-1
+    PartHaloNodeToProc(1:3,nNodes+1:nOldNodes)    =DummyHaloToProc(1:3,nNodes+1:nOldNodes)
+    DEALLOCATE(DummyHaloToProc)
+  END IF
 END IF
 
 ! ElemBaryNGeo
