@@ -1155,7 +1155,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpe
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
 #if USE_LOADBALANCE
@@ -1319,7 +1319,7 @@ CASE('nearest_gausspoint')
       ! Map Particle to -1|1 space (re-used in interpolation)
       ! check with depositions and PartPosRef already mapped
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem)
+        CALL GetPositionInRefElem(PartState(i,1:3),PartPosRef(1:3,i),iElem)
       END IF
       !CALL GeoCoordToMap(PartState(i,1:3),PartPosRef(1:3),iElem)
       ! Find out which gausspoint is closest and add up charges and currents
@@ -1401,7 +1401,7 @@ CASE('cell_volweight')
     iElem = PEM%Element(iPart)
     iSpec = PartSpecies(iPart)
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
     END IF
     !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
     TSource(:) = 0.0
@@ -2937,7 +2937,7 @@ SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,epsOneCell
 USE MOD_DSMC_Vars,              ONLY:DSMCSampVolWe
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2979,7 +2979,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
   !--- check all cells associated with this beckground mesh cell
   DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
     Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
-    CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
+    CALL GetPositionInRefElem(GuessPos,Xi,Element)
     IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
       alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
       alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j

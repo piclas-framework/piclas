@@ -760,12 +760,11 @@ USE MOD_PreProc
 USE MOD_TTM_Vars
 USE MOD_Globals_Vars  ,ONLY: ElectronCharge
 USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
-USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: Eval_XYZ_Poly
+USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -837,7 +836,7 @@ DO iElem=1,PP_nElems
      
     CALL RANDOM_NUMBER(PartPosRef(1:3)) ! get random reference space
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
-    CALL Eval_xyz_Poly(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
+    CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
                       ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
 
     IF ((useDSMC).AND.(CollisMode.GT.1)) THEN

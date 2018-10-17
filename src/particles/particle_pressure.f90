@@ -53,7 +53,7 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-  USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
+  USE MOD_Eval_XYZ,                ONLY:TensorProductInterpolation
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
@@ -242,7 +242,7 @@ __STAMP__&
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -301,7 +301,7 @@ __STAMP__&
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -485,7 +485,7 @@ __STAMP__&
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -555,7 +555,7 @@ __STAMP__&
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -634,7 +634,7 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-  USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
+  USE MOD_Eval_XYZ,                ONLY:TensorProductInterpolation
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
@@ -819,7 +819,7 @@ __STAMP__&
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -878,7 +878,7 @@ __STAMP__&
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -1061,7 +1061,7 @@ __STAMP__&
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -1131,7 +1131,7 @@ __STAMP__&
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung

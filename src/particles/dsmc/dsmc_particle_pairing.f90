@@ -332,7 +332,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Vars,          ONLY : PEM, PartState, nSpecies, PartSpecies,PartPosRef
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_Particle_Tracking_vars, ONLY : DoRefMapping
-  USE MOD_Eval_xyz,               ONLY : Eval_XYZ_ElemCheck
+  USE MOD_Eval_xyz,               ONLY : GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -381,7 +381,7 @@ IF (nPart.GT.1) THEN
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+          CALL GetPositionInRefElem(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
           iPart = PEM%pNext(iPart)    
         END DO
       END IF ! DoRefMapping
