@@ -740,7 +740,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallP
 USE MOD_Particle_Mesh_Vars,          ONLY:Geo
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsTracingBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
 USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
@@ -874,7 +874,7 @@ DO iBGMElem=1,nBGMElems
     IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  CALL GetPositionInRefElem(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     IF(.NOT.InitFix)THEN
       InElementCheck=.TRUE.
@@ -2971,7 +2971,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -3037,7 +3037,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
+  CALL GetPositionInRefElem(X_in(1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
@@ -3065,7 +3065,6 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------

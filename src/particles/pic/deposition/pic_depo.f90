@@ -43,7 +43,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
@@ -162,7 +162,7 @@ CASE('nearest_gausspoint')
   END IF
   DO i=0,PP_N
     ! bullshit here, use xGP
-    !CALL Eval_XYZ_ElemCheck(Elem_xGP(:,i,1,1,1),Temp(:),1)
+    !CALL GetPositionInRefElem(Elem_xGP(:,i,1,1,1),Temp(:),1)
     !MappedGauss(i+1) = Temp(1)
     MappedGauss(i+1) = xGP(i)
   END DO
@@ -1176,7 +1176,7 @@ USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
@@ -1330,7 +1330,7 @@ CASE('cell_volweight')
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
       ELSE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
+        CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
       END IF
       TSource(:) = 0.0
 !#if (PP_nVar==8)
@@ -2113,7 +2113,7 @@ CASE('delta_distri')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+            CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! get value of test function at particle position
           SELECT CASE(DeltaType)
@@ -2205,7 +2205,7 @@ CASE('nearest_gausspoint')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           !IF(.NOT.DoRefMapping)THEN
-          !  CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+          !  CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
           !END IF
           ! Find out which gausspoint is closest and add up charges and currents
           !! x-direction

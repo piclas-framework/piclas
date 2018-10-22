@@ -245,7 +245,7 @@ USE MOD_Particle_Vars,           ONLY:PartSurfaceModel
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC, VibQuantsPar, PolyatomMolDSMC, SpecDSMC
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues
-USE MOD_Eval_XYZ,                ONLY:EVal_xyz_ElemCheck
+USE MOD_Eval_XYZ,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap,ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping, TriaTracking
@@ -859,7 +859,7 @@ __STAMP__&
 
     IF(DoRefMapping) THEN
       DO i = 1,PDM%ParticleVecLength
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+        CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
         IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
           InElementCheck=.TRUE.
           PartPosRef(1:3,i)=Xi
@@ -906,7 +906,7 @@ __STAMP__&
         END DO
       ELSE
         DO i = 1,PDM%ParticleVecLength
-          CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+          CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
           IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
             InElementCheck=.TRUE.
             IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
