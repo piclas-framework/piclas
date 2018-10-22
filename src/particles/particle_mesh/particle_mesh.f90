@@ -4730,7 +4730,6 @@ TYPE tNodeToElem
   INTEGER :: ElemID(50)
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
-INTEGER                :: NumNeighborElems(1:nElems)
 INTEGER                :: TempElemsOnNode(1:nNodes)
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists
@@ -4772,6 +4771,10 @@ END DO
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
 GEO%NumNeighborElems(:)=0
+TempElemsOnNode(:)=0
+DO iNode=1,nNodes
+  TempNodeToElem(iNode)%ElemID=-1
+END DO
 
 ! find all real neighbour elements for elements with halo neighbours 
 ! recursively checking connected halo area
@@ -4797,7 +4800,7 @@ DO iElem =1, PP_nElems
       CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
     END IF
   END DO
-  IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
+  IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
 ,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
   ! write local variables into global array
