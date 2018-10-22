@@ -1381,15 +1381,16 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_Particle_MPI           ,ONLY: InitHALOMesh
+USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1530,6 +1531,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
+SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN

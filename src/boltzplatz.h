@@ -125,7 +125,7 @@
 #define RIEMANN_VAC2DIELECTRIC_NC 6
 
 ! format
-#define WRITEFORMAT '(E25.14E3)'
+#define WRITEFORMAT '(ES25.14E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1

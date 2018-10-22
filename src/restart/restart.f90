@@ -144,20 +144,22 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
-#if USE_LOADBALANCE
-  DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
-  WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
-  InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
-  IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
-  IF (IAR_PerformPartWeightLB) THEN
-    InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
-  ELSE IF (InitialAutoRestartSample.EQ.0) THEN
-    IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
-  END IF
-#endif /*USE_LOADBALANCE*/
 END IF
+
+! Automatically do a load balance step at the beginning of a new simulation or a user-restarted simulation
+#if USE_LOADBALANCE
+DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
+WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
+InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
+IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
+IF (IAR_PerformPartWeightLB) THEN
+  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
+  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
+ELSE IF (InitialAutoRestartSample.EQ.0) THEN
+  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
+  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
+END IF
+#endif /*USE_LOADBALANCE*/
 
 ! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
 RestartWallTime=BOLTZPLATZTIME()

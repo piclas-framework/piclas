@@ -114,7 +114,7 @@ CALL prms%read_options(ParameterFile)
 ! Measure init duration
 Time=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
@@ -124,7 +124,7 @@ IF(nArgs.GE.2)THEN
     ! Measure init duration
     Time=BOLTZPLATZTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
@@ -154,7 +154,7 @@ IF(DoSwapMesh)THEN
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' SWAPMESH DONE! BOLTZPLATZ DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! BOLTZPLATZ DONE! [',Time-StartTime,' sec ]'
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
@@ -171,7 +171,7 @@ CALL Restart()
 Time=BOLTZPLATZTIME()
 InitializationWallTime=Time-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
@@ -201,7 +201,7 @@ IF(iError .NE. 0) &
   ,'MPI finalize error',iError,999.)
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM Boltzplatz

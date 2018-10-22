@@ -191,7 +191,7 @@ CALL InitIO()
 ! Measure init duration
 Time=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Initialize an "old" state to check against - used to determine if we need to reinitialize some variables
@@ -406,7 +406,7 @@ IF(iError .NE. 0) THEN
 END IF
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' H5BOLTZ2VTK FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' H5BOLTZ2VTK FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM H5BOLTZ2VTK

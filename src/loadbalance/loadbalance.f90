@@ -379,10 +379,10 @@ IF( NewImbalance.GT.CurrentImbalance ) THEN
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful!'
 END IF
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:    ', MinWeight
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' OldImbalance: ', CurrentImbalance
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance: ', NewImbalance
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:    ', MaxWeight
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:    ', MinWeight
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
@@ -401,7 +401,7 @@ END IF
 ! Measure init duration
 LB_Time=BOLTZPLATZTIME()
 InitializationWallTime=LB_Time-LB_StartTime
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
@@ -455,16 +455,16 @@ ELSE
   IF(ABS(TargetWeight).EQ.0.)THEN
     CurrentImbalance = 0.
   ELSE IF(ABS(TargetWeight).LT.0.0)THEN
-    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A1)')&
         ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
     CurrentImbalance = HUGE(1.0)
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' CurrentImbalance: ', CurrentImbalance
 
 END IF
 
