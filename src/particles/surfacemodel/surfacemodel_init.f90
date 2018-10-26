@@ -107,9 +107,14 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-InitialCoverage'&
   , '0.', numberedmulti=.TRUE.)
 
 
+CALL prms%CreateLogicalOption(     'Particles-Surface-DistNumCase'&
+  , 'Sets the surface distribution case. \nSpecific number[TRUE] or weighting[FALSE].','.TRUE.')
+CALL prms%CreateIntOption(     'Particles-Surface-DistSquareNumber'&
+  , 'Defines the number of simulated surface atoms for every surface element (DistSquareNumber x DistSquareNumber) '//&
+    '[surfacemodel=3]. \nIf one surface contains less then 5x5 surface atoms program abort is called.\n', '10')
 CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
   , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [surfacemodel=3].\n'//&
-    'If one surface contains less then 10 surface atoms program abort is called.\n'//&
+    'If one surface contains less then 5x5 surface atoms program abort is called.\n'//&
     'Default: Species(1)%MPF: Uses macro particle factor of species1.')
 CALL prms%CreateIntOption(      'Surface-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')

@@ -47,7 +47,7 @@ SUBROUTINE InitSMCR()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_ReadInTools            ,ONLY: GETREAL
+USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
@@ -73,6 +73,8 @@ INTEGER                          :: surfsquare, dist, Adsorbates
 INTEGER                          :: Surfpos, Surfnum, Indx, Indy, UsedSiteMapPos
 REAL                             :: RanNum
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
+INTEGER                          :: DistSquareNum
+LOGICAL                          :: DistNumCase
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -91,8 +93,13 @@ END DO
 !   surfsquare = GETINT('Particles-DSMC-AdsorptionSites','10000')
 !   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 ! END IF
-WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
-surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+DistNumCase = GETLOGICAL('Particles-Surface-DistNumCase')
+IF (DistNumCase) THEN
+  DistSquareNum = GETINT('Particles-Surface-DistSquareNumber')
+ELSE
+  WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
+  surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+END IF
 Max_Surfsites_num = 0
 Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
@@ -110,17 +117,22 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   !                     / Species(1)%MacroParticleFactor)
   !       surfsquare = INT(SQRT(REAL(surfsquare))) - 1
   !     END IF
-        surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                      * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
-                      / surface_mpf)
-        surfsquare = INT(SQRT(REAL(surfsquare))) - 1
+        IF (DistNumCase) THEN
+          surfsquare = DistSquareNum
+        ELSE
+          surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
+                        / surface_mpf)
+          surfsquare = INT(SQRT(REAL(surfsquare))) - 1
+        END IF
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1) = INT(surfsquare**2)
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
-        IF (surfsquare.LT.2)THEN
+        IF (surfsquare.LT.5)THEN
           CALL abort(&
             __STAMP__&
-            ,'not enough surface spaces for distribution. Surface MacroParticleFactor to to high',surfsquare)
+            ,'not enough surface spaces for distribution. Surface-MacroParticleFactor too high or DistSquareNumber too low'&
+            ,surfsquare)
         END IF
 
         Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(:))
