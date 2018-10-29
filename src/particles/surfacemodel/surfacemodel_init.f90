@@ -545,6 +545,11 @@ IF (DoRestart) THEN
   END IF
 END IF ! DoRestart
 
+IF (SurfMesh%SurfOnProc) THEN
+  ! write zeros into global coverage array for each surface
+  Adsorption%Coverage(:,:,:,:) = 0.
+END IF
+
 SurfaceFileName=GETSTR('Particles-SurfCoverageFile')
 ! If no surface file is given, initialize from ini parameters else use values from file
 IF (TRIM(SurfaceFileName).EQ.'none') THEN
