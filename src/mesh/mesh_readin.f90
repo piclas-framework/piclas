@@ -376,10 +376,10 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
   SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance:     ', NewImbalance
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.

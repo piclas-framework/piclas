@@ -167,10 +167,12 @@ TYPE tGeometry
   !INTEGER, ALLOCATABLE                   :: ElemToNodeIDGlobal(:,:)           ! ElemToNodeID(1:nElemNodes,1:nElems)
   INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
                                                                               ! From element sides to node IDs
-  INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
-  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToElem(:)
-  INTEGER, ALLOCATABLE                   :: NumNeighborElems(:)
-  TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)
+  INTEGER, ALLOCATABLE                   :: ElemsOnNode(:)                    ! number of elements on proc global node
+  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToElem(:)                     ! mapping of elements per node
+  INTEGER, ALLOCATABLE                   :: NeighNodesOnNode(:)               ! number of neighbour nodes on proc global node
+  TYPE(tNodeToElem), ALLOCATABLE         :: NodeToNeighNode(:)                ! mapping of neighbour nodes per proc global node
+  INTEGER, ALLOCATABLE                   :: NumNeighborElems(:)               ! number of elements per element
+  TYPE(tNodeToElem), ALLOCATABLE         :: ElemToNeighElems(:)               ! mapping of neighbour elements per element
                                                                               ! From element sides to node IDs
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side

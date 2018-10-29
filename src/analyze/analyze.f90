@@ -81,6 +81,7 @@ CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info 
 #ifndef PARTICLES
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTotalEnergy', 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
 #endif
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
@@ -110,12 +111,13 @@ USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
 #ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot
+USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot,CalcEtot
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
@@ -169,7 +171,14 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 DoAnalyze       = .FALSE. 
 CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
 IF(CalcEpot) DoAnalyze = .TRUE. 
+IF(DoAnalyze)THEN
+  CalcEtot        = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
+END IF
 #endif /*PARTICLES*/ 
+
+! initialize time and counter for analyze measurement
+AnalyzeCount = 0
+AnalyzeTime  = 0.0
 
 AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -441,7 +450,7 @@ SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze,AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -534,7 +543,8 @@ CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 #endif
 StartAnalyzeTime=BOLTZPLATZTIME()
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
+!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
+AnalyzeCount = AnalyzeCount + 1
 
 LastIter=.FALSE.
 IF(PRESENT(LastIter_in))THEN
@@ -875,7 +885,8 @@ END IF
 
 ! Time for analysis
 EndAnalyzeTime=BOLTZPLATZTIME()
-SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
+!SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
+AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
@@ -891,7 +902,10 @@ IF(forceAnalyze.OR.Output)THEN
   END IF
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')        ' Sim time  : ',OutputTime
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    AnalyzeCount = 0
+    AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
       WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'

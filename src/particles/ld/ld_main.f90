@@ -124,7 +124,7 @@ SUBROUTINE LD_reposition
   USE MOD_Particle_Vars,         ONLY : PartState, PEM
   USE MOD_Mesh_Vars,             ONLY : nElems
   !USE MOD_Particle_Mesh_Vars,    ONLY : GEO
-  USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
+  USE MOD_Eval_xyz,              ONLY : TensorProductInterpolation
   USE MOD_Mesh_Vars,             ONLY : NGeo,XCL_NGeo,XiCL_Ngeo,wBaryCL_NGeo
   USE MOD_LD_Vars,               ONLY : LD_RepositionFak
 #if (PP_TimeDiscMethod==1001)
@@ -152,7 +152,7 @@ REAL                  :: RandVec(3), iRan
       IF (iRan.LT. LD_RepositionFak) THEN     
         CALL RANDOM_NUMBER(RandVec)
         RandVec = RandVec * 2.0 - 1.0
-        CALL Eval_xyz_Poly(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
+        CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
         iPartIndx = PEM%pNext(iPartIndx)
       END IF
     END DO
@@ -251,7 +251,7 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
   USE MOD_Particle_Vars,         ONLY:Species,PDM
   USE MOD_Mesh_Vars,             ONLY:nElems,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Particle_Mesh_Vars,    ONLY:GEO
-  USE MOD_Eval_xyz,              ONLY:Eval_XYZ_Poly!,eval_xyz_elemcheck
+  USE MOD_Eval_xyz,              ONLY:TensorProductInterpolation!,GetPositionInRefElem
   USE MOD_Mesh_Vars,             ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -290,8 +290,8 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     DO iPart = 1, nPart   
       CALL RANDOM_NUMBER(RandVec)
       RandVec = RandVec * 2.0 - 1.0
-      CALL Eval_xyz_Poly(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
-      !CALL Eval_xyz_elemcheck(RandomPos,xi,iElem)
+      CALL TensorProductInterpolation(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
+      !CALL GetPositionInRefElem(RandomPos,xi,iElem)
       !IF(ANY(ABS(Xi).GT.1.0)) THEN
       !  print*,'upppsss'
       !  print*,'randvec',randvec
