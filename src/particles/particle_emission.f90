@@ -136,6 +136,18 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
 CALL prms%CreateLogicalOption(  'OutputSurfaceFluxLinked' &
                                 , 'Flag to print the SurfaceFlux-linked Info' , '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet' &
+                                      , 'TODO-DEFINE-PARAMETER\n'//&
+                                        'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Type' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', '2', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Temperature' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
@@ -3990,6 +4002,14 @@ __STAMP__&
     ELSE
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
     END IF
+    ! ================================= ADAPTIVE BC READ IN START =================================================================!
+    Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet','.FALSE.')
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+      Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type','2')
+      Species(iSpec)%Surfaceflux(iSF)%AdaptInTemp         = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Temperature','0.')
+      Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow','0.')
+    END IF
+    ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
 END DO ! iSpec
 IF (nAdaptiveBC.GT.0) THEN
