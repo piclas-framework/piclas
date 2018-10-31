@@ -274,6 +274,7 @@ TYPE typeSurfaceflux
   INTEGER                                :: AdaptInType                      !
   REAL                                   :: AdaptInTemp                      !
   REAL                                   :: AdaptInMassflow                  !
+  REAL                                   :: AdaptivePressure                  !
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

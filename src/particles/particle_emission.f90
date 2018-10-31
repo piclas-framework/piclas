@@ -4017,6 +4017,7 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type','2')
       Species(iSpec)%Surfaceflux(iSF)%AdaptInTemp         = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Temperature','0.')
       Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow','0.')
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure','0.')
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
@@ -4758,6 +4759,9 @@ __STAMP__&
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
+      END IF
       BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
       ElemID = SideToElem(1,BCSideID)
       IF (ElemID.LT.1) THEN !not sure if necessary
@@ -4814,25 +4818,77 @@ __STAMP__&
 !----- 1.: set positions
         !-- compute number of to be inserted particles
         IF (noAdaptive) THEN
-          IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-            PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
-!IPWRITE(*,*) PartInsSubSide
-!read*
-          ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
-            PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-                    * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
-            IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+          IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+            IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
+              PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
+  !IPWRITE(*,*) PartInsSubSide
+  !read*
+            ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
+              PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+                      * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
+              IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+                CALL abort(&
+  __STAMP__&
+  ,'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
+              ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
+                CALL SamplePoissonDistri( PartIns , PartInsSubSide )
+              END IF
+            ELSE !DoTimeDepInflow
+              CALL RANDOM_NUMBER(RandVal1)
+              PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+                             * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
+            END IF !DoPoissonRounding
+          ELSE !Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet
+            SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
+            CASE(1) ! Pressure inlet (pressure, temperature const)
+              ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+              T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+            CASE(2) ! adaptive Outlet/freestream
+              ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
+              pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
+              T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+              !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
+              !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
+            CASE(3) ! pressure outlet (pressure defined)
+            CASE DEFAULT
               CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
-            ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
-              CALL SamplePoissonDistri( PartIns , PartInsSubSide )
+  __STAMP__&
+  ,'wrong adaptive type for Surfaceflux!')
+            END SELECT
+            VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+            VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+            VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+            VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+            IF (ABS(VeloIC).GT.0.) THEN
+              VeloVecIC = VeloVec / VeloIC
+            ELSE
+              VeloVecIC = (/1.,0.,0./)
             END IF
-          ELSE !DoTimeDepInflow
+            vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+            projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
+            v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
+            a = 0 !dummy for projected speed ratio in constant v-distri
+            !-- compute total volume flow rate through surface
+            SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
+            CASE('constant')
+              vSF = VeloIC * projFak !Velo proj. to inwards normal
+              nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('maxwell','maxwell_lpn')
+              IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
+                v_thermal = 1.
+              END IF
+              a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+              vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
+              nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
+            CASE DEFAULT
+              CALL abort(&
+  __STAMP__&
+  ,'wrong velo-distri for adaptive Surfaceflux!')
+            END SELECT
+
             CALL RANDOM_NUMBER(RandVal1)
-            PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-                           * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
-          END IF !DoPoissonRounding
+            PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
+          END IF ! Adaptive SurfaceFlux
         ELSE !Adaptive
           SELECT CASE(PartBound%AdaptiveType(currentBC))
           CASE(1) ! Pressure inlet (pressure, temperature const)
@@ -5474,12 +5530,46 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
-  VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
-  T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
-  a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
-  projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
-  Velo_t1 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
-  Velo_t2 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
+  IF(.NOT.Species(FractNbr)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+    VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
+    T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
+    a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
+    projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
+    Velo_t1 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
+    Velo_t2 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
+  ELSE !Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet
+    SELECT CASE(Species(FractNbr)%Surfaceflux(iSF)%AdaptInType)
+    CASE(1) ! Pressure inlet (pressure, temperature const)
+      T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
+    CASE(2) ! adaptive Outlet/freestream
+      pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
+      T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+      !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
+      !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
+    CASE(3) ! pressure outlet (pressure defined)
+    CASE DEFAULT
+      CALL abort(&
+  __STAMP__&
+  ,'wrong adaptive type for Surfaceflux velocities!')
+    END SELECT
+    VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,FractNbr)
+    VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,FractNbr)
+    VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,FractNbr)
+    VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+    IF (ABS(VeloIC).GT.0.) THEN
+      VeloVecIC = VeloVec / VeloIC
+    ELSE
+      VeloVecIC = (/1.,0.,0./)
+    END IF
+    projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
+    v_thermal = SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC) !thermal speed
+    IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
+      v_thermal = 1.
+    END IF
+    a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+    Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
+    Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
+  END IF !Adaptive SurfaceFlux
 END IF
 
 !-- set velocities
