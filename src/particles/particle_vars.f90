@@ -261,6 +261,7 @@ TYPE typeSurfaceflux
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
+  LOGICAL                                :: CircularInflow                   !
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles

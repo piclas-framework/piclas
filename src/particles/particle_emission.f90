@@ -88,6 +88,11 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' &
 CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Normalized velocity vector' , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
+!=====================================
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-CircularInflow' &
+                                      , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+!=====================================
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' &
                                       , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Fit of veloR/veloTot=-r*(A*exp(B*r)+C)', '.FALSE.', numberedmulti=.TRUE.)
@@ -3666,7 +3671,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2)
-LOGICAL               :: AnySimpleRadialVeloFit, noAdaptive
+LOGICAL               :: AnyCircularInflow, noAdaptive
 INTEGER               :: MaxSurfacefluxBCs
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
 INTEGER,ALLOCATABLE   :: TmpMapToBC(:)                       ! PartBC
@@ -3768,7 +3773,7 @@ IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
 IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 #endif /*CODE_ANALYZE*/ 
 
-AnySimpleRadialVeloFit=.FALSE.
+AnyCircularInflow=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
@@ -3905,11 +3910,15 @@ __STAMP__&
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%VeloVecIC          =GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'1. , 0. , 0.')
         Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
+        Species(iSpec)%Surfaceflux(iSF)%CircularInflow=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-CircularInflow','.FALSE.')
         IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
-          AnySimpleRadialVeloFit=.TRUE.
+          Species(iSpec)%Surfaceflux(iSF)%CircularInflow =.TRUE.
           Species(iSpec)%Surfaceflux(iSF)%preFac       = GETREAL('Part-Species'//TRIM(hilf2)//'-preFac','0.')
           Species(iSpec)%Surfaceflux(iSF)%powerFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-powerFac','0.')
           Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','0.')
+        END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          AnyCircularInflow=.TRUE.
           Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir','1')
           IF (Species(iSpec)%Surfaceflux(iSF)%dir(1).EQ.1) THEN
             Species(iSpec)%Surfaceflux(iSF)%dir(2)=2
@@ -3933,7 +3942,7 @@ __STAMP__&
           WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(Species(iSpec)%Surfaceflux(iSF)%rmax)
           Species(iSpec)%Surfaceflux(iSF)%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
           Species(iSpec)%Surfaceflux(iSF)%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin','0.')
-        END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
+        END IF
       END IF !.NOT.VeloIsNormal
     ELSE !Adaptive
       Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = Species(iSpec)%Init(0)%velocityDistribution
@@ -4059,7 +4068,7 @@ DO BCSideID=1,nBCSides
   TmpSideEnd(currentBC) = BCSideID
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
-IF (AnySimpleRadialVeloFit) THEN
+IF (AnyCircularInflow) THEN
   ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
     nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
     nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
@@ -4080,7 +4089,7 @@ DO iBC=1,nDataBC
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)) )
-        IF (AnySimpleRadialVeloFit .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
+        IF (AnyCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
       END IF
@@ -4238,7 +4247,7 @@ DO iSpec=1,nSpecies
         !- RejectType=0 : complete side is inside valid bounds
         !- RejectType=1 : complete side is outside of valid bounds
         !- RejectType=2 : side is partly inside valid bounds
-        IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
           CALL GetSideBoundingBox(BCSideID,BoundingBox)
           intersecExists=.FALSE.
           !atan2Shift=0.
@@ -4321,7 +4330,7 @@ DO iSpec=1,nSpecies
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin) 
-        END IF !SimpleRadialVeloFit: check r-bounds
+        END IF ! CircularInflow: check r-bounds
         IF (noAdaptive) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
@@ -4353,7 +4362,7 @@ __STAMP__&
 __STAMP__&
 ,'wrong velo-distri for Surfaceflux!')
             END SELECT
-            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
+            IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
               IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
                 nVFR = 0.
               END IF
@@ -4424,7 +4433,7 @@ __STAMP__&
 ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
 #ifdef CODE_ANALYZE
-    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       IPWRITE(*,'(I4,A,2(x,I0),A,3(x,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
                                             , nType0(iSF,iSpec),nType1(iSF,iSpec),nType2(iSF,iSpec)
     END IF
@@ -4655,13 +4664,15 @@ DO iSpec=1,nSpecies
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    
-    IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+
+    IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       dir   =Species(iSpec)%Surfaceflux(iSF)%dir
       origin=Species(iSpec)%Surfaceflux(iSF)%origin
-      preFac=Species(iSpec)%Surfaceflux(iSF)%preFac
-      powerFac=Species(iSpec)%Surfaceflux(iSF)%powerFac
-      shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
+      IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
+        preFac=Species(iSpec)%Surfaceflux(iSF)%preFac
+        powerFac=Species(iSpec)%Surfaceflux(iSF)%powerFac
+        shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
+      END IF
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
     IF (.NOT.DoPoissonRounding .AND. .NOT. DoTimeDepInflow .AND. noAdaptive) THEN
@@ -4966,7 +4977,7 @@ __STAMP__&
             CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
           END IF !TriaSurfaceFlux
 
-          IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
+          IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
             SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
             CASE(0) !- RejectType=0 : complete side is inside valid bounds
               AcceptPos=.TRUE.
@@ -4991,7 +5002,7 @@ __STAMP__&
             END SELECT !SurfFluxSideRejectType
           ELSE !no check for rmax-rejection
             AcceptPos=.TRUE.
-          END IF !SimpleRadialVeloFit
+          END IF ! CircularInflow
 
           !-- save position if accepted:
           IF (AcceptPos) THEN
@@ -5005,7 +5016,7 @@ __STAMP__&
             iPart=iPart+1
           ELSE
             nReject=nReject+1
-            IF (Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN !check rmax-rejection
+            IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
               allowedRejections=allowedRejections+1
             END IF
           END IF
