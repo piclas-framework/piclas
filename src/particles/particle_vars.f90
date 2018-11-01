@@ -272,9 +272,10 @@ TYPE typeSurfaceflux
                                                                              ! used for abort criterion in do while during sampling
   LOGICAL                                :: AdaptiveInlet                    !
   INTEGER                                :: AdaptInType                      !
-  REAL                                   :: AdaptInTemp                      !
   REAL                                   :: AdaptInMassflow                  !
-  REAL                                   :: AdaptivePressure                  !
+  REAL                                   :: AdaptivePressure                 !
+  REAL                                   :: totalAreaSF                      !
+  REAL                                   :: AdaptInPreviousVelocity(3)       !
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

@@ -147,10 +147,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Ty
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Temperature' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
@@ -3706,6 +3703,9 @@ LOGICAL               :: OutputSurfaceFluxLinked
 REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
 INTEGER               :: iElem
+#ifdef MPI
+REAL                  :: totalAreaSF_global
+#endif
 !===================================================================================================================================
 
 #ifdef MPI
@@ -4018,15 +4018,24 @@ __STAMP__&
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
       DoPoissonRounding = .TRUE.
       UseAdaptiveInlet  = .TRUE.
+      ! Total area of surface flux
+      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Pi*(Species(iSpec)%Surfaceflux(iSF)%rmax &
+          *Species(iSpec)%Surfaceflux(iSF)%rmax - Species(iSpec)%Surfaceflux(iSF)%rmin*Species(iSpec)%Surfaceflux(iSF)%rmin)
+      ELSE
+        Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
+      END IF
       Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type')
-      Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow','0.')
       SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
+      !              Case 3: Inlet Type 2, constant mass flow and temperature
       CASE(1,2)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
+      CASE(3)
+        Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow')
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -4252,6 +4261,12 @@ DO iSpec=1,nSpecies
         ELSE !TriaSurfaceFlux
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+              IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+                Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Species(iSpec)%Surfaceflux(iSF)%totalAreaSF &
+                                                              + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+              END IF
+            END IF
           END DO; END DO
         END IF
         !-- check where the sides are located relative to rmax (based on corner nodes of bounding box)
@@ -4472,6 +4487,15 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal=Species(iSpec)%Surfaceflux(iSF)%VFR_total
 #endif  /*MPI*/
     END IF !ReduceNoise
+#ifdef MPI
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+      IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+        Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
+      END IF
+    END IF
+#endif
   END DO !iSF
 END DO !iSpec
 
@@ -4656,7 +4680,7 @@ REAL                        :: EvibOld, EvibWall, EVibNew
 REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpoint(3),AreasTria(2)
 INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2,ExtraPartsTria(2)
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
-REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure
+REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure, veloNormal
 #if USE_LOADBALANCE
 ! load balance
 REAL                        :: tLBStart
@@ -4859,7 +4883,30 @@ __STAMP__&
               T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
               !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
               !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
-            CASE(3) ! pressure outlet (pressure defined)
+            CASE(3) ! Mass flow, temperature constant
+              VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+              VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+              VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+              vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+              veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
+              IF(veloNormal.GT.0.0) THEN
+                ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+                                  / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+                Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:3) = VeloVec(1:3)
+              ELSE
+                ! Using the old velocity vector, overwriting the sampled value with the old one
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(2)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(3)
+                VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
+                VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
+                VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
+                vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+                veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
+                ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+                                  / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+              END IF
+              T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
             CASE DEFAULT
               CALL abort(&
   __STAMP__&
@@ -5556,7 +5603,8 @@ ELSE
       T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
       !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
       !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
-    CASE(3) ! pressure outlet (pressure defined)
+    CASE(3) ! Constant mass flow and temperature
+      T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE DEFAULT
       CALL abort(&
   __STAMP__&
