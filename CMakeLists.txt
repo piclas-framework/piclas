@@ -734,10 +734,10 @@ ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
 # =========================================================================
-# Add H5BOLTZ2VTK tool
+# Add H5piclas2VTK tool
 # =========================================================================
-add_exec(h5boltz2vtk ./src/h5boltz2vtk.f90)
-ADD_DEPENDENCIES(h5boltz2vtk piclaslib HDF5)
+add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
+ADD_DEPENDENCIES(h5piclas2vtk piclaslib HDF5)
 
 # =========================================================================
 # Posti

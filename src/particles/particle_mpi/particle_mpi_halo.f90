@@ -911,7 +911,7 @@ IF (RecvMsg%nElems.GT.0) THEN
 END IF
 ! BezierControlPoints3D for exchange
 IF (SendMsg%nSides.GT.0) THEN       ! Beziercontrolpoints3d
-  ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%BezierControlPoints3D',SendMsg%nSides)
@@ -1079,7 +1079,7 @@ END IF
 
 ! SideToElem Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
-  ALLOCATE(SendMsg%SideToElem(1:5,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%SideToElem(1:5,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
@@ -1135,7 +1135,7 @@ END IF
 ! 3:1=Mine/2=Yours 
 ! 4:SIDE_ID-MPI_Offset(NBProc)  
 IF (SendMsg%nSides.GT.0) THEN       
-  ALLOCATE(SendMsg%BC(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%BC(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
@@ -1150,7 +1150,7 @@ IF (RecvMsg%nSides.GT.0) THEN
 END IF
 ! mortartype
 IF (SendMsg%nSides.GT.0) THEN       
-  ALLOCATE(SendMsg%MortarType(1:2,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%MortarType(1:2,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%MortarType',SendMsg%nSides,999.)
@@ -1165,7 +1165,7 @@ IF (RecvMsg%nSides.GT.0) THEN
 END IF
 ! SideBCType
 IF (SendMsg%nSides.GT.0) THEN       
-  ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%SideBCType',SendMsg%nSides,999.)
@@ -1195,7 +1195,7 @@ IF (RecvMsg%nElems.GT.0) THEN
 END IF
 ! SideSlabNormals Mapping
 IF (SendMsg%nSides.GT.0) THEN       
-  ALLOCATE(SendMsg%SideSlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%SideSlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%SideSlabNormals',SendMsg%nSides)
@@ -1210,7 +1210,7 @@ IF (RecvMsg%nSides.GT.0) THEN
 END IF
 ! SideSlabIntervals Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideSlabIntervals(1:2,1:nSides) 
-  ALLOCATE(SendMsg%SideSlabIntervals(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%SideSlabIntervals(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%SideSlabIntervals',SendMsg%nSides)
@@ -1225,7 +1225,7 @@ IF (RecvMsg%nSides.GT.0) THEN
 END IF
 ! BoundingBoxIsEmpty Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! BoundingBoxIsEmpty(1:2,1:nSides) 
-  ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
   IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
     ,'Could not allocate SendMsg%BoundingBoxIsEmpty',SendMsg%nSides)
