@@ -1,6 +1,6 @@
-## Boltzplatz Tracking Routines
+## PICLas Tracking Routines
 
-Boltzplatz uses two different tracking routines. The switch between both is
+PICLas uses two different tracking routines. The switch between both is
 
 		DoRefMapping=T/F
 
