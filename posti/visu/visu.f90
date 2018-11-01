@@ -502,7 +502,7 @@ ELSE IF (ISVALIDHDF5FILE(statefile)) THEN ! visualize state file
 
   ! read solution from state file (either direct or including a evaluation of the DG operator)
   IF (LEN_TRIM(prmfile).EQ.0) THEN
-    changedPrmFile = .NOT.STRICMP(prmfile_old, ".boltzplatz_posti.ini")
+    changedPrmFile = .NOT.STRICMP(prmfile_old, ".piclas_posti.ini")
   ELSE
     changedPrmFile = (prmfile .NE. prmfile_old)  
   END IF

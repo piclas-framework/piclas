@@ -311,7 +311,7 @@ REAL                         :: tPreviousAverageAnalyze  !> time of previous Ave
 INTEGER(KIND=8)              :: iAnalyze                 !> count number of next analyze
 REAL                         :: tEndDiff                 !> difference between simulation time and simulation end time
 REAL                         :: tAnalyzeDiff             !> difference between simulation time and next analyze time
-INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitBoltzplatz call for PID calculation
+INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
 #if (PP_TimeDiscMethod==201)
@@ -390,7 +390,7 @@ END IF
 !#endif /*MPI*/
 !#endif
 CALL InitTimeStep() ! Initial time step calculation
-WallTimeStart=BOLTZPLATZTIME()
+WallTimeStart=PICLASTIME()
 iter=0
 iter_PID=0
 
@@ -647,7 +647,7 @@ DO !iter_t=0,MaxIter
     ELSE
       finalIter=.FALSE.
     END IF
-    WallTimeEnd=BOLTZPLATZTIME()
+    WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
       WallTime = WallTimeEnd-StartTime
@@ -715,7 +715,7 @@ DO !iter_t=0,MaxIter
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
           !CALL InitTimeStep() ! re-calculate time step after load balance is performed
           RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
-          RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
+          RestartWallTime=PICLASTIME() ! Set restart wall time if a load balance step is performed
         END IF
         CALL LoadBalance()
         IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
@@ -741,7 +741,7 @@ DO !iter_t=0,MaxIter
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
     tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
-    WallTimeStart=BOLTZPLATZTIME()
+    WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t

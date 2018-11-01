@@ -36,7 +36,7 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 ! time measurement
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
                                                                                   ! measured elem-independent and later weighted
-                                                                                  ! for indeces look into boltzplatz.h
+                                                                                  ! for indeces look into piclas.h
 ! counter
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps

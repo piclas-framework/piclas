@@ -167,7 +167,7 @@ REAL               :: StartT,EndT
 !===================================================================================================================================
 
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 #ifdef PARTICLES
 BezierTime=0.
 #endif
@@ -451,7 +451,7 @@ END DO !iElem=1,nElems
 #ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
-StartT2=BOLTZPLATZTIME()
+StartT2=PICLASTIME()
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*MPI*/
@@ -495,15 +495,15 @@ DO iSide=1,lowerLimit
   END IF
 END DO 
 
-endT=BOLTZPLATZTIME()
+endT=PICLASTIME()
 BezierTime=BezierTime+endT-StartT2
 
 SWRITE(UNIT_stdOut,'(A)') ' '
-endt=BOLTZPLATZTIME()
+endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
 #else
-endt=BOLTZPLATZTIME()
+endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 #endif /*PARTICLES*/
 

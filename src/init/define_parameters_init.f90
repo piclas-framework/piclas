@@ -54,7 +54,7 @@ USE MOD_HDG              ,ONLY: DefineParametersHDG
 #endif /*PP_HDG*/
 USE MOD_Dielectric       ,ONLY: DefineParametersDielectric
 USE MOD_Filter           ,ONLY: DefineParametersFilter
-USE MOD_Boltzplatz_Init  ,ONLY: DefineParametersBoltzplatz
+USE MOD_Piclas_Init  ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit     ,ONLY: DefineParametersParticles
 USE MOD_Particle_Mesh    ,ONLY: DefineparametersParticleMesh
@@ -89,7 +89,7 @@ CALL DefineParametersRestart()
 CALL DefineParametersLinearSolver()
 #endif
 CALL DefineParametersOutput()
-CALL DefineParametersBoltzplatz()
+CALL DefineParametersPiclas()
 CALL DefineParametersTimedisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()

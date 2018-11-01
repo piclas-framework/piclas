@@ -368,7 +368,7 @@ CALL WriteAdditionalElemData(FileName,ElementOut)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 
 END SUBROUTINE WriteStateToHDF5
@@ -1409,7 +1409,7 @@ CHARACTER(LEN=255)             :: FileName
 REAL                           :: StartT,EndT
 !==================================================================================================================================
 IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
 END IF
@@ -1464,7 +1464,7 @@ IF(nVar_Fluc.GT.0)THEN
                           collective=.TRUE., RealArray=UFluc)
 END IF
 
-endT=BOLTZPLATZTIME()
+endT=PICLASTIME()
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 END IF

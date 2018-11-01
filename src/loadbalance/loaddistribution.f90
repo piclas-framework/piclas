@@ -208,7 +208,7 @@ CurWeight = 0.0
 
 ! Load balancing for particles: read in particle data
 #ifdef PARTICLES
-CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
 CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN
   ALLOCATE(PartInt(1:nGlobalElems,2))

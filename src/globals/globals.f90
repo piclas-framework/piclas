@@ -75,8 +75,8 @@ INTERFACE TIMESTAMP
   MODULE PROCEDURE TIMESTAMP
 END INTERFACE
 
-INTERFACE BOLTZPLATZTIME
-  MODULE PROCEDURE BOLTZPLATZTIME
+INTERFACE PICLASTIME
+  MODULE PROCEDURE PICLASTIME
 END INTERFACE
 
 INTERFACE LOCALTIME
@@ -166,7 +166,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGlobals
 
 
-! FUNCTION AlmostEqual(Num1,Num2) ! see boltzplatz.h
+! FUNCTION AlmostEqual(Num1,Num2) ! see piclas.h
 ! !===================================================================================================================================
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."
@@ -200,7 +200,7 @@ END SUBROUTINE InitGlobals
 ! END FUNCTION AlmostEqual
 
 
-! FUNCTION ALMOSTEQUALRELATIVE(Num1,Num2,Tolerance) ! old name "AlmostEqualToTolerance", new is same as for flexi: see boltzplatz.h
+! FUNCTION ALMOSTEQUALRELATIVE(Num1,Num2,Tolerance) ! old name "AlmostEqualToTolerance", new is same as for flexi: see piclas.h
 ! !===================================================================================================================================
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."
@@ -234,7 +234,7 @@ END SUBROUTINE InitGlobals
 ! END FUNCTION ALMOSTEQUALRELATIVE
 
 
-! FUNCTION AlmostZero(Num) ! see boltzplatz.h
+! FUNCTION AlmostZero(Num) ! see piclas.h
 ! !===================================================================================================================================
 ! ! Performe an almost zero check. But ...
 ! ! Bruce Dawson quote:
@@ -503,7 +503,7 @@ END SUBROUTINE str2logical
 
 !==================================================================================================================================
 !> read compile flags from a specified file
-!> example line in "configuration.cmake": SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+!> example line in "configuration.cmake": SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 !> ParameterName: timestep
 !> output: 0.1
 !> Type of Msg: [G]et[P]arameter[F]rom[File] -> GPFF: not ordinary read-in tool
@@ -671,9 +671,9 @@ END FUNCTION TIMESTAMP
 
 
 #ifdef MPI
-FUNCTION BOLTZPLATZTIME(Comm)
+FUNCTION PICLASTIME(Comm)
 #else
-FUNCTION BOLTZPLATZTIME()
+FUNCTION PICLASTIME()
 #endif
 !===================================================================================================================================
 ! Calculates current time (own function because of a laterMPI implementation)
@@ -688,7 +688,7 @@ INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                            :: BoltzplatzTime
+REAL                            :: PiclasTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !===================================================================================================================================
@@ -698,11 +698,11 @@ IF(PRESENT(Comm))THEN
 ELSE
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END IF
-BoltzplatzTime=MPI_WTIME()
+PiclasTime=MPI_WTIME()
 #else
-CALL CPU_TIME(BoltzplatzTime)
+CALL CPU_TIME(PiclasTime)
 #endif
-END FUNCTION BOLTZPLATZTIME
+END FUNCTION PICLASTIME
 
 
 FUNCTION LOCALTIME()

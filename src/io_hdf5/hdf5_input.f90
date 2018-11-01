@@ -70,7 +70,7 @@ CONTAINS
 
 FUNCTION ISVALIDHDF5FILE(FileName,FileVersionOpt)
 !===================================================================================================================================
-! Subroutine to check if a file is a valid Boltzplatz HDF5 file
+! Subroutine to check if a file is a valid PICLas HDF5 file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -113,7 +113,7 @@ IF(iError.EQ.0) THEN
   ! Open the attribute "Program" of root group
   CALL ReadAttribute(File_ID,'Program',1,StrScalar=ProgramName)
   help=.FALSE.
-  IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
+  IF(TRIM(ProgramName) .EQ. 'PICLas') help=.TRUE.
   IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
   IF(.NOT.help) isValidHDF5File=.FALSE.
  

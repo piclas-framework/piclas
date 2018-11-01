@@ -554,7 +554,7 @@ CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 #endif
-StartAnalyzeTime=BOLTZPLATZTIME()
+StartAnalyzeTime=PICLASTIME()
 !SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
 AnalyzeCount = AnalyzeCount + 1
 
@@ -896,7 +896,7 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 ! Time for analysis
-EndAnalyzeTime=BOLTZPLATZTIME()
+EndAnalyzeTime=PICLASTIME()
 !SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
 AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 
@@ -920,7 +920,7 @@ IF(forceAnalyze.OR.Output)THEN
     AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
-      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
+      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
       WRITE(UNIT_StdOut,'(132("-"))')
     ELSE
       WRITE(UNIT_StdOut,'(132("="))')

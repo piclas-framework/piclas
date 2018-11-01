@@ -13,7 +13,7 @@
 #include "piclas.h"
 
 !==================================================================================================================================
-!> The BOLTZPLATZ2VTK tool takes state files written during runtime by BOLTZPLATZ in the .h5 format and converts them to .vtu files,
+!> The PICLAS2VTK tool takes state files written during runtime by PICLAS in the .h5 format and converts them to .vtu files,
 !> readable by ParaView. Supports parallel readin. 
 !> The state files can come from different calculations with different mesh files, equation systems, polynomial degrees and so on.
 !> Two modes of usage: command line mode and parameter file mode.
@@ -122,7 +122,7 @@ IF (nArgs.LT.2) THEN
 END IF
 
 ! Measure init duration
-StartTime=BOLTZPLATZTIME()
+StartTime=PICLASTIME()
 
 ParameterFile = Args(1)
 ! Check if first argument is a parameter file or that the NVisu argument has been specified
@@ -201,7 +201,7 @@ NodeTypeVisuOut_FV = 'VISU_FVEQUI'
 CALL InitIO()
 
 ! Measure init duration
-Time=BOLTZPLATZTIME()
+Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
@@ -409,7 +409,7 @@ SDEALLOCATE(NodeCoords)
 CALL FinalizeMesh()
 
 ! Measure processing duration
-Time=BOLTZPLATZTIME()
+Time=PICLASTIME()
 #ifdef MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) THEN

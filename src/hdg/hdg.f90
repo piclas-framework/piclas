@@ -1129,7 +1129,7 @@ LOGICAL                         :: converged
 !===================================================================================================================================
 !SWRITE(UNIT_StdOut,'(132("-"))')
 !SWRITE(*,*)'CG solver start'
-TimeStartCG=BOLTZPLATZTIME()
+TimeStartCG=PICLASTIME()
 #ifdef MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
 VecSize=(nSides-nMPIsides_YOUR)*nGP_face
@@ -1199,7 +1199,7 @@ DO iter=1,MaxIterCG
   converged=(rr.LT.AbortCrit2)
 #endif /*MPI*/
   IF(converged) THEN !converged
-!    TimeEndCG=BOLTZPLATZTIME()
+!    TimeEndCG=PICLASTIME()
 !    SWRITE(UNIT_StdOut,'(A,X,I16)')   '#iterations        :',iter
 !    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime         [s]:',(TimeEndCG-TimeStartCG)
 !    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter    [s]:', (TimeEndCG-TimeStartCG)/REAL(iter)

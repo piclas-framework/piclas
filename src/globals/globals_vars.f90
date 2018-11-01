@@ -1,4 +1,4 @@
-!==================================================================================================================================
+piclas
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
 ! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
@@ -39,7 +39,7 @@ REAL,PARAMETER               :: PlanckConst    = 6.62606957E-34       !> Planck 
 REAL,PARAMETER               :: ElectronCharge = 1.60217653e-19       !> charge of an electron
 REAL,PARAMETER               :: ElectronMass   = 9.1093826E-31        !> mass of an electron
 REAL,PARAMETER               :: FileVersion    = 0.11                 !> FileVersion number saved in each hdf5 file with hdf5 header
-CHARACTER(LEN=255),PARAMETER :: ProgramName    = 'Boltzplatz'         !> name of this program
+CHARACTER(LEN=6),PARAMETER   :: ProgramName    = 'PICLas'             !> name of this program
 CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DEFINE-PARAMETER
 CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file

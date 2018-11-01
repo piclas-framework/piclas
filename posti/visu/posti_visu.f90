@@ -59,7 +59,7 @@ CALL ParseCommandlineArguments()
 IF (nArgs.LT.1) THEN
   CALL CollectiveStop(&
 __STAMP__&
-,'ERROR - Invalid syntax. Please use: posti [posti-prm-file [boltzplatz-prm-file]] statefile [statefiles]')
+,'ERROR - Invalid syntax. Please use: posti [posti-prm-file [piclas-prm-file]] statefile [statefiles]')
 END IF
 
 prmfile = ""
@@ -80,7 +80,7 @@ ELSE IF(STRICMP(GetFileExtension(Args(1)),'h5')) THEN
 ELSE
   CALL CollectiveStop(&
 __STAMP__&
-,'ERROR - Invalid syntax. Please use: posti [posti-prm-file [boltzplatz-prm-file]] statefile [statefiles]')
+,'ERROR - Invalid syntax. Please use: posti [posti-prm-file [piclas-prm-file]] statefile [statefiles]')
 END IF
 
 DO iArg=1+skipArgs,nArgs

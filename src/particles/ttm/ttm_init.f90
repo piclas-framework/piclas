@@ -448,7 +448,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
     SWRITE(UNIT_stdOut,'(A)')' INIT TTM: data will be read from restart file!'
     IF(MPIRoot)THEN
       nRestartVars=0
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)  ! BOLTZPLATZ
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
       CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
       CALL CloseDataFile()
       IF (ALLOCATED(VarNamesElemData_loc)) THEN

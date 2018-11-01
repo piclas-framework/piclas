@@ -14,7 +14,7 @@
 
 MODULE MOD_Restart
 !===================================================================================================================================
-! Module to handle Boltzplatz's restart
+! Module to handle PICLas's restart
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -174,7 +174,7 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 ! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
-RestartWallTime=BOLTZPLATZTIME()
+RestartWallTime=PICLASTIME()
 
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.

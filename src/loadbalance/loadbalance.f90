@@ -154,7 +154,7 @@ PerformLBSample = .FALSE.
 #if USE_LOADBALANCE
 ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! Allocation length (1:number of loadbalance times)
-! look into boltzplatz.h for more info about time names
+! look into piclas.h for more info about time names
 tCurrent=0.
 #endif /*USE_LOADBALANCE*/
 
@@ -340,7 +340,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Boltzplatz_Init  ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Piclas_Init  ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
@@ -369,13 +369,13 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 ! Measure init duration
-LB_StartTime=BOLTZPLATZTIME()
+LB_StartTime=PICLASTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
-CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
+CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
-CALL InitBoltzplatz(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
 ! restart
 CALL Restart()
@@ -411,7 +411,7 @@ END IF
 #endif /*PARTICLES*/
 
 ! Measure init duration
-LB_Time=BOLTZPLATZTIME()
+LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
