@@ -17,16 +17,16 @@
 !> readable by ParaView. Supports parallel readin. 
 !> The state files can come from different calculations with different mesh files, equation systems, polynomial degrees and so on.
 !> Two modes of usage: command line mode and parameter file mode.
-!> In parameter file mode the usage is: h5boltz2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
+!> In parameter file mode the usage is: h5piclas2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
 !> In the parameter file the following can be specified:
 !> - NVisu: Integer, polynomial degree of visualization basis
 !> - NodeTypeVisu: String, node type of visualization basis
 !> - useCurveds: Logical, should the mesh be curved or not (if the mesh itself is curved)
 !> In command line mode, only the degree of the visualization basis can be directly specified, no parameter file is needed:
-!> h5boltz2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
+!> h5piclas2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
 !> All other options are set to their standard values.
 !==================================================================================================================================
-PROGRAM H5BOLTZ2VTK
+PROGRAM H5PICLAS2VTK
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
@@ -101,8 +101,8 @@ CALL InitMPI()
 CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
 !CALL DefineParametersIO_HDF5()
-! Define parameters for H5BOLTZ2VTK
-CALL prms%SetSection("H5BOLTZ2VTK")
+! Define parameters for H5PICLAS2VTK
+CALL prms%SetSection("H5PICLAS2VTK")
 CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//& 
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
@@ -163,7 +163,7 @@ SWRITE(UNIT_stdOut,'(A)') &
 SWRITE(UNIT_stdOut,'(A)')
 SWRITE(UNIT_stdOut,'(132("="))')
                                                                                                   
-! Set and read in parameters differently depending if H5BOLTZ2VTK is invoked with a parameter file or not
+! Set and read in parameters differently depending if H5PICLAS2VTK is invoked with a parameter file or not
 IF (CmdLineMode) THEN
   ! Read NVisu from the first command line argument
   NVisuString = TRIM(ParameterFile(9:LEN(TRIM(ParameterFile)))) 
@@ -191,7 +191,7 @@ ELSE
   NVisu            = GETINT('NVisu')                  ! Degree of visualization basis
 END IF
 
-! Set necessary parameters for H5BOLTZ2VTK tool
+! Set necessary parameters for H5PICLAS2VTK tool
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 useCurveds       = GETLOGICAL('useCurveds','.TRUE.')  ! Allow curved mesh or not
@@ -418,8 +418,8 @@ IF(iError .NE. 0) THEN
 END IF
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' H5BOLTZ2VTK FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' H5PICLAS2VTK FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
-END PROGRAM H5BOLTZ2VTK
+END PROGRAM H5PICLAS2VTK
 
