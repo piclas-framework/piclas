@@ -50,7 +50,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, nSpecies, Species, LastPartPos
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -80,8 +80,8 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: adsorbindex
+REAL                                 :: n_loc(1:3),RanNum, point(1:2), intersectionPoint(1:3), radius
+INTEGER                              :: adsorbindex, iSpec, iSF
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
@@ -126,6 +126,22 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Combining surface flux and circular inflow with a reflective boundary condition, particles will be deleted at the inflow
+  DO iSpec=1,nSpecies
+    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+          point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+          point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+          radius=SQRT( (point(1))**2+(point(2))**2 )
+          IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+            PDM%ParticleInside(iPart)=.FALSE.
+          END IF
+        END IF
+      END IF
+    END DO
+  END DO
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
 #ifndef IMPA
