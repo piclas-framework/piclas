@@ -119,7 +119,7 @@ build_gnu:
   script:
     - module load env/gnu; mkdir -p build_gnu ; cd build_gnu
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel:
 #   tags:
@@ -139,7 +139,7 @@ build_gnu:
 #   script:
 #     - module load env/intel; mkdir -p build_intel ; cd build_intel
 #     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-#     - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - cmake .. -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 build_gnu_maxwell:
   tags:
@@ -159,7 +159,7 @@ build_gnu_maxwell:
   script:
     - module load env/gnu; mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel_maxwell:
 #   tags:
@@ -179,7 +179,7 @@ build_gnu_maxwell:
 #   script:
 #     - module load env/intel; mkdir -p build_intel_maxwell ; cd build_intel_maxwell
 #     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-#     - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 build_gnu_poisson:
   tags:
@@ -199,7 +199,7 @@ build_gnu_poisson:
   script:
     - module load env/gnu; mkdir -p build_gnu_poisson ; cd build_gnu_poisson
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel_poisson:
 #   tags:
@@ -219,7 +219,7 @@ build_gnu_poisson:
 #   script:
 #     - module load env/intel; mkdir -p build_intel_poisson ; cd build_intel_poisson
 #     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-#     - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in

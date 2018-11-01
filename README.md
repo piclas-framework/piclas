@@ -1,6 +1,6 @@
-# Welcome to Boltzplatz
+# Welcome to PICLas
 
-[![build status](https://gitlabext.iag.uni-stuttgart.de/piclas/boltzplatz/badges/master/build.svg)](https://gitlabext.iag.uni-stuttgart.de/piclas/boltzplatz/builds/)
+[![build status](https://gitlab.com:piclas/piclas/badges/master/build.svg)](https://gitlab.com:piclas/piclas/builds/)
 
 ## Installation / Documentation
 
@@ -49,7 +49,7 @@ For an easy guide to arbitrary particle distributions during an initial emission
 
 ## Used libraries
 
-Boltzplatz uses several external libraries as well as auxilliary functions from open source projects, including:
+PICLas uses several external libraries as well as auxilliary functions from open source projects, including:
 
 * [HDF5](https://www.hdfgroup.org/)
 * [MPI](http://www.mcs.anl.gov/research/projects/mpi/)
