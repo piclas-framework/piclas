@@ -114,6 +114,7 @@ IF(iError.EQ.0) THEN
   CALL ReadAttribute(File_ID,'Program',1,StrScalar=ProgramName)
   help=.FALSE.
   IF(TRIM(ProgramName) .EQ. 'PICLas') help=.TRUE.
+  IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
   IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
   IF(.NOT.help) isValidHDF5File=.FALSE.
  
