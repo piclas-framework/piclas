@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "boltzplatz.h"
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Module containing the main procedures for the visu tool: visu_requestInformation is called by ParaView to create a

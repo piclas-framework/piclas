@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-#include "boltzplatz.h"
+#include "piclas.h"
 
 !==================================================================================================================================
 !> Routine performing time averaging of variables and the preparation to computing fluctuations

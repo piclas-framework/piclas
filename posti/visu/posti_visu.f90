@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "boltzplatz.h"
+#include "piclas.h"
 !===================================================================================================================================
 !> Standalone version of the Visu tool. Read in parameter file, loop over all given State files and call the visu routine for
 !> all of them.
