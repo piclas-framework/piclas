@@ -268,7 +268,7 @@ USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /* MPI */
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
+USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptiveInlet
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 #if defined(MPI) && defined(USE_LOADBALANCE) && defined(PARTICLES)
@@ -625,7 +625,7 @@ DO !iter_t=0,MaxIter
 #endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
+  IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet) CALL AdaptiveBCAnalyze()
 #endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end

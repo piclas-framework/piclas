@@ -292,6 +292,7 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+LOGICAL                                  :: UseAdaptiveInlet                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations

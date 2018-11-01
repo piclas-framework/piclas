@@ -88,11 +88,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-VeloIsNormal' &
 CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Normalized velocity vector' , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
-!=====================================
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-CircularInflow' &
                                       , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
-!=====================================
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' &
                                       , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Fit of veloR/veloTot=-r*(A*exp(B*r)+C)', '.FALSE.', numberedmulti=.TRUE.)
@@ -146,13 +144,16 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet' &
                                         'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Type' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', '2', numberedmulti=.TRUE.)
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Temperature' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER'  , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
@@ -3645,7 +3646,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3774,6 +3775,7 @@ IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 #endif /*CODE_ANALYZE*/ 
 
 AnyCircularInflow=.FALSE.
+UseAdaptiveInlet=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
@@ -3784,9 +3786,9 @@ DoSurfaceFlux=.FALSE.
 !  BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
 !END DO
 
+AdaptiveWeightFac = GETREAL('Part-AdaptiveWeightingFactor','0.001')
 ! auxiliary arrays for defining all Adaptive_BCs
 IF (nAdaptiveBC.GT.0) THEN
-  AdaptiveWeightFac = GETREAL('Part-AdaptiveWeightingFactor','0.001')
   ALLOCATE(Adaptive_BC_Map(1:nAdaptiveBC))
   Adaptive_BC_Map(:)=0
   ALLOCATE(Adaptive_Found_Flag(1:nAdaptiveBC))
@@ -4014,10 +4016,18 @@ __STAMP__&
     ! ================================= ADAPTIVE BC READ IN START =================================================================!
     Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet','.FALSE.')
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
-      Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type','2')
-      Species(iSpec)%Surfaceflux(iSF)%AdaptInTemp         = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Temperature','0.')
+      DoPoissonRounding = .TRUE.
+      UseAdaptiveInlet  = .TRUE.
+      Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type')
       Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow','0.')
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure','0.')
+      SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
+      ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
+      !              Case 2: Outlet Type 1, constant pressure
+      CASE(1,2)
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
+        Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
+                                                            / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
+      END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
@@ -4181,7 +4191,7 @@ DEALLOCATE(TmpMapToBC &
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
-IF(nAdaptiveBC.GT.0)THEN
+IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
   ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
@@ -4189,7 +4199,7 @@ IF(nAdaptiveBC.GT.0)THEN
   IF (DoRestart) THEN
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
     ! read local ParticleInfo from HDF5
-    CALL DatasetExists(File_ID,'nAdaptiveBC',AdaptiveDataExists,attrib=.TRUE.)
+    CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
       ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
@@ -4332,7 +4342,7 @@ DO iSpec=1,nSpecies
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin) 
         END IF ! CircularInflow: check r-bounds
-        IF (noAdaptive) THEN
+        IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
             vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
@@ -4400,7 +4410,7 @@ __STAMP__&
             END IF !.NOT.VeloIsNormal
           END IF
         END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
-        IF (.NOT.noAdaptive) THEN
+        IF ((.NOT.noAdaptive).OR.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
             FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
