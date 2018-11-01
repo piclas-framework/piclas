@@ -111,6 +111,7 @@ USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
@@ -174,6 +175,10 @@ IF(DoAnalyze)THEN
   CalcEtot        = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
 END IF
 #endif /*PARTICLES*/ 
+
+! initialize time and counter for analyze measurement
+AnalyzeCount = 0
+AnalyzeTime  = 0.0
 
 AnalyzeInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -247,7 +252,7 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE CalcError(time,L_2_Error)
+SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -269,16 +274,16 @@ REAL,INTENT(IN)               :: time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
+REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(PP_nVar),U_exact(PP_nVar)
+REAL                          :: U_exact(PP_nVar)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: IntegrationWeight
-CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
@@ -321,12 +326,6 @@ END DO ! iElem=1,PP_nElems
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 
-! Graphical output
-IF(MPIroot) THEN
-  WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
-  WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
-  WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
-END IF
 END SUBROUTINE CalcError
 
 SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
@@ -451,7 +450,7 @@ SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze,AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -528,20 +527,24 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
-REAL                          :: CalcTime
+REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+REAL                          :: StartAnalyzeTime,EndAnalyzeTime
+CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
-! not for first iteration (when analysis is called within RK steps)
+! Not for first iteration (when analysis is called within RK steps)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
-!IF(iter.EQ.0) RETURN
 #endif
+StartAnalyzeTime=BOLTZPLATZTIME()
+!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
+AnalyzeCount = AnalyzeCount + 1
 
 LastIter=.FALSE.
 IF(PRESENT(LastIter_in))THEN
@@ -554,22 +557,10 @@ END IF
 
 ! Calculate error norms
 IF(forceAnalyze.OR.Output)THEN
-    CalcTime=BOLTZPLATZTIME()
   IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
-    CALL CalcError(OutputTime,L_2_Error)
-    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,CalcTime,L_2_Error)
-  END IF
-  IF(MPIroot) THEN
-    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
-    IF (OutputTime.GT.0.) THEN
-      WRITE(UNIT_StdOut,'(132("."))')
-      WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
-      WRITE(UNIT_StdOut,'(132("-"))')
-    ELSE
-      WRITE(UNIT_StdOut,'(132("="))')
-    END IF
+    CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
+    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
   END IF
 END IF
 
@@ -580,20 +571,20 @@ IF (CalcPoyntingInt) THEN
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar>=6)
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
+    ! Initial analysis is only performed for NO restart
     CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
   ELSE
-     ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+     ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
 #if defined(LSERK)
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
       IF(iter.GT.1)THEN
-        ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+        ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
         ! is triggered with prolong-to-face, which would else be missing    
         IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
         IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)  CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
       END IF
     ELSE
-      ! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
+      ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
       ! is triggered with prolong-to-face, which would else be missing    
       IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
       IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
@@ -639,18 +630,18 @@ END IF
 #endif
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! PIC & DG-Sovler
+! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
 #ifdef PARTICLES 
-  ! particle analyze
+  ! Particle analyze
   IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
+    ! Initial analysis is only performed for NO restart
     CALL AnalyzeParticles(OutputTime)
     CALL AnalyzeSurface(OutputTime)
   ELSE
-    ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
+    ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
+    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
 #if defined(IMPA) || defined(ROS)
       IF(iter.GE.1)THEN
 #else
@@ -832,8 +823,8 @@ IF(OutPut)THEN
 #endif
 END IF
 
-! meassure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
-! allows non-synchronous meassurement of particle tracking
+! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
+! Allows non-synchronous measurement of particle tracking
 IF(OutPut .AND. MeasureTrackTime)THEN
 #ifdef MPI
   IF(MPIRoot) THEN
@@ -891,6 +882,39 @@ IF (DoAnalyze)  THEN
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
+
+! Time for analysis
+EndAnalyzeTime=BOLTZPLATZTIME()
+!SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
+AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Output info
+!----------------------------------------------------------------------------------------------------------------------------------
+IF(forceAnalyze.OR.Output)THEN
+  IF(DoCalcErrorNorms) THEN
+    ! Graphical output
+    IF(MPIroot) THEN
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
+    END IF
+  END IF
+  IF(MPIroot) THEN
+    ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
+    WRITE(UNIT_StdOut,'(A13,ES16.7)')        ' Sim time  : ',OutputTime
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    AnalyzeCount = 0
+    AnalyzeTime  = 0.0
+    IF (OutputTime.GT.0.) THEN
+      WRITE(UNIT_StdOut,'(132("."))')
+      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
+      WRITE(UNIT_StdOut,'(132("-"))')
+    ELSE
+      WRITE(UNIT_StdOut,'(132("="))')
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE PerformAnalyze
 

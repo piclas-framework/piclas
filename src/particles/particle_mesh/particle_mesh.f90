@@ -740,7 +740,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallP
 USE MOD_Particle_Mesh_Vars,          ONLY:Geo
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsTracingBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
 USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
@@ -874,7 +874,7 @@ DO iBGMElem=1,nBGMElems
     IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  CALL GetPositionInRefElem(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     IF(.NOT.InitFix)THEN
       InElementCheck=.TRUE.
@@ -1381,15 +1381,16 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_Particle_MPI           ,ONLY: InitHALOMesh
+USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1530,6 +1531,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
+SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
@@ -2971,7 +2973,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -3037,7 +3039,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
+  CALL GetPositionInRefElem(X_in(1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
@@ -3065,7 +3067,6 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -4730,7 +4731,6 @@ TYPE tNodeToElem
   INTEGER :: ElemID(50)
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
-INTEGER                :: NumNeighborElems(1:nElems)
 INTEGER                :: TempElemsOnNode(1:nNodes)
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists
@@ -4772,6 +4772,10 @@ END DO
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
 GEO%NumNeighborElems(:)=0
+TempElemsOnNode(:)=0
+DO iNode=1,nNodes
+  TempNodeToElem(iNode)%ElemID=-1
+END DO
 
 ! find all real neighbour elements for elements with halo neighbours 
 ! recursively checking connected halo area
@@ -4797,7 +4801,7 @@ DO iElem =1, PP_nElems
       CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
     END IF
   END DO
-  IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
+  IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
 ,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
   ! write local variables into global array
