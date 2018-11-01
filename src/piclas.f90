@@ -50,26 +50,15 @@ LOGICAL                 :: userblockFound
 CALL InitMPI()
 
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')&
- "           ____            ___    __                    ___              __              "
-SWRITE(UNIT_stdOut,'(A)')&
- "          /\\  _`\\         /\\_ \\  /\\ \\__                /\\_ \\            /\\ \\__           "
-SWRITE(UNIT_stdOut,'(A)')&
- "          \\ \\ \\L\\ \\    ___\\//\\ \\ \\ \\ ,_\\  ____    _____\\//\\ \\       __  \\ \\ ,_\\  ____    "
-SWRITE(UNIT_stdOut,'(A)')&
- "           \\ \\  _ <'  / __`\\\\ \\ \\ \\ \\ \\/ /\\_ ,`\\ /\\ '__`\\\\ \\ \\    /'__`\\ \\ \\ \\/ /\\_ ,`\\  "
-SWRITE(UNIT_stdOut,'(A)')&
- "            \\ \\ \\L\\ \\/\\ \\L\\ \\\\_\\ \\_\\ \\ \\_\\/_/  /_\\ \\ \\L\\ \\\\_\\ \\_ /\\ \\L\\.\\_\\ \\ \\_\\/_/  /_ "
-SWRITE(UNIT_stdOut,'(A)')&
- "             \\ \\____/\\ \\____//\\____\\\\ \\__\\ /\\____\\\\ \\ ,__//\\____\\\\ \\__/.\\_\\\\ \\__\\ /\\____\\"
-SWRITE(UNIT_stdOut,'(A)')&
- "              \\/___/  \\/___/ \\/____/ \\/__/ \\/____/ \\ \\ \\/ \\/____/ \\/__/\\/_/ \\/__/ \\/____/"
-SWRITE(UNIT_stdOut,'(A)')&
- "                                                    \\ \\_\\                                "
-SWRITE(UNIT_stdOut,'(A)')&
- "                                                     \\/_/                                "
-SWRITE(UNIT_stdOut,'(A)')&
- ' '
+SWRITE(UNIT_stdOut,'(A)')"                                        _______ _________ _______  _        _______  _______ "
+SWRITE(UNIT_stdOut,'(A)')"                                       (  ____ )\__   __/(  ____ \( \      (  ___  )(  ____ \"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (    )|   ) (   | (    \/| (      | (   ) || (    \/"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (____)|   | |   | |      | |      | (___) || (_____ "
+SWRITE(UNIT_stdOut,'(A)')"                                       |  _____)   | |   | |      | |      |  ___  |(_____  )"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |   | |      | |      | (   ) |      ) |"
+SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
+SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
+SWRITE(UNIT_stdOut,'(132(" "))')
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()
