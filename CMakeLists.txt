@@ -1,5 +1,5 @@
 # =========================================================================
-# Boltzplatz CMake configuration
+# PICLas CMake configuration
 # =========================================================================
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
 # TODO: eventually require CMake 3.0 in future releases
@@ -21,16 +21,16 @@ STRING(FIND "${GIT_ORIGIN}" ".iag.uni-stuttgart.de" HOMERUN)
 STRING(FIND "${GIT_ORIGIN}" "git@" USESSH)
 IF (HOMERUN GREATER -1)
   IF(USESSH EQUAL 0)
-    SET(BOLTZPLATZ_DLPATH "git@gitlab.iag.uni-stuttgart.de:")
+    SET(PICLAS_DLPATH "git@gitlab.iag.uni-stuttgart.de:")
   ELSE()
-    SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/")
+    SET(PICLAS_DLPATH "https://gitlabext.iag.uni-stuttgart.de/")
   ENDIF()
-  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}libs/hdf5.git )
+  SET (HDF5DOWNLOAD ${PICLAS_DLPATH}libs/hdf5.git )
 ELSE()
   IF(USESSH EQUAL 0)
-    SET(BOLTZPLATZ_DLPATH "git@github.com:piclas-framework")
+    SET(PICLAS_DLPATH "git@github.com:piclas-framework")
   ELSE()
-    SET(BOLTZPLATZ_DLPATH "https://github.com/piclas-framework")
+    SET(PICLAS_DLPATH "https://github.com/piclas-framework")
   ENDIF()
   SET (HDF5DOWNLOAD https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git )
 ENDIF()
@@ -56,7 +56,7 @@ ENDIF()
 # Project definitions and output paths
 # =========================================================================
 
-PROJECT(Boltzplatz)
+PROJECT(PICLas)
 ENABLE_LANGUAGE(Fortran)
 
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -85,33 +85,33 @@ MACRO(SUBDIRLIST result curdir)
 ENDMACRO()
 SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
-OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
-SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit Leapfrog RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR CN ImplicitO3 ImplicitO4 Ascher3 ROS2 ROS3 ROS4 ROS46 ROS6 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+OPTION(PICLAS_PARTICLES "Particles" ON)
+SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
+SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit Leapfrog RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR CN ImplicitO3 ImplicitO4 Ascher3 ROS2 ROS3 ROS4 ROS46 ROS6 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 
-OPTION(BOLTZPLATZ_QDS_DG "enable QDS method discretized by DGSEM" OFF)
-OPTION(BOLTZPLATZ_BUILDPOSTI "Build POSTI toolset" OFF)
-OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
-CMAKE_DEPENDENT_OPTION(BOLTZPLATZ_LOADBALANCE "Use LoadBalance timemeasurement" ON "BOLTZPLATZ_MPI" OFF)
-OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
-OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
-SET(BOLTZPLATZ_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
-OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
+OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
+OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
+OPTION(PICLAS_MPI "Compile SINGLE or MPI version" ON)
+CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use LoadBalance timemeasurement" ON "PICLAS_MPI" OFF)
+OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
+OPTION(PICLAS_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
+SET(PICLAS_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
+OPTION(PICLAS_HDF5F90 "enable old HDF5 interface" OFF)
 
-SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
-SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
+SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+SET_PROPERTY(CACHE PICLAS_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
 
-OPTION(BOLTZPLATZ_IMPLICIT_ANALYZE "IMPLICIT_ANALYZE" OFF)
+OPTION(PICLAS_IMPLICIT_ANALYZE "IMPLICIT_ANALYZE" OFF)
 
-SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
-ADD_DEFINITIONS(-DPP_N=${BOLTZPLATZ_POLYNOMIAL_DEGREE})
+SET(PICLAS_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
+ADD_DEFINITIONS(-DPP_N=${PICLAS_POLYNOMIAL_DEGREE})
 
 ##### Node type
-SET(BOLTZPLATZ_NODETYPE "GAUSS" CACHE STRING "Set of nodes used for representing the solution (GAUSS/GAUSS-LOBATTO).")
-SET_PROPERTY(CACHE BOLTZPLATZ_NODETYPE PROPERTY STRINGS "GAUSS" "GAUSS-LOBATTO")
-IF(BOLTZPLATZ_NODETYPE STREQUAL "GAUSS")
+SET(PICLAS_NODETYPE "GAUSS" CACHE STRING "Set of nodes used for representing the solution (GAUSS/GAUSS-LOBATTO).")
+SET_PROPERTY(CACHE PICLAS_NODETYPE PROPERTY STRINGS "GAUSS" "GAUSS-LOBATTO")
+IF(PICLAS_NODETYPE STREQUAL "GAUSS")
   ADD_DEFINITIONS(-DPP_NodeType=1)
-ELSEIF(BOLTZPLATZ_NODETYPE STREQUAL "GAUSS-LOBATTO")
+ELSEIF(PICLAS_NODETYPE STREQUAL "GAUSS-LOBATTO")
   ADD_DEFINITIONS(-DPP_NodeType=2)
 ELSE()
   MESSAGE(ERROR "No such node type known.")
@@ -119,35 +119,35 @@ ENDIF()
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
-OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(BOLTZPLATZ_CTAGS "Use Ctags" ON)
+OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(PICLAS_CTAGS "Use Ctags" ON)
 
 # =========================================================================
 # Equation system
 # =========================================================================
 
-IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell")
-  #SET(BOLTZPLATZ_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
+IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
+  #SET(PICLAS_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
-  SET(BOLTZPLATZ_HDG OFF)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
+  SET(PICLAS_HDG OFF)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
-  SET(BOLTZPLATZ_HDG OFF)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "electrostatic_pois")
+  SET(PICLAS_HDG OFF)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic_pois")
   ADD_DEFINITIONS(-DPP_nVar=4 -Delectostratic -DPOIS)
-  SET(BOLTZPLATZ_HDG OFF)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "electrostatic")
+  SET(PICLAS_HDG OFF)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "electrostatic")
   ADD_DEFINITIONS(-DPP_nVar=4 -Delectrostatic)
-  SET(BOLTZPLATZ_HDG OFF)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "poisson")
+  SET(PICLAS_HDG OFF)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
-  SET(BOLTZPLATZ_HDG ON)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "magnetostatic")
+  SET(PICLAS_HDG ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
-  SET(BOLTZPLATZ_HDG ON)
-ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "magnetostatic_poisson")
+  SET(PICLAS_HDG ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
-  SET(BOLTZPLATZ_HDG ON)
+  SET(PICLAS_HDG ON)
 ELSE()
    MESSAGE(ERROR "Unknown equation system.")
 ENDIF()
@@ -156,161 +156,161 @@ ENDIF()
 # PARTICLES
 # =========================================================================
 
-IF(BOLTZPLATZ_PARTICLES)
+IF(PICLAS_PARTICLES)
   ADD_DEFINITIONS(-DPARTICLES)
-ENDIF(BOLTZPLATZ_PARTICLES)
+ENDIF(PICLAS_PARTICLES)
 
 # =========================================================================
 # CODE_ANALYZE
 # =========================================================================
 
-IF(BOLTZPLATZ_CODE_ANALYZE)
+IF(PICLAS_CODE_ANALYZE)
   ADD_DEFINITIONS(-DCODE_ANALYZE)
-ENDIF(BOLTZPLATZ_CODE_ANALYZE)
+ENDIF(PICLAS_CODE_ANALYZE)
 
 # =========================================================================
 # Timedisc method
 # =========================================================================
-SET(BOLTZPLATZ_IMPLICIT OFF)
-IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
-   IF(BOLTZPLATZ_HDG)
+SET(PICLAS_IMPLICIT OFF)
+IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=500)
-   ELSE()
+  ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
-   ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Leapfrog")
-   IF(BOLTZPLATZ_HDG)
+  ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=509)
-   ELSE()
+  ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
-   ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
-   IF(BOLTZPLATZ_HDG)
+  ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=501 -DLSERK)
-   ELSE()
+  ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
-   ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK4")
-   IF(BOLTZPLATZ_HDG)
+  ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=502 -DLSERK)
-   ELSE()
+  ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
-   ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
-   IF(BOLTZPLATZ_HDG)
+  ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=506 -DLSERK)
-   ELSE()
+  ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
-   ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldRK4")
+  ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldRK4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=5)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "DSMC")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RESERVOIR")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "CN")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+   SET(PICLAS_IMPLICIT ON)
+   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+   SET(PICLAS_IMPLICIT ON)
+   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+   SET(PICLAS_IMPLICIT ON)
+   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
- ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Ascher3")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+   SET(PICLAS_IMPLICIT ON)
+   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS2")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=130 -DROS)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+  SET(PICLAS_IMPLICIT ON)
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS3")
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=131 -DROS)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+  SET(PICLAS_IMPLICIT ON)
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS4")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=132 -DROS)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+  SET(PICLAS_IMPLICIT ON)
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS46")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=133 -DROS)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+  SET(PICLAS_IMPLICIT ON)
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS6")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=134 -DROS)
-   SET(BOLTZPLATZ_IMPLICIT ON)
-   IF(BOLTZPLATZ_HDG)
+  SET(PICLAS_IMPLICIT ON)
+  IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=201)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "LD")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=1000)
-ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "LD-DSMC")
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD-DSMC")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=1001)
 ELSE()
    MESSAGE(ERROR "Unknown timedisc method system.")
 ENDIF()
-IF(BOLTZPLATZ_IMPLICIT_ANALYZE)
+IF(PICLAS_IMPLICIT_ANALYZE)
   ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
-ENDIF(BOLTZPLATZ_IMPLICIT_ANALYZE)
+ENDIF(PICLAS_IMPLICIT_ANALYZE)
 
 # =========================================================================
 # HDG
 # =========================================================================
 
-IF(BOLTZPLATZ_HDG)
-   ADD_DEFINITIONS(-DPP_HDG)
-   IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
+IF(PICLAS_HDG)
+  ADD_DEFINITIONS(-DPP_HDG)
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Leapfrog")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
       MESSAGE(STATUS "use HDG with Leapfrog")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
       MESSAGE(STATUS "use HDG with RK3")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK4")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
       MESSAGE(STATUS "use HDG with RK4")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
       MESSAGE(STATUS "use HDG with RK14")
-  ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "CN")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
       MESSAGE(STATUS "use HDG with CN")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
      MESSAGE(STATUS "use HDG with ImplicitO3")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
      MESSAGE(STATUS "use HDG with ImplicitO4")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS2")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
      MESSAGE(STATUS "use HDG with ROS2")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS4")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
      MESSAGE(STATUS "use HDG with ROS4")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS46")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
      MESSAGE(STATUS "use HDG with ROS46")
-   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ROS6")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
      MESSAGE(STATUS "use HDG with ROS6")
-   ELSE()
+  ELSE()
       MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
-   ENDIF()
-ENDIF(BOLTZPLATZ_HDG)
+  ENDIF()
+ENDIF(PICLAS_HDG)
 
 # =========================================================================
 # USERBLOCK + Preproc_flags
@@ -326,8 +326,8 @@ endfunction()
 # A function to get all user defined variables with a specified prefix
 SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
 FILE(WRITE ${configuration} "")
-GETLISTOFVARSSTARTINGWITH("BOLTZPLATZ_" boltzplatzVars)
-FOREACH (_var IN LISTS boltzplatzVars)
+GETLISTOFVARSSTARTINGWITH("PICLAS_" piclasVars)
+FOREACH (_var IN LISTS piclasVars)
   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
   SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF")) 
   IF(${boolian})
@@ -366,7 +366,7 @@ ENDIF()
 # Location of binary and filenames
 # =========================================================================
 
-# append relative filename-macro for __FILENAME__ in Stamp of abort function (see boltzplatz.h)
+# append relative filename-macro for __FILENAME__ in Stamp of abort function (see piclas.h)
 SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
 # add basedir for location of corresponding userblock-file
@@ -382,33 +382,33 @@ GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   #environment specific variables
   IF(ONHORNET GREATER -1)
-    SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
+    SET(PICLAS_INSTRUCTION "-march=core-avx2")
   ELSE()
-    SET(BOLTZPLATZ_INSTRUCTION "-march=native")
+    SET(PICLAS_INSTRUCTION "-march=native")
   ENDIF()
   # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
-  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${BOLTZPLATZ_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${BOLTZPLATZ_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O0 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays -finit-character=0")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall")
   SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -fcheck=bounds,do,mem,pointer -finit-real=snan -finit-integer=snan -finit-logical=false -finit-character=0 -ffpe-trap=invalid,zero,overflow -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized")
   # add flags only for compiling not linking!
-  SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
+  SET (PICLAS_COMPILE_FLAGS "-xf95-cpp-input")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    #environment specific variables
    IF(ONHORNET GREATER -1)
-      SET(BOLTZPLATZ_INSTRUCTION "-xCORE-AVX2")
+     SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
    ELSE()
-      SET(BOLTZPLATZ_INSTRUCTION "-xHost")
+     SET(PICLAS_INSTRUCTION "-xHost")
    ENDIF()
    # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
-  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}    -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS}    -O2 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays")
    # add flags only for compiling not linking!
-   SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
+   SET (PICLAS_COMPILE_FLAGS "-fpp -assume bscc")
 
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   # set Flags
@@ -417,7 +417,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -h profile_generate -p . -rm")
   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -O0 -eD -rm")
   # add flags only for compiling not linking!
-  SET (BOLTZPLATZ_COMPILE_FLAGS "-F")
+  SET (PICLAS_COMPILE_FLAGS "-F")
 
 ELSE()
    MESSAGE(ERROR "Unknown compiler")
@@ -427,82 +427,82 @@ ENDIF()
 # Add the libraries
 # =========================================================================
 
-IF(BOLTZPLATZ_MPI)
-  SET(BOLTZPLATZ_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
+IF(PICLAS_MPI)
+  SET(PICLAS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
 ELSE()
-  SET(BOLTZPLATZ_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
+  SET(PICLAS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
 ENDIF()
-MARK_AS_ADVANCED(BOLTZPLATZ_EXTERNAL_LIB_DIR)
+MARK_AS_ADVANCED(PICLAS_EXTERNAL_LIB_DIR)
 
 # =========================================================================
 # HDF5 library
 # =========================================================================
 
-IF(NOT BOLTZPLATZ_BUILD_HDF5)
+IF(NOT PICLAS_BUILD_HDF5)
   FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET) #if built with configure script
   IF (HDF5_FOUND)
-    SET(BOLTZPLATZ_HDF5_CMAKE FALSE)
+    SET(PICLAS_HDF5_CMAKE FALSE)
   ELSE()
     FIND_PACKAGE(HDF5 COMPONENTS C Fortran static NO_MODULE QUIET PATH_SUFFIXES share/cmake )
     IF (HDF5_FOUND)
-      SET(BOLTZPLATZ_HDF5_CMAKE TRUE)
+      SET(PICLAS_HDF5_CMAKE TRUE)
       MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
       MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
     ENDIF()
   ENDIF()
 ELSE()
 
-  SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/HDF5)
-  SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ_HDF5_DLDIR}/build)
-  IF (NOT EXISTS "${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a")
-    IF(BOLTZPLATZ_MPI)
-      SET(BOLTZPLATZ_HDF5PARALLEL --enable-parallel)
-      SET(BOLTZPLATZ_HDF5FC ${MPI_Fortran_COMPILER})
-      SET(BOLTZPLATZ_HDF5CC ${MPI_C_COMPILER})
+  SET(PICLAS_HDF5_DLDIR ${PICLAS_EXTERNAL_LIB_DIR}/HDF5)
+  SET(PICLAS_HDF5_DIR  ${PICLAS_HDF5_DLDIR}/build)
+  IF (NOT EXISTS "${PICLAS_HDF5_DIR}/lib/libhdf5.a")
+    IF(PICLAS_MPI)
+      SET(PICLAS_HDF5PARALLEL --enable-parallel)
+      SET(PICLAS_HDF5FC ${MPI_Fortran_COMPILER})
+      SET(PICLAS_HDF5CC ${MPI_C_COMPILER})
     ELSE()
-      UNSET(BOLTZPLATZ_HDF5PARALLEL)
-      SET(BOLTZPLATZ_HDF5FC ${CMAKE_Fortran_COMPILER})
-      SET(BOLTZPLATZ_HDF5CC ${CMAKE_C_COMPILER} )
+      UNSET(PICLAS_HDF5PARALLEL)
+      SET(PICLAS_HDF5FC ${CMAKE_Fortran_COMPILER})
+      SET(PICLAS_HDF5CC ${CMAKE_C_COMPILER} )
     ENDIF()
     #NOTE: old 1.8.X versions of HDF5 require additional flag --enable-fortran2003
     ExternalProject_Add(HDF5
       GIT_REPOSITORY ${HDF5DOWNLOAD}
       GIT_TAG ${HDF5TAG}
-      PREFIX ${BOLTZPLATZ_HDF5_DIR}
+      PREFIX ${PICLAS_HDF5_DIR}
       UPDATE_COMMAND ""
-      CONFIGURE_COMMAND FC=${BOLTZPLATZ_HDF5FC} CC=${BOLTZPLATZ_HDF5CC} ${BOLTZPLATZ_HDF5_DIR}/src/HDF5/configure --prefix=${BOLTZPLATZ_HDF5_DIR} --enable-fortran ${BOLTZPLATZ_HDF5PARALLEL} --disable-shared --libdir=${BOLTZPLATZ_HDF5_DIR}/lib
+      CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --enable-fortran ${PICLAS_HDF5PARALLEL} --disable-shared --libdir=${PICLAS_HDF5_DIR}/lib
       BUILD_COMMAND ${MAKE}
     )
     # CMake HDF5 is fast but not that reliable
     #ExternalProject_Add(HDF5
     #  GIT_REPOSITORY ${HDF5DOWNLOAD}
     #  GIT_TAG ${HDF5TAG}
-    #  PREFIX ${BOLTZPLATZ_HDF5_DIR}
+    #  PREFIX ${PICLAS_HDF5_DIR}
     #  UPDATE_COMMAND ""
-    #  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${BOLTZPLATZ_HDF5_DIR} -DCMAKE_C_COMPILER=${BOLTZPLATZ_HDF5CC} -DCMAKE_Fortran_COMPILER=${BOLTZPLATZ_HDF5FC} -DBUILD-TESTING=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_BUILD_TOOLS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_PARALLEL=ON
+    #  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${PICLAS_HDF5_DIR} -DCMAKE_C_COMPILER=${PICLAS_HDF5CC} -DCMAKE_Fortran_COMPILER=${PICLAS_HDF5FC} -DBUILD-TESTING=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_BUILD_TOOLS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_PARALLEL=ON
     #  BUILD_COMMAND ${MAKE}
     #)
   ENDIF()
-  SET(HDF5_hdf5_LIBRARY_RELEASE         ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a)
-  SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5_fortran.a)
-  SET(HDF5_C_INCLUDE_DIR                ${BOLTZPLATZ_HDF5_DIR}/include)
-  SET(HDF5_Fortran_INCLUDE_DIR          ${BOLTZPLATZ_HDF5_DIR}/include)
+  SET(HDF5_hdf5_LIBRARY_RELEASE         ${PICLAS_HDF5_DIR}/lib/libhdf5.a)
+  SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${PICLAS_HDF5_DIR}/lib/libhdf5_fortran.a)
+  SET(HDF5_C_INCLUDE_DIR                ${PICLAS_HDF5_DIR}/include)
+  SET(HDF5_Fortran_INCLUDE_DIR          ${PICLAS_HDF5_DIR}/include)
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
   UNSET(HDF5_INCLUDE_DIR)
   UNSET(HDF5_DIFF_EXECUTABLE)
-  SET(HDF5_DIFF_EXECUTABLE              ${BOLTZPLATZ_HDF5_DIR}/bin/h5diff)
+  SET(HDF5_DIFF_EXECUTABLE              ${PICLAS_HDF5_DIR}/bin/h5diff)
   LIST(APPEND HDF5_INCLUDE_DIR_FORTRAN ${HDF5_Fortran_INCLUDE_DIR} ${HDF5_C_INCLUDE_DIR})
   LIST(APPEND HDF5_INCLUDE_DIR  ${HDF5_C_INCLUDE_DIR})
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
   LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
 ENDIF()
-IF (BOLTZPLATZ_HDF5F90)
+IF (PICLAS_HDF5F90)
    ADD_DEFINITIONS(-DHDF5_F90)
 ENDIF()
 MESSAGE (STATUS "h5diff: ${HDF5_DIFF_EXECUTABLE}")
 
-IF(BOLTZPLATZ_HDF5_CMAKE)
+IF(PICLAS_HDF5_CMAKE)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
   LIST(APPEND linkedlibs ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
 ELSE()
@@ -519,7 +519,7 @@ ENDIF()
 # =========================================================================
 # use Lapack/Blas for GNU
 MESSAGE(STATUS "Using BLAS/Lapack library")
-IF (BOLTZPLATZ_MKL)
+IF (PICLAS_MKL)
   SET(BLA_VENDOR "Intel") #search only for Intel BLAS (=MKL)
 ENDIF()
 FIND_PACKAGE(LAPACK QUIET)
@@ -530,7 +530,7 @@ ENDIF()
 # =========================================================================
 # MPI
 # =========================================================================
-IF(BOLTZPLATZ_MPI)
+IF(PICLAS_MPI)
   FIND_PACKAGE(MPI REQUIRED)
   IF (NOT MPI_Fortran_NO_INTERROGATE)
     FOREACH(DIR ${MPI_INCLUDE_PATH})
@@ -543,16 +543,16 @@ IF(BOLTZPLATZ_MPI)
   ENDIF()
   MARK_AS_ADVANCED(MPI_LIBRARY MPI_EXTRA_LIBRARY) # don't show these ones
   ADD_DEFINITIONS(-DMPI)
-  MESSAGE(STATUS "Building Boltzplatz with MPI")
+  MESSAGE(STATUS "Building PICLas with MPI")
   MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
 ENDIF()
 
 # ========================================================================
 # LOADBALANCE
 # =========================================================================
-IF(BOLTZPLATZ_MPI)
-  IF(BOLTZPLATZ_LOADBALANCE)
-    MESSAGE(STATUS "Building Boltzplatz with LoadBalance")
+IF(PICLAS_MPI)
+  IF(PICLAS_LOADBALANCE)
+    MESSAGE(STATUS "Building PICLas with LoadBalance")
     ADD_DEFINITIONS(-DUSE_LOADBALANCE=1)
   ELSE()
     ADD_DEFINITIONS(-DUSE_LOADBALANCE=0)
@@ -564,43 +564,43 @@ ENDIF()
 # ========================================================================= 
 # PAPI library 
 # ========================================================================= 
-IF(BOLTZPLATZ_PAPI)
+IF(PICLAS_PAPI)
   FIND_PACKAGE(PAPI REQUIRED)
   ADD_DEFINITIONS(-DPAPI) 
   LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
   INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
-  MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.") 
+  MESSAGE(STATUS "Building PICLas with PAPI benchmark support.") 
 ENDIF()
 
 # ========================================================================= 
 # QDS with DGSEM
 # ========================================================================= 
-IF(BOLTZPLATZ_QDS_DG)
-  MESSAGE(STATUS "Building Boltzplatz with QDS-DGSEM")
+IF(PICLAS_QDS_DG)
+  MESSAGE(STATUS "Building PICLas with QDS-DGSEM")
   ADD_DEFINITIONS(-DUSE_QDS_DG=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_QDS_DG=0)
 ENDIF()
 
 # =========================================================================
-# Boltzplatz sources & targets
+# PICLas sources & targets
 # =========================================================================
 
 function(add_exec target)
   ADD_EXECUTABLE(${target} ${ARGN})
-  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o boltzplatzlib userblocklib stacksizelib ${linkedlibs})
-  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+  TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o piclaslib userblocklib stacksizelib ${linkedlibs})
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
   SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
   ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
 endfunction()
 
-# include boltzplatz.h 
+# include piclas.h 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
-# collect all F90 files needed for boltzplatzlib
-FILE(GLOB_RECURSE boltzplatzF90 ./src/init/*.f90
+# collect all F90 files needed for piclaslib
+FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                                 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
@@ -625,16 +625,16 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/init/*.f90
 FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
                         ./src/interpolation/prolongtoface.f90
                         ./src/pml/*.f90
-                        ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
+                        ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
 
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg.f90
                          ./src/dg/dg_vars.f90
-                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation.f90
-                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation_vars.f90
-                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg.f90
-                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/timeavg_vars.f90
-                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
+                         ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
 
 FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
@@ -644,7 +644,7 @@ FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearoperator/linearoperator.f90
                               ./src/linearsolver/newton.f90)
 
-IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
+                            IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
                                ./src/precond/applypreconditioner.f90
@@ -653,7 +653,7 @@ IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
                                ./src/precond/ilu/*.f90
                                ./src/precond/jacdg/*.f90
                                ./src/precond/jac_fd/*.f90
-                               ./src/precond/jac_ex/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
+                               ./src/precond/jac_ex/${PICLAS_EQNSYSNAME}/*.f90)
 ELSE()
   FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
                                ./src/precond/precond_vars.f90
@@ -666,7 +666,7 @@ ELSE()
                                ./src/precond/jac_ex/maxwell/*.f90)
 ENDIF()
 
-FILE(GLOB mainF90 ./src/boltzplatz.f90)
+FILE(GLOB mainF90 ./src/piclas.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
@@ -678,34 +678,34 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
 FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
                          ./src/interpolation/prolongtoface.f90)
 
-IF(BOLTZPLATZ_HDG)
-  LIST(APPEND boltzplatzF90 ${hdgF90})
-  IF(BOLTZPLATZ_IMPLICIT)
-    LIST(APPEND boltzplatzF90 ${implicitF90})
-  ENDIF(BOLTZPLATZ_IMPLICIT)
+                       IF(PICLAS_HDG)
+  LIST(APPEND piclasF90 ${hdgF90})
+  IF(PICLAS_IMPLICIT)
+    LIST(APPEND piclasF90 ${implicitF90})
+  ENDIF(PICLAS_IMPLICIT)
 ELSE()
-  LIST(APPEND boltzplatzF90 ${dgF90})
-  IF(BOLTZPLATZ_IMPLICIT)
-    LIST(APPEND boltzplatzF90 ${implicitF90})
-    LIST(APPEND boltzplatzF90 ${precondF90})
-  ENDIF(BOLTZPLATZ_IMPLICIT)
-ENDIF(BOLTZPLATZ_HDG)
+  LIST(APPEND piclasF90 ${dgF90})
+  IF(PICLAS_IMPLICIT)
+    LIST(APPEND piclasF90 ${implicitF90})
+    LIST(APPEND piclasF90 ${precondF90})
+  ENDIF(PICLAS_IMPLICIT)
+ENDIF(PICLAS_HDG)
 
-LIST(APPEND boltzplatzF90 ${mainF90})
-IF (BOLTZPLATZ_PARTICLES)
-   LIST(APPEND boltzplatzF90 ${particlesF90})
+LIST(APPEND piclasF90 ${mainF90})
+IF (PICLAS_PARTICLES)
+   LIST(APPEND piclasF90 ${particlesF90})
  ELSE()
-   LIST(APPEND boltzplatzF90 ${noparticlesF90})
-ENDIF(BOLTZPLATZ_PARTICLES)
-IF(BOLTZPLATZ_QDS_DG)
-  LIST(APPEND boltzplatzF90 ${QDSF90}) 
+   LIST(APPEND piclasF90 ${noparticlesF90})
+ ENDIF(PICLAS_PARTICLES)
+ IF(PICLAS_QDS_DG)
+  LIST(APPEND piclasF90 ${QDSF90}) 
 ENDIF()
 
 # define libs
-ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
-SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
-ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
-ADD_DEPENDENCIES(boltzplatzlibF90 HDF5)
+ADD_LIBRARY(piclaslibF90 OBJECT ${piclasF90} )
+SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
+ADD_LIBRARY(piclaslib STATIC $<TARGET_OBJECTS:piclaslibF90>)
+ADD_DEPENDENCIES(piclaslibF90 HDF5)
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
@@ -715,8 +715,8 @@ ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES COMPILE_FLAGS "-fPIC")
 
-add_exec(boltzplatz ./src/boltzplatz.f90)
-ADD_DEPENDENCIES(boltzplatz boltzplatzlib userblocklib stacksizelib HDF5)
+add_exec(piclas ./src/piclas.f90)
+ADD_DEPENDENCIES(piclas piclaslib userblocklib stacksizelib HDF5)
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -737,12 +737,12 @@ ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 # Add H5BOLTZ2VTK tool
 # =========================================================================
 add_exec(h5boltz2vtk ./src/h5boltz2vtk.f90)
-ADD_DEPENDENCIES(h5boltz2vtk boltzplatzlib HDF5)
+ADD_DEPENDENCIES(h5boltz2vtk piclaslib HDF5)
 
 # =========================================================================
 # Posti
 # =========================================================================
-IF(BOLTZPLATZ_BUILDPOSTI)
+IF(PICLAS_BUILDPOSTI)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/posti/CMakeLists.txt)
 ELSE()
   GETLISTOFVARSSTARTINGWITH("POSTI_" postiVars)
@@ -761,19 +761,19 @@ ENDIF()
 #                            ./regressioncheck/regressioncheck_run.f90 
 #                            ./regressioncheck/regressioncheck_tools.f90 )
 #   ADD_DEFINITIONS(-DH5DIFF="${HDF5_DIFF_EXECUTABLE}")
-#   SET(BOLTZPLATZ_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
+#   SET(PICLAS_REGRESSIONCHECK_EXAMPLES "${CMAKE_CURRENT_SOURCE_DIR}/regressioncheck/examples")
 
 # =========================================================================
 # Userblock
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatzlib PRE_BUILD COMMAND 
+ADD_CUSTOM_COMMAND(TARGET piclaslib PRE_BUILD COMMAND 
   sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}")
 
 # =========================================================================
-# generate .boltzplatz in $HOME
+# generate .piclas in $HOME
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"export BOLTZPLATZ_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\" > $ENV{HOME}/.boltzplatz)
-ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"alias boltzplatz='${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz'\" >> $ENV{HOME}/.boltzplatz)
+ADD_CUSTOM_COMMAND(TARGET piclas     POST_BUILD COMMAND echo \"export PICLAS_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\" > $ENV{HOME}/.piclas)
+ADD_CUSTOM_COMMAND(TARGET piclas     POST_BUILD COMMAND echo \"alias piclas='${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/piclas'\" >> $ENV{HOME}/.piclas)
 
 # =========================================================================
 # Install
@@ -783,9 +783,9 @@ INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_R
 # =========================================================================
 # Ctags
 # =========================================================================
-IF(BOLTZPLATZ_CTAGS)
+IF(PICLAS_CTAGS)
   SET(EQNS_WO_ACTUAL ${EQNSYSTEMS})
-  LIST(REMOVE_ITEM EQNS_WO_ACTUAL ${BOLTZPLATZ_EQNSYSNAME})
+  LIST(REMOVE_ITEM EQNS_WO_ACTUAL ${PICLAS_EQNSYSNAME})
   SET(EXLUDES "")
   FOREACH(item ${EQNS_WO_ACTUAL})
      SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
@@ -795,6 +795,6 @@ IF(BOLTZPLATZ_CTAGS)
   FIND_PROGRAM(CTAGS_PATH ctags)
   IF(CTAGS_PATH)
       MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
-      ADD_DEPENDENCIES(boltzplatz tags)
+      ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
-ENDIF(BOLTZPLATZ_CTAGS)
+ENDIF(PICLAS_CTAGS)
