@@ -275,7 +275,7 @@ TYPE typeSurfaceflux
   REAL                                   :: AdaptInMassflow                  !
   REAL                                   :: AdaptivePressure                 !
   REAL                                   :: totalAreaSF                      !
-  REAL                                   :: AdaptInPreviousVelocity(3)       !
+  REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

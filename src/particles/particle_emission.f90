@@ -4030,12 +4030,19 @@ __STAMP__&
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
       !              Case 3: Inlet Type 2, constant mass flow and temperature
+      !              Case 4: Outlet Type 2, porous
       CASE(1,2)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
       CASE(3)
         Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow')
+        IF(Species(iSpec)%Surfaceflux(iSF)%VeloIC.LE.0.0) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3 condition required!')
+        END IF
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
+        Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -4892,12 +4899,12 @@ __STAMP__&
               IF(veloNormal.GT.0.0) THEN
                 ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
                                   / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-                Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:3) = VeloVec(1:3)
+                Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1:3) = VeloVec(1:3)
               ELSE
                 ! Using the old velocity vector, overwriting the sampled value with the old one
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(2)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(3)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
                 VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
                 VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
