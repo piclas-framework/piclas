@@ -4435,7 +4435,12 @@ __STAMP__&
         IF ((.NOT.noAdaptive).OR.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
-            FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+              ! ofc, a file for every macrovalue...dirty fix
+              FileID = Species(iSpec)%Init(0)%ElemPartDensityFileID
+            ELSE
+              FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            END IF
             IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
@@ -4903,8 +4908,8 @@ __STAMP__&
               ELSE
                 ! Using the old velocity vector, overwriting the sampled value with the old one
                 Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
+                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
+                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
                 VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
                 VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
