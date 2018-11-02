@@ -4502,6 +4502,7 @@ __STAMP__&
 #ifdef MPI
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        totalAreaSF_global = 0.0
         CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
                             MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
@@ -4892,7 +4893,7 @@ __STAMP__&
             CASE(2) ! adaptive Outlet/freestream
               ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
               pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-              T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+              T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec))
               !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
               !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
             CASE(3) ! Mass flow, temperature constant
@@ -5612,7 +5613,7 @@ ELSE
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(2) ! adaptive Outlet/freestream
       pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
-      T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+      T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,FractNbr))
       !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
       !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
     CASE(3) ! Constant mass flow and temperature
