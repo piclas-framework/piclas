@@ -49,11 +49,14 @@ INTERFACE AdaptiveBCAnalyze
   MODULE PROCEDURE AdaptiveBCAnalyze
 END INTERFACE
 
+INTERFACE AdaptivePumpBC
+  MODULE PROCEDURE AdaptivePumpBC
+END INTERFACE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF &
-                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn
+                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn, AdaptivePumpBC
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleEmission
 CONTAINS
@@ -149,6 +152,12 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Ma
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-PumpingSpeed' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
@@ -3642,7 +3651,7 @@ USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, PDM
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
@@ -4043,6 +4052,14 @@ __STAMP__&
         END IF
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
         Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
+      CASE(4)
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
+        Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = &
+                                                          GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber))
+        Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
+        Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -4208,7 +4225,7 @@ DEALLOCATE(TmpMapToBC &
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
 IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
-  ALLOCATE(Adaptive_MacroVal(1:DSMC_NVARS,1:nElems,1:nSpecies))
+  ALLOCATE(Adaptive_MacroVal(1:15,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
@@ -4455,6 +4472,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+              Adaptive_MacroVal(15,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed
             END IF
           END IF
         END IF
@@ -6468,5 +6486,75 @@ END DO
 
 END SUBROUTINE AdaptiveBCAnalyze
 
+
+SUBROUTINE AdaptivePumpBC()
+!===================================================================================================================================
+! Routine for adaptive case 4 (active pump BC)
+! 1. pumping speed per area of pumping surface is determined
+! 2. particles that leave the domain through the pump are deleted
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY:BoltzmannConst
+USE MOD_Particle_Vars,          ONLY:PDM, Species, nSpecies, PEM, Adaptive_MacroVal
+USE MOD_Mesh_Vars,              ONLY:nElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
+INTEGER                       :: iPumpPartIndx, AdaptiveElem
+REAL                          :: pressure, iRan, VeloMean
+REAL, ALLOCATABLE             :: alpha(:)
+LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
+!===================================================================================================================================
+
+DO iSpec=1,nSpecies
+  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ. 4) THEN
+      ALLOCATE(CalcAlphaForElem(1:nElems))
+      ALLOCATE(alpha(1:nElems))
+      CalcAlphaForElem(1:nElems) = .TRUE. ! (lokal)
+      DO iPumpPart=1,Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge
+        iPumpPartIndx = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(iPumpPart)
+        AdaptiveElem = PEM%Element(iPumpPartIndx)
+        IF(CalcAlphaForElem(AdaptiveElem)) THEN
+          ! calculate mean velocity of each impinging particle at the pumping surface
+          Adaptive_MacroVal(11,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          Adaptive_MacroVal(12,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          Adaptive_MacroVal(13,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          VeloMean = SQRT(Adaptive_MacroVal(11,AdaptiveElem,iSpec)**2 &
+                        + Adaptive_MacroVal(12,AdaptiveElem,iSpec)**2 &
+                        + Adaptive_MacroVal(13,AdaptiveElem,iSpec)**2)
+          ! calculate mean pressur in the cell next to the pumping surface
+          DO jSpec=1, nSpecies
+            pressure = pressure + Adaptive_MacroVal(DSMC_DENSITY,AdaptiveElem,jSpec) * BoltzmannConst &
+                       * SUM(Adaptive_MacroVal(:,AdaptiveElem,jSpec)) / 3.0
+          END DO
+          ! calculate pumping speed per area of pumping surface and alpha
+          Adaptive_MacroVal(15,AdaptiveElem,iSpec) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) &
+                                                   + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
+                                                   * (pressure-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
+          alpha(AdaptiveElem) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) / VeloMean
+          ! check first particle for leaving the domain
+          CALL RANDOM_NUMBER(iRan)
+          IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
+          CalcAlphaForElem(AdaptiveElem) = .FALSE.
+        ELSE
+          CALL RANDOM_NUMBER(iRan)
+          IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
+        END IF
+      END DO
+      DEALLOCATE(CalcAlphaForElem)
+      DEALLOCATE(alpha)
+    END IF
+  END DO
+END DO
+
+END SUBROUTINE AdaptivePumpBC
 
 END MODULE MOD_part_emission
