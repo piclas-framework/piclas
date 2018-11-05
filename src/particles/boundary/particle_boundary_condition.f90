@@ -140,7 +140,7 @@ CASE(2) !PartBound%ReflectiveBC)
             IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
               Adaptive_MacroVal(11,ElemID,iSpec) = Adaptive_MacroVal(11,ElemID,iSpec) + PartState(iPart,4)
               Adaptive_MacroVal(12,ElemID,iSpec) = Adaptive_MacroVal(12,ElemID,iSpec) + PartState(iPart,5)
-              Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,5)
+              Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,6)
               Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
               Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
               Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = iPart
@@ -149,7 +149,7 @@ CASE(2) !PartBound%ReflectiveBC)
           ELSE
             Adaptive_MacroVal(11,ElemID,iSpec) = Adaptive_MacroVal(11,ElemID,iSpec) + PartState(iPart,4)
             Adaptive_MacroVal(12,ElemID,iSpec) = Adaptive_MacroVal(12,ElemID,iSpec) + PartState(iPart,5)
-            Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,5)
+            Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,6)
             Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
             Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
             Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = iPart
