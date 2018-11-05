@@ -18,6 +18,8 @@ REAL              :: OutputTimeFixed             !< fixed time for writing state
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
 INTEGER           :: nPoyntingIntPlanes          !< number of planes
+INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
+REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
 REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   !< plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
@@ -25,6 +27,7 @@ LOGICAL           :: DoAnalyze                   !< perform analyze
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
+LOGICAL           :: CalcEtot                    !< Computation of the total energy (summed up)
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 #ifdef CODE_ANALYZE

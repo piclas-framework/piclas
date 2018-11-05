@@ -420,7 +420,7 @@ USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_P
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck
+!USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
 #ifndef ROS
 USE MOD_Particle_Vars,           ONLY:PartDtFrac
@@ -468,7 +468,7 @@ END IF
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
 ! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
 !PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)

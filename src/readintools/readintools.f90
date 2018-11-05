@@ -1821,19 +1821,23 @@ Counter=0
 WRITE(fmtValue,*) prms%maxValueLen
 fmtValue=ADJUSTL(fmtValue)
 IF(PRESENT(RealOpt))THEN
-  fmtValue='E'//ADJUSTL(TRIM(fmtValue))//'.14E3'
+  IF(prms%maxValueLen.GE.23)THEN
+    fmtValue='ES'//ADJUSTL(TRIM(fmtValue))//'.14E3'
+  ELSE
+    fmtValue='ES'//ADJUSTL(TRIM(fmtValue))//'.4E3'
+  END IF
   Counter=Counter+1
 END IF
 IF(PRESENT(IntOpt))THEN
-  fmtValue='I'//fmtValue
+  fmtValue='I'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 IF(PRESENT(LogOpt))THEN
-  fmtValue='L'//fmtValue
+  fmtValue='L'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 IF(PRESENT(StrOpt))THEN
-  fmtValue='A'//fmtValue
+  fmtValue='A'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
 

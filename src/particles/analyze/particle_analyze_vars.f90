@@ -38,20 +38,22 @@ REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy a
 REAL,ALLOCATABLE              :: PartEKinInTmp(:)                    !< Energy and temperature of input particle
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
-LOGICAL                       :: CalcDebyeLength                     !< Flag to compute the Debye length (min and max) in each cell
-LOGICAL                       :: CalcPICTimeStep                     !< Flag to compute the PIC time step (min and max) in each cell
-LOGICAL                       :: CalcElectronIonDensity              !< Flag to compute the electron density in each cell
-LOGICAL                       :: CalcElectronTemperature             !< Flag to compute the electron temperature in each cell
-LOGICAL                       :: CalcPlasmaParameter                 !< Flag to compute the plasma parameter in each cell
+LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
+LOGICAL                       :: CalcPICTimeStep                     !< Compute the PIC time step (min and max) in each cell
+LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
+LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
+LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons 
-LOGICAL                       :: CalcPlasmaFrequency                 !< Flag to compute the electron frequency in each cell
-LOGICAL                       :: CalcPointsPerDebyeLength            !< Flag to compute the points per Debye length:
+LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
+LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
-LOGICAL                       :: CalcPointsPerShapeFunction          !< Flag to compute the points per shape function sphere
+LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 
-LOGICAL                       :: CalcIonizationDegree                !< Flag to compute the ionization degree and quasi neutrality
+LOGICAL                       :: CalcIonizationDegree                !< Compute the ionization degree and quasi neutrality
 !                                                                    !< in each cell
+LOGICAL                       :: CalcLaserInteraction                !<Compute laser-plasma interaction properties such as maximum
+!                                                                    !<particle energy per species. Default=.FALSE.
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)

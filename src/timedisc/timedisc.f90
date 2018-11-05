@@ -613,7 +613,9 @@ DO !iter_t=0,MaxIter
   IF(MPIroot) THEN
     IF(DoDisplayIter)THEN
       IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-         SWRITE(*,*) "iter:", iter,"time:",time
+         !SWRITE(*,*) "iter:", iter,"time:",time ! old format
+         !SWRITE(UNIT_stdOut,'(A,I21,A6,ES26.16E3,25X)',ADVANCE='NO')" iter:", iter,"time:",time ! new format for analyze time output
+         SWRITE(UNIT_stdOut,'(A,I21,A6,ES26.16E3,25X)'              )" iter:", iter,"time:",time ! new format for analyze time output
       END IF
     END IF
   END IF
@@ -667,10 +669,10 @@ DO !iter_t=0,MaxIter
 #else
     IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*USE_LOADBALANCE*/
-      ! write information out to std-out of console
-      CALL WriteInfoStdOut()
       ! Analyze for output
       CALL PerformAnalyze(tAnalyze,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
+      ! write information out to std-out of console
+      CALL WriteInfoStdOut()
 #ifndef PP_HDG
 #endif /*PP_HDG*/
       ! Write state to file

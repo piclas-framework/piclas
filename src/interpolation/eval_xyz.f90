@@ -2,51 +2,47 @@
 
 MODULE MOD_Eval_xyz
 !===================================================================================================================================
-! Changes a 3D Tensor Product Lagrange Points of Lagrange Basis of degree N_In to  
-! Lagrange points of a Lagrange Basis for one point, using two
-! arbitrary point disributions xi_In(0:N_In) and xi_Out 
+!> Contains routines for transformation from reference to physical space and vice versa:
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-
-!#ifdef PARTICLES
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE eval_xyz_curved
-  MODULE PROCEDURE eval_xyz_curved
+INTERFACE GetPositionInRefElem
+  MODULE PROCEDURE GetPositionInRefElem
 END INTERFACE
 
-INTERFACE eval_xyz_elemcheck
-  MODULE PROCEDURE eval_xyz_elemcheck
+INTERFACE TensorProductInterpolation
+  MODULE PROCEDURE TensorProductInterpolation
 END INTERFACE
 
-INTERFACE eval_xyz_part2
-  MODULE PROCEDURE eval_xyz_part2
+INTERFACE EvaluateFieldAtPhysPos
+  MODULE PROCEDURE EvaluateFieldAtPhysPos
 END INTERFACE
 
-INTERFACE eval_xyz_poly
-  MODULE PROCEDURE eval_xyz_poly
+INTERFACE EvaluateFieldAtRefPos
+  MODULE PROCEDURE EvaluateFieldAtRefPos
 END INTERFACE
 
-
-PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
-!#endif /*PARTICLES*/
+PUBLIC :: GetPositionInRefElem
+PUBLIC :: TensorProductInterpolation
+PUBLIC :: EvaluateFieldAtPhysPos
+PUBLIC :: EvaluateFieldAtRefPos
 !===================================================================================================================================
 
 CONTAINS
 
-!#ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
+SUBROUTINE EvaluateFieldAtPhysPos(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 !===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
-! xi is defined in the 1DrefElem xi=[-1,1]
+!> 1) Get position within reference element (x_in -> xi=[-1,1]) by inverting the mapping
+!> 2) interpolate DG solution to position (U_In -> U_Out(x_in))
+!> 3) interpolate backgroundfield to position ( U_Out -> U_Out(x_in)+BG_field(x_in) )
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -60,17 +56,17 @@ USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
-INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
-INTEGER,INTENT(IN)  :: ElemID                                 ! elem index
-REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
-REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
-INTEGER,INTENT(IN),OPTIONAL :: PartID
+INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
+INTEGER,INTENT(IN)  :: ElemID                                !< Element index
+REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: x_in(3)                               !< position in physical space
+INTEGER,INTENT(IN),OPTIONAL :: PartID                        !< particle ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at physical position x_in
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER             :: i,j,k
 REAL                :: xi(3)
 REAL, PARAMETER     :: EPSONE=1.00000001
@@ -134,7 +130,7 @@ IF(useBGField)THEN
   CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
   CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
   CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
-  
+
   U_BGField(:)=0
   DO k=0,NBG
     DO j=0,NBG
@@ -156,14 +152,12 @@ IF(useBGField)THEN
   DEALLOCATE( L_xi_BGField, U_BGField)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
 END IF ! useBGField
 
-END SUBROUTINE eval_xyz_curved
+END SUBROUTINE EvaluateFieldAtPhysPos
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,DoReUseMap,ForceMode)
+SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
 !===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
-! xi is defined in the 1DrefElem xi=[-1,1]
+!> Get Position within reference element (x_in -> xi=[-1,1])
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -175,15 +169,15 @@ USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: ElemID                                 ! elem index
-REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
-LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap
-LOGICAL,INTENT(IN),OPTIONAL :: ForceMode
+INTEGER,INTENT(IN)          :: ElemID                                 !< element index
+REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
+LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for newton elem mapping already exists
+LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: xi(1:3)
+REAL,INTENT(INOUT)          :: xi(1:3)                                !< position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                    :: iMode
 REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
@@ -223,12 +217,12 @@ ELSE
   END IF
 END IF
 
-END SUBROUTINE eval_xyz_elemcheck
+END SUBROUTINE GetPositionInRefElem
 
 
-SUBROUTINE Eval_xyz_Poly(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_Out)
+SUBROUTINE TensorProductInterpolation(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_Out)
 !===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+!> Interpolates a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation points to the position Xi
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
@@ -236,18 +230,19 @@ USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)        :: NVar, N_in
-REAL,INTENT(IN)           :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! solution
-REAL,INTENT(IN)           :: xi_in(3)                            ! reference space position of particle 
-REAL,INTENT(IN)           :: xGP_In(0:N_in)
-REAL,INTENT(IN)           :: wBary_In(0:N_in)
+INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
+REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: Xi_in(3)                              !< position in reference element
+REAL,INTENT(IN)     :: xGP_In(0:N_in)
+REAL,INTENT(IN)     :: wBary_In(0:N_in)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at reference position xi_in
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                   :: i,j,k
-REAL,DIMENSION(3,0:N_in)  :: L_xi        
+REAL,DIMENSION(3,0:N_in)  :: L_xi
 REAL                      :: L_eta_zeta
 !===================================================================================================================================
 CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP_in,wBary_In,L_xi(1,:))
@@ -263,14 +258,13 @@ DO k=0,N_in
     END DO ! i=0,N_In
   END DO ! j=0,N_In
 END DO ! k=0,N_In
-END SUBROUTINE Eval_xyz_poly
+END SUBROUTINE TensorProductInterpolation
 
 
-SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,U_In,U_Out,ElemID)
+SUBROUTINE EvaluateFieldAtRefPos(xi_in,NVar,N_in,U_In,U_Out,ElemID)
 !===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! hoewver, particle is already mapped to reference space -1|1
-! xi instead of x_in
+!> 1) interpolate DG solution to position (U_In -> U_Out(xi_in))
+!> 2) interpolate backgroundfield to position ( U_Out -> U_Out(xi_in)+BG_field(xi_in) )
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
@@ -280,16 +274,16 @@ USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_xG
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
-INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
-INTEGER,INTENT(IN)        :: ElemID                                 ! elem index
-REAL,INTENT(IN)           :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
-REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
+INTEGER,INTENT(IN)  :: NVar                                  !< 6 (Ex, Ey, Ez, Bx, By, Bz)
+INTEGER,INTENT(IN)  :: N_In                                  !< usually PP_N
+INTEGER,INTENT(IN)  :: ElemID                                !< Element index
+REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)     !< State in Element
+REAL,INTENT(IN)     :: Xi_in(3)                              !< position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)    :: U_Out(1:NVar)                         !< Interpolated state at reference position xi_in
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER             :: i,j,k
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
@@ -316,7 +310,7 @@ DO k=0,N_in
   END DO ! j=0,N_In
 END DO ! k=0,N_In
 
-!! 2.2) do the tensor product thing 
+!! 2.2) do the tensor product thing
 !X3D_buf1=0.
 !! first direction iN_In
 !DO k=0,N_In
@@ -349,7 +343,7 @@ IF(useBGField)THEN
   CALL LagrangeInterpolationPolys(xi_in(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
   CALL LagrangeInterpolationPolys(xi_in(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
   CALL LagrangeInterpolationPolys(xi_in(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
-  
+
   U_BGField(:)=0
   DO k=0,NBG
     DO j=0,NBG
@@ -361,7 +355,7 @@ IF(useBGField)THEN
   END DO ! k=0,NBG
 
 
-  !! 2.2) do the tensor product thing 
+  !! 2.2) do the tensor product thing
   !X3D_tmp1=0.
   !! first direction iN_In
   !DO k=0,NBG
@@ -395,12 +389,12 @@ IF(useBGField)THEN
 END IF ! useBGField
 
 
-END SUBROUTINE eval_xyz_part2
+END SUBROUTINE EvaluateFieldAtRefPos
 
 
 SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
 !=================================================================================================================================
-! Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
+!> Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
@@ -416,11 +410,11 @@ USE MOD_Particle_Vars,           ONLY:PEM,LastPartPos
 #endif /*IMPA or ROS*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: N_In,ElemID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
-REAL,INTENT(IN)                  :: X_in(3) ! position in physical space 
+REAL,INTENT(IN)                  :: X_in(3) ! position in physical space
 REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)               ! position of CL points in reference space
 REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
 REAL,INTENT(IN)                  :: dXCL_N_in(3,3,0:N_In,0:N_in,0:N_In) ! derivation of CL points
@@ -480,7 +474,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
       END DO !i=0,N_In
     END DO !j=0,N_In
   END DO !k=0,N_In
-  
+
   ! Compute inverse of Jacobian
   sdetJac=getDet(Jac)
   IF(sdetJac.GT.0.) THEN
@@ -497,7 +491,7 @@ __STAMP__&
      Xi(3)=Xi(1)
      RETURN
    END IF
-  ENDIF 
+  ENDIF
   sJac=getInv(Jac,sdetJac)
 
   ! Iterate Xi using Newton step
@@ -516,7 +510,7 @@ __STAMP__&
   DO WHILE(Norm_F.GT.Norm_F_old*(1.-0.0001*lambda) .AND.iArmijo.LE.8)
 
     Xi = Xi_Old - lambda*deltaXI!MATMUL(sJac,F)
-  
+
     ! Compute function value
     CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
     CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_N_in,wBaryCL_N_in,Lag(2,:))
@@ -578,9 +572,9 @@ END SUBROUTINE RefElemNewton
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 !IMPLICIT NONE
-!! INPUT VARIABLES 
+!! INPUT VARIABLES
 !INTEGER,INTENT(IN)               :: N_In
-!REAL,INTENT(IN)                  :: X_in ! position in physical space 
+!REAL,INTENT(IN)                  :: X_in ! position in physical space
 !REAL,INTENT(IN)                  :: XiCL_NGeo(0:N_In)               ! position of CL points in reference space
 !REAL,INTENT(IN)                  :: XCL_NGeo(0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
 !REAL,INTENT(IN)                  :: wBaryCL_NGeo(0:N_In) ! derivation of CL points
@@ -604,7 +598,7 @@ END SUBROUTINE RefElemNewton
 !
 !XiOut=0.5*(XiA+XiB)
 !
-!! compute f(a) 
+!! compute f(a)
 !CALL LagrangeInterpolationPolys(XiA,N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(:))
 !! f(b)
 !CALL LagrangeInterpolationPolys(XiB,N_In,XiCL_NGeo,wBaryCL_NGeo,Lag2(:))
@@ -670,13 +664,13 @@ END SUBROUTINE RefElemNewton
 !DO iter=1,4
 !  print*,'iter',iter
 !  XiOut=0.5*(XiA+XiB)
-!  ! compute f(a) 
+!  ! compute f(a)
 !  CALL LagrangeInterpolationPolys(XiA,N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(:))
 !  ! f(b)
 !  CALL LagrangeInterpolationPolys(XiB,N_In,XiCL_NGeo,wBaryCL_NGeo,Lag2(:))
 !  ! f(c)
 !  CALL LagrangeInterpolationPolys(XiOut,N_In,XiCL_NGeo,wBaryCL_NGeo,Lag3(:))
-!  
+!
 !  F(1:3)=-X_in
 !  DO k=0,N_In
 !    DO j=0,N_In
@@ -725,7 +719,7 @@ END SUBROUTINE RefElemNewton
 
 FUNCTION getDet(Mat)
 !=================================================================================================================================
-! compute determinant of 3x3 matrix
+!> compute determinant of 3x3 matrix
 !=================================================================================================================================
   ! MODULES
   ! IMPLICIT VARIABLE HANDLING
@@ -747,7 +741,7 @@ END FUNCTION getDet
 
 FUNCTION getInv(Mat,sdet)
 !=================================================================================================================================
-! compute inverse of 3x3 matrix, needs sDet=1/det(Mat)
+!> compute inverse of 3x3 matrix, needs sDet=1/det(Mat)
 !=================================================================================================================================
   ! MODULES
   ! IMPLICIT VARIABLE HANDLING
@@ -770,34 +764,12 @@ getInv(2,3) = ( Mat(1,3) * Mat(2,1) - Mat(1,1) * Mat(2,3) ) * sdet
 getInv(3,1) = ( Mat(2,1) * Mat(3,2) - Mat(2,2) * Mat(3,1) ) * sdet
 getInv(3,2) = ( Mat(1,2) * Mat(3,1) - Mat(1,1) * Mat(3,2) ) * sdet
 getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
-END FUNCTION getInv 
-
-
-FUNCTION LimitXi(Xi)
-!=================================================================================================================================
-! lilmit xi to [-1,1]
-!=================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!---------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)  :: Xi(3)
-!---------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL             :: LimitXi(3)
-!---------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!=================================================================================================================================
-
-LimitXi=MAX(MIN(1.0d0,XI),-1.0d0)
-
-END FUNCTION LimitXi 
+END FUNCTION getInv
 
 
 SUBROUTINE GetRefNewtonStartValue(X_in,Xi,ElemID)
 !===================================================================================================================================
-! Returns the initial value/ guess for the Newton's algorithm
+!> Returns the initial value/ guess for the Newton's algorithm
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -811,7 +783,7 @@ USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)             :: ElemID
 REAL,INTENT(IN)                :: X_in(1:3)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -849,9 +821,10 @@ CASE(1)
   ! compute guess as average value
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
-  END DO 
-  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
-CASE(2) 
+  END DO
+  ! limit xi to [-1,1]
+  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=MAX(MIN(1.0d0,Xi),-1.0d0)
+CASE(2)
   ! compute distance on Gauss Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-Elem_xGP(:,0,0,0,ElemID)),(x_in(:)-Elem_xGP(:,0,0,0,ElemID))))
   Xi(:)=(/xGP(0),xGP(0),xGP(0)/) ! start value
@@ -868,7 +841,7 @@ CASE(2)
       Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
-CASE(3) 
+CASE(3)
   ! compute distance on XCL Points
   Winner_Dist=SQRT(DOT_PRODUCT((x_in(:)-XCL_NGeo(:,0,0,0,ElemID)),(x_in(:)-XCL_NGeo(:,0,0,0,ElemID))))
   Xi(:)=(/XiCL_NGeo(0),XiCL_NGeo(0),XiCL_NGeo(0)/) ! start value
@@ -886,11 +859,10 @@ CASE(3)
     END IF
   END DO; END DO; END DO
 CASE(4)
-  ! trivial guess 
+  ! trivial guess
   xi=0.
 END SELECT
 
 END SUBROUTINE GetRefNewtonStartValue
-!#endif /*PARTICLES*/
 
 END MODULE MOD_Eval_xyz
