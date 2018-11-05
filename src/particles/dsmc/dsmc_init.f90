@@ -403,7 +403,7 @@ IMPLICIT NONE
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
   INTEGER               :: iInter, MaxElecQua
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-  REAL                  :: JToEv, Temp
+  REAL                  :: Temp
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
   INTEGER               :: currentBC, ElemID, iSide, BCSideID
 #if ( PP_TimeDiscMethod ==42 )
@@ -411,7 +411,6 @@ IMPLICIT NONE
   INTEGER               :: ii
 #endif
 !===================================================================================================================================
-  JToEv = ElementaryCharge
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
   
@@ -656,7 +655,8 @@ __STAMP__&
             IF (DSMC%VibEnergyModel.EQ.0) THEN
               SpecDSMC(iSpec)%MaxVibQuant = 200
             ELSE
-              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
+              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
+                  (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
             END IF
             ! Calculation of the zero-point energy
             SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib

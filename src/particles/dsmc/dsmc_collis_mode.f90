@@ -1107,13 +1107,10 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3
 INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
 INTEGER                       :: nPartNode, PairForRec, nPair
-REAL                          :: JToEv
 REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
 !===================================================================================================================================
-  JToEv=ElementaryCharge
-
   IF (ChemReac%NumOfReact.EQ.0) THEN
     CaseOfReaction = 0
   ELSE
@@ -1368,7 +1365,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           PartReac2 = Coll_pData(iPair)%iPart_p1
         END IF
         ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1)    - &
-                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * JToEv  )  / &
+                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * ElementaryCharge  )  / &
                        ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) )
         IF (ReactionProb.LE.0.) THEN
           ReactionProb = 0.
@@ -1382,7 +1379,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
         END IF
         ! pseudo probability for second reaction
         ReactionProb2 = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1 )  - &
-                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * JToEv )  / &
+                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * ElementaryCharge )  / &
                         ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1) )
         IF (ReactionProb2.LE.0.) THEN
           ReactionProb2 = 0
@@ -1419,7 +1416,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           PartReac2 = Coll_pData(iPair)%iPart_p1
         END IF
         ReactionProb = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1)    - &
-                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * JToEv  )  / &
+                         SpecDSMC(PartSpecies(PartToExec))%Ediss_eV * ElementaryCharge  )  / &
                        ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,1) )
         IF (ReactionProb.LE.0.) THEN
           ReactionProb = 0.
@@ -1434,7 +1431,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
         END IF
         ! pseudo probability for second reaction
         ReactionProb2 = ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1 )  - &
-                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * JToEv )  / &
+                          SpecDSMC(PartSpecies(PartToExecSec))%Ediss_eV * ElementaryCharge )  / &
                         ( Coll_pData(iPair)%Ec + PartStateIntEn(PartToExecSec,1) )
         IF (ReactionProb2.LE.0.) THEN
           ReactionProb2 = 0.

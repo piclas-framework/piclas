@@ -48,10 +48,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 ! LOCAL VARIABLES
   CHARACTER(32)                  :: hilf, hilf2
   INTEGER                        :: iPolyatMole, iVibDOF                     
-  REAL                           :: JToEv
 !===================================================================================================================================
-
-  JToEv = ElementaryCharge
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec','.TRUE.')
