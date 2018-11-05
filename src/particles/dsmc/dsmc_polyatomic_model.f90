@@ -242,8 +242,28 @@ __STAMP__&
 ,'wrong adaptive type for Surfaceflux in vib/rot poly!')
         END SELECT
       ELSE
-        TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
-        TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
+        IF(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveInlet) THEN
+          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptInType)
+            CASE(1) ! Pressure inlet (pressure, temperature const)
+              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+            CASE(2) ! adaptive Outlet/freestream
+              ElemID = PEM%Element(iPart)
+              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
+              TRot = TVib
+            CASE(3) ! Constant mass flow and temperature
+              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+            CASE DEFAULT
+              CALL abort(&
+              __STAMP__&
+              ,'Wrong adaptive type for Surfaceflux in vib/rot poly!')
+          END SELECT
+        ELSE
+          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        END IF
       END IF
     CASE DEFAULT
       CALL abort(&

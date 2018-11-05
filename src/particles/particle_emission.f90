@@ -4452,7 +4452,12 @@ __STAMP__&
         IF ((.NOT.noAdaptive).OR.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
-            FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+              ! ofc, a file for every macrovalue...dirty fix
+              FileID = Species(iSpec)%Init(0)%ElemPartDensityFileID
+            ELSE
+              FileID = PartBound%AdaptiveMacroRestartFileID(Species(iSpec)%Surfaceflux(iSF)%BC)
+            END IF
             IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOX,ElemID,iSpec,FileID)
               Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_VELOY,ElemID,iSpec,FileID)
@@ -4515,6 +4520,7 @@ __STAMP__&
 #ifdef MPI
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        totalAreaSF_global = 0.0
         CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
                             MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
@@ -4905,7 +4911,7 @@ __STAMP__&
             CASE(2) ! adaptive Outlet/freestream
               ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
               pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-              T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+              T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec))
               !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
               !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
             CASE(3) ! Mass flow, temperature constant
@@ -4921,8 +4927,8 @@ __STAMP__&
               ELSE
                 ! Using the old velocity vector, overwriting the sampled value with the old one
                 Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
+                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
+                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
                 VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
                 VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
@@ -5625,7 +5631,7 @@ ELSE
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(2) ! adaptive Outlet/freestream
       pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
-      T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+      T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,FractNbr))
       !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
       !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
     CASE(3) ! Constant mass flow and temperature
