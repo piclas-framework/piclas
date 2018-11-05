@@ -273,6 +273,7 @@ TYPE typeSurfaceflux
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
+  LOGICAL                                :: CircularInflow                   !
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
@@ -281,6 +282,19 @@ TYPE typeSurfaceflux
                                                                              ! used for linked list during sampling
   TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
+  LOGICAL                                :: AdaptiveInlet                    !
+  INTEGER                                :: AdaptInType                      !
+  REAL                                   :: AdaptInMassflow                  !
+  REAL                                   :: AdaptivePressure                 !
+  REAL                                   :: totalAreaSF                      !
+  REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
+  REAL                                   :: InitAdaptivePumpingSpeed         ! initial pumping speed per are of the pumping surface (C=S/A)
+  REAL                                   :: AdaptiveDeltaPumpingSpeed        ! relaxationfactor for the pumping speed
+  REAL, ALLOCATABLE                      :: Adaptive_PartImpingePump(:)      ! index-list of particle impinge upon the pump surface
+                                                                             ! (1:PDM%maxParticleNumber)
+  REAL, ALLOCATABLE                      :: Adaptive_PEMforPump(:)           ! particle element mapping for pump surface
+                                                                             ! (1:PDM%maxParticleNumber)
+  INTEGER                                :: Adaptive_TotalPartImpinge        ! total number of particles impinge upon the pump surface
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -298,11 +312,27 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+LOGICAL                                  :: UseAdaptiveInlet                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
-                                                                             ! saved for daptive surfaceflux
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
+                                                                             ! (1:14,1:nElems,1:nSpecies)
+                                                                             !  1:  DSMC_VELOX
+                                                                             !  2:  DSMC_VELOY
+                                                                             !  3:  VELOZ
+                                                                             !  4:  TEMPX
+                                                                             !  5:  TEMPY
+                                                                             !  6:  DSMC_TEMPZ
+                                                                             !  7:  DSMC_DENSITY
+                                                                             !  8:  DSMC_TVIB
+                                                                             !  9:  DSMC_TROT
+                                                                             ! 10:  DSMC_TELEC
+                                                                             ! 11:  macro velocityX of particle impinge upon pump surface
+                                                                             ! 12:  macro velocityY of particle impinge upon pump surface
+                                                                             ! 13:  macro velocityZ of particle impinge upon pump surface
+                                                                             ! 14:  number of particles impinge upon the pump surface in Elem
+                                                                             ! 15:  pumping speed per are of the pumping surface (C=S/A)
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species

@@ -280,7 +280,7 @@ USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /* MPI */
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
+USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptiveInlet
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 #if defined(MPI) && defined(USE_LOADBALANCE) && defined(PARTICLES)
@@ -637,7 +637,7 @@ DO !iter_t=0,MaxIter
 #endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
+  IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet) CALL AdaptiveBCAnalyze()
 #endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
@@ -1385,11 +1385,12 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
+                               , WriteMacroSurfaceValues, UseAdaptiveInlet
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux, AdaptivePumpBC
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
@@ -1482,6 +1483,9 @@ REAL                  :: tLBStart
     ELSE
       CALL ParticleTracing()
     END IF
+  END IF
+  IF (UseAdaptiveInlet) THEN
+    CALL AdaptivePumpBC
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)

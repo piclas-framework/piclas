@@ -129,6 +129,8 @@ USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
+USE MOD_Particle_Vars          ,ONLY: UseAdaptiveInlet
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -355,7 +357,7 @@ END IF
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptiveInlet.OR.(nAdaptiveBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
@@ -1317,7 +1319,6 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1334,10 +1335,9 @@ INTEGER                        :: nVar
 INTEGER                        :: iElem,iVar,iSpec
 REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
 !===================================================================================================================================
-! first check if adaptive boundaries are defined 
-IF (nAdaptiveBC.LE.0) RETURN
 
-nVar = 4
+
+nVar = 7
 iVar = 1
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
@@ -1346,12 +1346,14 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
   StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
   StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-PumpVeloX'
+  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-PumpVeloY'
+  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-PumpVeloZ'
   iVar = iVar + nVar
 END DO
 
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
@@ -1364,6 +1366,7 @@ DO iElem = 1,nElems
   AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
   AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
   AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+  AdaptiveData(5:7,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
