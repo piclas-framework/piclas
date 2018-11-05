@@ -4054,6 +4054,8 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
       CASE(4)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
+        Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
+                                                            / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
         Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
         Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = &
                                                           GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
@@ -4237,13 +4239,14 @@ IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
     CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
-      ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
-      CALL ReadArray('AdaptiveInfo',3,(/4, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+      ALLOCATE(ElemData_HDF5(1:7,1:nSpecies,1:nElems))
+      CALL ReadArray('AdaptiveInfo',3,(/7, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
       DO iElem = 1,nElems
         Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
         Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
         Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
         Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,:,iElem)
+        Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(5:7,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
     END IF
@@ -4475,9 +4478,9 @@ __STAMP__&
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
               Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               Adaptive_MacroVal(15,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed
             END IF
@@ -4940,6 +4943,8 @@ __STAMP__&
                                   / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
               END IF
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+            CASE(4) ! Porous outlet
+              ElemPartDensity = 0
             CASE DEFAULT
               CALL abort(&
   __STAMP__&
@@ -5638,6 +5643,7 @@ ELSE
       !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
     CASE(3) ! Constant mass flow and temperature
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
+    CASE(4) ! porous outlet
     CASE DEFAULT
       CALL abort(&
   __STAMP__&
@@ -6534,22 +6540,31 @@ DO iSpec=1,nSpecies
         AdaptiveElem = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(iPumpPart)
         IF(CalcAlphaForElem(AdaptiveElem)) THEN
           ! calculate mean velocity of each impinging particle at the pumping surface
-          Adaptive_MacroVal(11,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
-          Adaptive_MacroVal(12,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
-          Adaptive_MacroVal(13,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          Adaptive_MacroVal(11,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
+                                                      / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          Adaptive_MacroVal(12,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
+                                                      / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
+          Adaptive_MacroVal(13,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
+                                                      / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
           VeloMean = SQRT(Adaptive_MacroVal(11,AdaptiveElem,iSpec)**2 &
                         + Adaptive_MacroVal(12,AdaptiveElem,iSpec)**2 &
                         + Adaptive_MacroVal(13,AdaptiveElem,iSpec)**2)
           ! calculate mean pressur in the cell next to the pumping surface
+          pressure = 0.0
           DO jSpec=1, nSpecies
             pressure = pressure + Adaptive_MacroVal(DSMC_DENSITY,AdaptiveElem,jSpec) * BoltzmannConst &
-                       * SUM(Adaptive_MacroVal(:,AdaptiveElem,jSpec)) / 3.0
+                       * SUM(Adaptive_MacroVal(4:6,AdaptiveElem,jSpec)) / 3.0
           END DO
           ! calculate pumping speed per area of pumping surface and alpha
           Adaptive_MacroVal(15,AdaptiveElem,iSpec) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) &
                                                    + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
                                                    * (pressure-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
           alpha(AdaptiveElem) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) / VeloMean
+          IF(alpha(AdaptiveElem).GT.1.0) THEN
+            alpha(AdaptiveElem) = 1.0
+          ELSE IF(alpha(AdaptiveElem).LT.0) THEN
+            alpha(AdaptiveElem) = 0.0
+          END IF
           ! check first particle for leaving the domain
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.

@@ -1305,6 +1305,7 @@ __STAMP__&
             CASE(3) ! Constant mass flow and temperature
               TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
               TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+            CASE(4) ! porous outlet
             CASE DEFAULT
               CALL abort(&
               __STAMP__&
