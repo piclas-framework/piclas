@@ -4059,6 +4059,8 @@ __STAMP__&
                                                           GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber))
         Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(1:PDM%maxParticleNumber))
+        Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(1:PDM%maxParticleNumber) = 0
         Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
       END SELECT
     END IF
@@ -6496,13 +6498,13 @@ END SUBROUTINE AdaptiveBCAnalyze
 SUBROUTINE AdaptivePumpBC()
 !===================================================================================================================================
 ! Routine for adaptive case 4 (active pump BC)
-! 1. pumping speed per area of pumping surface is determined
+! 1. pumping speed per area of pumping surface and alpha is determined
 ! 2. particles that leave the domain through the pump are deleted
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_Particle_Vars,          ONLY:PDM, Species, nSpecies, PEM, Adaptive_MacroVal
+USE MOD_Particle_Vars,          ONLY:PDM, Species, nSpecies, Adaptive_MacroVal
 USE MOD_Mesh_Vars,              ONLY:nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6527,7 +6529,7 @@ DO iSpec=1,nSpecies
       CalcAlphaForElem(1:nElems) = .TRUE. ! (lokal)
       DO iPumpPart=1,Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge
         iPumpPartIndx = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(iPumpPart)
-        AdaptiveElem = PEM%Element(iPumpPartIndx)
+        AdaptiveElem = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(iPumpPart)
         IF(CalcAlphaForElem(AdaptiveElem)) THEN
           ! calculate mean velocity of each impinging particle at the pumping surface
           Adaptive_MacroVal(11,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
@@ -6550,11 +6552,17 @@ DO iSpec=1,nSpecies
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
           CalcAlphaForElem(AdaptiveElem) = .FALSE.
+          ! reset adaptive macro_val
+          Adaptive_MacroVal(11:14,AdaptiveElem,iSpec) = 0
         ELSE
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
         END IF
       END DO
+      ! reset impinge counter and impinge index list
+      Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
+      Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
+      Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(1:PDM%maxParticleNumber) = 0
       DEALLOCATE(CalcAlphaForElem)
       DEALLOCATE(alpha)
     END IF

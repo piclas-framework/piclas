@@ -280,6 +280,8 @@ TYPE typeSurfaceflux
   REAL                                   :: AdaptiveDeltaPumpingSpeed        ! relaxationfactor for the pumping speed
   REAL, ALLOCATABLE                      :: Adaptive_PartImpingePump(:)      ! index-list of particle impinge upon the pump surface
                                                                              ! (1:PDM%maxParticleNumber)
+  REAL, ALLOCATABLE                      :: Adaptive_PEMforPump(:)           ! particle element mapping for pump surface
+                                                                             ! (1:PDM%maxParticleNumber)
   INTEGER                                :: Adaptive_TotalPartImpinge        ! total number of particles impinge upon the pump surface
 END TYPE
 

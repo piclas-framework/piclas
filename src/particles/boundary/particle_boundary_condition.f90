@@ -144,6 +144,7 @@ CASE(2) !PartBound%ReflectiveBC)
               Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
               Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
               Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = iPart
+              Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = ElemID
             END IF
           ELSE
             Adaptive_MacroVal(11,ElemID,iSpec) = Adaptive_MacroVal(11,ElemID,iSpec) + PartState(iPart,4)
@@ -152,6 +153,7 @@ CASE(2) !PartBound%ReflectiveBC)
             Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
             Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
             Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = iPart
+            Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) = ElemID
           END IF
         ELSE
           IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
