@@ -387,7 +387,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
 
               ! 'omega_pe_cold(PlasmaFrequency)'
               ! w_peTTM=sqrt(neTTM*e^2/(me0*eps0 ))
-              TTM_Cell_13(iElem) = SQRT(TTM_Cell_12(iElem)*ElectronCharge**2/(ElectronMass*eps0))
+              TTM_Cell_13(iElem) = SQRT(TTM_Cell_12(iElem)*ElementaryCharge**2/(ElectronMass*eps0))
 
               ! 'omega_pe_warm(PlasmaFrequency)'
               ! w_peTTMwarm = w_peTTM + 3 * kB * TeTTM_in_K / me0
@@ -419,7 +419,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
                 TTM_Cell_18(iElem) = 0.0
               ELSE
                 TTM_Cell_18(iElem) = SQRT( eps0*BoltzmannConst*TTM_Cell_17(iElem)/&
-                    (TTM_Cell_12(iElem)*ElectronCharge**2)) ! 12 depends only on 11
+                    (TTM_Cell_12(iElem)*ElementaryCharge**2)) ! 12 depends only on 11
               END IF
             END DO
           END DO
@@ -767,10 +767,9 @@ SUBROUTINE InitIMD_TTM_Coupling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_PreProc
 USE MOD_TTM_Vars
-USE MOD_Globals_Vars  ,ONLY: ElectronCharge
 USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,IMDSpeciesCharge,IMDSpeciesID
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
@@ -828,7 +827,7 @@ MaxElectronTemp_eV=MAXVAL(TTM_Cell_2(:))
 ElecSpecIndx = -1
 DO iSpec = 1, nSpecies
   IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-  IF(NINT(Species(iSpec)%ChargeIC/(-1.60217653E-19)).EQ.1) THEN
+  IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) THEN
     ElecSpecIndx = iSpec
     EXIT
   END IF
@@ -858,9 +857,9 @@ DO iElem=1,PP_nElems
     END IF
     PEM%Element(ParticleIndexNbr) = iElem
     IF(TTM_Cell_2(iElem).LE.0.0)THEN ! not enough atoms in FD cell for averaging a temperature: use max value for electrons
-      CellElectronTemperature=(MaxElectronTemp_eV*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
+      CellElectronTemperature=(MaxElectronTemp_eV*ElementaryCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     ELSE
-      CellElectronTemperature=(TTM_Cell_2(iElem)*ElectronCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
+      CellElectronTemperature=(TTM_Cell_2(iElem)*ElementaryCharge/BoltzmannConst) ! convert eV to K: 1 [eV] = e/kB [K]
     END IF
     CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(ParticleIndexNbr,4:6),&
                                   Temperature=CellElectronTemperature)

@@ -359,7 +359,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
@@ -384,7 +384,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz , RanVec(3)   ! random relativ velo
-  REAL                          :: JToEv, FakXi, Xi_rel, iRan, FacEtraDistri
+  REAL                          :: FakXi, Xi_rel, iRan, FacEtraDistri
   REAL                          :: ERel_React1_React2, ERel_React1_React3
   INTEGER                       :: React1Inx, React2Inx, React3Inx
   INTEGER                       :: ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole
@@ -392,8 +392,6 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 !===================================================================================================================================
-
-  JToEv = 1.602176565E-19
   Xi_elec = 0.
   Telec = 0.
   EZeroTempToExec = 0.
