@@ -194,7 +194,7 @@ END IF
 
 END SUBROUTINE CalcDepositedCharge
 
-SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronDensityCell) 
+SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell) 
 !===================================================================================================================================
 ! calcs integrated (physical) number of BR electrons in cell
 !===================================================================================================================================
@@ -214,14 +214,14 @@ IMPLICIT NONE
 INTEGER,INTENT(IN):: iElem, RegionID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)  :: ElectronDensityCell
+REAL,INTENT(OUT)  :: ElectronNumberCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: source_e
 !===================================================================================================================================
-ElectronDensityCell=0.
+ElectronNumberCell=0.
 J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if (defined (PP_HDG) && (PP_nVar==1))
@@ -238,9 +238,9 @@ __STAMP__&
     source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
     * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
   END IF
-  ElectronDensityCell = ElectronDensityCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
+  ElectronNumberCell = ElectronNumberCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
 END DO; END DO; END DO
-ElectronDensityCell=ElectronDensityCell/ElementaryCharge
+ElectronNumberCell=ElectronNumberCell/ElementaryCharge
 
 END SUBROUTINE CalculateBRElectronsPerCell
 
