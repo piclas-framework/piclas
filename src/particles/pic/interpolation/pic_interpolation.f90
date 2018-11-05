@@ -134,7 +134,7 @@ USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars  ,ONLY: useVariableExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationElemLoop
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,GaussBorder
-USE MOD_Eval_xyz               ,ONLY: Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E
 #endif
@@ -263,27 +263,27 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
 #else
-      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif /*PP_POIS*/
 !
 #else /*PP_nVar not 8*/
 !
 #ifdef PP_POIS
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif defined PP_HDG
 #if PP_nVar==1
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
 #endif /*PP_nVar==1*/
 #else /*not HDG and not POIS and PP_nVar not 8*/
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+      CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
 !
 #endif /*(PP_nVar==8)*/
@@ -305,25 +305,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
           HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-          CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
 #else
-          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-          CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif defined PP_HDG
 #if PP_nVar==1
-          CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
-          CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
           HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
           HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-          CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem)
 #endif /*PP_nVar*/
 #else
-          CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+          CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
@@ -338,32 +338,32 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping)THEN
-              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+              CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
             END IF
             !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #else
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
 #elif defined PP_HDG
 #if PP_nVar==1
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
 #elif PP_nVar==3
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #endif
 #else
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+            CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif
 #endif
             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
@@ -383,55 +383,55 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-              CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
-              CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-              CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif defined PP_HDG
 #if PP_nVar==1
-              CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
-              CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-              CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #endif
 #else
-              CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+              CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #endif
 #endif
             ELSE !.NOT.PDM%dtFracPush(iPart): same as in "particles have already been mapped in deposition, other eval routine used"
               IF(.NOT.DoRefMapping)THEN
-                CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+                CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
               END IF
               !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #else
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif defined PP_HDG
 #if PP_nVar==1
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #endif
 #else
-              CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif
 #endif
             END IF !PDM%dtFracPush(iPart)
@@ -450,25 +450,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
-            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif defined PP_HDG
 #if PP_nVar==1
-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #elif PP_nVar==3
-            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem,iPart)
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #endif
 #else
-            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
+            CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
 #endif         
 #endif
             FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
@@ -490,7 +490,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         IF(PEM%Element(iPart).EQ.iElem)THEN
           IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(iPart)))THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+            CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! compute exact k,l,m
           !! x-direction
@@ -583,7 +583,7 @@ USE MOD_DG_Vars,                 ONLY:U
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
-USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
+USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
@@ -681,25 +681,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
 #else
-    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif defined PP_HDG
 #if PP_nVar==1
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
 #endif /*PP_nVar==1*/
 #else
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtRefPos((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -710,25 +710,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
 #else
-    CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif defined PP_HDG
 #if PP_nVar==1
-    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
-    CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID)
 #endif /*PP_nVar*/
 #else
-    CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+    CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif /*PP_POIS*/
 #endif /*(PP_nVar==8)*/
     FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -736,32 +736,32 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     IF(.NOT.NotMappedSurfFluxParts .AND.(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint'))THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+        CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
       END IF
       !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
 #else
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif defined PP_HDG
 #if PP_nVar==1
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
 #endif
 #else
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+      CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -774,55 +774,55 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-        CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #else
-        CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
 #endif
 #else
 #ifdef PP_POIS
-        CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif defined PP_HDG
 #if PP_nVar==1
-        CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
-        CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
 #else
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-        CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #endif
 #else
-        CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+        CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #endif
 #endif
       ELSE !.NOT.PDM%dtFracPush(PartID): same as in "particles have already been mapped in deposition, other eval routine used"
         IF(.NOT.DoRefMapping)THEN
-          CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+          CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
         END IF
         !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
 #else
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif defined PP_HDG
 #if PP_nVar==1
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #elif PP_nVar==3
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
         HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
         HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
 #endif
 #else
-        CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+        CALL EvaluateFieldAtRefPos(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif
 #endif
       END IF !PDM%dtFracPush(PartID)
@@ -834,25 +834,25 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #else
-      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID,PartID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif defined PP_HDG
 #if PP_nVar==1
-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #elif PP_nVar==3
-      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID,PartID)
 #else
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),ElemID,PartID)
 #endif
 #else
-      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
+      CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID,PartID)
 #endif
 #endif
       FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
@@ -867,7 +867,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       b = a-1
     END IF
     IF(.NOT.DoRefMapping .OR. (NotMappedSurfFluxParts .AND. PDM%dtFracPush(PartID)))THEN
-      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
+      CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
     END IF
     ! compute exact k,l,m
     !! x-direction

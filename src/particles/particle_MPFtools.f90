@@ -262,7 +262,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   USE MOD_Globals
   USE MOD_Particle_Vars
   USE Levenberg_Marquardt
-  USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+  USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
   USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 #if (PP_TimeDiscMethod==300)
   USE MOD_FPFlow_Vars,            ONLY: vMPFOldVeloVib, vMPFOldVeloRot
@@ -301,7 +301,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing
         PartStateMap(iLoop2,1:3)=PartPosRef(1:3,iLoop2)
       ELSE
-        CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3), PartStateMap(iLoop2,1:3), iElem)
+        CALL GetPositionInRefElem(PartState(iPart,1:3), PartStateMap(iLoop2,1:3), iElem)
       END IF
       PartStatevMPFSpec(iLoop2) = iPart
       iLoop2 = iLoop2 + 1
@@ -722,7 +722,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
   USE MOD_Particle_Vars, ONLY : PartState, vMPFMergeCellSplitOrder&
                         , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, vMPF_velocityDistribution &
                         , vMPF_NewPosRefElem
-  USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+  USE MOD_Eval_xyz,           ONLY:TensorProductInterpolation
   USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -759,7 +759,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
     END DO
     RandVac = RandVac * 2.0 - 1.0
     IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac 
-    CALL Eval_xyz_Poly(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+    CALL TensorProductInterpolation(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
                        XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
     !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
   END DO
@@ -774,7 +774,7 @@ SUBROUTINE SetMPFParticlePosDensEst(iElem, FinPartNum, SpecNum,PosFailed)
   USE MOD_Particle_Vars, ONLY : PartState,PartStatevMPFSpec, PartStateMap &
                         , vMPF_oldMPFSum, vMPFOldMPF, vMPF_NewPosRefElem, vMPF_velocityDistribution &
                         ,vMPFOldPos, vMPFOldVelo, vMPFNewPosNum, PartMPF, PDM
-  USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+  USE MOD_Eval_xyz,           ONLY:TensorProductInterpolation
   USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -836,7 +836,7 @@ DO iLoop = 1, FinPartNum
   END DO
   IF(PosFailed) EXIT
   IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
-  CALL Eval_xyz_Poly(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+  CALL TensorProductInterpolation(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
                      XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
   !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
 END DO
