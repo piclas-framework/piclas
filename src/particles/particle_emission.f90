@@ -5646,6 +5646,8 @@ ELSE
     VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,FractNbr)
     VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,FractNbr)
     VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,FractNbr)
+    vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+    VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
     VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
     IF (ABS(VeloIC).GT.0.) THEN
       VeloVecIC = VeloVec / VeloIC
