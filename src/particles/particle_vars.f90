@@ -318,21 +318,22 @@ REAL                                     :: AdaptiveWeightFac                ! w
                                                                              ! of previous iterations
 REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
                                                                              ! (1:14,1:nElems,1:nSpecies)
-                                                                             !  1:  DSMC_VELOX
-                                                                             !  2:  DSMC_VELOY
+                                                                             !  1:  VELOX
+                                                                             !  2:  VELOY
                                                                              !  3:  VELOZ
                                                                              !  4:  TEMPX
                                                                              !  5:  TEMPY
-                                                                             !  6:  DSMC_TEMPZ
-                                                                             !  7:  DSMC_DENSITY
-                                                                             !  8:  DSMC_TVIB
-                                                                             !  9:  DSMC_TROT
-                                                                             ! 10:  DSMC_TELEC
+                                                                             !  6:  TEMPZ
+                                                                             !  7:  NUMBER DENSITY
+                                                                             !  8:  TVIB
+                                                                             !  9:  TROT
+                                                                             ! 10:  TELEC
                                                                              ! 11:  macro velocityX of particle impinge upon pump surface
                                                                              ! 12:  macro velocityY of particle impinge upon pump surface
                                                                              ! 13:  macro velocityZ of particle impinge upon pump surface
                                                                              ! 14:  number of particles impinge upon the pump surface in Elem
                                                                              ! 15:  pumping speed per are of the pumping surface (C=S/A)
+                                                                             ! 16:  pressure for pump
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species

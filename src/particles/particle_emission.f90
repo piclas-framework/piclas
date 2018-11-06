@@ -4241,7 +4241,7 @@ DEALLOCATE(TmpMapToBC &
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
 IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
-  ALLOCATE(Adaptive_MacroVal(1:15,1:nElems,1:nSpecies))
+  ALLOCATE(Adaptive_MacroVal(1:16,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
   AdaptiveInitDone = .FALSE.
@@ -4251,14 +4251,15 @@ IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
     CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveDataExists)
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
-      ALLOCATE(ElemData_HDF5(1:7,1:nSpecies,1:nElems))
-      CALL ReadArray('AdaptiveInfo',3,(/7, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+      ALLOCATE(ElemData_HDF5(1:9,1:nSpecies,1:nElems))
+      CALL ReadArray('AdaptiveInfo',3,(/9, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
       DO iElem = 1,nElems
         Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
         Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
         Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
-        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(4,:,iElem)
-        Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(5:7,:,iElem)
+        Adaptive_MacroVal(4:6,iElem,:)          = ElemData_HDF5(4:6,:,iElem)
+        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(7,:,iElem)
+        Adaptive_MacroVal(15:16,iElem,:)        = ElemData_HDF5(8:9,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
     END IF
@@ -4483,6 +4484,11 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+              IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+                CALL abort(&
+__STAMP__&
+,'Macroscopic restart with pump BC and without state file including adaptive BC info not implemented!')
+              END IF
             ELSE
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1)
@@ -4495,6 +4501,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               Adaptive_MacroVal(15,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed
+              Adaptive_MacroVal(16,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
             END IF
           END IF
         END IF
@@ -6407,7 +6414,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ElemID, AdaptiveElemID, i, iSpec
-REAL                          :: TVib_TempFac
+REAL                          :: TVib_TempFac, TTrans_TempFac
 REAL, ALLOCATABLE             :: Source(:,:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
@@ -6468,6 +6475,16 @@ DO iSpec = 1,nSpecies
     ! compute density
     Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
         + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+    ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
+    TTrans_TempFac = Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
+                    - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                    + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                    - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                    + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                    - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
+    ! compute pressure (without BoltzmannConst, cancels out with the tempreature calculation)
+    Adaptive_MacroVal(16,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(16,AdaptiveElemID,iSpec) &
+      +AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -6536,7 +6553,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
 INTEGER                       :: iPumpPartIndx, AdaptiveElem
-REAL                          :: pressure, iRan, VeloMean
+REAL                          :: iRan, VeloMean
 REAL, ALLOCATABLE             :: alpha(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
 !===================================================================================================================================
@@ -6562,15 +6579,10 @@ DO iSpec=1,nSpecies
                         + Adaptive_MacroVal(12,AdaptiveElem,iSpec)**2 &
                         + Adaptive_MacroVal(13,AdaptiveElem,iSpec)**2)
           ! calculate mean pressur in the cell next to the pumping surface
-          pressure = 0.0
-          DO jSpec=1, nSpecies
-            pressure = pressure + Adaptive_MacroVal(DSMC_DENSITY,AdaptiveElem,jSpec) * BoltzmannConst &
-                       * SUM(Adaptive_MacroVal(4:6,AdaptiveElem,jSpec)) / 3.0
-          END DO
           ! calculate pumping speed per area of pumping surface and alpha
           Adaptive_MacroVal(15,AdaptiveElem,iSpec) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) &
-                                                   + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
-                                                   * (pressure-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
+            + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
+            * (SUM(Adaptive_MacroVal(16,AdaptiveElem,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
           alpha(AdaptiveElem) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) / VeloMean
           IF(alpha(AdaptiveElem).GT.1.0) THEN
             alpha(AdaptiveElem) = 1.0
