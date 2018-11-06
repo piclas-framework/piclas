@@ -24,14 +24,14 @@ FILE(GLOB ${TOOL_NAME}F90 ${TOOL_DIR}/avg2d.f90
 
 
 ADD_LIBRARY(${TOOL_NAME}libF90 OBJECT ${${TOOL_NAME}F90})
-SET_TARGET_PROPERTIES(${TOOL_NAME}libF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+SET_TARGET_PROPERTIES(${TOOL_NAME}libF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
 ADD_LIBRARY(${TOOL_NAME}lib STATIC $<TARGET_OBJECTS:${TOOL_NAME}libF90>)
-ADD_DEPENDENCIES(${TOOL_NAME}libF90 boltzplatzlibF90 HDF5)
+ADD_DEPENDENCIES(${TOOL_NAME}libF90 piclaslibF90 HDF5)
 
 # Standalone Posti executable
 add_exec(             posti_${TOOL_NAME} ${TOOL_DIR}/posti_visu.f90)
-TARGET_LINK_LIBRARIES(posti_${TOOL_NAME} ${TOOL_NAME}lib boltzplatzlib userblocklib_dummy ${linkedlibs})
-ADD_DEPENDENCIES(     posti_${TOOL_NAME} ${TOOL_NAME}lib boltzplatzlib userblocklib_dummy ${linkedlibs})
+TARGET_LINK_LIBRARIES(posti_${TOOL_NAME} ${TOOL_NAME}lib piclaslib userblocklib_dummy ${linkedlibs})
+ADD_DEPENDENCIES(     posti_${TOOL_NAME} ${TOOL_NAME}lib piclaslib userblocklib_dummy ${linkedlibs})
 
 # Posti visu plugin for Paraview
 CMAKE_DEPENDENT_OPTION(POSTI_USE_PARAVIEW "Build the Paraview visualization plugin for Posti." OFF "POSTI_BUILD_VISU" OFF)
@@ -51,6 +51,6 @@ IF (POSTI_USE_PARAVIEW AND ParaView_FOUND)
      DEPENDS               "${TOOL_DIR}/paraviewReader/visuReader.h"
      )
 
-   ADD_DEPENDENCIES(     visuReader ${TOOL_NAME}lib boltzplatzlib userblocklib_dummy stacksizelib HDF5)
-   TARGET_LINK_LIBRARIES(visuReader PUBLIC ${TOOL_NAME}lib boltzplatzlib stacksizelib ${linkedlibs})
+   ADD_DEPENDENCIES(     visuReader ${TOOL_NAME}lib piclaslib userblocklib_dummy stacksizelib HDF5)
+   TARGET_LINK_LIBRARIES(visuReader PUBLIC ${TOOL_NAME}lib piclaslib stacksizelib ${linkedlibs})
 ENDIF()

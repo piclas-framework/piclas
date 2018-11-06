@@ -1,10 +1,10 @@
-## Boltzplatz installation procedure
+## PICLas installation procedure
 
 ## Prerequisites
 
 For **tested combinations** of prerequisities (HDF5, openMPI, cmake etc.) and known problems that may occur, see [BuildConfigurations.md](BuildConfigurations.md).
 
-Boltzplatz has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS and 16.04 LTS, Chakra OS. In addition, Paraview or Tecplot can be used for visualization.
+PICLas has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS and 16.04 LTS, Chakra OS. In addition, Paraview or Tecplot can be used for visualization.
 
 The required packages for the Ubuntu Linux distributions are listed in table \ref{tab:installation_prereqs_ubuntu}. Under Ubuntu, they can be obtained using the apt environment:
 
@@ -31,21 +31,21 @@ Table: Required debian packages under Ubuntu.
 * Open a terminal
 * clone the GIT repository: 
 
-		git clone git@gitlab.iag.uni-stuttgart.de:piclas/boltzplatz.git
+		git clone git@gitlab.com:piclas/piclas.git
 
-* Change into the Boltzplatz directory
+* Change into the PICLas directory
 * Create a new subdirectory and use CMake to configure and compile the code
-* Create a CMake build directory and choose the build options for Boltzplatz
+* Create a CMake build directory and choose the build options for PICLas
 
 		mkdir -p build && cd build 
     ccmake ../
 
 * Configure the build using CMake; ENABLE_ triggers the build of the corresponding tool.
-* Build Boltzplatz using CMake:
+* Build PICLas using CMake:
 
 		make
 
-The executables **Boltzplatz** is contained in your Boltzplatz directory in `build/bin/`.
+The executable **piclas** is contained in your PICLas directory in `build/bin/`.
 
 Custom configuration of compiler options may be done using
 
@@ -58,15 +58,15 @@ Custom configuration of compiler options may be done using
 
         cd temp
 
-* Run boltzplatz for PIC simulations
+* Run piclas for PIC simulations
 
-        $boltzplatz parameter_boltzplatz.ini
+        $piclas parameter_piclas.ini
 
-* Run boltzplatz for DSMC simulations
+* Run piclas for DSMC simulations
 
-        $boltzplatz parameter_boltzplatz.ini DSMCSpecies.ini
+        $piclas parameter_piclas.ini DSMCSpecies.ini
 
 * Restart a simulation
 
-        $boltzplatz parameter_boltzplatz.ini (DSMCSpecies.ini)  StateFile.h5
+        $piclas parameter_piclas.ini (DSMCSpecies.ini)  StateFile.h5
 

@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "flexi.h"
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Module to evaluate parametric coordinates of interpolation points (IP) of new state in old mesh

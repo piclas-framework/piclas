@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "flexi.h"
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Containes the routines that will initialize and finalize the swapmesh routine as well as the routines to read an old state file

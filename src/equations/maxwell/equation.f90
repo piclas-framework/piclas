@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Equation
 !===================================================================================================================================
@@ -133,7 +145,7 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElectronCharge
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
@@ -384,10 +396,10 @@ DO iRefState=1,nTmp
       IF(Beam_a0.LE.0.0)THEN ! use I_0 for defining the amplitude
         Beam_a0    = 0.0
         E_0        = SQRT(2.0*BeamEta*I_0)
-        CALL PrintOption('calculated from I_0: Beam_a0','CALCUL.',RealOpt=E_0*ElectronCharge/(c*ElectronMass*BeamOmega))
+        CALL PrintOption('calculated from I_0: Beam_a0','CALCUL.',RealOpt=E_0*ElementaryCharge/(c*ElectronMass*BeamOmega))
         CALL PrintOption('calculated from I_0:     E_0','CALCUL.',RealOpt=E_0)
       ELSE ! use Beam_a0 for defining the amplitude
-        E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElectronCharge
+        E_0        = Beam_a0*c*ElectronMass*BeamOmega/ElementaryCharge
         CALL PrintOption('calculated from Beam_a0: I_0','CALCUL.',RealOpt=E_0**2/(2*BeamEta))
         CALL PrintOption('calculated from Beam_a0: E_0','CALCUL.',RealOpt=E_0)
       END IF

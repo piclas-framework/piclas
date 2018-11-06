@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_DSMC_Analyze
 !===================================================================================================================================
@@ -646,7 +658,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -661,17 +673,16 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iDOF,iPolyatMole
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=1.0E-5,JToEv   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=1.0E-5   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne    ! both summs
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
-JToEv = 1.602176565E-19
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0
-  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
+  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
   DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0

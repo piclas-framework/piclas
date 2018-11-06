@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Particle_Mesh
 !===================================================================================================================================
@@ -1413,19 +1425,19 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
 END IF
 
 SWRITE(UNIT_StdOut,'(66("-"))')
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
 CALL GetFIBGMminmax()
@@ -1436,7 +1448,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem = nElems+1,nTotalElems
 SWRITE(UNIT_stdOut,'(A)')' Building FIBGM ...' 
 CALL GetFIBGM(ElemToBGM)
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
@@ -1448,7 +1460,7 @@ CALL MarkAllBCSides()
 ! get elem and side types
 CALL GetElemAndSideType()
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
@@ -1470,7 +1482,7 @@ ELSE
   CALL AddHALOCellsToFIBGM(ElemToBGM)
 END IF
 
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF

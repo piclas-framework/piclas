@@ -118,8 +118,8 @@ build_gnu:
   stage: build
   script:
     - module load env/gnu; mkdir -p build_gnu ; cd build_gnu
-    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-    - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+    - cmake .. -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel:
 #   tags:
@@ -138,8 +138,8 @@ build_gnu:
 #   stage: build
 #   script:
 #     - module load env/intel; mkdir -p build_intel ; cd build_intel
-#     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-#     - cmake .. -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+#     - cmake .. -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 build_gnu_maxwell:
   tags:
@@ -158,8 +158,8 @@ build_gnu_maxwell:
   stage: build
   script:
     - module load env/gnu; mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
-    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-    - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+    - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel_maxwell:
 #   tags:
@@ -178,8 +178,8 @@ build_gnu_maxwell:
 #   stage: build
 #   script:
 #     - module load env/intel; mkdir -p build_intel_maxwell ; cd build_intel_maxwell
-#     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-#     - cmake .. -DBOLTZPLATZ_PARTICLES=OFF -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+#     - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 build_gnu_poisson:
   tags:
@@ -198,8 +198,8 @@ build_gnu_poisson:
   stage: build
   script:
     - module load env/gnu; mkdir -p build_gnu_poisson ; cd build_gnu_poisson
-    - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-    - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+    - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+    - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # build_intel_poisson:
 #   tags:
@@ -218,8 +218,8 @@ build_gnu_poisson:
 #   stage: build
 #   script:
 #     - module load env/intel; mkdir -p build_intel_poisson ; cd build_intel_poisson
-#     - git clone git@gitlab.iag.uni-stuttgart.de:reggie/reggie.git
-#     - cmake .. -DBOLTZPLATZ_EQNSYSNAME=poisson -DBOLTZPLATZ_TIMEDISCMETHOD=RK3 -DBOLTZPLATZ_BUILD_HDF5=OFF ; make -j all
+#     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
+#     - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -230,7 +230,7 @@ gnu:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
 # intel:
 #   <<: *defaults_intel
@@ -238,7 +238,7 @@ gnu:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
 gnu_maxwell:
   <<: *defaults_gnu_maxwell
@@ -246,7 +246,7 @@ gnu_maxwell:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
 # intel_maxwell:
 #   <<: *defaults_intel_maxwell
@@ -254,7 +254,7 @@ gnu_maxwell:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
 gnu_poisson:
   <<: *defaults_gnu_poisson
@@ -262,7 +262,7 @@ gnu_poisson:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 # intel_poisson:
 #   <<: *defaults_intel_poisson
@@ -270,7 +270,7 @@ gnu_poisson:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -284,7 +284,7 @@ gnu_PIC_gyrotron_variable_Bz:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
 
 gnu_PIC_single_particle_PML:
   <<: *defaults_gnu
@@ -292,7 +292,7 @@ gnu_PIC_single_particle_PML:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
     
 gnu_PIC_IMD_coupling:
   <<: *defaults_gnu
@@ -300,7 +300,7 @@ gnu_PIC_IMD_coupling:
   tags:
     - withmodules
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
     
 gnu_DSMC_check:
   <<: *defaults_gnu
@@ -334,7 +334,7 @@ gnu_PIC_maxwell_implicitBC:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
 #     
 # intel_PIC_single_particle_PML:
 #   <<: *defaults_intel
@@ -342,7 +342,7 @@ gnu_PIC_maxwell_implicitBC:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
 #     
 # intel_PIC_IMD_coupling:
 #   <<: *defaults_intel
@@ -350,7 +350,7 @@ gnu_PIC_maxwell_implicitBC:
 #   tags:
 #     - withmodules
 #   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/boltzplatz
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
 #     
 # intel_PIC_maxwell_implicitBC:
 #   <<: *defaults_intel

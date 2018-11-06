@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Module contains the routines for load balancing
@@ -142,7 +154,7 @@ PerformLBSample = .FALSE.
 #if USE_LOADBALANCE
 ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! Allocation length (1:number of loadbalance times)
-! look into boltzplatz.h for more info about time names
+! look into piclas.h for more info about time names
 tCurrent=0.
 #endif /*USE_LOADBALANCE*/
 
@@ -328,7 +340,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Boltzplatz_Init  ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Piclas_Init  ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
@@ -357,13 +369,13 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 ! Measure init duration
-LB_StartTime=BOLTZPLATZTIME()
+LB_StartTime=PICLASTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
-CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
+CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
-CALL InitBoltzplatz(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
 ! restart
 CALL Restart()
@@ -399,7 +411,7 @@ END IF
 #endif /*PARTICLES*/
 
 ! Measure init duration
-LB_Time=BOLTZPLATZTIME()
+LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'

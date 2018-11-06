@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 
 MODULE MOD_TimeDisc
@@ -299,7 +311,7 @@ REAL                         :: tPreviousAverageAnalyze  !> time of previous Ave
 INTEGER(KIND=8)              :: iAnalyze                 !> count number of next analyze
 REAL                         :: tEndDiff                 !> difference between simulation time and simulation end time
 REAL                         :: tAnalyzeDiff             !> difference between simulation time and next analyze time
-INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitBoltzplatz call for PID calculation
+INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
 REAL                         :: WallTimeStart            !> wall time of simulation start
 REAL                         :: WallTimeEnd              !> wall time of simulation end
 #if (PP_TimeDiscMethod==201)
@@ -378,7 +390,7 @@ END IF
 !#endif /*MPI*/
 !#endif
 CALL InitTimeStep() ! Initial time step calculation
-WallTimeStart=BOLTZPLATZTIME()
+WallTimeStart=PICLASTIME()
 iter=0
 iter_PID=0
 
@@ -635,7 +647,7 @@ DO !iter_t=0,MaxIter
     ELSE
       finalIter=.FALSE.
     END IF
-    WallTimeEnd=BOLTZPLATZTIME()
+    WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
       WallTime = WallTimeEnd-StartTime
@@ -703,7 +715,7 @@ DO !iter_t=0,MaxIter
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
           !CALL InitTimeStep() ! re-calculate time step after load balance is performed
           RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
-          RestartWallTime=BOLTZPLATZTIME() ! Set restart wall time if a load balance step is performed
+          RestartWallTime=PICLASTIME() ! Set restart wall time if a load balance step is performed
         END IF
         CALL LoadBalance()
         IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
@@ -729,7 +741,7 @@ DO !iter_t=0,MaxIter
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
     tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
-    WallTimeStart=BOLTZPLATZTIME()
+    WallTimeStart=PICLASTIME()
   END IF !dt_analyze
   IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t

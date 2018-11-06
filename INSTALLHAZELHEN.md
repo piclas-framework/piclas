@@ -11,11 +11,11 @@ For building on the hazelhen-cluster, the following steps are needed:
 
 * Profiling with Craypad
 
-    * Compile Boltzplatz with 
+    * Compile PICLas with 
     
         module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile
     
-    * Run boltzplatz with normal submit script
+    * Run PICLas with normal submit script
     * Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, 
       the testqueue is maybe to short. 
     * Visualize the *.app2 files 

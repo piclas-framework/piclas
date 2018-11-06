@@ -11,10 +11,10 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "boltzplatz.h"
+#include "piclas.h"
 
 !==================================================================================================================================
-!> Module providing routines for reading BOLTZPLATZ parameter files. 
+!> Module providing routines for reading PICLAS parameter files. 
 !> 
 !> The whole structure to read options from the parameter file is as follows:
 !> 
@@ -732,8 +732,8 @@ IF(MPIROOT)THEN
   END IF
   ! Check if first argument is the ini-file 
   IF(.NOT.(STRICMP(GetFileExtension(filename),'ini'))) THEN
-    SWRITE(*,*) "Usage: boltzplatz parameter.ini [DSMC.ini] [restart.h5] [keyword arguments]"
-    !SWRITE(*,*) "   or: boltzplatz restart.h5 [keyword arguments]"
+    SWRITE(*,*) "Usage: piclas parameter.ini [DSMC.ini] [restart.h5] [keyword arguments]"
+    !SWRITE(*,*) "   or: piclas restart.h5 [keyword arguments]"
     CALL CollectiveStop(__STAMP__,&
       'ERROR - Not an parameter file (file-extension must be .ini) or restart file (*.h5): '//TRIM(filename))
   END IF
@@ -1017,7 +1017,7 @@ END DO
 ! if name is not specified, the complete parameter files needs to be printed
 IF ((.NOT.markdown).AND.(LEN_TRIM(name).EQ.0)) THEN
   SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
-  SWRITE(UNIT_StdOut,'(A)')    "! Default Parameter File generated using 'boltzplatz --help' "
+  SWRITE(UNIT_StdOut,'(A)')    "! Default Parameter File generated using 'piclas --help' "
   SWRITE(UNIT_StdOut,'(4A)')   "!   compiled at : ", __DATE__," ", __TIME__ 
   SWRITE(UNIT_StdOut,'(A80)')  "!==============================================================================="
 END IF

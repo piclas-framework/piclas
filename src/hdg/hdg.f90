@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_HDG
 !===================================================================================================================================
@@ -749,6 +761,7 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
+LOGICAL :: warning_linear
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
@@ -811,14 +824,18 @@ DO BCsideID=1,nNeumannBCSides
   END SELECT ! BCType
 END DO !BCsideID=1,nNeumannBCSides
 
-
+warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-END DO !iElem 
+END DO !iElem
+IF (warning_linear) THEN
+  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+END IF
 
   !prepare RHS_face ( RHS for lamdba system.)
 RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
@@ -951,13 +968,18 @@ ELSE
     !volume source (volume RHS of u system)
     !SWRITE(*,*) '!!!!!!!!!!!!!!!!!', iter
 
+    warning_linear=.FALSE.
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
       END DO; END DO; END DO !i,j,k
       RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-    END DO !iElem 
+    END DO !iElem
+    IF (warning_linear) THEN
+      SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+        '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+    END IF
 
     !prepare RHS_face ( RHS for lamdba system.)
     RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
@@ -1117,7 +1139,7 @@ LOGICAL                         :: converged
 !===================================================================================================================================
 !SWRITE(UNIT_StdOut,'(132("-"))')
 !SWRITE(*,*)'CG solver start'
-TimeStartCG=BOLTZPLATZTIME()
+TimeStartCG=PICLASTIME()
 #ifdef MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
 VecSize=(nSides-nMPIsides_YOUR)*nGP_face
@@ -1187,7 +1209,7 @@ DO iter=1,MaxIterCG
   converged=(rr.LT.AbortCrit2)
 #endif /*MPI*/
   IF(converged) THEN !converged
-!    TimeEndCG=BOLTZPLATZTIME()
+!    TimeEndCG=PICLASTIME()
 !    SWRITE(UNIT_StdOut,'(A,X,I16)')   '#iterations        :',iter
 !    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime         [s]:',(TimeEndCG-TimeStartCG)
 !    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter    [s]:', (TimeEndCG-TimeStartCG)/REAL(iter)

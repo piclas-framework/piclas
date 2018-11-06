@@ -49,7 +49,7 @@
 ! See the GNU General Public License for more details.
 !------------------------------------------------------------
 
-#include "boltzplatz.h"
+#include "piclas.h"
 
 !==================================================================================================================================
 !> Routines for performing operations on strings, which are not covered by ISO_VARYING_STRING.

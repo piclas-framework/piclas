@@ -23,4 +23,4 @@ STD_INDEX=$(ls std-*.out | tail -n 1 | sed s/std-/\\n/ | tail -n 1 | sed s/.out/
 module swap compiler/intel compiler/intel/16.0
 module load mpi/impi/5.1
 
-mpiexec.hydra -bootstrap slurm ./boltzplatz pic.ini DSMCSpecies_CEXMEX.ini $STATE 1>std-`printf "%03d" $((${STD_INDEX##*0}+1))`.out 2>err-`printf "%03d" $((${STD_INDEX##*0}+1))`.out
+mpiexec.hydra -bootstrap slurm ./piclas pic.ini DSMCSpecies_CEXMEX.ini $STATE 1>std-`printf "%03d" $((${STD_INDEX##*0}+1))`.out 2>err-`printf "%03d" $((${STD_INDEX##*0}+1))`.out
