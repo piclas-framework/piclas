@@ -637,9 +637,7 @@ DO !iter_t=0,MaxIter
   ELSE
     finalIter=.FALSE.
   END IF
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
   CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
-#endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
   IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
@@ -759,7 +757,6 @@ SUBROUTINE TimeStepByLSERK()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
-USE MOD_Analyze,                 ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,           ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
@@ -925,12 +922,6 @@ CALL DivCleaningDamping()
 CALL DGTimeDerivative_weakForm_Pois(time,time,0)
 CALL DivCleaningDamping_Pois()
 #endif /*PP_POIS*/
-
-
-! calling the analyze routines
-! Analysis is called in first RK-stage of NEXT iteration, however, the iteration count is performed AFTER the time step,
-! hence, this is the correct iteration for calling the analysis routines.
-CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.FALSE.)
 
 ! first RK step
 #if USE_LOADBALANCE
@@ -4581,7 +4572,6 @@ SUBROUTINE TimeStepPoissonByLSERK()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
@@ -4693,9 +4683,6 @@ END IF
 #endif /*PARTICLES*/
 
 CALL HDG(tStage,U,iter)
-
-! calling the analyze routines
-CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation

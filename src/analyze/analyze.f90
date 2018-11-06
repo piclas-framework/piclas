@@ -544,28 +544,15 @@ REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
-#endif /*USE_LOADBALANCE*/
-<<<<<<< HEAD
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
-=======
+#endif /*USE_LOADBALANCE*/
 LOGICAL                       :: DoPerformAnalyze
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
-<<<<<<< HEAD
-! Not for first iteration (when analysis is called within RK steps)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
-=======
-! not for first iteration (when analysis is called within RK steps)
-#if defined(LSERK) 
-IF((iter.EQ.0).AND.(.NOT.FirstOrLastIter)) RETURN
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
-#endif
 StartAnalyzeTime=PICLASTIME()
 !SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
 AnalyzeCount = AnalyzeCount + 1
@@ -594,23 +581,10 @@ END IF
 ! and output during last iteration
 IF(LastIter) DoPerformAnalyze=.TRUE.
 
-! selection criterion for LSERK time discs
-#if defined(LSERK)
-! for LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-! is triggered with prolong-to-face, which would else be missing    
-! The initial analyze during the first iteration has already been performed for a restart
-! set output
-IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerFormAnalyze=.TRUE.
-IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5) THEN
-  DoPerformAnalyze=.TRUE.
-#ifdef maxwell
-  ProlongToFaceNeeded=.TRUE.
-#endif /*maxwell*/
-END IF
-#endif /*LSERK*/
-
-! selection criterion for normal RK methods, full stage schemes
-#if defined(ROS) || defined (IMPA) 
+! selection criterion for
+! * full stage Runge-Kutta schemes
+! * LSERK schemes (because analyze is not hidden in RK stage)
+! * DSMC
 IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
 IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
 #ifdef maxwell
@@ -619,7 +593,6 @@ ProlongToFaceNeeded=.TRUE.
 ! remove duplicate output of last iteration
 ! hence, no analyze in almost last iteration
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
-#endif /* IMPA or ROS*/
 
 ! remove analyze from restart, first file 
 IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
@@ -629,12 +602,7 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ! Calculate error norms
-<<<<<<< HEAD
-IF(forceAnalyze.OR.Output)THEN
-=======
 IF(FirstOrLastIter.AND.OutputHDF5)THEN
-    CalcTime=BOLTZPLATZTIME()
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
   IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
@@ -647,47 +615,10 @@ IF (CalcPoyntingInt) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-<<<<<<< HEAD
-#if (PP_nVar>=6)
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! Initial analysis is only performed for NO restart
-    CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-  ELSE
-     ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-#if defined(LSERK)
-    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-      IF(iter.GT.1)THEN
-        ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-        ! is triggered with prolong-to-face, which would else be missing    
-        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
-        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)  CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-      END IF
-    ELSE
-      ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-      ! is triggered with prolong-to-face, which would else be missing    
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-    END IF
-#else
-    IF(.NOT.LastIter)THEN
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-    END IF
-#endif
-  END IF ! ForceAnalyze
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-#endif
-#endif
-=======
 #ifdef maxwell
   ! Maxwell computations
   IF(DoPerformAnalyze) CALL CalcPoyntingIntegral(OutputTime,doProlong=ProlongToFaceNeeded)
 #endif /*MAXWELL*/
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -718,47 +649,9 @@ END IF
 ! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
-#ifdef PARTICLES 
-<<<<<<< HEAD
-  ! Particle analyze
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! Initial analysis is only performed for NO restart
-    CALL AnalyzeParticles(OutputTime)
-    CALL AnalyzeSurface(OutputTime)
-  ELSE
-    ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-#if defined(IMPA) || defined(ROS)
-      IF(iter.GE.1)THEN
-#else
-      IF(iter.GT.1)THEN
-#endif
-        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeParticles(OutputTime)
-        IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeSurface(OutputTime)
-      END IF
-    ELSE
-      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeParticles(OutputTime)
-      IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeSurface(OutputTime)
-   END IF
-  END IF
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeParticles(OutputTime)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
-  IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
-#endif
-=======
+#ifdef maxwell
+  !IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
   IF(DoPerformAnalyze) CALL AnalyzeParticles(OutputTime)
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
 #else /*pure DGSEM */
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
@@ -844,12 +737,7 @@ IF(OutPutHDF5)THEN
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-<<<<<<< HEAD
-#elif defined(LSERK)
-=======
 #elif defined(LSERK) 
-! OLD (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
   IF(LastIter)THEN
     ! volume data
@@ -893,15 +781,9 @@ IF(OutPutHDF5)THEN
 #endif
 END IF
 
-<<<<<<< HEAD
 ! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
 ! Allows non-synchronous measurement of particle tracking
-IF(OutPut .AND. MeasureTrackTime)THEN
-=======
-! meassure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
-! allows non-synchronous meassurement of particle tracking
 IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
->>>>>>> dd0d46608e398157d299db7817d924714fa71b5a
 #ifdef MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -963,7 +845,7 @@ AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
 !----------------------------------------------------------------------------------------------------------------------------------
-IF(forceAnalyze.OR.Output)THEN
+IF(OutputHDF5)THEN
   IF(DoCalcErrorNorms) THEN
     ! Graphical output
     IF(MPIroot) THEN
