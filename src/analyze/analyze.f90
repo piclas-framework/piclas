@@ -90,11 +90,8 @@ CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAve
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
-#ifndef PARTICLES
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
+CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTotalEnergy', 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
-#endif
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
@@ -122,15 +119,12 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
-USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
-#ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot,CalcEtot
-#endif /*PARTICLES*/
+USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
@@ -177,16 +171,12 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed','-1.0')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-#ifndef PARTICLES 
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
-DoAnalyze       = .FALSE. 
-CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
-IF(CalcEpot) DoAnalyze = .TRUE. 
-IF(DoAnalyze)THEN
-  CalcEtot        = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
-END IF
-#endif /*PARTICLES*/ 
+FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1') 
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = 123456789 
+DoFieldAnalyze    = .FALSE. 
+CalcEpot          = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+IF(CalcEpot)        DoFieldAnalyze = .TRUE. 
+IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
 
 ! initialize time and counter for analyze measurement
 AnalyzeCount = 0
@@ -475,26 +465,28 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoFieldAnalyze,DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
 USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
@@ -509,9 +501,6 @@ USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 USE MOD_LD_Vars                ,ONLY: useLD
 USE MOD_Particle_Vars          ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
-#else /* no Particles*/
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
@@ -560,7 +549,8 @@ REAL                          :: tLBStart ! load balance
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 #endif /*USE_LOADBALANCE*/
-LOGICAL                       :: DoPerformAnalyze
+LOGICAL                       :: DoPerformFieldAnalyze
+LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
 !===================================================================================================================================
 
@@ -582,7 +572,7 @@ IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
 ! The iteration dependent steps are performed later
 
 ! nullify
-DoPerformAnalyze=.FALSE.
+DoPerformFieldAnalyze=.FALSE.
 ! Prolongtoface in CalcPoyntingIntegral is always needed, because analyze is not any more performed within the first
 ! RK stage
 #ifdef maxwell
@@ -595,13 +585,14 @@ ProlongToFaceNeeded=.TRUE.
 ! analyze routines are not called for a restart
 ! PO: not sure if it this check is any longer needed
 IF(FirstOrLastIter .AND. .NOT.OutputHDF5 .AND. .NOT.DoRestart)THEN
-  DoPerformAnalyze=.TRUE.
+  DoPerformFieldAnalyze=.TRUE.
 END IF
 ! Check if output during last iteration 
-IF(LastIter) DoPerformAnalyze=.TRUE.
+IF(LastIter) DoPerformFieldAnalyze=.TRUE.
 
 ! copy initial selection information to all other analyze routines before iteration dependent flags are set
-DoPerformSurfaceAnalyze = DoPerformAnalyze
+DoPerformSurfaceAnalyze = DoPerformFieldAnalyze
+DoPerformPartAnalyze    = DoPerformFieldAnalyze
 
 ! 2) check analyze with respect to iteration counter
 ! selection criterion depending on iteration counter
@@ -609,16 +600,27 @@ DoPerformSurfaceAnalyze = DoPerformAnalyze
 ! * LSERK schemes (because analyze is not hidden in RK stage)
 ! * DSMC
 
-! PartAnalyzeStep
+! FieldAnalyzeStep
 ! 2) normal analyze at analyze step 
-IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
-IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
+IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
 ! Remove analyze during restart or load-balance step 
-IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
+IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformFieldAnalyze=.FALSE.
+
+! PartAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformPartAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.TRUE.
+! Remove analyze during restart or load-balance step 
+IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
 #ifdef PARTICLES
@@ -649,20 +651,18 @@ END IF
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! Maxwell's equation: Compute Poynting Vector
+! Maxwell's equation: Compute Poynting Vector and field energies
 !----------------------------------------------------------------------------------------------------------------------------------
-#ifdef maxwell
-IF (CalcPoyntingInt) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  ! Maxwell computations
-  IF(DoPerformAnalyze) CALL CalcPoyntingIntegral(OutputTime,doProlong=ProlongToFaceNeeded)
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
+IF (DoFieldAnalyze) THEN
+  IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF
-#endif /*MAXWELL*/
+!#if USE_LOADBALANCE
+!  CALL LBStartTime(tLBStart) ! Start time measurement
+!#endif /*USE_LOADBALANCE*/
+!  IF(DoPerformAnalyze) CALL CalcPoyntingIntegral(OutputTime,doProlong=ProlongToFaceNeeded)
+!#if USE_LOADBALANCE
+!  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+!#endif /*USE_LOADBALANCE*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Recordpoints buffer
@@ -690,15 +690,11 @@ END IF
 ! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-IF (DoAnalyze)  THEN
-  IF(DoPerformAnalyze) CALL AnalyzeParticles(OutputTime)
+IF (DoPartAnalyze) THEN
+  IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
 END IF
 IF (DoSurfModelAnalyze) THEN
   IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-END IF
-#else /*pure DGSEM */
-IF (DoAnalyze)  THEN
-  IF(DoPerformAnalyze) CALL AnalyzeField(OutputTime)
 END IF
 #endif /*PARTICLES*/
 
@@ -856,8 +852,8 @@ CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
 
 #ifdef CODE_ANALYZE
 ! particle analyze
-IF (DoAnalyze)  THEN
-  IF(DoPerformAnalyze) CALL CodeAnalyzeOutput(OutputTime) 
+IF (DoPartAnalyze)  THEN
+  IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime) 
   IF(LastIter)THEN
     CALL CodeAnalyzeOutput(OutputTime) 
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
