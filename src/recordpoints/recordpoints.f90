@@ -80,9 +80,7 @@ USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize,RP_SamplingOffset
 USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
-#ifdef LSERK
 USE MOD_RecordPoints_Vars   ,ONLY: RPSkip
-#endif /*LSERK*/
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
@@ -129,9 +127,7 @@ IF(RP_onProc)THEN
   ALLOCATE(lastSample(0:PP_nVar,nRP))
 END IF
 RP_fileExists=.FALSE.
-#ifdef LSERK
 RPSkip=.FALSE.
-#endif /*LSERK*/
 
 RecordPointsInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RECORDPOINTS DONE!'
@@ -411,9 +407,7 @@ USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
-#ifdef LSERK
 USE MOD_Recordpoints_Vars ,ONLY: RPSkip
-#endif /*LSERK*/
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
@@ -511,9 +505,7 @@ IF(finalizeFile)THEN
   iSample=1
   nSamples=0
   RP_Data(:,:,1)=lastSample
-#ifdef LSERK
   RPSkip=.TRUE.
-#endif /*LSERK*/
 END IF
 
 #ifdef MPI

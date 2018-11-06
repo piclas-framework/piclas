@@ -645,7 +645,7 @@ DO !iter_t=0,MaxIter
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
   IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
-    WallTimeEnd=BOLTZPLATZTIME()
+    WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
       WallTime = WallTimeEnd-StartTime

@@ -501,12 +501,10 @@ USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#ifdef LSERK
 USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
-#endif /*LSERK*/
-#if defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)
+#if defined(LSERK) ||  defined(IMPA) || defined(ROS)
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)*/
+#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
@@ -548,13 +546,13 @@ REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 #endif /*USE_LOADBALANCE*/
 LOGICAL                       :: DoPerformAnalyze
+LOGICAL                       :: DoPerformSurfaceAnalyze
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
 StartAnalyzeTime=PICLASTIME()
-!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
 AnalyzeCount = AnalyzeCount + 1
 
 ! check if final iteration
@@ -580,6 +578,8 @@ IF(FirstOrLastIter .AND. .NOT.OutputHDF5 .AND. .NOT.DoRestart)THEN
 END IF
 ! and output during last iteration
 IF(LastIter) DoPerformAnalyze=.TRUE.
+! copy info from analyze to surfaceanalyze
+DoPerformSurfaceAnalyze = DoPerformAnalyze
 
 ! selection criterion for
 ! * full stage Runge-Kutta schemes
@@ -587,20 +587,23 @@ IF(LastIter) DoPerformAnalyze=.TRUE.
 ! * DSMC
 IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
 IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
+IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
+IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAnalyze=.TRUE.
 #ifdef maxwell
 ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
 ! remove duplicate output of last iteration
 ! hence, no analyze in almost last iteration
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformSurfaceAnalyze=.FALSE.
 
 ! remove analyze from restart, first file 
 IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
+IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
-
 ! Calculate error norms
 IF(FirstOrLastIter.AND.OutputHDF5)THEN
   IF(DoCalcErrorNorms) THEN
@@ -610,60 +613,61 @@ IF(FirstOrLastIter.AND.OutputHDF5)THEN
   END IF
 END IF
 
-! poynting vector
+! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Maxwell's equation: Compute Poynting Vector
+!----------------------------------------------------------------------------------------------------------------------------------
+#ifdef maxwell
 IF (CalcPoyntingInt) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-#ifdef maxwell
   ! Maxwell computations
   IF(DoPerformAnalyze) CALL CalcPoyntingIntegral(OutputTime,doProlong=ProlongToFaceNeeded)
-#endif /*MAXWELL*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END IF
+#endif /*MAXWELL*/
 
-! fill recordpoints buffer
-#if defined(LSERK) || defined(IMPA) || (PP_TimeDiscMethod==110)
+!----------------------------------------------------------------------------------------------------------------------------------
+! Recordpoints buffer
+! Only usable with 
+! maxwell or poissan in combination with HDG
+!----------------------------------------------------------------------------------------------------------------------------------
 IF(RP_onProc) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-#ifdef LSERK
   IF(RPSkip)THEN
     RPSkip=.FALSE.
   ELSE
     CALL RecordPoints(OutputTime,FirstOrLastIter,OutputHDF5)
   END IF
-#else
-  CALL RecordPoints(OutputTime,FirstOrLastIter,OutputHDF5)
-#endif /*LSERK*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DGANALYZE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END IF
-#endif
+
+#endif /* LSERK && IMPA && ROS */
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
-#ifdef maxwell
+IF (DoAnalyze)  THEN
+#ifdef PARTICLES
   !IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
-  IF(DoPerformAnalyze) CALL AnalyzeParticles(OutputTime)
+  IF(DoPerformAnalyze)        CALL AnalyzeParticles(OutputTime)
+  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
 #else /*pure DGSEM */
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
   IF(DoPerformAnalyze) CALL AnalyzeField(OutputTime)
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 END IF
 
 #ifdef PARTICLES
+! OutPutHDF5 should be sufficient here
 IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 #endif /*PARTICLES*/
 
