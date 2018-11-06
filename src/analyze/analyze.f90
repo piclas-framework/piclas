@@ -457,6 +457,20 @@ END SUBROUTINE FinalizeAnalyze
 SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 !===================================================================================================================================
 ! Check if the analyze subroutines are called depending on the input parameters
+! Input parameters
+! 1) OutputTime
+!    * current time of analyze analze
+! 2) FirstOrLastIter
+!    * logical flag for first or last iteration
+!      This step is required for the correct opening and closing of a *.csv Database. Furthermore it is needed to prevent
+!      duplicates from the *.csv Database file
+! 3) OutPutHDF5
+!    * OutputHDF5 is ture if a state file is written
+! The perform-analyze routine is called four times within the timedisc 
+! 1) initialize before the first iteration. call is performed for an initial computation and a restart
+! 2) after the time update
+! 3) during an analyze step and writing of a state file
+! 4) during a load-balance step
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -555,7 +569,7 @@ CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 StartAnalyzeTime=PICLASTIME()
 AnalyzeCount = AnalyzeCount + 1
 
-! check if final iteration
+! check if final/last iteration iteration
 LastIter=.FALSE.
 IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
 
@@ -563,43 +577,56 @@ IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
 ! Determine if an analyze step has to be performed
 ! selection is identical with/without particles
 !----------------------------------------------------------------------------------------------------------------------------------
-DoPerformAnalyze=.FALSE.
-! check, if prolongtoface in CalcPoyntingIntegral is needed
-#ifdef maxwell
-ProlongToFaceNeeded=.FALSE.
-#endif /*maxwell*/
-! Initial start of computation during the first iteration
-! this check is identical for each time integration method
-IF(FirstOrLastIter .AND. .NOT.OutputHDF5 .AND. .NOT.DoRestart)THEN
-  DoPerformAnalyze=.TRUE.
-#ifdef maxwell
-  ProlongToFaceNeeded=.TRUE.
-#endif /*maxwell*/
-END IF
-! and output during last iteration
-IF(LastIter) DoPerformAnalyze=.TRUE.
-! copy info from analyze to surfaceanalyze
-DoPerformSurfaceAnalyze = DoPerformAnalyze
+! The initial selection is performed for DoPerformAnalyze and copied to the other analyzes. 
+! The iteration dependent steps are performed later
 
-! selection criterion for
-! * full stage Runge-Kutta schemes
-! * LSERK schemes (because analyze is not hidden in RK stage)
-! * DSMC
-IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
-IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
-IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
-IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAnalyze=.TRUE.
+! nullify
+DoPerformAnalyze=.FALSE.
+! Prolongtoface in CalcPoyntingIntegral is always needed, because analyze is not any more performed within the first
+! RK stage
 #ifdef maxwell
 ProlongToFaceNeeded=.TRUE.
 #endif /*maxwell*/
-! remove duplicate output of last iteration
-! hence, no analyze in almost last iteration
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformSurfaceAnalyze=.FALSE.
 
-! remove analyze from restart, first file 
+! 1)
+! Initial start of computation before the first iteration
+! this check is identical for all time integration methods
+! analyze routines are not called for a restart
+! PO: not sure if it this check is any longer needed
+IF(FirstOrLastIter .AND. .NOT.OutputHDF5 .AND. .NOT.DoRestart)THEN
+  DoPerformAnalyze=.TRUE.
+END IF
+! Check if output during last iteration 
+IF(LastIter) DoPerformAnalyze=.TRUE.
+
+! copy initial selection information to all other analyze routines before iteration dependent flags are set
+DoPerformSurfaceAnalyze = DoPerformAnalyze
+
+! 2) check analyze with respect to iteration counter
+! selection criterion depending on iteration counter
+! * full stage Runge-Kutta schemes
+! * LSERK schemes (because analyze is not hidden in RK stage)
+! * DSMC
+
+! PartAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
+! SurfaceAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAnalyze=.TRUE.
+
+! Remove analyze during restart or load-balance step 
 IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
 IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
+
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformSurfaceAnalyze=.FALSE.
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -651,6 +678,7 @@ IF(RP_onProc) THEN
 #endif /*USE_LOADBALANCE*/
 END IF
 
+! end the analyzes for  all Runge-Kutta besed time-discs
 #endif /* LSERK && IMPA && ROS */
 
 !----------------------------------------------------------------------------------------------------------------------------------
