@@ -1,8 +1,20 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Restart
 !===================================================================================================================================
-! Module to handle Boltzplatz's restart
+! Module to handle PICLas's restart
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -144,23 +156,25 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
-#if USE_LOADBALANCE
-  DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
-  WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
-  InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
-  IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
-  IF (IAR_PerformPartWeightLB) THEN
-    InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
-    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
-  ELSE IF (InitialAutoRestartSample.EQ.0) THEN
-    IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
-    CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
-  END IF
-#endif /*USE_LOADBALANCE*/
 END IF
 
+! Automatically do a load balance step at the beginning of a new simulation or a user-restarted simulation
+#if USE_LOADBALANCE
+DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
+WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
+InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
+IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
+IF (IAR_PerformPartWeightLB) THEN
+  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
+  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
+ELSE IF (InitialAutoRestartSample.EQ.0) THEN
+  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
+  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
+END IF
+#endif /*USE_LOADBALANCE*/
+
 ! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
-RestartWallTime=BOLTZPLATZTIME()
+RestartWallTime=PICLASTIME()
 
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
@@ -245,7 +259,7 @@ USE MOD_Particle_Vars,           ONLY:PartSurfaceModel
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,               ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC, VibQuantsPar, PolyatomMolDSMC, SpecDSMC
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues
-USE MOD_Eval_XYZ,                ONLY:EVal_xyz_ElemCheck
+USE MOD_Eval_XYZ,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap,ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping, TriaTracking
@@ -859,7 +873,7 @@ __STAMP__&
 
     IF(DoRefMapping) THEN
       DO i = 1,PDM%ParticleVecLength
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+        CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
         IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
           InElementCheck=.TRUE.
           PartPosRef(1:3,i)=Xi
@@ -906,7 +920,7 @@ __STAMP__&
         END DO
       ELSE
         DO i = 1,PDM%ParticleVecLength
-          CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+          CALL GetPositionInRefElem(PartState(i,1:3),Xi,PEM%Element(i))
           IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
             InElementCheck=.TRUE.
             IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi

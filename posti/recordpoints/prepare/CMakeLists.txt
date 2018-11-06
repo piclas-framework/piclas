@@ -17,11 +17,11 @@ FILE(GLOB ${TOOL_NAME}F90 ${TOOL_DIR}/parameters.f90
                           ${TOOL_DIR}/visurp.f90 )
 
 ADD_LIBRARY(${TOOL_NAME}libF90 OBJECT ${${TOOL_NAME}F90})
-SET_TARGET_PROPERTIES(${TOOL_NAME}libF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+SET_TARGET_PROPERTIES(${TOOL_NAME}libF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
 ADD_LIBRARY(${TOOL_NAME}lib STATIC $<TARGET_OBJECTS:${TOOL_NAME}libF90>)
-ADD_DEPENDENCIES(${TOOL_NAME}libF90 boltzplatzlibF90 HDF5)
+ADD_DEPENDENCIES(${TOOL_NAME}libF90 piclaslibF90 HDF5)
 
 # Standalone Posti executable
 add_exec(             posti_${TOOL_NAME} ${TOOL_DIR}/preparerecordpoints.f90)
-TARGET_LINK_LIBRARIES(posti_${TOOL_NAME} ${TOOL_NAME}lib boltzplatzlib userblocklib_dummy ${linkedlibs})
-ADD_DEPENDENCIES(     posti_${TOOL_NAME} ${TOOL_NAME}lib boltzplatzlib userblocklib_dummy ${linkedlibs})
+TARGET_LINK_LIBRARIES(posti_${TOOL_NAME} ${TOOL_NAME}lib piclaslib userblocklib_dummy ${linkedlibs})
+ADD_DEPENDENCIES(     posti_${TOOL_NAME} ${TOOL_NAME}lib piclaslib userblocklib_dummy ${linkedlibs})

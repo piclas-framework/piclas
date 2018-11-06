@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_part_emission
 !===================================================================================================================================
@@ -3009,7 +3021,7 @@ USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
+USE MOD_Eval_xyz,               ONLY:TensorProductInterpolation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3055,7 +3067,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+        CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
                            XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
@@ -3109,7 +3121,7 @@ USE MOD_Particle_Vars
 USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,TriaTracking
-USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
+USE MOD_Eval_xyz,               ONLY:TensorProductInterpolation
 USE MOD_DSMC_Vars,              ONLY:CollisMode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3167,7 +3179,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+        CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
                            XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
@@ -4568,7 +4580,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi,SurfF
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
-USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!, TensorProductInterpolation
 #ifdef CODE_ANALYZE
 !USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #if  defined(IMPA) || defined(ROS)
@@ -5079,13 +5091,13 @@ __STAMP__&
             !  LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
             !  + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (0.9999)
             !CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
-            !  CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
+            !  CALL GetPositionInRefElem(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
             !  DO iLoop=1,3 !shift border-RefCoords into elem
             !    IF( ABS(Particle_pos(iLoop)) .GT. 0.9999 ) THEN
             !      Particle_pos(iLoop)=SIGN(0.999999,Particle_pos(iLoop))
             !    END IF
             !  END DO
-            !  CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
+            !  CALL TensorProductInterpolation(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
             !    ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
             !CASE DEFAULT
             !  CALL abort(&
@@ -5094,7 +5106,7 @@ __STAMP__&
             !END SELECT
 
 !#ifdef CODE_ANALYZE
-!          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
+!          CALL GetPositionInRefElem(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
 !          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
 !            IPWRITE(*,*) 'Particle_pos: ',Particle_pos
 !            CALL abort(&
@@ -5104,7 +5116,7 @@ __STAMP__&
 !#endif /*CODE_ANALYZE*/ 
 #if defined(IMPA) || defined(ROS)
             IF(DoRefMapping)THEN
-              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
+              CALL GetPositionInRefElem(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
             END IF
             ! important for implicit, correct norm, etc.
             PartState(ParticleIndexNbr,1:3)=LastPartPos(ParticleIndexNbr,1:3)
@@ -5843,7 +5855,7 @@ USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
 USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,             ONLY : nElems
 USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
-USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5910,7 +5922,7 @@ __STAMP__,&
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
           IF (DoRefMapping) THEN
-            CALL Eval_xyz_ElemCheck(RandomPos,RefPos,iElem)
+            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
             IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
           ELSE
             IF (TriaTracking) THEN

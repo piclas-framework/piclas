@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Particle_Tracking
 !===================================================================================================================================
@@ -308,7 +320,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
@@ -900,9 +912,9 @@ DO iPart=1,PDM%ParticleVecLength
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     | LastPartPos: ',LastPartPos(ipart,1:3)
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartPos: ',PartState(ipart,1:3)
         IPWRITE(UNIT_stdOut,'(I0,A)') '     | Computing PartRefPos ... '
-        CALL Eval_xyz_ElemCheck(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        CALL GetPositionInRefElem(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     | LastPartRefPos: ',refpos
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        CALL GetPositionInRefElem(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
         IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') '     |     PartRefPos: ',refpos
         !WRITE(UNIT_stdOut,'(20(=))')
 #ifdef MPI
@@ -1020,14 +1032,13 @@ USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem,useCurveds,NGeo,ElemBaryNGeo
-USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsTracingBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemRadius2NGeo
 USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
-USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
@@ -1099,11 +1110,11 @@ DO iPart=1,PDM%ParticleVecLength
         CYCLE ! particle has left domain by a boundary condition
       END IF
       IF(PartIsMoved)THEN ! particle is reflected at a wall
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE
         ! particle has not encountered any boundary condition
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
+        CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
 #if defined(IMPA) || defined(ROS)
         ! check if particle can be located within the last element
@@ -1113,10 +1124,10 @@ DO iPart=1,PDM%ParticleVecLength
         !IF(loc_distance.GT.ElemRadius2NGeo(ElemID))THEN
         !  PartPosRef(1:3,iPart) = (/2.,2.,2./)
         !ELSE
-          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+          CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         !END IF
 #else
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif /*IMPA*/
 #endif
       END IF
@@ -1150,9 +1161,9 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END IF
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
@@ -1233,7 +1244,7 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
       IF(ElemID.LE.PP_nElems) nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
 #endif /*USE_LOADBALANCE*/
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
         PEM%Element(iPart) = ElemID
@@ -1356,7 +1367,7 @@ __STAMP__ &
             IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
             CYCLE
           END IF
-          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
+          CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
           ! false, reallocate particle
           IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,'(I0,A)') ' Tolerance Issue with BC element, relocating!! '
@@ -2088,7 +2099,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_INtersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Vars,               ONLY:PartPosRef
-USE MOD_Eval_xyz,                    ONLY:Eval_XYZ_Poly
+USE MOD_Eval_xyz,                    ONLY:TensorProductInterpolation
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2173,7 +2184,7 @@ IF(nInter.EQ.0) THEN
   IF(PartPosRef(2,PartID).LT.-1.) PartPosRef(2,PartID)=-0.99
   IF(PartPosRef(3,PartID).GT. 1.) PartPosRef(3,PartID)= 0.99
   IF(PartPosRef(3,PartID).LT.-1.) PartPosRef(3,PartID)=-0.99
-  CALL Eval_xyz_Poly(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),PartState(PartID,1:3))
+  CALL TensorProductInterpolation(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),PartState(PartID,1:3))
   ! crash
   RETURN
 ELSE

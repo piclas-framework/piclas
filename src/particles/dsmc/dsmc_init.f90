@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_DSMC_Init
 !===================================================================================================================================
@@ -237,7 +249,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-TempElec'  &
 
 CALL prms%CreateRealOption(     'Part-Species[$]-HeatOfFormation_K'  &
                                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                           'Heat of formation of the respective species [Kelvin]', '0.123456789'&
+                                           'Heat of formation of the respective species [Kelvin]'&
                                         , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PreviousState'  &
                                                , 'TODO-DEFINE-PARAMETER\n'//&
@@ -377,7 +389,7 @@ SUBROUTINE InitDSMC()
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
 USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
-USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst
+USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
@@ -401,9 +413,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter, MaxElecQua
+  INTEGER               :: iInter, MaxElecQua, counter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-  REAL                  :: JToEv, Temp
+  REAL                  :: Temp
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
   INTEGER               :: currentBC, ElemID, iSide, BCSideID
 #if ( PP_TimeDiscMethod ==42 )
@@ -411,7 +423,6 @@ IMPLICIT NONE
   INTEGER               :: ii
 #endif
 !===================================================================================================================================
-  JToEv = 1.602176565E-19  
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
   
@@ -626,7 +637,7 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
-    ! Check whether calculation of instantaneous translational temperature is require
+    ! Check whether calculation of instantaneous translational temperature is required
     IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2)) THEN
       ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
       DSMC%InstantTransTemp = 0.0
@@ -656,7 +667,8 @@ __STAMP__&
             IF (DSMC%VibEnergyModel.EQ.0) THEN
               SpecDSMC(iSpec)%MaxVibQuant = 200
             ELSE
-              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
+              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
+                  (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
             END IF
             ! Calculation of the zero-point energy
             SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
@@ -986,19 +998,18 @@ __STAMP__&
     END IF
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      ! Read-in of heat of formation, ions shall have the same input as the respective neutral species since ionization energy is
-      ! added later. Energies are then consistent across chemical reactions of QK and Arrhenius type.
-      SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K','0.123456789')
-      IF(SpecDSMC(iSpec)%HeatOfFormation.EQ.0.123456789) THEN
-        CALL abort(&
-__STAMP__&
-,'ERROR: Please specify heat of formation for species:', iSpec)
+      ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
+      ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
+      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20).OR.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
+        SpecDSMC(iSpec)%HeatOfFormation = 0.0
+      ELSE
+        SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K')
+        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
       END IF
-      SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
       ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
       ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
+      SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
       IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
         IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
           CALL abort(&
           __STAMP__&
@@ -1070,18 +1081,6 @@ __STAMP__&
           SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
         END DO
       END IF
-      ! Adding the ionization energy of the ground/previous state to the heat of formation of ionized species
-      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
-          MaxElecQua = SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant - 1
-          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
-                                          + SpecDSMC(SpecDSMC(iSpec)%PreviousState)%ElectronicState(2,MaxElecQua)*BoltzmannConst
-        ELSE
-          CALL abort(&
-__STAMP__&
-,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
-        END IF
-      END IF
       !-----------------------------------------------------------------------------------------------------------------------------
       SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
       SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
@@ -1092,6 +1091,38 @@ __STAMP__&
         SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
       END IF
     END DO
+    ! Calculating the heat of formation for ionized species (including higher ionization levels)
+    ! Requires the completed read-in of species data
+    DO iSpec = 1, nSpecies
+      counter = 0
+      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
+          jSpec = SpecDSMC(iSpec)%PreviousState
+          DO
+            MaxElecQua = SpecDSMC(jSpec)%MaxElecQuant - 1
+            SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
+                                          + SpecDSMC(jSpec)%ElectronicState(2,MaxElecQua)*BoltzmannConst
+            IF(SpecDSMC(jSpec)%PreviousState.EQ.0) EXIT
+            jSpec = SpecDSMC(jSpec)%PreviousState
+            ! Fail-safe, abort after 100 iterations
+            counter = counter + 1
+            IF(counter.GT.100) THEN
+              CALL abort(&
+              __STAMP__&
+              ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
+            END IF
+          END DO
+          ! Add the heat of formation of the ground state
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
+        ELSE
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+        END IF
+      END IF
+    END DO
+
+
     CALL DSMC_chemical_init()
   ELSE IF ((PartSurfaceModel.GT.0 .OR. LiquidSimFlag) .AND. CollisMode.GT.1) THEN
     DO iSpec = 1, nSpecies

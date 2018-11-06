@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_HDF5_output
 !===================================================================================================================================
@@ -161,7 +173,7 @@ CALL CPU_TIME(StartT)
 #endif
 
 ! set local variables for output and previous times
-IF(OutputTimeFixed.GT.0.0)THEN
+IF(OutputTimeFixed.GE.0.0)THEN
   SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
   OutputTime_loc   = OutputTimeFixed
   PreviousTime_loc = OutputTimeFixed
@@ -356,7 +368,7 @@ CALL WriteAdditionalElemData(FileName,ElementOut)
 CALL WritePMLDataToHDF5(FileName)
 #endif
 
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 
 END SUBROUTINE WriteStateToHDF5
@@ -1397,7 +1409,7 @@ CHARACTER(LEN=255)             :: FileName
 REAL                           :: StartT,EndT
 !==================================================================================================================================
 IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
 END IF
@@ -1452,7 +1464,7 @@ IF(nVar_Fluc.GT.0)THEN
                           collective=.TRUE., RealArray=UFluc)
 END IF
 
-endT=BOLTZPLATZTIME()
+endT=PICLASTIME()
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 END IF

@@ -7,15 +7,15 @@
 #SET_TARGET_PROPERTIES(userblocklib_dummy PROPERTIES LINKER_LANGUAGE C)
 #SET_TARGET_PROPERTIES(userblocklib_dummy PROPERTIES COMPILE_FLAGS "-fPIC")
 
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISU                  "Build the visu tool"                        OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_MERGETIMEAVERAGES     "Build the time-averaging tool"              OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_FLUCTUATIONS          "Build the fluctuations tool"                ON  "BOLTZPLATZ_BUILDPOSTI" OFF)
-#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_WALLDISTANCE          "Build the walldistance tool"                OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_PREPARERECORDPOINTS   "Build the Record point preprocessing tool"          OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISUALIZERECORDPOINTS "Build the Record Point visualization tool"          OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_EVALUATERECORDPOINTS  "Build the Record Point aposteriori evaluation tool" OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_SWAPMESH              "Build the Swapmesh tool"                            OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
-#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_CHANNEL_FFT           "Build the channel FFT tool"                         OFF "BOLTZPLATZ_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISU                  "Build the visu tool"                        OFF "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_MERGETIMEAVERAGES     "Build the time-averaging tool"              OFF "PICLAS_BUILDPOSTI" OFF)
+#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_FLUCTUATIONS          "Build the fluctuations tool"                ON  "PICLAS_BUILDPOSTI" OFF)
+#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_WALLDISTANCE          "Build the walldistance tool"                OFF "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_PREPARERECORDPOINTS   "Build the Record point preprocessing tool"          OFF "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISUALIZERECORDPOINTS "Build the Record Point visualization tool"          OFF "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_EVALUATERECORDPOINTS  "Build the Record Point aposteriori evaluation tool" OFF "PICLAS_BUILDPOSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_SWAPMESH              "Build the Swapmesh tool"                            OFF "PICLAS_BUILDPOSTI" OFF)
+#CMAKE_DEPENDENT_OPTION(POSTI_BUILD_CHANNEL_FFT           "Build the channel FFT tool"                         OFF "PICLAS_BUILDPOSTI" OFF)
 
 
 #SET(   POSTI_WHICH_EQNSYS "navierstokes" CACHE STRING
@@ -27,19 +27,19 @@ IF(POSTI_BUILD_VISUALIZERECORDPOINTS)
   # =========================================================================
   # FFTW (FFT tool)
   # =========================================================================
-  # TODO: Upload new version to BOLTZPLATZDL
+  # TODO: Upload new version to PICLASDL
   IF (HOMERUN GREATER -1)
-    SET (FFTWDOWNLOAD ${BOLTZPLATZ_DLPATH}libs/FFTW.git )
+    SET (FFTWDOWNLOAD ${PICLAS_DLPATH}libs/FFTW.git )
   ELSE()
-    SET (FFTWDOWNLOAD ${BOLTZPLATZ_DLPATH}libs/FFTW.git )
+    SET (FFTWDOWNLOAD ${PICLAS_DLPATH}libs/FFTW.git )
     #SET (FFTWDOWNLOAD https://github.com/FFTW/fftw3.git ) ! Github repo does not contain all data, use fftw.org instead
     #SET (FFTWDOWNLOAD http://fftw.org/ ) fftw-3.3.6-pl1.tar.gz
   ENDIF()
   SET(POSTI_FFTWTAG "fftw-3.3.6-pl1" CACHE STRING "FFTW version tag")
-  SET(POSTI_FFTWDIR ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/fftw)
+  SET(POSTI_FFTWDIR ${PICLAS_EXTERNAL_LIB_DIR}/fftw)
   # Try to find the library in the share directory or in a global, user-defined $FFTW_DIR
-  FIND_PATH(FFTW_INCLUDES fftw3.h         HINTS $ENV{FFTW_DIR}/include ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/fftw/build/include)
-  FIND_LIBRARY(FFTW_LIBRARIES NAMES fftw3 HINTS $ENV{FFTW_DIR}/lib     ${BOLTZPLATZ_EXTERNAL_LIB_DIR}/fftw/build/lib    )
+  FIND_PATH(FFTW_INCLUDES fftw3.h         HINTS $ENV{FFTW_DIR}/include ${PICLAS_EXTERNAL_LIB_DIR}/fftw/build/include)
+  FIND_LIBRARY(FFTW_LIBRARIES NAMES fftw3 HINTS $ENV{FFTW_DIR}/lib     ${PICLAS_EXTERNAL_LIB_DIR}/fftw/build/lib    )
   IF(FFTW_INCLUDES STREQUAL "FFTW_INCLUDES-NOTFOUND" OR FFTW_LIBRARIES STREQUAL "FFTW_LIBRARIES-NOTFOUND")
     MESSAGE(STATUS "FFTW not found, building library")
       ExternalProject_Add(fftw

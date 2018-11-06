@@ -11,7 +11,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 !=================================================================================================================================
-#include "boltzplatz.h"
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Contains routines to read in the state (with or without gradients) - if we want the gradients, DGTimeDerivative_weakForm is
@@ -63,7 +63,7 @@ LOGICAL                          :: userblockFound
 userblockFound = .TRUE. ! Set to true to later test for existing parameters either form userblock or from seperate file
 IF (LEN_TRIM(prmfile).EQ.0) THEN ! No seperate parameter file has been given
   ! Try to extract parameter file 
-  prmfile = ".boltzplatz_posti.ini"
+  prmfile = ".piclas_posti.ini"
   CALL ExtractParameterFile(statefile,prmfile,userblockFound)
   ! Only abort if we need some parameters to call the DG operator
   IF (.NOT.userblockFound.AND.withDGOperator) THEN

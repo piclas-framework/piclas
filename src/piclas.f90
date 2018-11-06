@@ -1,8 +1,20 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
-PROGRAM Boltzplatz
+PROGRAM Piclas
 !===================================================================================================================================
-! Control program of the Boltzplatz code. Initialization of the computation
+! Control program of the Piclas code. Initialization of the computation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
@@ -10,7 +22,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
 USE MOD_ReadInTools            ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
-USE MOD_Boltzplatz_Init        ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Piclas_Init        ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 USE MOD_Restart                ,ONLY: Restart
 USE MOD_Interpolation          ,ONLY: InitInterpolation
@@ -38,26 +50,15 @@ LOGICAL                 :: userblockFound
 CALL InitMPI()
 
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')&
- "           ____            ___    __                    ___              __              "
-SWRITE(UNIT_stdOut,'(A)')&
- "          /\\  _`\\         /\\_ \\  /\\ \\__                /\\_ \\            /\\ \\__           "
-SWRITE(UNIT_stdOut,'(A)')&
- "          \\ \\ \\L\\ \\    ___\\//\\ \\ \\ \\ ,_\\  ____    _____\\//\\ \\       __  \\ \\ ,_\\  ____    "
-SWRITE(UNIT_stdOut,'(A)')&
- "           \\ \\  _ <'  / __`\\\\ \\ \\ \\ \\ \\/ /\\_ ,`\\ /\\ '__`\\\\ \\ \\    /'__`\\ \\ \\ \\/ /\\_ ,`\\  "
-SWRITE(UNIT_stdOut,'(A)')&
- "            \\ \\ \\L\\ \\/\\ \\L\\ \\\\_\\ \\_\\ \\ \\_\\/_/  /_\\ \\ \\L\\ \\\\_\\ \\_ /\\ \\L\\.\\_\\ \\ \\_\\/_/  /_ "
-SWRITE(UNIT_stdOut,'(A)')&
- "             \\ \\____/\\ \\____//\\____\\\\ \\__\\ /\\____\\\\ \\ ,__//\\____\\\\ \\__/.\\_\\\\ \\__\\ /\\____\\"
-SWRITE(UNIT_stdOut,'(A)')&
- "              \\/___/  \\/___/ \\/____/ \\/__/ \\/____/ \\ \\ \\/ \\/____/ \\/__/\\/_/ \\/__/ \\/____/"
-SWRITE(UNIT_stdOut,'(A)')&
- "                                                    \\ \\_\\                                "
-SWRITE(UNIT_stdOut,'(A)')&
- "                                                     \\/_/                                "
-SWRITE(UNIT_stdOut,'(A)')&
- ' '
+SWRITE(UNIT_stdOut,'(A)')"                                        _______ _________ _______  _        _______  _______ "
+SWRITE(UNIT_stdOut,'(A)')"                                       (  ____ )\__   __/(  ____ \( \      (  ___  )(  ____ \"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (    )|   ) (   | (    \/| (      | (   ) || (    \/"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (____)|   | |   | |      | |      | (___) || (_____ "
+SWRITE(UNIT_stdOut,'(A)')"                                       |  _____)   | |   | |      | |      |  ___  |(_____  )"
+SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |   | |      | |      | (   ) |      ) |"
+SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
+SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
+SWRITE(UNIT_stdOut,'(132(" "))')
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()
@@ -65,8 +66,8 @@ CALL ParseCommandlineArguments()
 ! Check if the number of arguments is correct
 IF ((nArgs.GT.3) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
   ! Print out error message containing valid syntax
-  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
-    'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: piclas parameter.ini [DSMC.ini] [restart.h5]'// &
+    'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
 END IF
 
 CALL InitDefineParameters()
@@ -82,8 +83,8 @@ IF (nArgs.EQ.2) THEN
   ParameterDSMCFile = Args(2)
   IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
     ! Print out error message containing valid syntax
-    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
-      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: piclas parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
   END IF
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "h5")) THEN
     RestartFile = ParameterDSMCFile
@@ -94,14 +95,14 @@ ELSE IF (nArgs.GT.2) THEN
   RestartFile = Args(3)
   IF (STRICMP(GetFileExtension(ParameterDSMCFile), "h5").OR.STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
     ! Print out error message containing valid syntax
-    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
-      'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+    CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: piclas parameter.ini [DSMC.ini] [restart.h5]'// &
+      'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
   END IF
 ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   ! Print out error message containing valid syntax
-  !CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: boltzplatz parameter.ini [DSMC.ini] [restart.h5]'// &
-  !  'or boltzplatz --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
-  ParameterFile = ".boltzplatz.ini" 
+  !CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: piclas parameter.ini [DSMC.ini] [restart.h5]'// &
+  !  'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
+  ParameterFile = ".piclas.ini" 
   CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
   IF (.NOT.userblockFound) THEN
     CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")
@@ -109,12 +110,12 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   RestartFile = Args(1)
 END IF
 
-StartTime=BOLTZPLATZTIME()
+StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-Time=BOLTZPLATZTIME()
+Time=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',Time-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 ! Check if we want to read in DSMC.ini
@@ -122,9 +123,9 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    Time=BOLTZPLATZTIME()
+    Time=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F8.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',Time-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
     SWRITE(UNIT_stdOut,'(132("="))')
   END IF
@@ -139,22 +140,22 @@ CALL InitLoadBalance()
 #endif /*MPI*/
 ! call init routines
 ! Measure init duration
-!StartTime=BOLTZPLATZTIME()
+!StartTime=PICLASTIME()
 
 ! Initialization
 CALL InitInterpolation()
 CALL InitTimeDisc()
 
-CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
+CALL InitPiclas(IsLoadBalance=.FALSE.)
 
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  Time=BOLTZPLATZTIME()
+  Time=PICLASTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
     SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' SWAPMESH DONE! BOLTZPLATZ DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',Time-StartTime,' sec ]'
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
@@ -168,10 +169,10 @@ END IF
 CALL Restart()
 
 ! Measure init duration
-Time=BOLTZPLATZTIME()
+Time=PICLASTIME()
 InitializationWallTime=Time-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
@@ -179,14 +180,14 @@ CALL TimeDisc()
 
 
 !Finalize
-CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
+CALL FinalizePiclas(IsLoadBalance=.FALSE.)
 
 CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
 SDEALLOCATE(RP_Data)
 
 !Measure simulation duration
-Time=BOLTZPLATZTIME()
+Time=PICLASTIME()
 
 #ifdef MPI
 !! and additional required for restart with load balance
@@ -201,8 +202,8 @@ IF(iError .NE. 0) &
   ,'MPI finalize error',iError,999.)
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
-END PROGRAM Boltzplatz
+END PROGRAM Piclas
 

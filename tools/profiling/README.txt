@@ -14,8 +14,8 @@ callgrind.sh:
     - gprof2dot.py    [ https://github.com/jrfonseca/gprof2dot ]
 ------------------------------------------------------------------------------------------------------------------------------------
   Neccessary EDITS inside the script:
-    BOLTZPLATZ_PATH="./boltzplatz"
-    BOLTZPLATZ_FLAGS="parameter.ini DSMCSpecies_N2.ini"
+    PICLAS_PATH="./piclas"
+    PICLAS_FLAGS="parameter.ini DSMCSpecies_N2.ini"
     PROFTODOT_PATH="./gprof2dot.py"
 ------------------------------------------------------------------------------------------------------------------------------------
   OUTPUT:
@@ -34,8 +34,8 @@ massif.sh:
     - Valgrind    [ http://valgrind.org/docs/manual/ms-manual.html ]
 ------------------------------------------------------------------------------------------------------------------------------------
   Neccessary EDITS inside the script:
-    BOLTZPLATZ_PATH="./boltzplatz"
-    BOLTZPLATZ_FLAGS="parameter.ini DSMCSpecies_N2.ini"
+    PICLAS_PATH="./piclas"
+    PICLAS_FLAGS="parameter.ini DSMCSpecies_N2.ini"
     
     not many iterations needed
 ------------------------------------------------------------------------------------------------------------------------------------

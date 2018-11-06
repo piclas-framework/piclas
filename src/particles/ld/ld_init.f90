@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_LD_Init
 !===================================================================================================================================
@@ -248,7 +260,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, CollisMode, PartStateIntEn, DSMC
   USE MOD_Particle_Vars,      ONLY : PartSpecies
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
@@ -258,7 +270,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
    IMPLICIT NONE 
 ! LOCAL VARIABLES
 !--------------------------------------------------------------------------------------------------!
-  REAL                          :: ZetaRot, ZetaVib, TvibToTemp, JToEv
+  REAL                          :: ZetaRot, ZetaVib, TvibToTemp
 !  REAL                          :: ModTvibToTemp, PartTvib
   INTEGER                       :: iSpec
 !--------------------------------------------------------------------------------------------------!
@@ -268,7 +280,6 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 !#ifdef MPI
 !#endif
 !===================================================================================================
-  JToEv = 1.602176565E-19
   iSpec = PartSpecies(iPart)
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     ZetaRot = 2.0
@@ -284,7 +295,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
         ZetaVib = 0.0     
       ELSE
         TvibToTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TvibToTemp-DSMC%GammaQuant))
-!!!!!!!      ModTvibToTemp = SpecDSMC(iSpec)%Ediss_eV * JToEv / (BoltzmannConst * PartTvib)
+!!!!!!!      ModTvibToTemp = SpecDSMC(iSpec)%Ediss_eV * ElementaryCharge / (BoltzmannConst * PartTvib)
         ZetaVib = 2.0 * SpecDSMC(iSpec)%CharaTVib/TvibToTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/TvibToTemp)-1)
       END IF
     ELSE

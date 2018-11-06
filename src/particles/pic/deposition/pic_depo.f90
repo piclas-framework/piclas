@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE  MOD_PICDepo                                                                                
 !===================================================================================================================================
@@ -43,7 +55,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
-USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
@@ -171,7 +183,7 @@ CASE('nearest_gausspoint')
   END IF
   DO i=0,PP_N
     ! bullshit here, use xGP
-    !CALL Eval_XYZ_ElemCheck(Elem_xGP(:,i,1,1,1),Temp(:),1)
+    !CALL GetPositionInRefElem(Elem_xGP(:,i,1,1,1),Temp(:),1)
     !MappedGauss(i+1) = Temp(1)
     MappedGauss(i+1) = xGP(i)
   END DO
@@ -1185,7 +1197,7 @@ USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ, nNodes
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
@@ -1341,7 +1353,7 @@ CASE('cell_volweight')
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
       ELSE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
+        CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
       END IF
       TSource(:) = 0.0
 !#if (PP_nVar==8)
@@ -2224,7 +2236,7 @@ CASE('delta_distri')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+            CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! get value of test function at particle position
           SELECT CASE(DeltaType)
@@ -2316,7 +2328,7 @@ CASE('nearest_gausspoint')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           !IF(.NOT.DoRefMapping)THEN
-          !  CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+          !  CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
           !END IF
           ! Find out which gausspoint is closest and add up charges and currents
           !! x-direction

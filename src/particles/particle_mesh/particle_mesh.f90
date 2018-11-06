@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Particle_Mesh
 !===================================================================================================================================
@@ -740,7 +752,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallP
 USE MOD_Particle_Mesh_Vars,          ONLY:Geo
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsTracingBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
 USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
@@ -874,7 +886,7 @@ DO iBGMElem=1,nBGMElems
     IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  CALL GetPositionInRefElem(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     IF(.NOT.InitFix)THEN
       InElementCheck=.TRUE.
@@ -1381,16 +1393,17 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh, AddHaloNodeData
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
-USE MOD_PICDepo_Vars,                       ONLY:CellLocNodes_Volumes, DepositionType
+USE MOD_Particle_MPI           ,ONLY: InitHALOMesh, AddHaloNodeData
+USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_PICDepo_Vars           ,ONLY: CellLocNodes_Volumes, DepositionType
 #endif /*MPI*/
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1413,19 +1426,19 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
 END IF
 
 SWRITE(UNIT_StdOut,'(66("-"))')
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
 CALL GetFIBGMminmax()
@@ -1436,7 +1449,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem = nElems+1,nTotalElems
 SWRITE(UNIT_stdOut,'(A)')' Building FIBGM ...' 
 CALL GetFIBGM(ElemToBGM)
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
@@ -1448,7 +1461,7 @@ CALL MarkAllBCSides()
 ! get elem and side types
 CALL GetElemAndSideType()
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
@@ -1470,7 +1483,7 @@ ELSE
   CALL AddHALOCellsToFIBGM(ElemToBGM)
 END IF
 
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
@@ -1539,6 +1552,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
+SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
@@ -2980,7 +2994,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -3046,7 +3060,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
+  CALL GetPositionInRefElem(X_in(1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
@@ -3074,7 +3088,6 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -4739,7 +4752,6 @@ TYPE tNodeToElem
   INTEGER :: ElemID(50)
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
-INTEGER                :: NumNeighborElems(1:nElems)
 INTEGER                :: TempElemsOnNode(1:nNodes)
 INTEGER                :: Element, iLocSide, k, l
 LOGICAL                :: ElemExists
@@ -4780,6 +4792,10 @@ SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
 GEO%NumNeighborElems(:)=0
+TempElemsOnNode(:)=0
+DO iNode=1,nNodes
+  TempNodeToElem(iNode)%ElemID=-1
+END DO
 
 ! find all real neighbour elements for elements with halo neighbours 
 ! recursively checking connected halo area
@@ -4805,7 +4821,7 @@ DO iElem =1, PP_nElems
       CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
     END IF
   END DO
-  IF (TempHaloNumElems.LE.NumNeighborElems(iElem)) CALL abort(&
+  IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
 ,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
   ! write local variables into global array

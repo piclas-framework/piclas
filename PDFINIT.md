@@ -14,4 +14,4 @@ InitPDF_State.h5. From this file, the PartData is copied to the initial file, ge
 
 
 Finally, the last entry of PartInt of Coarse_State.h5 has to be set to the number of all particles in InitPDF_State.h5. Note,
-that boltzplatz is executed on a single core.
+that PICLas is executed on a single core.

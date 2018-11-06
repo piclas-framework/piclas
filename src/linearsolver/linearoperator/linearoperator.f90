@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_LinearOperator
 !===================================================================================================================================
@@ -420,7 +432,7 @@ USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_P
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck
+!USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Vars,           ONLY:PartState!,PEM,PartPosRef
 #ifndef ROS
 USE MOD_Particle_Vars,           ONLY:PartDtFrac
@@ -468,7 +480,7 @@ END IF
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-! CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
+! CALL GetPositionInRefElem(PartState(PartID,1:3),PartPosRef(1:3,PartID),PEM%Element(PartID))
 ! CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle(PartID,1:6))
 !PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)

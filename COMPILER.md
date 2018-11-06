@@ -1,4 +1,4 @@
-## Boltzplatz Compiler Flags 
+## PICLas Compiler Flags 
 
 ## GNU/ Gfortran
   * RELEASE: optimized with -O3 for execution runs
