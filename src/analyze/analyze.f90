@@ -476,7 +476,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze,AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -486,6 +486,7 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
@@ -613,20 +614,24 @@ DoPerformSurfaceAnalyze = DoPerformAnalyze
 IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
 IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformAnalyze=.TRUE.
+! Remove analyze during restart or load-balance step 
+IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
+
 ! SurfaceAnalyzeStep
+#ifdef PARTICLES
 ! 2) normal analyze at analyze step 
 IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
 IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAnalyze=.TRUE.
-
 ! Remove analyze during restart or load-balance step 
-IF(DoRestart .AND. iter.EQ.0) DoPerformAnalyze=.FALSE.
 IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
-
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformAnalyze=.FALSE.
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformSurfaceAnalyze=.FALSE.
+#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -684,15 +689,18 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (DoAnalyze)  THEN
 #ifdef PARTICLES
-  !IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
-  IF(DoPerformAnalyze)        CALL AnalyzeParticles(OutputTime)
-  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-#else /*pure DGSEM */
-  IF(DoPerformAnalyze) CALL AnalyzeField(OutputTime)
-#endif /*PARTICLES*/
+IF (DoAnalyze)  THEN
+  IF(DoPerformAnalyze) CALL AnalyzeParticles(OutputTime)
 END IF
+IF (DoSurfModelAnalyze) THEN
+  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
+END IF
+#else /*pure DGSEM */
+IF (DoAnalyze)  THEN
+  IF(DoPerformAnalyze) CALL AnalyzeField(OutputTime)
+END IF
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
 ! OutPutHDF5 should be sufficient here
