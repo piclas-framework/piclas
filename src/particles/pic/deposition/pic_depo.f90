@@ -1439,7 +1439,7 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
       END IF
 !#endif
       iElem = PEM%Element(iPart)
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
       !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
       TSource(:) = 0.0
 !#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
