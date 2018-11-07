@@ -421,6 +421,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! important change: all MPI-communication is done directly in the corresponding subroutines
 ! a) its easier and cleaner
 ! b) reduces the probability of errors (routines are again fixed for MPI...)
+! The decision if an analysis is performed is done in PerformAnalysis.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
