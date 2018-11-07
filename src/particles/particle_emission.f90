@@ -2634,6 +2634,14 @@ CASE('maxwell_lpn')
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
   END DO
+CASE('taylorgreenvortex')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+       CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+       PartState(PositionNbr,4:6) = Vec3D(1:3)
+    END IF
+  END DO
 CASE('emmert')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
@@ -3350,6 +3358,68 @@ __STAMP__&
 END IF
 
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
+
+
+SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
+!===================================================================================================================================
+! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+INTEGER                          :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Temperature, v_drift(3)
+!===================================================================================================================================
+Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+
+ASSOCIATE( V0   => Species(FractNbr)%Init(iInit)%VeloIC ,&
+           x    => ElemBaryNGeo(1,Element)              ,&
+           y    => ElemBaryNGeo(2,Element)              ,&
+           z    => ElemBaryNGeo(3,Element)              ,&
+           xmax => GEO%xmaxglob                         )
+
+  v_drift(1) =  V0*SIN(x/xmax)*COS(y/xmax)*COS(z/xmax)
+  v_drift(2) = -V0*COS(x/xmax)*SIN(y/xmax)*COS(z/xmax)
+  v_drift(3) = 0.
+END ASSOCIATE
+
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1 = 2.*RandVal(1) - 1.
+  Velo2 = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Temperature/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !x-Komponente
+Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Temperature/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !y-Komponente
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1 = 2.*RandVal(1) - 1.
+  Velo2 = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Temperature/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !z-Komponente
+
+
+Vec3D(1:3) = Vec3D(1:3) + v_drift
+
+END SUBROUTINE CalcVelocity_taylorgreenvortex
 
 
 SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
