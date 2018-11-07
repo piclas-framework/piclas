@@ -4065,6 +4065,10 @@ __STAMP__&
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
         Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
       CASE(4)
+        IF(PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).NE.PartBound%ReflectiveBC) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in init of adaptive inlet: BC of pump outflow condition must be reflective!')
+        END IF
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
