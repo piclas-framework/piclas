@@ -552,6 +552,7 @@ CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
 LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
+LOGICAL                       :: DoPerformErrorCalc
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -584,7 +585,7 @@ ProlongToFaceNeeded=.TRUE.
 ! this check is identical for all time integration methods
 ! analyze routines are not called for a restart
 ! PO: not sure if it this check is any longer needed
-IF(FirstOrLastIter .AND. .NOT.OutputHDF5 .AND. .NOT.DoRestart)THEN
+IF(FirstOrLastIter)THEN
   DoPerformFieldAnalyze=.TRUE.
 END IF
 ! Check if output during last iteration 
@@ -609,7 +610,7 @@ IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze
 IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformFieldAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformFieldAnalyze=.FALSE.
 
 #ifdef PARTICLES
 ! PartAnalyzeStep
@@ -621,7 +622,7 @@ IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.
 IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformPartAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
 ! 2) normal analyze at analyze step 
@@ -632,15 +633,22 @@ IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAna
 IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
 ! Finally, remove duplicates for last iteration
 ! This step is needed, because PerformAnalyze is called twice within the iterations
-IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformSurfaceAnalyze=.FALSE.
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformSurfaceAnalyze=.FALSE.
 #endif /*PARTICLES*/
+
+! selection of error calculation for first iteration, output time but not lastiteration
+DoPerformErrorCalc=.FALSE.
+IF(FirstOrLastIter.OR.OutputHDF5)THEN
+  IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate error norms
-IF(FirstOrLastIter.AND.OutputHDF5)THEN
-  IF(DoCalcErrorNorms) THEN
+! This computes the error analysis during each dt_Analysis step
+IF(DoCalcErrorNorms) THEN
+  IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
@@ -656,13 +664,6 @@ END IF
 IF (DoFieldAnalyze) THEN
   IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF
-!#if USE_LOADBALANCE
-!  CALL LBStartTime(tLBStart) ! Start time measurement
-!#endif /*USE_LOADBALANCE*/
-!  IF(DoPerformAnalyze) CALL CalcPoyntingIntegral(OutputTime,doProlong=ProlongToFaceNeeded)
-!#if USE_LOADBALANCE
-!  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-!#endif /*USE_LOADBALANCE*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Recordpoints buffer
@@ -881,7 +882,7 @@ AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
 !----------------------------------------------------------------------------------------------------------------------------------
-IF(OutputHDF5)THEN
+IF(DoPerformErrorCalc)THEN
   IF(DoCalcErrorNorms) THEN
     ! Graphical output
     IF(MPIroot) THEN
@@ -892,7 +893,7 @@ IF(OutputHDF5)THEN
   END IF
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')        ' Sim time  : ',OutputTime
+    WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
     WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
     AnalyzeCount = 0
     AnalyzeTime  = 0.0
