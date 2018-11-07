@@ -611,6 +611,7 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
 ! This step is needed, because PerformAnalyze is called twice within the iterations
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformFieldAnalyze=.FALSE.
 
+#ifdef PARTICLES
 ! PartAnalyzeStep
 ! 2) normal analyze at analyze step 
 IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformPartAnalyze=.TRUE.
@@ -623,7 +624,6 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5) DoPerformPartAnalyze=.FALSE.
 
 ! SurfaceAnalyzeStep
-#ifdef PARTICLES
 ! 2) normal analyze at analyze step 
 IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
 ! 3) + 4) force analyze during a write-state information and prevent duplicates
