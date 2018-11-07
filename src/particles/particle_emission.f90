@@ -4075,6 +4075,8 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
         Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = &
                                                           GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
+                                                        / 10.0**(AINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber))
         Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(1:PDM%maxParticleNumber))
