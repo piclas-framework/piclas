@@ -288,7 +288,7 @@ TYPE typeSurfaceflux
   REAL                                   :: AdaptivePressure                 !
   REAL                                   :: totalAreaSF                      !
   REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
-  REAL                                   :: InitAdaptivePumpingSpeed         ! initial pumping speed per are of the pumping surface (C=S/A)
+  REAL                                   :: AdaptivePumpingSpeed             ! pumping speed per area of the pumping surface (C=S/A)
   REAL                                   :: AdaptiveDeltaPumpingSpeed        ! relaxationfactor for the pumping speed
   REAL, ALLOCATABLE                      :: Adaptive_PartImpingePump(:)      ! index-list of particle impinge upon the pump surface
                                                                              ! (1:PDM%maxParticleNumber)

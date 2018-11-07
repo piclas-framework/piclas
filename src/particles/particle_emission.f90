@@ -4072,7 +4072,7 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
-        Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
         Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = &
                                                           GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
         Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
@@ -4506,7 +4506,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-              Adaptive_MacroVal(15,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%InitAdaptivePumpingSpeed
+              Adaptive_MacroVal(15,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed
               Adaptive_MacroVal(16,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
             END IF
           END IF
@@ -6558,7 +6558,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
-INTEGER                       :: iPumpPartIndx, AdaptiveElem
+INTEGER                       :: iPumpPartIndx, AdaptiveElem, PumpElemCount
 REAL                          :: iRan, VeloMean
 REAL, ALLOCATABLE             :: alpha(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
@@ -6570,6 +6570,8 @@ DO iSpec=1,nSpecies
       ALLOCATE(CalcAlphaForElem(1:nElems))
       ALLOCATE(alpha(1:nElems))
       CalcAlphaForElem(1:nElems) = .TRUE. ! (lokal)
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
+      PumpElemCount = 0
       DO iPumpPart=1,Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge
         iPumpPartIndx = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(iPumpPart)
         AdaptiveElem = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(iPumpPart)
@@ -6590,6 +6592,9 @@ DO iSpec=1,nSpecies
             + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
             * (SUM(Adaptive_MacroVal(16,AdaptiveElem,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
           alpha(AdaptiveElem) = Adaptive_MacroVal(15,AdaptiveElem,iSpec) / VeloMean
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
+                                                                  + Adaptive_MacroVal(15,AdaptiveElem,iSpec)
+          PumpElemCount = PumpElemCount + 1
           IF(alpha(AdaptiveElem).GT.1.0) THEN
             alpha(AdaptiveElem) = 1.0
           ELSE IF(alpha(AdaptiveElem).LT.0) THEN
@@ -6606,6 +6611,7 @@ DO iSpec=1,nSpecies
           IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
         END IF
       END DO
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / PumpElemCount
       ! reset impinge counter and impinge index list
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
