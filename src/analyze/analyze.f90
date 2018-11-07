@@ -461,6 +461,13 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! 2) after the time update
 ! 3) during an analyze step and writing of a state file
 ! 4) during a load-balance step
+! This routine calls all other analyze-subroutines, which write data to a csv file 
+! Currently this are:
+! I)    AnalyzeField             ->  FieldAnalyze.csv
+! II)   AnalyzeParticles         ->  PartAnalyze.csv
+! III)  AnalyzeSurface           ->  SurfaceDatabase.csv
+! IV)   TrackParticlePosition    ->  ParticlePosition.csv
+! V)    AnalyticParticleMovement ->  ParticlePositionAnalytic.csv
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -510,6 +517,9 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze       ,ONLY: WriteParticleTrackingDataAnalytic,CalcErrorParticle
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,L_2_Error_Part
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
@@ -539,6 +549,9 @@ REAL                          :: RECR
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
+#ifdef PARTICLES
+REAL                          :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
+#endif /*PARTICLES*/
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -692,7 +705,7 @@ END IF
 #endif /* LSERK && IMPA && ROS */
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! PIC & DG-Solver
+! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
 IF (DoPartAnalyze) THEN
@@ -704,6 +717,20 @@ END IF
 IF(TrackParticlePosition) THEN
   IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 END IF
+#ifdef CODE_ANALYZE
+IF(DoInterpolationAnalytic)THEN
+  IF(DoPerformPartAnalyze)THEN
+    CALL CalcErrorParticle(OutputTime,iter,PartStateAnalytic)
+    IF(PartMPI%MPIRoot.AND.DoPartAnalyze.AND.OutputErrorNorms) THEN
+      WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
+      OutputErrorNorms=.FALSE.
+    END IF
+    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(OutputTime,iter,PartStateAnalytic) ! new function
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
 #ifdef PARTICLES
@@ -924,8 +951,8 @@ SUBROUTINE CodeAnalyzeOutput(TIME)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY:DoAnalyze,DoCodeAnalyzeOutput
-USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
+USE MOD_Analyze_Vars            ,ONLY:DoCodeAnalyzeOutput
+USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart,DoPartAnalyze
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rTotalBezierNewton
@@ -948,7 +975,7 @@ IF(.NOT.DoCodeAnalyzeOutput) RETURN ! check if the output is to be skipped and r
 IF ( DoRestart ) THEN
   isRestart = .true.
 END IF
-IF (DoAnalyze) THEN
+IF (DoPartAnalyze) THEN
   !SWRITE(UNIT_StdOut,'(132("-"))')
   !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
   OutputCounter = 2
@@ -1016,7 +1043,7 @@ IF (DoAnalyze) THEN
 ELSE
 !SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! DoAnalyze
+END IF ! DoPartAnalyze
 
 ! nullify and save total number
 rTotalBBChecks=rTotalBBChecks+REAL(rBoundingBoxChecks,16)

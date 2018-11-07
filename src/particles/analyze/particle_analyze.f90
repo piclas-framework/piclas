@@ -58,11 +58,25 @@ INTERFACE WriteParticleTrackingData
   MODULE PROCEDURE WriteParticleTrackingData
 END INTERFACE
 
+#ifdef CODE_ANALYZE
+INTERFACE WriteParticleTrackingDataAnalytic
+  MODULE PROCEDURE WriteParticleTrackingDataAnalytic
+END INTERFACE
+
+INTERFACE CalcErrorParticle
+  MODULE PROCEDURE CalcErrorParticle
+END INTERFACE
+#endif /*CODE_ANALYZE*/
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
+#ifdef CODE_ANALYZE
+PUBLIC:: WriteParticleTrackingDataAnalytic
+PUBLIC::  CalcErrorParticle
+#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -460,7 +474,6 @@ USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,L_2_Error_Part
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -506,7 +519,6 @@ REAL                :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=40)   :: formatStr
-REAL                :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
   IF ( DoRestart ) THEN
@@ -870,20 +882,6 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-#ifdef CODE_ANALYZE
-  IF(DoInterpolationAnalytic)THEN
-    CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-    IF(PartMPI%MPIRoot.AND.DoPartAnalyze.AND.OutputErrorNorms) THEN
-      WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
-      WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
-      OutputErrorNorms=.FALSE.
-    END IF
-    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
-  END IF
-#endif /*CODE_ANALYZE*/
-  !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
-  !IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
   ! get velocities
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
