@@ -478,8 +478,8 @@ USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze
+USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
@@ -700,6 +700,9 @@ IF (DoPartAnalyze) THEN
 END IF
 IF (DoSurfModelAnalyze) THEN
   IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
+END IF
+IF(TrackParticlePosition) THEN
+  IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 END IF
 #endif /*PARTICLES*/
 

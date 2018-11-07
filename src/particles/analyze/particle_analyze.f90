@@ -54,10 +54,15 @@ INTERFACE CalculatePartElemData
   MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
 
+INTERFACE WriteParticleTrackingData
+  MODULE PROCEDURE WriteParticleTrackingData
+END INTERFACE
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
+PUBLIC:: WriteParticleTrackingData
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -422,6 +427,8 @@ SUBROUTINE AnalyzeParticles(Time)
 ! a) its easier and cleaner
 ! b) reduces the probability of errors (routines are again fixed for MPI...)
 ! The decision if an analysis is performed is done in PerformAnalysis.
+! Furthermore:
+! Each separate outputfile handler is called from within PerformAnalysis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -876,7 +883,7 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
   END IF
 #endif /*CODE_ANALYZE*/
   !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
-  IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
+  !IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
   ! get velocities
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
