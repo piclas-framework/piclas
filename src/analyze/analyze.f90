@@ -517,9 +517,8 @@ USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
-USE MOD_Particle_Analyze       ,ONLY: WriteParticleTrackingDataAnalytic,CalcErrorParticle
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,L_2_Error_Part
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
@@ -719,16 +718,7 @@ IF(TrackParticlePosition) THEN
 END IF
 #ifdef CODE_ANALYZE
 IF(DoInterpolationAnalytic)THEN
-  IF(DoPerformPartAnalyze)THEN
-    CALL CalcErrorParticle(OutputTime,iter,PartStateAnalytic)
-    IF(PartMPI%MPIRoot.AND.DoPartAnalyze.AND.OutputErrorNorms) THEN
-      WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
-      WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
-      OutputErrorNorms=.FALSE.
-    END IF
-    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(OutputTime,iter,PartStateAnalytic) ! new function
-  END IF
+  IF(DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
 END IF
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/

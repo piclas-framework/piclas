@@ -59,12 +59,8 @@ INTERFACE WriteParticleTrackingData
 END INTERFACE
 
 #ifdef CODE_ANALYZE
-INTERFACE WriteParticleTrackingDataAnalytic
-  MODULE PROCEDURE WriteParticleTrackingDataAnalytic
-END INTERFACE
-
-INTERFACE CalcErrorParticle
-  MODULE PROCEDURE CalcErrorParticle
+INTERFACE AnalyticParticleMovement
+  MODULE PROCEDURE AnalyticParticleMovement
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
@@ -74,8 +70,7 @@ PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: WriteParticleTrackingDataAnalytic
-PUBLIC::  CalcErrorParticle
+PUBLIC:: AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
@@ -517,9 +512,6 @@ INTEGER             :: dir
 #if USE_LOADBALANCE
 REAL                :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#ifdef CODE_ANALYZE
-CHARACTER(LEN=40)   :: formatStr
-#endif /* CODE_ANALYZE */
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
@@ -3631,6 +3623,43 @@ ELSE
 END IF
 
 END SUBROUTINE CalcErrorParticle
+
+
+!===================================================================================================================================
+!> Calculate the analytical position and velocity depending on the pre-defined function
+!===================================================================================================================================
+SUBROUTINE AnalyticParticleMovement(time,iter)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
+USE MOD_Particle_Analyze_Vars  ,ONLY: TrackParticlePosition
+USE MOD_PICInterpolation_Vars  ,ONLY: L_2_Error_Part
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)               :: time                        !< simulation time
+INTEGER(KIND=8),INTENT(IN)    :: iter                        !< iteration
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL                          :: PartStateAnalytic(1:6)   !< analytic position and velocity
+CHARACTER(LEN=40)             :: formatStr
+!===================================================================================================================================
+
+CALL CalcErrorParticle(time,iter,PartStateAnalytic)
+IF(PartMPI%MPIRoot.AND.OutputErrorNorms) THEN
+  WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
+  WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
+  OutputErrorNorms=.FALSE.
+END IF
+IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
+
+END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 
 
