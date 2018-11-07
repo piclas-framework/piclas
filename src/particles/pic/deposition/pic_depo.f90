@@ -1512,6 +1512,10 @@ CASE('shape_function','shape_function_simple')
     Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
+#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
+  CALL calcSfSource(4,Species(PartSpecies(i))%MacroParticleFactor*w_sf &
+          ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
+#else
   IF (usevMPF) THEN
     DO iPart=firstPart,LastPart
       IF (DoParticle(iPart)) THEN
@@ -1527,6 +1531,7 @@ CASE('shape_function','shape_function_simple')
       END IF ! DoParticle
     END DO ! iPart
   END IF ! usevMPF
+#endif
   IF(.NOT.DoInnerParts)THEN
 
     !-- layer particles (only once, i.e., during call with .NOT.DoInnerParts)
@@ -2293,11 +2298,15 @@ CASE('cartmesh_volumeweighting')
   DO iPart = firstPart, lastPart
     !IF (PDM%ParticleInside(iPart)) THEN
     IF (DoParticle(iPart)) THEN
+#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
+      Charge = Species(PartSpecies(i))%MacroParticleFactor
+#else
       IF (usevMPF) THEN
         Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
       ELSE
         Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
       END IF ! usevMPF
+#endif
       !Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
       k = FLOOR(PartState(iPart,1)/BGMdeltas(1))
       l = FLOOR(PartState(iPart,2)/BGMdeltas(2))

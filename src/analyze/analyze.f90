@@ -550,8 +550,8 @@ CHARACTER(LEN=40)             :: formatStr
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
-! Not for first iteration (when analysis is called within RK steps)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+! not for first iteration (when analysis is called within RK steps)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)||(PP_TimeDiscMethod>=441 && PP_TimeDiscMethod<=443) 
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 #endif
 StartAnalyzeTime=PICLASTIME()

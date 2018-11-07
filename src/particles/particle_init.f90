@@ -973,11 +973,11 @@ USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
 USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
-USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
+USE MOD_ESBGK_Init                 ,ONLY: InitESBGK
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
@@ -1038,6 +1038,9 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
   IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
   IF (LiquidSimFlag) CALL InitLiquidSurfaceModel()
+#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411 || PP_TimeDiscMethod==441 || PP_TimeDiscMethod==442 || PP_TimeDiscMethod==443 || PP_TimeDiscMethod==445) 
+  CALL InitESBGK()
+#endif 
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.

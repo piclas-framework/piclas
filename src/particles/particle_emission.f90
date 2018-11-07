@@ -158,6 +158,7 @@ SUBROUTINE InitializeParticleEmission()
 ! MODULES
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
+USE MOD_LoadBalance_Vars,      ONLY : PerformLoadBalance
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars,   ONLY : DoRestart
