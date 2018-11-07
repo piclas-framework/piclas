@@ -505,7 +505,6 @@ USE MOD_Particle_Vars          ,ONLY: DelayTime
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
 #if defined(LSERK) ||  defined(IMPA) || defined(ROS)
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
@@ -670,18 +669,23 @@ END IF
 ! Only usable with 
 ! maxwell or poissan in combination with HDG
 !----------------------------------------------------------------------------------------------------------------------------------
+! remove duplicate analysis  due to double call of PerformAnalysis
 IF(RP_onProc) THEN
+  ! for a restart, an initial analysis at t=tRestart is necessary to
+  ! compute fill the HDF5 file correctly 
+  ! Information to time in HDF5-Format:
+  ! file1: 0 :t1
+  ! file2: t1:tend
+  ! Hence, t1 and the fields are stored in both files
+  IF(DoPerformFieldAnalyze.OR.iter.EQ.0)THEN
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
+    CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-  IF(RPSkip)THEN
-    RPSkip=.FALSE.
-  ELSE
-    CALL RecordPoints(OutputTime,FirstOrLastIter,OutputHDF5)
+    CALL RecordPoints(OutputTime,OutputHDF5)
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
 
 ! end the analyzes for  all Runge-Kutta besed time-discs

@@ -29,7 +29,6 @@ LOGICAL            :: RP_onProc = .FALSE.
 LOGICAL            :: RP_fileExists = .FALSE. ! flag if RP file for analyze level has been created
 INTEGER            :: RP_Buffersize           ! no. of time samples (size of RP_Data)
 INTEGER            :: RP_MaxBuffersize        ! max. allowed no. of time samples
-INTEGER            :: RP_SamplingOffset       ! sampling rate (each .. iterations)
 INTEGER            :: nRP                     ! no. of RP on proc
 INTEGER            :: nGlobalRP               ! total no. of RP
 INTEGER            :: offsetRP                ! offset for each proc in global RP list
@@ -49,6 +48,5 @@ CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
 INTEGER            :: myRPrank
 INTEGER            :: RP_COMM
 INTEGER            :: nRP_Procs
-LOGICAL            :: RPSkip
 
 END MODULE MOD_recordPoints_Vars
