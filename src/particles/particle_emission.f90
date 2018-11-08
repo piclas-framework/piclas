@@ -6549,6 +6549,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:PDM, Species, nSpecies, Adaptive_MacroVal
 USE MOD_Mesh_Vars,              ONLY:nElems
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6565,6 +6568,7 @@ REAL, ALLOCATABLE             :: alpha(:), PumpingSpeed(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
 #ifdef MPI
 REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:)
+INTEGER, ALLOCATABLE          :: GlobalProcCount(:)
 #endif
 !===================================================================================================================================
 
@@ -6649,10 +6653,11 @@ DO iPump = 1,PumpCount
 END DO
 ALLOCATE(GlobalPumpingSpeed(PumpCount))
 ALLOCATE(ProcCount(PumpCount))
+ALLOCATE(GlobalProcCount(PumpCount))
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(PumpingSpeed,PumpCount,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   CALL MPI_REDUCE(ProcCount,PumpCount,GlobalProcCount,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  PumpingSpeed = GlobalPumpingSpeed / GlobalProcCount
+  PumpingSpeed(1:PumpCount) = GlobalPumpingSpeed(1:PumpCount) / GlobalProcCount(1:PumpCount)
 #endif
   CALL WritePumpBCInfo(PumpCount,PumpingSpeed)
 #ifdef MPI
