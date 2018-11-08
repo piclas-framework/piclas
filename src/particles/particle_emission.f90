@@ -6559,20 +6559,24 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
 INTEGER                       :: iPumpPartIndx, AdaptiveElem, PumpElemCount, PumpCount, iPump
+INTEGER, ALLOCATABLE          :: ProcCount(:)
 REAL                          :: iRan, VeloMean
 REAL, ALLOCATABLE             :: alpha(:), PumpingSpeed(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
+#ifdef MPI
+REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:)
+#endif
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
   PumpCount = 0
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ. 4) THEN
       PumpCount = PumpCount + 1
       ALLOCATE(CalcAlphaForElem(1:nElems))
       ALLOCATE(alpha(1:nElems))
       CalcAlphaForElem(1:nElems) = .TRUE. ! (lokal)
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
       PumpElemCount = 0
       DO iPumpPart=1,Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge
         iPumpPartIndx = Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(iPumpPart)
@@ -6613,7 +6617,8 @@ DO iSpec=1,nSpecies
           IF(iRan.LE.alpha(AdaptiveElem)) PDM%ParticleInside(iPumpPartIndx)=.FALSE.
         END IF
       END DO
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / PumpElemCount
+      IF(PumpElemCount.GT.0) Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
+                              = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / PumpElemCount
       ! reset impinge counter and impinge index list
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
@@ -6634,10 +6639,75 @@ DO iSF=1,Species(1)%nSurfacefluxBCs
     iPump = iPump + 1
   END IF
 END DO
-!!!!! CALL AUSGABE
+#ifdef MPI
+DO iPump = 1,PumpCount
+  IF(PumpingSpeed(iPump).GT.0.0) THEN
+    ProcCount(iPump) = 1
+  ELSE
+    ProcCount(iPump) = 0
+  END IF
+END DO
+ALLOCATE(GlobalPumpingSpeed(PumpCount))
+ALLOCATE(ProcCount(PumpCount))
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(PumpingSpeed,PumpCount,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  CALL MPI_REDUCE(ProcCount,PumpCount,GlobalProcCount,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  PumpingSpeed = GlobalPumpingSpeed / GlobalProcCount
+#endif
+  CALL WritePumpBCInfo(PumpCount,PumpingSpeed)
+#ifdef MPI
+END IF
+#endif
+
 DEALLOCATE(PumpingSpeed)
 
-
 END SUBROUTINE AdaptivePumpBC
+
+
+SUBROUTINE WritePumpBCInfo(PumpCount,PumpingSpeed)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_Globals                ,ONLY: FILEEXISTS
+USE MOD_Restart_Vars           ,ONLY: DoRestart
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)          :: PumpCount
+REAL,INTENT(IN)             :: PumpingSpeed(1:PumpCount)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: OutputCounter, unit_index, iPump
+CHARACTER(LEN=350)          :: outfile
+LOGICAL                     :: isOpen
+!===================================================================================================================================
+unit_index = 535
+outfile = 'PumpBCInfo.csv'
+OutputCounter = 1
+
+INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+IF (.NOT.isOpen) THEN
+  IF (DoRestart.and.FILEEXISTS(outfile)) THEN
+    OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+  ELSE
+    OPEN(unit_index,file=TRIM(outfile))
+    WRITE(unit_index,'(A4)',ADVANCE='NO') 'Time'
+    DO iPump = 1, PumpCount
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-PumpingSpeed-', iPump
+      OutputCounter = OutputCounter + 1
+    END DO
+    WRITE(unit_index,'(A1)') ' '
+  END IF
+END IF
+WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
+DO iPump=1, PumpCount
+  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingSpeed(iPump))
+END DO
+WRITE(unit_index,'(A1)') ' '
+
+END SUBROUTINE WritePumpBCInfo
 
 END MODULE MOD_part_emission
