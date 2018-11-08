@@ -1386,7 +1386,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
-                               , WriteMacroSurfaceValues, UseAdaptiveInlet
+                               , WriteMacroSurfaceValues, UseAdaptivePump
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1484,7 +1484,7 @@ REAL                  :: tLBStart
       CALL ParticleTracing()
     END IF
   END IF
-  IF (UseAdaptiveInlet) THEN
+  IF (UseAdaptivePump) THEN
     CALL AdaptivePumpBC
   END IF
   IF(MeasureTrackTime) THEN

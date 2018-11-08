@@ -3664,7 +3664,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, PDM
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3797,6 +3797,7 @@ IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 
 AnyCircularInflow=.FALSE.
 UseAdaptiveInlet=.FALSE.
+UseAdaptivePump=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
@@ -4069,6 +4070,7 @@ __STAMP__&
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: BC of pump outflow condition must be reflective!')
         END IF
+        UseAdaptivePump = .TRUE.
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
@@ -4969,6 +4971,7 @@ __STAMP__&
               END IF
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
             CASE(4) ! Porous outlet
+              T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               ElemPartDensity = 0
             CASE DEFAULT
               CALL abort(&
@@ -6560,13 +6563,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
+INTEGER                       :: iSpec, iSF, iPumpPart
 INTEGER                       :: iPumpPartIndx, AdaptiveElem, PumpElemCount, PumpCount, iPump
-INTEGER, ALLOCATABLE          :: ProcCount(:)
 REAL                          :: iRan, VeloMean
 REAL, ALLOCATABLE             :: alpha(:), PumpingSpeed(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
 #ifdef MPI
+INTEGER, ALLOCATABLE          :: ProcCount(:)
 REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:)
 INTEGER, ALLOCATABLE          :: GlobalProcCount(:)
 #endif
@@ -6622,7 +6625,7 @@ DO iSpec=1,nSpecies
         END IF
       END DO
       IF(PumpElemCount.GT.0) Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
-                              = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / PumpElemCount
+                    = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / REAL(PumpElemCount)
       ! reset impinge counter and impinge index list
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = 0
       Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(1:PDM%maxParticleNumber) = 0
@@ -6638,7 +6641,7 @@ iPump=1
 DO iSF=1,Species(1)%nSurfacefluxBCs
   IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ. 4) THEN
     DO iSpec=1,nSpecies
-      PumpingSpeed(iPump) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / nSpecies
+      PumpingSpeed(iPump) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / REAL(nSpecies)
     END DO
     iPump = iPump + 1
   END IF
@@ -6656,8 +6659,8 @@ ALLOCATE(GlobalPumpingSpeed(PumpCount))
 ALLOCATE(GlobalProcCount(PumpCount))
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  CALL MPI_REDUCE(ProcCount,GlobalProcCount,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  PumpingSpeed(1:PumpCount) = GlobalPumpingSpeed(1:PumpCount) / GlobalProcCount(1:PumpCount)
+  CALL MPI_REDUCE(ProcCount,GlobalProcCount,PumpCount,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+  PumpingSpeed(1:PumpCount) = GlobalPumpingSpeed(1:PumpCount) / REAL(GlobalProcCount(1:PumpCount))
 #endif
   CALL WritePumpBCInfo(PumpCount,PumpingSpeed)
 #ifdef MPI
@@ -6687,16 +6690,16 @@ INTEGER                     :: OutputCounter, unit_index, iPump
 CHARACTER(LEN=350)          :: outfile
 LOGICAL                     :: isOpen
 !===================================================================================================================================
-unit_index = 535
+unit_index = 789
 outfile = 'PumpBCInfo.csv'
-OutputCounter = 1
+OutputCounter = 2
 
 INQUIRE(UNIT   = unit_index , OPENED = isOpen)
 IF (.NOT.isOpen) THEN
   IF (DoRestart.and.FILEEXISTS(outfile)) THEN
-    OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+    OPEN(unit_index,file=TRIM(outfile),action="WRITE",position="APPEND",status="OLD")
   ELSE
-    OPEN(unit_index,file=TRIM(outfile))
+    OPEN(unit_index,file=TRIM(outfile),action="WRITE",status="REPLACE")
     WRITE(unit_index,'(A4)',ADVANCE='NO') 'Time'
     DO iPump = 1, PumpCount
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','

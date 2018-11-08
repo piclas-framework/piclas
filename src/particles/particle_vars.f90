@@ -290,9 +290,9 @@ TYPE typeSurfaceflux
   REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
   REAL                                   :: AdaptivePumpingSpeed             ! pumping speed per area of the pumping surface (C=S/A)
   REAL                                   :: AdaptiveDeltaPumpingSpeed        ! relaxationfactor for the pumping speed
-  REAL, ALLOCATABLE                      :: Adaptive_PartImpingePump(:)      ! index-list of particle impinge upon the pump surface
+  INTEGER, ALLOCATABLE                   :: Adaptive_PartImpingePump(:)      ! index-list of particle impinge upon the pump surface
                                                                              ! (1:PDM%maxParticleNumber)
-  REAL, ALLOCATABLE                      :: Adaptive_PEMforPump(:)           ! particle element mapping for pump surface
+  INTEGER, ALLOCATABLE                   :: Adaptive_PEMforPump(:)           ! particle element mapping for pump surface
                                                                              ! (1:PDM%maxParticleNumber)
   INTEGER                                :: Adaptive_TotalPartImpinge        ! total number of particles impinge upon the pump surface
 END TYPE
@@ -313,6 +313,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 LOGICAL                                  :: UseAdaptiveInlet                 !
+LOGICAL                                  :: UseAdaptivePump                  !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
