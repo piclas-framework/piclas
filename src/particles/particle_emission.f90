@@ -6644,6 +6644,7 @@ DO iSF=1,Species(1)%nSurfacefluxBCs
   END IF
 END DO
 #ifdef MPI
+ALLOCATE(ProcCount(PumpCount))
 DO iPump = 1,PumpCount
   IF(PumpingSpeed(iPump).GT.0.0) THEN
     ProcCount(iPump) = 1
@@ -6652,7 +6653,6 @@ DO iPump = 1,PumpCount
   END IF
 END DO
 ALLOCATE(GlobalPumpingSpeed(PumpCount))
-ALLOCATE(ProcCount(PumpCount))
 ALLOCATE(GlobalProcCount(PumpCount))
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
