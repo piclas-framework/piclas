@@ -6655,8 +6655,8 @@ ALLOCATE(GlobalPumpingSpeed(PumpCount))
 ALLOCATE(ProcCount(PumpCount))
 ALLOCATE(GlobalProcCount(PumpCount))
 IF(MPIRoot) THEN
-  CALL MPI_REDUCE(PumpingSpeed,PumpCount,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  CALL MPI_REDUCE(ProcCount,PumpCount,GlobalProcCount,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  CALL MPI_REDUCE(ProcCount,GlobalProcCount,PumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   PumpingSpeed(1:PumpCount) = GlobalPumpingSpeed(1:PumpCount) / GlobalProcCount(1:PumpCount)
 #endif
   CALL WritePumpBCInfo(PumpCount,PumpingSpeed)
