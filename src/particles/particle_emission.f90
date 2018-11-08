@@ -3366,8 +3366,10 @@ SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_Particle_Vars,          ONLY : Species
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: Species
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3380,41 +3382,55 @@ INTEGER                          :: Element
 REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Temperature, v_drift(3)
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, v_drift(3)
+REAL                             :: T  ! temperature
+REAL                             :: p  ! pressure
+REAL                             :: p0 ! base pressure
 !===================================================================================================================================
-Temperature=Species(FractNbr)%Init(iInit)%MWTemperatureIC
 
-ASSOCIATE( V0   => Species(FractNbr)%Init(iInit)%VeloIC ,&
+! V0 = Ma*c_s
+!   Ma := 0.3
+! c_s = sqrt(gamma*R*T/M)
+!   gamma := 1.4
+!   R     := 8.3144598
+!   T     := 273.15 
+!   M     := 28.0134e-3
+ASSOCIATE( V0   => 101.0694686816                       ,& !Species(FractNbr)%Init(iInit)%VeloIC ,&
            x    => ElemBaryNGeo(1,Element)              ,&
            y    => ElemBaryNGeo(2,Element)              ,&
            z    => ElemBaryNGeo(3,Element)              ,&
-           xmax => GEO%xmaxglob                         )
+           L    => GEO%xmaxglob                         ,&
+           rho0 => 1.25                                 ,&
+           R_N2 => 296.8                                 & ! unit of R_N2 is [J*kg^-1K^-1]
+           )
 
-  v_drift(1) =  V0*SIN(x/xmax)*COS(y/xmax)*COS(z/xmax)
-  v_drift(2) = -V0*COS(x/xmax)*SIN(y/xmax)*COS(z/xmax)
+  v_drift(1) =  V0*SIN(x/L)*COS(y/L)*COS(z/L)
+  v_drift(2) = -V0*COS(x/L)*SIN(y/L)*COS(z/L)
   v_drift(3) = 0.
+
+  p0 = rho0 * R_N2 * Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  p  = p0 + (rho0*V0**2/16.)*( COS(2*x/L)+COS(2*y/L) )*( COS(2*z/L)+2 )
+  T  = p / (rho0*R_N2)
+
 END ASSOCIATE
 
 Velosq = 2
 DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
   CALL RANDOM_NUMBER(RandVal)
-  Velo1 = 2.*RandVal(1) - 1.
-  Velo2 = 2.*RandVal(2) - 1.
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
   Velosq = Velo1**2 + Velo2**2
 END DO
-Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Temperature/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !x-Komponente
-Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Temperature/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !y-Komponente
+Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !x-Komponente
+Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !y-Komponente
 Velosq = 2
 DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
   CALL RANDOM_NUMBER(RandVal)
-  Velo1 = 2.*RandVal(1) - 1.
-  Velo2 = 2.*RandVal(2) - 1.
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
   Velosq = Velo1**2 + Velo2**2
 END DO
-Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Temperature/ &
-    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !z-Komponente
+Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !z-Komponente
 
 
 Vec3D(1:3) = Vec3D(1:3) + v_drift
