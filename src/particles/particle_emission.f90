@@ -6558,15 +6558,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iPumpPart, jSpec
-INTEGER                       :: iPumpPartIndx, AdaptiveElem, PumpElemCount
+INTEGER                       :: iPumpPartIndx, AdaptiveElem, PumpElemCount, PumpCount, iPump
 REAL                          :: iRan, VeloMean
-REAL, ALLOCATABLE             :: alpha(:)
+REAL, ALLOCATABLE             :: alpha(:), PumpingSpeed(:)
 LOGICAL, ALLOCATABLE          :: CalcAlphaForElem(:)
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
+  PumpCount = 0
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ. 4) THEN
+      PumpCount = PumpCount + 1
       ALLOCATE(CalcAlphaForElem(1:nElems))
       ALLOCATE(alpha(1:nElems))
       CalcAlphaForElem(1:nElems) = .TRUE. ! (lokal)
@@ -6621,6 +6623,20 @@ DO iSpec=1,nSpecies
     END IF
   END DO
 END DO
+
+ALLOCATE(PumpingSpeed(1:PumpCount))
+iPump=1
+DO iSF=1,Species(1)%nSurfacefluxBCs
+  IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ. 4) THEN
+    DO iSpec=1,nSpecies
+      PumpingSpeed(iPump) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / nSpecies
+    END DO
+    iPump = iPump + 1
+  END IF
+END DO
+!!!!! CALL AUSGABE
+DEALLOCATE(PumpingSpeed)
+
 
 END SUBROUTINE AdaptivePumpBC
 
