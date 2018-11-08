@@ -557,9 +557,9 @@ REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
-#endif /*USE_LOADBALANCE*/
 LOGICAL                       :: DoPerformFieldAnalyze
 LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
@@ -900,7 +900,6 @@ END IF
 
 ! Time for analysis
 EndAnalyzeTime=PICLASTIME()
-!SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
 AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 
 !----------------------------------------------------------------------------------------------------------------------------------
