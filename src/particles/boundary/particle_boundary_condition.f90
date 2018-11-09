@@ -65,7 +65,7 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezi
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, nSpecies, Species, LastPartPos, PartState &
                                      , Adaptive_MacroVal
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, SampWall
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
@@ -93,8 +93,8 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: n_loc(1:3),RanNum, point(1:2), intersectionPoint(1:3), radius
-INTEGER                              :: adsorbindex, iSpec, iSF
+REAL                                 :: n_loc(1:3),RanNum, point(1:2), intersectionPoint(1:3), radius, iRan
+INTEGER                              :: adsorbindex, iSpec, iSF, SurfSideID
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
@@ -140,52 +140,49 @@ CASE(1) !PartBound%OpenBC)
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Combining surface flux and circular inflow with a reflective boundary condition, particles will be deleted at the inflow
-  DO iSpec=1,nSpecies
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
-        IF (Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-          IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-            intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
-            point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
-            point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
-            radius=SQRT( (point(1))**2+(point(2))**2 )
-            IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-              Adaptive_MacroVal(11,ElemID,iSpec) = Adaptive_MacroVal(11,ElemID,iSpec) + PartState(iPart,4)
-              Adaptive_MacroVal(12,ElemID,iSpec) = Adaptive_MacroVal(12,ElemID,iSpec) + PartState(iPart,5)
-              Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,6)
-              Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
-              Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = &
-                Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
-              Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) &
-                = iPart
-              Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) &
-                = ElemID
+  iSpec = PartSpecies(iPart)
+  SurfSideID = SurfMesh%SideIDToSurfID(SideID)
+  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
+      IF (Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+          point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+          point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+          radius=SQRT( (point(1))**2+(point(2))**2 )
+          IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+            SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
+            SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1
+            ! check particle for leaving the domain
+            CALL RANDOM_NUMBER(iRan)
+            IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
+              PDM%ParticleInside(iPart)=.FALSE.
+              alpha=-1.
             END IF
-          ELSE
-            Adaptive_MacroVal(11,ElemID,iSpec) = Adaptive_MacroVal(11,ElemID,iSpec) + PartState(iPart,4)
-            Adaptive_MacroVal(12,ElemID,iSpec) = Adaptive_MacroVal(12,ElemID,iSpec) + PartState(iPart,5)
-            Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + PartState(iPart,6)
-            Adaptive_MacroVal(14,ElemID,iSpec) = Adaptive_MacroVal(14,ElemID,iSpec) + 1
-            Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge = &
-              Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge + 1
-            Species(iSpec)%Surfaceflux(iSF)%Adaptive_PartImpingePump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) &
-              = iPart
-            Species(iSpec)%Surfaceflux(iSF)%Adaptive_PEMforPump(Species(iSpec)%Surfaceflux(iSF)%Adaptive_TotalPartImpinge) &
-              = ElemID
           END IF
         ELSE
-          IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-            intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
-            point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
-            point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
-            radius=SQRT( (point(1))**2+(point(2))**2 )
-            IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-              PDM%ParticleInside(iPart)=.FALSE.
-            END IF
+          SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
+          SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1
+          ! check particle for leaving the domain
+          CALL RANDOM_NUMBER(iRan)
+          IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
+            PDM%ParticleInside(iPart)=.FALSE.
+            alpha=-1.
+          END IF
+        END IF
+      ELSE
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+          point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+          point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+          radius=SQRT( (point(1))**2+(point(2))**2 )
+          IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+            PDM%ParticleInside(iPart)=.FALSE.
+            alpha=-1.
           END IF
         END IF
       END IF
-    END DO
+    END IF
   END DO
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN

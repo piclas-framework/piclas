@@ -99,6 +99,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
+  REAL,ALLOCATABLE                      :: PumpBCInfo(:,:,:)             !
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 

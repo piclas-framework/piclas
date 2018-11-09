@@ -966,7 +966,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag, UseAdaptivePump
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -1029,7 +1029,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag.OR.UseAdaptivePump) THEN
   CALL InitParticleBoundarySampling()
 END IF
 

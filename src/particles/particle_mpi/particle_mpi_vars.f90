@@ -116,6 +116,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! P
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! SurfRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! SurfSendBuf with all requried types
 
+TYPE(tMPIMessage),ALLOCATABLE  :: PumpRecvBuf(:)                             ! SurfRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: PumpSendBuf(:)                             ! SurfSendBuf with all requried types
+
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! only mpi neighbors
