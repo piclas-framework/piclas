@@ -6592,9 +6592,9 @@ DO iSpec=1,nSpecies
           ! calculate mean velocity of each impinging particle at the pumping surface
           Adaptive_MacroVal(11,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
                                                       / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
-          Adaptive_MacroVal(12,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
+          Adaptive_MacroVal(12,AdaptiveElem,iSpec) = Adaptive_MacroVal(12,AdaptiveElem,iSpec) &
                                                       / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
-          Adaptive_MacroVal(13,AdaptiveElem,iSpec) = Adaptive_MacroVal(11,AdaptiveElem,iSpec) &
+          Adaptive_MacroVal(13,AdaptiveElem,iSpec) = Adaptive_MacroVal(13,AdaptiveElem,iSpec) &
                                                       / Adaptive_MacroVal(14,AdaptiveElem,iSpec)
           VeloMean = SQRT(Adaptive_MacroVal(11,AdaptiveElem,iSpec)**2 &
                         + Adaptive_MacroVal(12,AdaptiveElem,iSpec)**2 &
@@ -6665,6 +6665,7 @@ IF(MPIRoot) THEN
   CALL WritePumpBCInfo(PumpCount,PumpingSpeed)
 #ifdef MPI
 END IF
+DEALLOCATE(ProcCount,GlobalPumpingSpeed,GlobalProcCount)
 #endif
 
 DEALLOCATE(PumpingSpeed)
