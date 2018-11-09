@@ -945,9 +945,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 IF(UseAdaptivePump) THEN
+  ALLOCATE(PumpSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(PumpRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
-    SDEALLOCATE(PumpSendBuf(iProc)%content)
-    SDEALLOCATE(PumpRecvBuf(iProc)%content)
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
       ALLOCATE(PumpSendBuf(iProc)%content(4*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)*SurfExchange%nSidesSend(iProc)))
       PumpSendBuf(iProc)%content=0.
