@@ -6635,11 +6635,11 @@ DO iPump = 1,GlobalPumpCount
     ProcCount(iPump) = 0
   END IF
 END DO
-IF(MPIRoot) THEN
   ALLOCATE(GlobalPumpingSpeed(GlobalPumpCount))
   ALLOCATE(GlobalProcCount(GlobalPumpCount))
   CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   CALL MPI_REDUCE(ProcCount,GlobalProcCount,GlobalPumpCount,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+IF(MPIRoot) THEN
   DO iPump = 1,GlobalPumpCount
     IF(PumpingSpeed(iPump).GT.0.0) THEN
       PumpingSpeed(iPump) = GlobalPumpingSpeed(iPump) / REAL(GlobalProcCount(iPump))
@@ -6650,9 +6650,9 @@ IF(MPIRoot) THEN
 #endif
   CALL WritePumpBCInfo(GlobalPumpCount,PumpingSpeed)
 #ifdef MPI
-  SDEALLOCATE(GlobalPumpingSpeed)
-  SDEALLOCATE(GlobalProcCount)
 END IF
+SDEALLOCATE(GlobalPumpingSpeed)
+SDEALLOCATE(GlobalProcCount)
 SDEALLOCATE(ProcCount)
 #endif
 
