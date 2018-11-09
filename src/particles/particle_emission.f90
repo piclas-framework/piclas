@@ -6650,11 +6650,12 @@ IF(MPIRoot) THEN
 #endif
   CALL WritePumpBCInfo(GlobalPumpCount,PumpingSpeed)
 #ifdef MPI
+  SDEALLOCATE(GlobalPumpingSpeed,GlobalProcCount)
 END IF
-DEALLOCATE(ProcCount,GlobalPumpingSpeed,GlobalProcCount)
+SDEALLOCATE(ProcCount)
 #endif
 
-DEALLOCATE(PumpingSpeed)
+SDEALLOCATE(PumpingSpeed)
 
 END SUBROUTINE AdaptivePumpBC
 
