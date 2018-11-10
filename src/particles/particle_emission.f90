@@ -4080,7 +4080,7 @@ __STAMP__&
                                                           GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
         Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
                                                         / 10.0**(ANINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
-        AdaptiveNbrPumps = AdaptiveNbrPumps + 1. / nSpecies
+        AdaptiveNbrPumps = AdaptiveNbrPumps + 1. / REAL(nSpecies)
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -6573,6 +6573,7 @@ INTEGER, ALLOCATABLE          :: GlobalProcCount(:)
 #endif
 !===================================================================================================================================
 
+! Communication of impinged particles on the pump in halo region
 #ifdef MPI
 CALL ExchangePumpData()
 #endif
@@ -6583,29 +6584,42 @@ DO iSpec=1,nSpecies
     Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
       DO iSurfSide = 1,SurfMesh%nTotalSides
+        ! Get the adjacent element id of the surface side
         ElemID = PartSideToElem(S2E_ELEM_ID,SurfMesh%SurfSideToGlobSideMap(iSurfSide))
+        ! Only processors with actual pump elements perform calculations, excluding procs with halo cells in pump region
+        ! Communication of those impinged particles was performed in ExchangePumpData
         IF(ElemID.LE.nElems) THEN
+          ! If not particle hit the pump, do not perform calculations
           IF(NINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)).EQ.0) CYCLE
-          ! calculate mean velocity of each impinging particle at the pumping surface
+          ! calculate mean velocity magnitude of impinged particles at the pumping surface
           SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) &
                                                           / ANINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF))
           VeloMagnitude = SQRT(SampWall(iSurfSide)%PumpBCInfo(1,iSpec,iSF)**2 &
                             + SampWall(iSurfSide)%PumpBCInfo(2,iSpec,iSF)**2 &
                             + SampWall(iSurfSide)%PumpBCInfo(3,iSpec,iSF)**2)
-          Adaptive_MacroVal(15,ElemID,iSpec) = Adaptive_MacroVal(15,ElemID,iSpec) &
-              + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
-              * (SUM(Adaptive_MacroVal(16,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
+          ! Calculating the pumping speed C (=S/A) with deltaC and pressure gradient
+          IF(Adaptive_MacroVal(15,ElemID,iSpec).GE.0.0) THEN
+            ! Only changing the pumping speed if it was positive before, negative pumping speeds are not allowed and set to zero
+            Adaptive_MacroVal(15,ElemID,iSpec) = Adaptive_MacroVal(15,ElemID,iSpec) &
+                + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
+                * (SUM(Adaptive_MacroVal(16,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
+          ELSE
+            Adaptive_MacroVal(15,ElemID,iSpec) = 0.0
+          END IF
+          ! Calculating the alpha, 0: particle is deleted, 1: particle is reflected
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = Adaptive_MacroVal(15,ElemID,iSpec) / VeloMagnitude
+          ! Making sure that alpha is between 0 and 1
           IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).GT.1.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 1.0
           ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).LT.0.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 0.0
           END IF
+          ! Sampling the pumping speed for the output
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
                                                                     + Adaptive_MacroVal(15,ElemID,iSpec)
           PumpElemCount = PumpElemCount + 1
         END IF
-        ! reset sampled values at pump surface
+        ! Reset sampled values at pump surface
         SampWall(iSurfSide)%PumpBCInfo(1:4,iSpec,iSF) = 0.
       END DO
     END IF
@@ -6616,8 +6630,8 @@ DO iSpec=1,nSpecies
   END DO
 END DO
 
+! Output of pumping speed
 GlobalPumpCount = NINT(AdaptiveNbrPumps)
-
 ALLOCATE(PumpingSpeed(1:GlobalPumpCount))
 iPump=1
 DO iSF=1,Species(1)%nSurfacefluxBCs
