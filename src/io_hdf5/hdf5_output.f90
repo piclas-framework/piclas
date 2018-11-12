@@ -1337,7 +1337,7 @@ REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
 !===================================================================================================================================
 
 
-nVar = 9
+nVar = 10
 iVar = 1
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
@@ -1351,6 +1351,7 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-Density'
   StrVarNames(iVar+7) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
   StrVarNames(iVar+8) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
+  StrVarNames(iVar+9) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
   iVar = iVar + nVar
 END DO
 
@@ -1369,7 +1370,7 @@ DO iElem = 1,nElems
   AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
   AdaptiveData(4:6,:,iElem) = Adaptive_MacroVal(4:6,iElem,:)
   AdaptiveData(7,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
-  AdaptiveData(8:9,:,iElem) = Adaptive_MacroVal(15:16,iElem,:)
+  AdaptiveData(8:10,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'

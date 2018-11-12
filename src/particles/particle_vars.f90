@@ -326,12 +326,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              !  8:  TVIB
                                                                              !  9:  TROT
                                                                              ! 10:  TELEC
-                                                                             ! 11:  macro velocityX of particle impinge upon pump surface
-                                                                             ! 12:  macro velocityY of particle impinge upon pump surface
-                                                                             ! 13:  macro velocityZ of particle impinge upon pump surface
-                                                                             ! 14:  number of particles impinge upon the pump surface in Elem
-                                                                             ! 15:  pumping speed per are of the pumping surface (C=S/A)
-                                                                             ! 16:  pressure for pump
+                                                                             ! 11:  pumping speed per are of the pumping surface (C=S/A)
+                                                                             ! 12:  pressure for pump
+                                                                             ! 13:  integral pressure difference
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
