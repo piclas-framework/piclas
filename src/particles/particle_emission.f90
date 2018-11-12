@@ -6684,7 +6684,7 @@ END DO
     GlobalPumpingAlpha = 0.0
     GlobalProcCount = 0
     CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingAlpha,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(PumpingAlpha,GlobalPumpingAlpha,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
     CALL MPI_REDUCE(ProcCount,GlobalProcCount,GlobalPumpCount,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
   IF(MPIRoot) THEN
     DO iPump = 1,GlobalPumpCount
