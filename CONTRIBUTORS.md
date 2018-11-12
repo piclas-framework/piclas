@@ -21,6 +21,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Malte Hoffmann
 * Serena Keller
 * Johannes Kleinert
+* Marius Koch
 * Nico Krais
 * Robert Mansk
 * Claus-Dieter Munz

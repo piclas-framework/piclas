@@ -54,10 +54,24 @@ INTERFACE CalculatePartElemData
   MODULE PROCEDURE CalculatePartElemData
 END INTERFACE
 
+INTERFACE WriteParticleTrackingData
+  MODULE PROCEDURE WriteParticleTrackingData
+END INTERFACE
+
+#ifdef CODE_ANALYZE
+INTERFACE AnalyticParticleMovement
+  MODULE PROCEDURE AnalyticParticleMovement
+END INTERFACE
+#endif /*CODE_ANALYZE*/
+
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
+PUBLIC:: WriteParticleTrackingData
+#ifdef CODE_ANALYZE
+PUBLIC:: AnalyticParticleMovement
+#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -78,7 +92,6 @@ IMPLICIT NONE
 CALL prms%SetSection("Particle Analyze")
 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1') 
-CALL prms%CreateLogicalOption(  'CalcPotentialEnergy'     , 'Calculate Potential Energy.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition'//&
                                                             'and write an output in std.out','.FALSE.')
@@ -152,7 +165,6 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot,CalcEtot
 USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_Particle_Vars         ,ONLY: nSpecies
@@ -178,23 +190,6 @@ CALL abort(__STAMP__,&
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
-
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-
-DoAnalyze = .FALSE.
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-IF(CalcEpot) DoAnalyze = .TRUE.
-! only verifycharge and CalcCharge if particles are deposited onto the grid
-DoVerifyCharge= .FALSE.
-CalcCharge = .FALSE.
-IF(DoDeposition) THEN
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
-  IF(CalcCharge) DoAnalyze = .TRUE. 
-ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
-END IF
 
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 CalcPointsPerShapeFunction = GETLOGICAL('CalcPointsPerShapeFunction','.FALSE.')
@@ -315,6 +310,21 @@ END IF
 !--------------------------------------------------------------------------------------------------------------------
 
 
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
+
+DoPartAnalyze = .FALSE.
+! only verifycharge and CalcCharge if particles are deposited onto the grid
+DoVerifyCharge= .FALSE.
+CalcCharge = .FALSE.
+IF(DoDeposition) THEN
+  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
+  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+  IF(CalcCharge) DoPartAnalyze = .TRUE. 
+ELSE
+  SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+END IF
+
 CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 ! Laser-plasma interaction analysis
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
@@ -322,8 +332,8 @@ IF(CalcLaserInteraction)CalcEkin=.TRUE.
 
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
-IF(CalcTemp.OR.CalcEint) DoAnalyze = .TRUE.
-IF(CalcEkin) DoAnalyze = .TRUE.
+IF(CalcTemp.OR.CalcEint) DoPartAnalyze = .TRUE.
+IF(CalcEkin) DoPartAnalyze = .TRUE.
 IF(nSpecies.GT.1) THEN
   nSpecAnalyze = nSpecies + 1
 ELSE
@@ -332,7 +342,7 @@ END IF
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
-  DoAnalyze = .TRUE.
+  DoPartAnalyze = .TRUE.
   SDEALLOCATE(nPartIn)
   SDEALLOCATE(nPartOut)
   SDEALLOCATE(PartEkinIn)
@@ -365,11 +375,11 @@ END IF
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
-IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
+IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
-  DoAnalyze=.TRUE.
+  DoPartAnalyze=.TRUE.
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
   VeloDirs(:) = .FALSE.
   IF(.NOT.CalcNumSpec)THEN
@@ -391,7 +401,7 @@ END IF
 ! Shape function efficiency
 CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
 IF (CalcShapeEfficiency) THEN
-  DoAnalyze = .TRUE.
+  DoPartAnalyze = .TRUE.
   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
   SELECT CASE(CalcShapeEfficiencyMethod)
   CASE('AllParts')  ! All currently available Particles are used
@@ -405,7 +415,7 @@ IF (CalcShapeEfficiency) THEN
   END SELECT
 END IF
 ! check if total energy should be computed
-IF(DoAnalyze)THEN
+IF(DoPartAnalyze)THEN
   CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
@@ -425,17 +435,19 @@ SUBROUTINE AnalyzeParticles(Time)
 ! important change: all MPI-communication is done directly in the corresponding subroutines
 ! a) its easier and cleaner
 ! b) reduces the probability of errors (routines are again fixed for MPI...)
+! The decision if an analysis is performed is done in PerformAnalysis.
+! Furthermore:
+! Each separate outputfile handler is called from within PerformAnalysis
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: DoAnalyze,CalcEpot,CalcEtot
 USE MOD_Particle_Analyze_Vars
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_AnalyzeField           ,ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 USE MOD_TimeDisc_Vars          ,ONLY: iter
@@ -457,7 +469,6 @@ USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,L_2_Error_Part
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -473,7 +484,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, iSpec, OutputCounter
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
-REAL                :: WEl, WMag, NumSpec(nSpecAnalyze)
+REAL                :: NumSpec(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
@@ -501,15 +512,11 @@ INTEGER             :: dir
 #if USE_LOADBALANCE
 REAL                :: tLBStart
 #endif /*USE_LOADBALANCE*/
-#ifdef CODE_ANALYZE
-CHARACTER(LEN=40)   :: formatStr
-REAL                :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
-#endif /* CODE_ANALYZE */
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
   END IF
-  IF (.NOT.DoAnalyze) RETURN
+  IF (.NOT.DoPartAnalyze) RETURN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -547,10 +554,10 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
       ELSE
-        outfile = 'Database.csv'
+        outfile = 'PartAnalyze.csv'
       END IF
 #else
-      outfile = 'Database.csv'
+      outfile = 'PartAnalyze.csv'
 #endif
 
       IF (isRestart .and. FILEEXISTS(outfile)) THEN
@@ -590,19 +597,6 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
             WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-        END IF
-        IF (CalcEpot) THEN 
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-El',' '
-          OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-Mag',' '
-          OutputCounter = OutputCounter + 1
-        END IF
-        IF(CalcEpot .AND. CalcEtot)THEN
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-E-pot',' '
-          OutputCounter = OutputCounter + 1
         END IF
         IF (CalcEkin) THEN
           DO iSpec=1, nSpecAnalyze
@@ -880,27 +874,6 @@ REAL                :: PartStateAnalytic(1:6)        !< analytic position and ve
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
   IF(CalcCharge) CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
-  IF(CalcEpot)THEN
-    IF(DoDielectric)THEN
-      CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
-    ELSE
-      CALL CalcPotentialEnergy(WEl,WMag)
-    END IF
-  END IF
-#ifdef CODE_ANALYZE
-  IF(DoInterpolationAnalytic)THEN
-    CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-    IF(PartMPI%MPIRoot.AND.DoAnalyze.AND.OutputErrorNorms) THEN
-      WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
-      WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
-      OutputErrorNorms=.FALSE.
-    END IF
-    IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
-  END IF
-#endif /*CODE_ANALYZE*/
-  !IF(TrackParticlePosition) CALL TrackingParticlePosition(time)      ! old function -> commented out
-  IF(TrackParticlePosition) CALL WriteParticleTrackingData(time,iter) ! new function
   ! get velocities
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 !===================================================================================================================================
@@ -1000,16 +973,6 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
-    END IF
-    IF (CalcEpot) THEN
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
-    END IF
-    IF (CalcEpot .AND. CalcEtot)THEN
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag
     END IF
     IF (CalcEkin) THEN
       DO iSpec=1, nSpecAnalyze
@@ -3660,6 +3623,43 @@ ELSE
 END IF
 
 END SUBROUTINE CalcErrorParticle
+
+
+!===================================================================================================================================
+!> Calculate the analytical position and velocity depending on the pre-defined function
+!===================================================================================================================================
+SUBROUTINE AnalyticParticleMovement(time,iter)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
+USE MOD_Particle_Analyze_Vars  ,ONLY: TrackParticlePosition
+USE MOD_PICInterpolation_Vars  ,ONLY: L_2_Error_Part
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)               :: time                        !< simulation time
+INTEGER(KIND=8),INTENT(IN)    :: iter                        !< iteration
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL                          :: PartStateAnalytic(1:6)   !< analytic position and velocity
+CHARACTER(LEN=40)             :: formatStr
+!===================================================================================================================================
+
+CALL CalcErrorParticle(time,iter,PartStateAnalytic)
+IF(PartMPI%MPIRoot.AND.OutputErrorNorms) THEN
+  WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
+  WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
+  OutputErrorNorms=.FALSE.
+END IF
+IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
+
+END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
 
 

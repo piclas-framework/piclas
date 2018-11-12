@@ -87,7 +87,27 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit Leapfrog RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR CN ImplicitO3 ImplicitO4 Ascher3 ROS2 ROS3 ROS4 ROS46 ROS6 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
+                                                          Leapfrog
+                                                          RK3
+                                                          RK4
+                                                          RK14
+                                                          ParticleEuler-FieldRK4
+                                                          DSMC
+                                                          RESERVOIR
+                                                          CN
+                                                          ImplicitO3
+                                                          ImplicitO4
+                                                          Ascher3
+                                                          ROS2
+                                                          ROS3
+                                                          ROS4
+                                                          ROS46
+                                                          ROS6
+                                                          FieldRelaxation
+                                                          FieldRelaxation-AdaptiveTimeStep
+                                                          LD
+                                                          LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
