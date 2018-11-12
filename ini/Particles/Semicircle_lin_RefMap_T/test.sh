@@ -1,3 +1,3 @@
 rm *.csv
 rm *State*
-./boltzplatz parameter_semicircle.ini
+./piclas parameter_semicircle.ini

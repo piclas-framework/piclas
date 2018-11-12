@@ -1,0 +1,39 @@
+# List of Contributors
+
+This is a (possibly incomplete) list of the people who contributed to piclas.
+
+* Christoph Altmann
+* Muhammed Atak
+* Andrea Beck
+* Tilman Binder
+* Thomas Bolemann
+* Stephen Copplestone
+* Jakob Duerrwaechter
+* Stefanos Fasoulas
+* Stefan Fechter
+* David Flad
+* Fabian Föll
+* Hannes Frank
+* Gregor Gassner
+* Florian Hindenlang
+* Konstantin Hinsberger
+* Timon Hitz
+* Malte Hoffmann
+* Serena Keller
+* Johannes Kleinert
+* Marius Koch
+* Nico Krais
+* Robert Mansk
+* Claus-Dieter Munz
+* Asim Mirza
+* Jonathan Neudorfer
+* Paul Nizenkov
+* Jonatan Núñez-de la Rosa
+* Philip Ortwein
+* Marcel Pfeiffer
+* Wladimir Reschke
+* Matthias Sonntag
+* Marcel "Mitch" Scherrmann
+* Marc Staudenmaier
+* Torsten Stindl
+* Andreas Stock

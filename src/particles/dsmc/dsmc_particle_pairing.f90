@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_DSMC_ParticlePairing
 !===================================================================================================================================
@@ -332,7 +344,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Vars,          ONLY : PEM, PartState, nSpecies, PartSpecies,PartPosRef
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_Particle_Tracking_vars, ONLY : DoRefMapping
-  USE MOD_Eval_xyz,               ONLY : Eval_XYZ_ElemCheck
+  USE MOD_Eval_xyz,               ONLY : GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -381,7 +393,7 @@ IF (nPart.GT.1) THEN
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
+          CALL GetPositionInRefElem(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
           iPart = PEM%pNext(iPart)    
         END DO
       END IF ! DoRefMapping

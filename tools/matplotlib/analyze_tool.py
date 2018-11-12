@@ -17,7 +17,7 @@ outputfile='results_explicitO4-p03.csv'
 pattern=[]
 pattern.append('CFLScale')                        # number of iterations
 pattern.append('iter:')                            # number of iterations
-pattern.append('BOLTZPLATZ FINISHED')              # runtime
+pattern.append('PICLAS FINISHED')              # runtime
 pattern.append('Total iteration Linear Solver')    # iteration lin-solver
 pattern.append('Total iteration outer-Newton')     # outer Newton
 scaleFloat=[1.,1.,0.00379665135350620752,1.,1.,]

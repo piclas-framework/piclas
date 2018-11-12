@@ -1,4 +1,4 @@
-## Boltzplatz Regressioncheck 
+## PICLas Regressioncheck 
 
 ## How to execute
 

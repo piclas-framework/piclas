@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_DSMC_ChemReact
 !===================================================================================================================================
@@ -347,7 +359,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
+USE MOD_Globals_Vars,          ONLY : BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
@@ -372,7 +384,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL                          :: FracMassCent1, FracMassCent2, MassRed     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz , RanVec(3)   ! random relativ velo
-  REAL                          :: JToEv, FakXi, Xi_rel, iRan, FacEtraDistri
+  REAL                          :: FakXi, Xi_rel, iRan, FacEtraDistri
   REAL                          :: ERel_React1_React2, ERel_React1_React3
   INTEGER                       :: React1Inx, React2Inx, React3Inx
   INTEGER                       :: ProductReac(1:3), EductReac(1:3), nProd, nDOFMAX, iProd, iPolyatMole
@@ -380,8 +392,6 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 !===================================================================================================================================
-
-  JToEv = 1.602176565E-19
   Xi_elec = 0.
   Telec = 0.
   EZeroTempToExec = 0.

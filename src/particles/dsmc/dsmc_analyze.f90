@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_DSMC_Analyze
 !===================================================================================================================================
@@ -646,7 +658,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
 !> Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -661,17 +673,16 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iDOF,iPolyatMole
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=1.0E-5,JToEv   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=1.0E-5   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne    ! both summs
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
-JToEv = 1.602176565E-19
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
   LowerTemp = 1.0
-  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
+  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
   DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     SumOne = 0.0
@@ -1155,7 +1166,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpe
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_Eval_xyz               ,ONLY: eval_xyz_elemcheck
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
 #if USE_LOADBALANCE
@@ -1319,7 +1330,7 @@ CASE('nearest_gausspoint')
       ! Map Particle to -1|1 space (re-used in interpolation)
       ! check with depositions and PartPosRef already mapped
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem)
+        CALL GetPositionInRefElem(PartState(i,1:3),PartPosRef(1:3,i),iElem)
       END IF
       !CALL GeoCoordToMap(PartState(i,1:3),PartPosRef(1:3),iElem)
       ! Find out which gausspoint is closest and add up charges and currents
@@ -1401,7 +1412,7 @@ CASE('cell_volweight')
     iElem = PEM%Element(iPart)
     iSpec = PartSpecies(iPart)
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
+      CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
     END IF
     !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
     TSource(:) = 0.0
@@ -2880,7 +2891,7 @@ SUBROUTINE VolumeBoundBGMCInt(i, j, k, Volume)
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,epsOneCell
 USE MOD_DSMC_Vars,              ONLY:DSMCSampVolWe
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2922,7 +2933,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
   !--- check all cells associated with this beckground mesh cell
   DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
     Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
-    CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
+    CALL GetPositionInRefElem(GuessPos,Xi,Element)
     IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
       alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
       alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j

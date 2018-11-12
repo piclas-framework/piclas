@@ -4,7 +4,7 @@ For a smooth building step ensure that the following environment variables are s
 
 * HDF5: HDF5_DIR (for CMake-build HDF5) or HDF5_ROOT (for HDF5 build with the configure script) or globally installed HDF5
 
-The following libraries are installed locally within Boltzplatz and build automatically (in case the Boltzplatz needs  in case they are not found on the system):
+The following libraries are installed locally within PICLas and build automatically (in case the PICLas needs  in case they are not found on the system):
 
 * [HDF5][hdf5]: Library for efficient I/O on large scale systems (always needed)
 

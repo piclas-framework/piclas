@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Newton
 !===================================================================================================================================
@@ -70,6 +82,7 @@ REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
+LOGICAL                    :: warning_linear
 #ifdef MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*MPI*/
@@ -118,11 +131,16 @@ DO iElem=1,PP_nElems
   END DO ! k=0,PP_N
 END DO ! iElem=1,PP_nElems
 #else /*HDG*/
+warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     CALL CalcSourceHDG(i,j,k,iElem,ImplicitSource(1:PP_nVar,i,j,k,iElem))
   END DO; END DO; END DO !i,j,k    
-END DO !iElem 
+END DO !iElem
+IF (warning_linear) THEN
+  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+END IF
 DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N

@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Equation
 !===================================================================================================================================
@@ -21,6 +33,9 @@ INTERFACE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
+END INTERFACE
+INTERFACE CalcSourceHDG
+  MODULE PROCEDURE CalcSourceHDG
 END INTERFACE
 INTERFACE DivCleaningDamping
   MODULE PROCEDURE DivCleaningDamping
@@ -501,7 +516,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
+SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear)
 !===================================================================================================================================
 ! Determine the right-hand-side of Poisson's equation (either by an analytic function or deposition of charge from particles)
 ! TODO: currently particles are enforced, which means that they over-write the exact function solution because
@@ -534,12 +549,13 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-REAL                            :: x(3)    
-REAL,INTENT(IN),OPTIONAL     :: Phi     
+LOGICAL,INTENT(INOUT),OPTIONAL  :: warning_linear
+REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                             :: r1,r2, source_e
-REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
+REAL                            :: x(3)
+REAL                            :: r1,r2, source_e
+REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: RegionID
 !===================================================================================================================================
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
@@ -578,6 +594,7 @@ IF(DoDeposition .OR. (TRIM(DepositionType).EQ.'constant'))THEN
       ELSE
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+        warning_linear = .TRUE.
       END IF
       !source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )

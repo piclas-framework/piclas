@@ -1,19 +1,31 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
-MODULE MOD_Boltzplatz_Init
+MODULE MOD_Piclas_Init
 !===================================================================================================================================
 ! contains global init and finalize
 !===================================================================================================================================
 
-INTERFACE InitBoltzplatz
-  MODULE PROCEDURE InitBoltzplatz
+INTERFACE InitPiclas
+  MODULE PROCEDURE InitPiclas
 END INTERFACE
 
-INTERFACE FinalizeBoltzplatz
-  MODULE PROCEDURE FinalizeBoltzplatz
+INTERFACE FinalizePiclas
+  MODULE PROCEDURE FinalizePiclas
 END INTERFACE
 
-PUBLIC:: InitBoltzplatz,FinalizeBoltzplatz
+PUBLIC:: InitPiclas,FinalizePiclas
 !===================================================================================================================================
 !PUBLIC:: InitDefineParameters
 
@@ -22,26 +34,26 @@ CONTAINS
 !==================================================================================================================================
 !> Define parameters.
 !==================================================================================================================================
-SUBROUTINE DefineParametersBoltzplatz()
+SUBROUTINE DefineParametersPiclas()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
-CALL prms%SetSection("Boltzplatz Initialization")
+CALL prms%SetSection("Piclas Initialization")
 
 #ifdef PARTICLES
 CALL prms%CreateLogicalOption(  'UseDSMC'    , "Flag for using DSMC in Calculation", '.FALSE.')
 CALL prms%CreateLogicalOption(  'UseLD'      , "Flag for using LD in Calculation", '.FALSE.')
 #endif
 
-END SUBROUTINE DefineParametersBoltzplatz
+END SUBROUTINE DefineParametersPiclas
 
 
 
 
-SUBROUTINE InitBoltzplatz(IsLoadBalance) 
+SUBROUTINE InitPiclas(IsLoadBalance) 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! init Boltzplatz data structure
+! init Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -202,12 +214,12 @@ IF (.NOT.IsLoadBalance) THEN
   CALL prms%RemoveUnnecessary()
 END IF
 
-END SUBROUTINE InitBoltzplatz
+END SUBROUTINE InitPiclas
 
 
-SUBROUTINE FinalizeBoltzplatz(IsLoadBalance) 
+SUBROUTINE FinalizePiclas(IsLoadBalance) 
 !----------------------------------------------------------------------------------------------------------------------------------!
-! finalize Boltzplatz data structure
+! finalize Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -324,6 +336,6 @@ CALL FinalizeQDS()
 #endif /*USE_QDS_DG*/
 CALL prms%finalize(IsLoadBalance)
 
-END SUBROUTINE FinalizeBoltzplatz
+END SUBROUTINE FinalizePiclas
 
-END MODULE MOD_Boltzplatz_Init
+END MODULE MOD_Piclas_Init

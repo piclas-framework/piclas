@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 !===================================================================================================================================
 !> Module contains the routines for load balancing
@@ -142,7 +154,7 @@ PerformLBSample = .FALSE.
 #if USE_LOADBALANCE
 ALLOCATE( tCurrent(1:LB_NTIMES) )
 ! Allocation length (1:number of loadbalance times)
-! look into boltzplatz.h for more info about time names
+! look into piclas.h for more info about time names
 tCurrent=0.
 #endif /*USE_LOADBALANCE*/
 
@@ -328,7 +340,7 @@ USE MOD_Globals
 USE MOD_Globals_vars     ,ONLY: InitializationWallTime
 USE MOD_Preproc
 USE MOD_Restart          ,ONLY: Restart
-USE MOD_Boltzplatz_Init  ,ONLY: InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Piclas_Init  ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars     ,ONLY: DepositionType
@@ -357,13 +369,13 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 ! Measure init duration
-LB_StartTime=BOLTZPLATZTIME()
+LB_StartTime=PICLASTIME()
 
 nLoadBalanceSteps=nLoadBalanceSteps+1
 ! finialize all arrays
-CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
+CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 ! reallocate
-CALL InitBoltzplatz(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
 ! restart
 CALL Restart()
@@ -379,10 +391,10 @@ IF( NewImbalance.GT.CurrentImbalance ) THEN
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful!'
 END IF
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' OldImbalance: ', CurrentImbalance
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: ', NewImbalance
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    ', MaxWeight
-SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:    ', MinWeight
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' OldImbalance: ', CurrentImbalance
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance: ', NewImbalance
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:    ', MaxWeight
+SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:    ', MinWeight
 
 #ifdef PARTICLES
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
@@ -399,9 +411,9 @@ END IF
 #endif /*PARTICLES*/
 
 ! Measure init duration
-LB_Time=BOLTZPLATZTIME()
+LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE LoadBalance
@@ -455,16 +467,16 @@ ELSE
   IF(ABS(TargetWeight).EQ.0.)THEN
     CurrentImbalance = 0.
   ELSE IF(ABS(TargetWeight).LT.0.0)THEN
-    SWRITE(UNIT_stdOut,'(A,F8.2,A1)')&
+    SWRITE(UNIT_stdOut,'(A,F14.2,A1)')&
         ' ERROR: after ALLREDUCE, WeightSum/TargetWeight cannot be zero! TargetWeight=[',TargetWeight,']'
     CurrentImbalance = HUGE(1.0)
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' CurrentImbalance: ', CurrentImbalance
 
 END IF
 

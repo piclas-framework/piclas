@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 MODULE MOD_PICDepo_Vars 
 !===================================================================================================================================
 ! Contains the variables for the particle deposition
@@ -20,7 +32,7 @@ REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor 
 REAL,ALLOCATABLE                      :: GPWeight(:,:,:,:,:,:,:) ! Weights for splines deposition (check pic_depo for details)
 CHARACTER(LEN=256)                    :: DepositionType     ! Type of Deposition-Method
 INTEGER,ALLOCATABLE                   :: PartToFIBGM(:,:)   ! Mapping form Particle to FIBGM
-REAL,ALLOCATABLE                      :: ElemRadius2_SF(:)  ! elem radius plus radius_sf
+REAL,ALLOCATABLE                      :: ElemRadius2_sf(:)  ! elem radius plus radius_sf
 REAL, ALLOCATABLE                     :: BGMSource(:,:,:,:)
 REAL                                  :: r_sf               ! cutoff radius of shape function
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function

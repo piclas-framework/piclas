@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 MODULE MOD_Elem_Mat
 !===================================================================================================================================
 ! Module for the HDG element matrices
@@ -75,12 +87,12 @@ REAL                 :: time0, time
 IF(DoPrintConvInfo)THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
   SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
-  time0=BOLTZPLATZTIME()
+  time0=PICLASTIME()
 END IF
 #else
 IF(DoDisplayIter)THEN
   IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
-    time0=BOLTZPLATZTIME()
+    time0=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("-"))')
     SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
   END IF
@@ -276,15 +288,15 @@ END DO !iElem
 
 #if defined(IMPA) || defined(ROS)
 IF(DoPrintConvInfo)THEN
-  time=BOLTZPLATZTIME()
+  time=PICLASTIME()
   SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
   SWRITE(UNIT_stdOut,'(132("-"))')
 END IF
 #else
 IF(DoDisplayIter)THEN
   IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
-    time=BOLTZPLATZTIME()
-    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+    time=PICLASTIME()
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
     SWRITE(UNIT_stdOut,'(132("-"))')
   END IF
 END IF

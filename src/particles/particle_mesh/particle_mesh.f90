@@ -1,4 +1,16 @@
-#include "boltzplatz.h"
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
 
 MODULE MOD_Particle_Mesh
 !===================================================================================================================================
@@ -647,7 +659,7 @@ SUBROUTINE FinalizeParticleMesh()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars             , ONLY: nElems
+USE MOD_Mesh_Vars             , ONLY: nElems, nNodes
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_Vars, ONLY: Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
@@ -689,6 +701,7 @@ SDEALLOCATE(GEO%ElemSideNodeID)
 SDEALLOCATE(GEO%NodeCoords)
 SDEALLOCATE(GEO%ConcaveElemSide)
 SDEALLOCATE(GEO%ElemsOnNode)
+SDEALLOCATE(GEO%NeighNodesOnNode)
 SDEALLOCATE(GEO%NumNeighborElems)
 IF (ALLOCATED(GEO%ElemToNeighElems)) THEN
   DO iElem=1,nElems
@@ -697,11 +710,17 @@ IF (ALLOCATED(GEO%ElemToNeighElems)) THEN
 END IF
 SDEALLOCATE(GEO%ElemToNeighElems)
 IF (ALLOCATED(GEO%NodeToElem)) THEN
-  DO iNode=1,nTotalNodes
+  DO iNode=1,nNodes
     SDEALLOCATE(GEO%NodeToElem(iNode)%ElemID)
   END DO
 END IF
 SDEALLOCATE(GEO%NodeToElem)
+IF (ALLOCATED(GEO%NodeToNeighNode)) THEN
+  DO iNode=1,nNodes
+    SDEALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID)
+  END DO
+END IF
+SDEALLOCATE(GEO%NodeToNeighNode)
 
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
@@ -733,7 +752,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,PEM,PDM,PartPosRef,KeepWallP
 USE MOD_Particle_Mesh_Vars,          ONLY:Geo
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,TriaTracking
 USE MOD_Particle_Mesh_Vars,          ONLY:epsOneCell,IsTracingBCElem,ElemRadius2NGeo
-USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
 USE MOD_Utils,                       ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,      ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_Boundary_Condition, ONLY:PARTSWITCHELEMENT
@@ -867,7 +886,7 @@ DO iBGMElem=1,nBGMElems
     IF(.NOT.InElementCheck) CYCLE
   END IF
 
-  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  CALL GetPositionInRefElem(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     IF(.NOT.InitFix)THEN
       InElementCheck=.TRUE.
@@ -1149,9 +1168,6 @@ REAL,INTENT(OUT),OPTIONAL                :: IntersectPoint_Opt(1:3)
 REAL,INTENT(OUT),OPTIONAL                :: Tol_Opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef CODE_ANALYZE
-INTEGER                                  :: I,J,K
-#endif /*CODE_ANALYZE*/
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3)
@@ -1377,15 +1393,16 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_Particle_MPI           ,ONLY: InitHALOMesh
+USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1408,19 +1425,19 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
 END IF
 
 SWRITE(UNIT_StdOut,'(66("-"))')
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
 CALL GetFIBGMminmax()
@@ -1431,7 +1448,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem = nElems+1,nTotalElems
 SWRITE(UNIT_stdOut,'(A)')' Building FIBGM ...' 
 CALL GetFIBGM(ElemToBGM)
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
@@ -1443,7 +1460,7 @@ CALL MarkAllBCSides()
 ! get elem and side types
 CALL GetElemAndSideType()
 
-StartT=BOLTZPLATZTIME()
+StartT=PICLASTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
@@ -1465,7 +1482,7 @@ ELSE
   CALL AddHALOCellsToFIBGM(ElemToBGM)
 END IF
 
-EndT=BOLTZPLATZTIME()
+EndT=PICLASTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
@@ -1506,6 +1523,9 @@ END IF
 ! check connectivity of particle mesh
 CALL ElemConnectivity()
 
+#if (PP_TimeDiscMethod==1001)
+FindNeighbourElems = .TRUE.
+#endif
 IF (FindNeighbourElems) THEN
   ! build node conectivity of particle mesh
   IF(PartMPI%MPIROOT)THEN
@@ -1523,6 +1543,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
+SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
@@ -2964,7 +2985,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
-USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -3030,7 +3051,7 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
-  CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
+  CALL GetPositionInRefElem(X_in(1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
@@ -3058,7 +3079,6 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
-USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -4697,13 +4717,13 @@ END SUBROUTINE ElemConnectivity
 
 SUBROUTINE NodeNeighbourhood()
 !===================================================================================================================================
-! Subroutine for initialization of neighbourhood with nodes using GEO container
+!> Subroutine for initialization of neighbourhood with nodes using GEO container
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO, nTotalElems, PartElemToElemAndSide
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
 #ifdef MPI
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -4720,138 +4740,169 @@ USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE tNodeToElem
-  INTEGER, ALLOCATABLE :: ElemID(:)
+  INTEGER :: ElemID(50)
 END TYPE
-TYPE(tNodeToElem)      :: NodeToElem(1:nNodes)
-TYPE(tNodeToElem)      :: ElemToNeighElems(1:nElems)
-INTEGER                :: NumNeighborElems(1:nElems)
-INTEGER                :: TempNumNodes(1:nNodes)
-INTEGER                :: TempElems(1:500)
-INTEGER                :: TempNumElems
+TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
+INTEGER                :: TempElemsOnNode(1:nNodes)
 INTEGER                :: Element, iLocSide, k, l
-LOGICAL                :: ElemExists, HasHaloElem
+LOGICAL                :: ElemExists
 INTEGER                :: iElem, jNode
-#ifdef CODE_ANALYZE
 INTEGER                :: iNode
-#endif /*CODE_ANALYZE*/
-#ifdef MPI
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
+#ifdef MPI
+LOGICAL                :: HaloNeighNode(1:nNodes)
 #endif /*MPI*/
+LOGICAL                :: ElemDone
+REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 
-! count elements on each node for own cells (1:nElems)
-ALLOCATE(GEO%ElemsOnNode(1:nNodes))
-GEO%ElemsOnNode(:)=0
+#ifdef MPI
+! set nodes of sides with halo element connected to it as HaloNeighNodes
+HaloNeighNode(:) = .FALSE.
 DO iElem=1,nElems
-  !--- Save corners of sides
-  DO jNode=1,8
-    GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem)) = GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem)) + 1
+  DO iLocSide = 1,6
+    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
+      DO iNode = 1,4
+        HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
+      END DO
+    END IF
   END DO
 END DO
+#endif /*MPI*/
 
 #ifdef CODE_ANALYZE
 DO iNode=1,nNodes
-  print*,'Rank: ',MyRank,'---- local Node: ',iNode,' has ',GEO%ElemsOnNode(iNode),' local elements'
+  IF (HaloNeighNode(iNode)) THEN
+    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
+  END IF
 END DO
 #endif /*CODE_ANALYZE*/
 
-! allocate node to elem mapping arrays
-DO jNode=1,nNodes
-  ALLOCATE(NodeToElem(jNode)%ElemID(GEO%ElemsOnNode(jNode)))
-END DO
-! connect local elements using local node indeces 
-! (mpi indeces are doubled indeces and not connected therefore done different)
-TempNumNodes(:)=0
-DO iElem=1,nElems
-  DO jNode=1,8
-    TempNumNodes(GEO%ElemToNodeID(jNode,iElem)) = TempNumNodes(GEO%ElemToNodeID(jNode,iElem)) + 1
-    NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(TempNumNodes(GEO%ElemToNodeID(jNode,iElem)))=iElem
-  END DO
-END DO
-NumNeighborElems(:)=0
-DO iElem=1,nElems
-  TempElems(:) = 0
-  TempNumElems = 0
-  DO jNode=1,8
-    DO k=1, GEO%ElemsOnNode(GEO%ElemToNodeID(jNode,iElem))
-      ElemExists=.false.
-      IF (NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k).NE.iElem) THEN
-        DO l=1, TempNumElems
-          IF(NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k).EQ.TempElems(l)) THEN
-            ElemExists=.true.
-            EXIT
-          END IF
-        END DO
-        IF(.NOT.ElemExists) THEN
-          TempNumElems = TempNumElems + 1
-          TempElems(TempNumElems) = NodeToElem(GEO%ElemToNodeID(jNode,iElem))%ElemID(k)
-        END IF
-      END IF
-    END DO
-  END DO
-  NumNeighborElems(iElem)=TempNumElems
-  ALLOCATE(ElemToNeighElems(iElem)%ElemID(1:TempNumElems))
-  ElemToNeighElems(iElem)%ElemID(1:TempNumElems) = TempElems(1:TempNumElems)
-END DO
-
-! find local (non-halo) elements with MPI Bound
-! If Element has no halo neighbours, set the neighbour arrays
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
 GEO%NumNeighborElems(:)=0
-DO iElem=1,PP_nElems
-  HasHaloElem = .FALSE.
-  DO iLocSide = 1,6
-    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
-      HasHaloElem = .TRUE.
-      IF (GEO%NumNeighborElems(iElem).NE.1)  GEO%NumNeighborElems(iElem) = -1
-    END IF
-  END DO
-  IF (.NOT.HasHaloElem) THEN
-    GEO%NumNeighborElems(iElem) = NumNeighborElems(iElem)
-    ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)))
-    GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)) = ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem))
-  END IF
+TempElemsOnNode(:)=0
+DO iNode=1,nNodes
+  TempNodeToElem(iNode)%ElemID=-1
 END DO
 
-#ifdef MPI
 ! find all real neighbour elements for elements with halo neighbours 
-! recurively checking connected halo area
-IF (nTotalElems.GT.PP_nElems) THEN
-  DO iElem =1, PP_nElems
-    TempHaloElems(1:500) = 0
-    TempHaloNumElems = 0
-    IF (GEO%NumNeighborElems(iElem).EQ.(-1)) THEN
-      DO iLocSide = 1, 6
-        ElemExists = .FALSE.
-        Element = PartElemToElemAndSide(1,iLocSide,iElem)
-        IF (Element.GT.PP_nElems) THEN
-          DO l=1, TempHaloNumElems
-            IF(Element.EQ.TempHaloElems(l)) THEN
-              ElemExists=.TRUE.
-              EXIT
-            END IF
-          END DO
-          IF (.NOT.ElemExists) THEN
-            TempHaloNumElems = TempHaloNumElems + 1
-            TempHaloElems(TempHaloNumElems) = Element
-          END IF
-          CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
+! recursively checking connected halo area
+DO iElem =1, PP_nElems
+  TempHaloElems(1:500) = 0
+  TempHaloNumElems = 0
+  ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
+  ! is finished
+  DO iLocSide = 1, 6
+    ElemExists = .FALSE.
+    Element = PartElemToElemAndSide(1,iLocSide,iElem)
+    IF (Element.GT.0) THEN !side has neighbour element
+      DO l=1, TempHaloNumElems
+        IF(Element.EQ.TempHaloElems(l)) THEN
+          ElemExists=.TRUE.
+          EXIT
         END IF
       END DO
-      GEO%NumNeighborElems(iElem) = NumNeighborElems(iElem) + TempHaloNumElems
-      ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
-      GEO%ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem)) = ElemToNeighElems(iElem)%ElemID(1:NumNeighborElems(iElem))
-      IF (TempHaloNumElems.GT.0) THEN
-        GEO%ElemToNeighElems(iElem)%ElemID(NumNeighborElems(iElem)+1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
+      IF (.NOT.ElemExists) THEN
+        TempHaloNumElems = TempHaloNumElems + 1
+        TempHaloElems(TempHaloNumElems) = Element
       END IF
-    END IF ! Element near Halo cell
-  END DO ! iElem=1,PP_nElems
-END IF ! nTotalElems > nElems
-#endif /*MPI*/
+      CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
+    END IF
+  END DO
+  IF (TempHaloNumElems.LE.0) CALL abort(&
+__STAMP__&
+,'ERROR in FindNeighbourElems! no neighbour elements found for Element',iElem)
+  ! write local variables into global array
+  GEO%NumNeighborElems(iElem) = TempHaloNumElems
+  ALLOCATE(GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)))
+  GEO%ElemToNeighElems(iElem)%ElemID(1:GEO%NumNeighborElems(iElem)) = TempHaloElems(1:TempHaloNumElems)
+  ! add neighbour elements to respective nodes of iElem if nodes of neighbour are the same to those of iElem
+  DO l=1,GEO%NumNeighborElems(iElem)
+    Element = GEO%ElemToNeighElems(iElem)%ElemID(l)
+    DO iNode = 1, 8
+      ElemExists = .FALSE.
+      DO k = 1,TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))
+        IF (TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(k).EQ.Element) THEN
+          ElemExists = .TRUE.
+          EXIT
+        END IF
+      END DO
+      IF (ElemExists) CYCLE
+      ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+      DO jNode = 1, 8
+        ElemDone = .FALSE.
+        MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,Element))
+        IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+            .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+          TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
+          TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = Element
+          ElemDone = .TRUE.
+        END IF
+        IF (ElemDone) EXIT
+      END DO ! jNode=1,8
+      IF (ElemDone) CYCLE
+    END DO ! iNode=1,8
+  END DO ! l=1,NumNeihborElems
+END DO ! iElem=1,PP_nElems
+
+! check if current element already added to every node of the element and add to missing (elements for corner nodes not added yet)
+! this part needs its own loop over all elements
+DO iElem=1,PP_nElems
+  DO iNode = 1,8
+    ElemExists = .FALSE.
+    DO l = 1,TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))
+      IF (TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(l).EQ.iElem) THEN
+        ElemExists = .TRUE.
+        EXIT
+      END IF
+    END DO
+    IF (.NOT.ElemExists) THEN
+      TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
+      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = Element
+    END IF
+  END DO
+END DO
+
+! write number of elements for corresponding proc global nodes into GEO structure
+ALLOCATE(GEO%ElemsOnNode(1:nNodes))
+ALLOCATE(GEO%NodeToElem(1:nNodes))
+DO iNode=1,nNodes
+  GEO%ElemsOnNode(iNode) = TempElemsOnNode(iNode)
+  ALLOCATE(GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)))
+  GEO%NodeToElem(iNode)%ElemID(1:GEO%ElemsOnNode(iNode)) = TempNodeToElem(iNode)%ElemID(1:TempElemsOnNode(iNode))
+END DO
+
+! fill array of neighbour nodes to proc global nodes
+ALLOCATE(GEO%NeighNodesOnNode(1:nNodes))
+ALLOCATE(GEO%NodeToNeighNode(1:nNodes))
+DO iNode=1,nNodes
+  TempHaloElems(:) = 0
+  TempHaloNumElems = 0
+  DO iElem=1,GEO%ElemsOnNode(iNode)
+    DO jNode=1,8
+      IF (GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.iNode) CYCLE
+      ElemExists=.false.
+      DO l=1, TempHaloNumElems
+        IF(GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)).EQ.TempHaloElems(l)) THEN
+          ElemExists=.true.
+          CYCLE
+        END IF
+      END DO
+      IF(.NOT.ElemExists) THEN
+        TempHaloNumElems = TempHaloNumElems + 1
+        TempHaloElems(TempHaloNumElems) = GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))
+      END IF
+    END DO
+  END DO
+  ! write local variables into global array
+  ALLOCATE(GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems))
+  GEO%NeighNodesOnNode(iNode)=TempHaloNumElems
+  GEO%NodeToNeighNode(iNode)%ElemID(1:TempHaloNumElems) = TempHaloElems(1:TempHaloNumElems)
+END DO
 
 #ifdef CODE_ANALYZE
 ! write some code analyze output of connectivity
@@ -4861,16 +4912,20 @@ DO iElem=1,PP_nElems
   print*,'Rank: ',MyRank,'------ Neighbours are:'
   DO l=1,GEO%NumNeighborElems(iElem)
     IF (GEO%ElemToNeighElems(iElem)%ElemID(l).GT.PP_nElems) THEN
-      print*,offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
+      print*,'Rank: ',MyRank,offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))) &
           + PartHaloElemToProc(NATIVE_ELEM_ID,GEO%ElemToNeighElems(iElem)%ElemID(l))
     ELSE
-      print*,GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
+      print*,'Rank: ',MyRank,GEO%ElemToNeighElems(iElem)%ElemID(l) + offsetElem
     END IF
   END DO
 #else
   print*,'Rank: ',MyRank,'------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
   print*,'Rank: ',MyRank,'------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
 #endif /*MPI*/
+END DO
+
+DO iNode=1,nNodes
+  print*,'Rank: ',MyRank,'------ Node: ',iNode,' has: ',GEO%ElemsOnNode(iNode),' Elements'
 END DO
 #endif /*CODE_ANALYZE*/
 
@@ -4881,7 +4936,7 @@ END SUBROUTINE NodeNeighbourhood
 
 RECURSIVE SUBROUTINE RecurseCheckNeighElems(StartElem,HaloElem,TempHaloNumElems,TempHaloElems)
 !===================================================================================================================================
-! Subroutine for recursively checking halo neighbourhood for connectivity to current elem
+!> Subroutine for recursively checking halo neighbourhood for connectivity to current elem
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -4905,7 +4960,8 @@ REAL                   :: MPINodeCoord(3), ElemCoord(3)
 DO iLocSide = 1,6
   ElemExists = .FALSE.
   currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
-  IF (currentElem.GT.PP_nElems) THEN
+  IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
+  !IF (currentElem.GT.PP_nElems) THEN
     DO l=1, TempHaloNumElems
       IF(currentElem.EQ.TempHaloElems(l)) THEN
         ElemExists=.TRUE.

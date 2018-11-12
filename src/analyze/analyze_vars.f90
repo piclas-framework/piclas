@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 !===================================================================================================================================
 !> Contains global variables used by the Analyze modules.
 !===================================================================================================================================
@@ -17,14 +29,20 @@ REAL              :: Analyze_dt                  !< time difference to trigger a
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
+REAL              :: PoyntingIntPlaneFactor      !< factor for poyntingintplanes
 INTEGER           :: nPoyntingIntPlanes          !< number of planes
+REAL,ALLOCATABLE  :: PoyntingIntegral(:)         !< poyntingintegral of each plane
+INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
+REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
-REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   !< plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
-LOGICAL           :: DoAnalyze                   !< perform analyze
-LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
+LOGICAL           :: DoFieldAnalyze              !< perform analyze
+INTEGER           :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
+LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
+REAL              :: Wel                         !< energy of the electric field
+REAL              :: Wmag                        !< energy of the magnetic field
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 #ifdef CODE_ANALYZE
