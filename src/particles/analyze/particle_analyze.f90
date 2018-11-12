@@ -311,7 +311,7 @@ END IF
 
 
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 
 DoPartAnalyze = .FALSE.
 ! only verifycharge and CalcCharge if particles are deposited onto the grid

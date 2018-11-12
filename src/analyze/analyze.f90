@@ -172,7 +172,7 @@ doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1') 
-IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = 123456789 
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep) 
 DoFieldAnalyze    = .FALSE. 
 CalcEpot          = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
 IF(CalcEpot)        DoFieldAnalyze = .TRUE. 
