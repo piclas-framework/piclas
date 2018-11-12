@@ -420,7 +420,7 @@ IF (DoInitialAutoRestart) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-CALL PerformAnalyze(time,tenddiff=0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! write IMD particles to state file (and TTM if it exists)
@@ -564,9 +564,9 @@ DO !iter_t=0,MaxIter
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
-  CALL TimeStepByLSERK(tEndDiff)
+  CALL TimeStepByLSERK()
 #elif (PP_TimeDiscMethod==2)
-  CALL TimeStepByLSERK(tEndDiff)
+  CALL TimeStepByLSERK()
 #elif (PP_TimeDiscMethod==3)
   CALL TimeStepByTAYLOR()
 #elif (PP_TimeDiscMethod==4)
@@ -574,7 +574,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==5)
   CALL TimeStepByRK4EulerExpl()
 #elif (PP_TimeDiscMethod==6)
-  CALL TimeStepByLSERK(tEndDiff)
+  CALL TimeStepByLSERK()
 #elif (PP_TimeDiscMethod==42)
   CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
@@ -606,7 +606,7 @@ DO !iter_t=0,MaxIter
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
   CALL TimeStepPoisson() ! Euler Explicit or leapfrog, Poisson
 #else
-  CALL TimeStepPoissonByLSERK(tEndDiff) ! Runge Kutta Explicit, Poisson
+  CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif
 #else
   CALL abort(&
@@ -631,10 +631,13 @@ DO !iter_t=0,MaxIter
       END IF
     END IF
   END IF
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&(PP_TimeDiscMethod<501||PP_TimeDiscMethod>506)
   ! calling the analyze routines
-  CALL PerformAnalyze(time,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
-#endif
+  IF(ALMOSTEQUAL(dt,tEndDiff))THEN
+    finalIter=.TRUE.
+  ELSE
+    finalIter=.FALSE.
+  END IF
+  CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
   IF(nAdaptiveBC.GT.0) CALL AdaptiveBCAnalyze()
@@ -642,11 +645,6 @@ DO !iter_t=0,MaxIter
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
   IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
-    IF(ALMOSTEQUAL(dt,tEndDiff))THEN
-      finalIter=.TRUE.
-    ELSE
-      finalIter=.FALSE.
-    END IF
     WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here, 
                     ! because it is used in ComputeElemLoad -> WriteElemTimeStatistics
@@ -682,7 +680,7 @@ DO !iter_t=0,MaxIter
     IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(tAnalyze,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter_In=finalIter)
+      CALL PerformAnalyze(tAnalyze,FirstOrLastIter=finalIter,OutPutHDF5=.TRUE.)
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
 #ifndef PP_HDG
@@ -719,7 +717,7 @@ DO !iter_t=0,MaxIter
         END IF
         CALL LoadBalance()
         IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
-          CALL PerformAnalyze(time,tendDiff,forceAnalyze=.FALSE.,OutPut=.TRUE.)
+          CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.TRUE.)
         !      dt=dt_Min !not sure if nec., was here before InitTimtStep was created, overwritten in next iter anyway
         ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! not sure if required
       END IF
@@ -748,7 +746,7 @@ END DO ! iter_t
 END SUBROUTINE TimeDisc
 
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-SUBROUTINE TimeStepByLSERK(tEndDiff)
+SUBROUTINE TimeStepByLSERK()
 !===================================================================================================================================
 ! Hesthaven book, page 64
 ! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
@@ -759,7 +757,6 @@ SUBROUTINE TimeStepByLSERK(tEndDiff)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
-USE MOD_Analyze,                 ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,           ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
@@ -810,7 +807,6 @@ USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: tendDiff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !INTEGER                       :: iPart
@@ -926,12 +922,6 @@ CALL DivCleaningDamping()
 CALL DGTimeDerivative_weakForm_Pois(time,time,0)
 CALL DivCleaningDamping_Pois()
 #endif /*PP_POIS*/
-
-
-! calling the analyze routines
-! Analysis is called in first RK-stage of NEXT iteration, however, the iteration count is performed AFTER the time step,
-! hence, this is the correct iteration for calling the analysis routines.
-CALL PerformAnalyze(time,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
 #if USE_LOADBALANCE
@@ -2801,9 +2791,9 @@ DO iStage=2,nRKStages
   SWRITE(*,*) 'sanity check'
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-      CALL ParticleSanityCheck(iPart)
+     CALL ParticleSanityCheck(iPart)
   END DO
-#endif
+#endif /*CODE_ANALYZE*/
 
 #endif /*PARTICLES*/
 END DO
@@ -3200,7 +3190,7 @@ END IF
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif
+#endif /*PARTICLES*/
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 1 - initialization && first linear solver 
@@ -3260,7 +3250,6 @@ IF(time.GE.DelayTime)THEN
     END IF
   END IF
 END IF
-
 
 IF((time.GE.DelayTime).OR.(iter.EQ.0))THEN
 ! communicate shape function particles for deposition
@@ -3428,7 +3417,7 @@ IF(time.GE.DelayTime)THEN
 END IF ! time.GE. DelayTime
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
-
+ 
 #ifndef PP_HDG
 ! LB measurement is performed within DGTimeDerivative_weakForm and LinearSolver (again DGTimeDerivative_weakForm)
 ! the copy time of the arrays is ignored within this measurement
@@ -3728,7 +3717,7 @@ IF(DoFieldUpdate)THEN
 END IF ! DoFieldUpdate
 #endif /*PARTICLES*/
 #endif /*NOT HDG->DG*/
-  
+   
 #ifdef PARTICLES
 ! particle step || only explicit particles
 IF (time.GE.DelayTime) THEN
@@ -3797,11 +3786,10 @@ IF (time.GE.DelayTime) THEN
 END IF
 #endif /*PARTICLES*/
  
-
-#ifdef PARTICLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
 !----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
 IF (useDSMC) THEN
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -4574,7 +4562,7 @@ END SUBROUTINE TimeStepPoisson
 #endif /*(PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)*/
 
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-SUBROUTINE TimeStepPoissonByLSERK(tEndDiff)
+SUBROUTINE TimeStepPoissonByLSERK()
 !===================================================================================================================================
 ! Hesthaven book, page 64
 ! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
@@ -4584,7 +4572,6 @@ SUBROUTINE TimeStepPoissonByLSERK(tEndDiff)
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
@@ -4619,7 +4606,6 @@ USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: tendDiff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL           :: tStage,b_dt(1:nRKStages)
@@ -4697,9 +4683,6 @@ END IF
 #endif /*PARTICLES*/
 
 CALL HDG(tStage,U,iter)
-
-! calling the analyze routines
-CALL PerformAnalyze(time,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
@@ -5474,4 +5457,3 @@ END SUBROUTINE FinalizeTimeDisc
 
 
 END MODULE MOD_TimeDisc
-
