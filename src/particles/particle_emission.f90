@@ -169,7 +169,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pr
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-PumpingSpeed' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed-Kp' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed-Ki' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
 
@@ -4076,10 +4079,14 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = &
-                                                          GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp = &
+                                                      GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed-Kp')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi = &
+                                                      GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed-Ki')
         ! Determining the order of magnitude
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed &
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp &
+                                                        / 10.0**(ANINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi &
                                                         / 10.0**(ANINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
         AdaptiveNbrPumps = AdaptiveNbrPumps + 1. / REAL(nSpecies)
       END SELECT
@@ -6605,14 +6612,15 @@ DO iSpec=1,nSpecies
           ! Determining the delta between current gas mixture pressure in adjacent cell and desired input pressure
           DeltaPressure = (SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
           ! Integrating the pressure difference
-          ! IF(Adaptive_MacroVal(11,ElemID,iSpec).GT.0.0) THEN
-          !   Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + DeltaPressure * dt
-          ! ELSE
-          !   Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
-          ! END IF
+           IF(Adaptive_MacroVal(11,ElemID,iSpec).GT.0.0) THEN
+             Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + DeltaPressure * dt
+           ELSE
+             Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
+           END IF
           ! Calculating the pumping speed C (=S/A) with deltaC and pressure gradient
           PumpingSpeedTemp = Adaptive_MacroVal(11,ElemID,iSpec) &
-              + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeed * DeltaPressure !+ 10.*Adaptive_MacroVal(13,ElemID,iSpec)
+              + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
+              + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
           ! Calculating the alpha, 0: particle is deleted, 1: particle is reflected
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = PumpingSpeedTemp / VeloMagnitude
           ! Making sure that alpha is between 0 and 1

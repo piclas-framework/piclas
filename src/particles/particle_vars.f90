@@ -289,7 +289,8 @@ TYPE typeSurfaceflux
   REAL                                   :: totalAreaSF                      !
   REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
   REAL                                   :: AdaptivePumpingSpeed             ! pumping speed per area of the pumping surface (C=S/A)
-  REAL                                   :: AdaptiveDeltaPumpingSpeed        ! relaxationfactor for the pumping speed
+  REAL                                   :: AdaptiveDeltaPumpingSpeedKp      ! linear relaxationfactor for the pumping speed
+  REAL                                   :: AdaptiveDeltaPumpingSpeedKi      ! integral relaxationfactor for the pumping speed
   REAL, ALLOCATABLE                      :: AdaptivePumpAlpha(:) 
 END TYPE
 
