@@ -1387,7 +1387,7 @@ CASE('cell_mean')
       iElem = PEM%Element(i)
       DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)
       DSMC_HOSolution(4:6,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(4:6,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)**2
-      DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density
+      DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
           IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
@@ -1398,7 +1398,7 @@ CASE('cell_mean')
           DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
         END IF
       END IF
-      !DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 
+      DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 !simpartnum
     END IF
   END DO
 CASE('cell_volweight')
@@ -1560,171 +1560,114 @@ DSMC_MacroVal = 0.0
 IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   nVarCount=0
   kk = 1 ; ll = 1 ; mm = 1
-  DO iSpec = 1, nSpecies
-    DO iElem = 1, nElems ! element/cell main loop    
-      IF (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec).GT.0.0) THEN
-        ! compute flow velocity
-        DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) = DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec) &
-              /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-        ! compute flow Temperature
-        DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) = Species(iSpec)%MassIC/ BoltzmannConst &
-                            * (DSMC_HOSolution(4:6,kk,ll,mm, iElem, iSpec) /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-                          - (DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec))**2)
-        ! compute density
-        DSMC_MacroVal(nVarCount+7,kk,ll,mm, iElem) = DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-          /GEO%Volume(iElem)*Species(iSpec)%MacroParticleFactor / REAL(DSMC%SampNum)
-        !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
-        !      IF (usevMPF) THEN
-        !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-        !      ELSE 
-        !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
-        !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
-        !      END IF
-        ! compute internal energies / has to be changed for vfd 
-        IF(useDSMC)THEN
-          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-              IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                  IF( (DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)) &
-                      .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = CalcTVibPoly(DSMC_HOSolution(8,kk,ll,mm,iElem,iSpec) &
-                                                                              / DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec),iSpec)
-                  ELSE
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
-                  END IF
-                ELSE
-                  TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-                        *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                  IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = 0.0
-                  ELSE
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib &
-                                                                / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
-                  END IF
-                END IF
-              ELSE                                            ! TSHO-model
-                DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
-                    , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-                    , SpecDSMC(iSpec)%MaxVibQuant)
-              END IF
-              DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
-                 /(DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-              IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                  DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                      /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec), iSpec)
-                END IF
-              END IF
-            END IF
-          END IF
-        END IF
-      ELSE
-        DSMC_MacroVal(nVarCount+1:nVarCount+10,kk,ll,mm, iElem) = 0.0
-      END IF
-      DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) / REAL(DSMC%SampNum)
-      ! mean flow Temperature
-      DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = (DSMC_MacroVal(nVarCount+4,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+5,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+6,kk,ll,mm, iElem)) / 3.
-    END DO
-    ! set counter for species    
-    nVarCount=nVarCount+nVarloc
-  END DO
-  ! write total values
   DO iElem = 1, nElems ! element/cell main loop    
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
-      MolecPartNum = 0
-      HeavyPartNum = 0
+    MolecPartNum = 0.0
+    HeavyPartNum = 0.0
+    ASSOCIATE ( Total_Velo     => DSMC_MacroVal(nVarLoc*nSpecies+1:nVarLoc*nSpecies+3,kk,ll,mm, iElem) ,&
+                Total_Temp     => DSMC_MacroVal(nVarLoc*nSpecies+4:nVarLoc*nSpecies+6,kk,ll,mm, iElem) ,&
+                Total_TempMean => DSMC_MacroVal(nVarLoc*nSpecies+12,kk,ll,mm, iElem)            ,&
+                Total_Density  => DSMC_MacroVal(nVarLoc*nSpecies+7,kk,ll,mm, iElem)             ,&
+                Total_TempVib  => DSMC_MacroVal(nVarLoc*nSpecies+8,kk,ll,mm, iElem)             ,&
+                Total_TempRot  => DSMC_MacroVal(nVarLoc*nSpecies+9,kk,ll,mm, iElem)             ,&
+                Total_Tempelec => DSMC_MacroVal(nVarLoc*nSpecies+10,kk,ll,mm, iElem)            ,&
+                Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecies+11,kk,ll,mm, iElem)            &
+                )
       DO iSpec = 1, nSpecies
-        IF (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec).GT.0.0) THEN
-          ! compute flow velocity
-          DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) &
-              + DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec)
-              !/ DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-          ! compute flow Temperature
-          DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) &
-                              + Species(iSpec)%MassIC/ BoltzmannConst &
-                              * (DSMC_HOSolution(4:6,kk,ll,mm, iElem, iSpec) /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-                            - (DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec))**2) &
-                            * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-          IF(useDSMC)THEN
-            IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-              IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-                IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                    IF( (DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)) &
-                        .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
-                          + CalcTVibPoly(DSMC_HOSolution(8,kk,ll,mm,iElem,iSpec) / DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec),iSpec) &
-                          * DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec)
+        ASSOCIATE ( PartVelo   => DSMC_HOSolution(1:3,kk,ll,mm, iElem, iSpec) ,&
+                    PartVelo2  => DSMC_HOSolution(4:6,kk,ll,mm, iElem, iSpec) ,&
+                    PartNum    => DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)   ,&
+                    PartEvib   => DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)   ,&
+                    PartErot   => DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)   ,&
+                    PartEelec  => DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)  ,&
+                    SimPartNum => DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)  ,&
+                    Macro_Velo     => DSMC_MacroVal(nVarLoc*(iSpec-1)+1:nVarLoc*(iSpec-1)+3,kk,ll,mm, iElem) ,&
+                    Macro_Temp     => DSMC_MacroVal(nVarLoc*(iSpec-1)+4:nVarLoc*(iSpec-1)+6,kk,ll,mm, iElem) ,&
+                    Macro_TempMean => DSMC_MacroVal(nVarLoc*(iSpec-1)+12,kk,ll,mm, iElem)                    ,&
+                    Macro_Density  => DSMC_MacroVal(nVarLoc*(iSpec-1)+7,kk,ll,mm, iElem)                     ,&
+                    Macro_TempVib  => DSMC_MacroVal(nVarLoc*(iSpec-1)+8,kk,ll,mm, iElem)                     ,&
+                    Macro_TempRot  => DSMC_MacroVal(nVarLoc*(iSpec-1)+9,kk,ll,mm, iElem)                     ,&
+                    Macro_Tempelec => DSMC_MacroVal(nVarLoc*(iSpec-1)+10,kk,ll,mm, iElem)                    ,&
+                    Macro_PartNum  => DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem) &
+                    )
+          IF (PartNum.GT.0.0) THEN
+            ! simulation particle number
+            Macro_PartNum = PartNum / REAL(DSMC%SampNum)
+            Total_PartNum = Total_PartNum + Macro_PartNum
+            ! compute flow velocity
+            Macro_Velo = PartVelo / PartNum
+            Total_Velo = Total_Velo + Macro_Velo*Macro_PartNum
+            ! compute flow Temperature
+            Macro_Temp = Species(iSpec)%MassIC/BoltzmannConst * ( (PartVelo2/PartNum)- (PartVelo/PartNum)**2 )
+            Total_Temp = Total_Temp + Macro_Temp*Macro_PartNum
+            ! mean flow Temperature
+            Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
+            Total_TempMean = Total_TempMean + Macro_TempMean*Macro_PartNum
+            ! compute number density
+            Macro_Density = PartNum / GEO%Volume(iElem)*Species(iSpec)%MacroParticleFactor / REAL(DSMC%SampNum)
+            Total_Density = Total_Density + Macro_Density*Macro_PartNum
+            !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
+            !      IF (usevMPF) THEN
+            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
+            !      ELSE 
+            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
+            !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
+            !      END IF
+            ! compute internal energies / has to be changed for vfd 
+            IF(useDSMC)THEN
+              IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+                IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+                  IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+                    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                      IF( (PartEvib/PartNum) .GT. SpecDSMC(iSpec)%EZeroPoint ) THEN
+                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum, iSpec)
+                      ELSE
+                        Macro_TempVib = 0.0
+                      END IF
+                    ELSE
+                      TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
+                      IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                        Macro_TempVib = 0.0
+                      ELSE
+                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                      END IF
                     END IF
-                  ELSE
-                    TVib_TempFac=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec) &
-                          *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                    IF (TVib_TempFac.GT.DSMC%GammaQuant) THEN
-                      DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
-                          + SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant)) &
-                          * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
+                  ELSE                                            ! TSHO-model
+                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+                  END IF
+                  Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
+                  MolecPartNum = MolecPartNum + Macro_PartNum
+                  IF (DSMC%ElectronicModel) THEN
+                    IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                      Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
+                      HeavyPartNum = HeavyPartNum + Macro_PartNum
                     END IF
                   END IF
-                ELSE                                            ! TSHO-model
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
-                      + CalcTVib(SpecDSMC(iSpec)%CharaTVib &
-                      , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)&
-                      /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant) &
-                      * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                END IF
-                DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
-                    + DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) / (DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)*BoltzmannConst) &
-                    * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                MolecPartNum = MolecPartNum + DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                IF (DSMC%ElectronicModel) THEN
-                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                    DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
-                        + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                        /DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec), iSpec) &
-                        * DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                    HeavyPartNum = HeavyPartNum + DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
-                  END IF
+                  Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
+                  Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
+                  Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum
                 END IF
               END IF
             END IF
           END IF
-        END IF
-        ! compute total number of particles
-        DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) &
-            + DSMC_HOSolution(7,kk,ll,mm, iElem, iSpec)
+        END ASSOCIATE
       END DO
-      IF (DSMC_Macroval(nVarCount+11,kk,ll,mm, iElem).GT.0) THEN
-        ! compute flow velocity
-        DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm, iElem) &
-            / DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem)
-        ! compute flow Temperature
-        DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+4:nVarCount+6,kk,ll,mm, iElem) &
-            / DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem)
+      IF (Total_PartNum.GT.0.0) THEN
+        Total_Velo = Total_Velo / Total_PartNum
+        Total_Temp = Total_Temp / Total_PartNum
+        Total_TempMean = Total_TempMean / Total_PartNum
+        Total_Density = Total_Density / Total_PartNum
         IF(useDSMC)THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
-                  DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem) &
-                      / MolecPartNum
-                  DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem)  = DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) &
-                      / MolecPartNum
+            Total_TempVib = Total_TempVib / MolecPartNum
+            Total_TempRot = Total_TempRot / MolecPartNum
           END IF
           IF ( DSMC%ElectronicModel .AND.(HeavyPartNum.GT. 0)) THEN
-            DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) / HeavyPartNum
+            Total_TempElec = Total_TempElec / HeavyPartNum
           END IF
         END IF
       END IF
-      ! compute density
-      DSMC_MacroVal(nVarCount+7,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) &
-                                                 / GEO%Volume(iElem) * Species(1)%MacroParticleFactor / REAL(DSMC%SampNum)
-      ! mean flow Temperature
-      DSMC_MacroVal(nVarCount+12,kk,ll,mm, iElem) = (DSMC_MacroVal(nVarCount+4,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+5,kk,ll,mm, iElem) &
-                                                  + DSMC_MacroVal(nVarCount+6,kk,ll,mm, iElem)) / 3.
-      ! compute total number of particles
-      DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) = DSMC_MacroVal(nVarCount+11,kk,ll,mm, iElem) / REAL(DSMC%SampNum)
-    !END DO; END DO; END DO
+    END ASSOCIATE
   END DO
 
   ! write dsmc quality values
