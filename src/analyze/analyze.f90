@@ -583,8 +583,6 @@ IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
 ! The initial selection is performed for DoPerformAnalyze and copied to the other analyzes. 
 ! The iteration dependent steps are performed later
 
-! nullify
-DoPerformFieldAnalyze=.FALSE.
 ! Prolongtoface in CalcPoyntingIntegral is always needed, because analyze is not any more performed within the first
 ! RK stage
 #ifdef maxwell
@@ -597,14 +595,16 @@ ProlongToFaceNeeded=.TRUE.
 ! analyze routines are not called for a restart
 ! PO: not sure if it this check is any longer needed
 IF(FirstOrLastIter)THEN
-  DoPerformFieldAnalyze=.TRUE.
+  DoPerformFieldAnalyze   =.TRUE.
+  DoPerformPartAnalyze    =.TRUE.
+  DoPerformSurfaceAnalyze =.TRUE.
+ELSE
+  ! nullify
+  DoPerformFieldAnalyze   =.FALSE.
+  DoPerformPartAnalyze    =.FALSE.
+  DoPerformSurfaceAnalyze =.FALSE.
 END IF
-! Check if output during last iteration 
-IF(LastIter) DoPerformFieldAnalyze=.TRUE.
 
-! copy initial selection information to all other analyze routines before iteration dependent flags are set
-DoPerformSurfaceAnalyze = DoPerformFieldAnalyze
-DoPerformPartAnalyze    = DoPerformFieldAnalyze
 
 ! 2) check analyze with respect to iteration counter
 ! selection criterion depending on iteration counter
