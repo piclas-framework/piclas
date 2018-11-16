@@ -608,9 +608,6 @@ INTEGER                           :: ElemID
 !===================================================================================================================================
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
-! diffusion into equilibrium distribution
-CALL SMCR_Diffusion()
-
 ! allocate number of reactions and desorptions in current MCS
 ALLOCATE (desorbnum(1:nSpecies),&
           reactdesorbnum(1:nSpecies))
@@ -1845,6 +1842,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_TimeDisc_Vars          ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -1857,7 +1855,9 @@ REAL                             :: Heat_i, Heat_j, Heat_temp
 INTEGER                          :: n_equal_site_Neigh, Surfpos, newpos
 INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 !----------------------------------------------------------------------------------------------------------------------------------!
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
+! diffusion into equilibrium distribution
 DO iSurf = 1,SurfMesh%nSides
 DO jSubSurf = 1,nSurfSample
 DO iSubSurf = 1,nSurfSample
@@ -1905,6 +1905,7 @@ DO iSubSurf = 1,nSurfSample
         WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
         Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
         CALL RANDOM_NUMBER(RanNum)
+        IF (dt.LT.1e-1) Prob_diff = Prob_diff*dt
         IF (Prob_diff.GT.RanNum) THEN
         ! move particle to new position and update map
           DO i = 1,nSitesRemain

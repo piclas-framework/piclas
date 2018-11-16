@@ -37,7 +37,7 @@ SUBROUTINE SurfaceModel_main()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars ,ONLY: PartSurfaceModel, SolidSimFlag, LiquidSimFlag
-USE MOD_SMCR          ,ONLY: SMCR_PartDesorb
+USE MOD_SMCR          ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
@@ -50,6 +50,7 @@ IF (SolidSimFlag) THEN
   CASE (1)
     CALL Calc_DesorbPartNum()
   CASE (3)
+    CALL SMCR_Diffusion()
     CALL SMCR_PartDesorb()
     !CALL AnalyzePartitionTemp()
   END SELECT

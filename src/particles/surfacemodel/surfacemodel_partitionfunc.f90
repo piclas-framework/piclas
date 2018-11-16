@@ -389,17 +389,18 @@ IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
 ELSE
   Qvib = 1.
 END IF
-IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.1) THEN
+!IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.1) THEN
+!Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
+!ELSE IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.2) THEN
+!  IF ((Adsorption%DiCoord(PartBoundID,iSpec).EQ.1) .OR. (Adsorption%DiCoord(PartBoundID,iSpec).EQ.2)) THEN
+!    Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))!**(2. - 1./2.)
+!  ELSE
+!    Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
+!  END IF
+!ELSE
+!Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))  ! (2-1./REAL(Adsorption%CrystalIndx(1)))
+!END IF
 Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
-ELSE IF (Adsorption%Coordination(PartBoundID,iSpec).EQ.2) THEN
-  IF ((Adsorption%DiCoord(PartBoundID,iSpec).EQ.1) .OR. (Adsorption%DiCoord(PartBoundID,iSpec).EQ.2)) THEN
-    Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))** 2.
-  ELSE
-    Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
-  END IF
-ELSE
-Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
-END IF
 Qrot = 1.
 VarPartitionFuncSurf = Qtra * Qrot * Qvib
 
