@@ -4514,7 +4514,19 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               Adaptive_MacroVal(11,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed
-              Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
+              IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
+                Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity * BoltzmannConst &
+                                                   * Species(iSpec)%Init(1)%MWTemperatureIC
+              ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
+                CALL abort(&
+__STAMP__&
+,'ERROR in Pump Definition: Currently, only one init domain per species can be combined with pump RB ')
+              ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
+                Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity * BoltzmannConst &
+                                                   * Species(iSpec)%Init(0)%MWTemperatureIC
+              ELSE
+                Adaptive_MacroVal(12,ElemID,iSpec) = 0.0
+              END IF
             END IF
           END IF
         END IF
@@ -6574,10 +6586,10 @@ IMPLICIT NONE
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID
 INTEGER                       :: PumpElemCount, iPump, GlobalPumpCount
 REAL                          :: iRan, VeloMagnitude, PumpingSpeedTemp, DeltaPressure
-REAL, ALLOCATABLE             :: PumpingSpeed(:), AlphaOutput(:), PumpingAlpha(:)
+REAL, ALLOCATABLE             :: PumpingSpeed(:), AlphaOutput(:), PumpingAlpha(:), PressAtPumpTemp(:), PumpingPress(:)
 #ifdef MPI
 INTEGER, ALLOCATABLE          :: ProcCount(:)
-REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:), GlobalPumpingAlpha(:)
+REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:), GlobalPumpingAlpha(:), GlobalPumpingPress(:)
 INTEGER, ALLOCATABLE          :: GlobalProcCount(:)
 #endif
 !===================================================================================================================================
@@ -6589,6 +6601,8 @@ CALL ExchangePumpData()
 
 ALLOCATE(AlphaOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 AlphaOutput = 0.
+ALLOCATE(PressAtPumpTemp(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
+PressAtPumpTemp = 0.
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -6641,6 +6655,8 @@ DO iSpec=1,nSpecies
                                                                     + Adaptive_MacroVal(11,ElemID,iSpec)
           AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) &
                                                             / REAL(nSpecies)
+          PressAtPumpTemp(iSF) = PressAtPumpTemp(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
+                                                            / Species(1)%Surfaceflux(iSF)%AdaptivePressure
           PumpElemCount = PumpElemCount + 1
         END IF
         ! Reset sampled values at pump surface
@@ -6651,6 +6667,7 @@ DO iSpec=1,nSpecies
       Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
               = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / REAL(PumpElemCount)
       AlphaOutput(iSF) = AlphaOutput(iSF) / REAL(PumpElemCount)
+      PressAtPumpTemp(iSF) = PressAtPumpTemp(iSF) / REAL(PumpElemCount)
     END IF
   END DO
 END DO
@@ -6660,11 +6677,13 @@ END DO
   GlobalPumpCount = NINT(AdaptiveNbrPumps)
   ALLOCATE(PumpingSpeed(1:GlobalPumpCount))
   ALLOCATE(PumpingAlpha(1:GlobalPumpCount))
+  ALLOCATE(PumpingPress(1:GlobalPumpCount))
   iPump=1
   DO iSF=1,Species(1)%nSurfacefluxBCs
     IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
       PumpingSpeed(iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
       PumpingAlpha(iPump) = AlphaOutput(iSF)
+      PumpingPress(iPump) = PressAtPumpTemp(iSF)
       iPump = iPump + 1
     END IF
   END DO
@@ -6679,42 +6698,50 @@ END DO
   END DO
     ALLOCATE(GlobalPumpingSpeed(GlobalPumpCount))
     ALLOCATE(GlobalPumpingAlpha(GlobalPumpCount))
+    ALLOCATE(GlobalPumpingPress(GlobalPumpCount))
     ALLOCATE(GlobalProcCount(GlobalPumpCount))
     GlobalPumpingSpeed = 0.0
     GlobalPumpingAlpha = 0.0
+    GlobalPumpingPress = 0.0
     GlobalProcCount = 0
     CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
     CALL MPI_REDUCE(PumpingAlpha,GlobalPumpingAlpha,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(PumpingPress,GlobalPumpingPress,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
     CALL MPI_REDUCE(ProcCount,GlobalProcCount,GlobalPumpCount,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
   IF(MPIRoot) THEN
     DO iPump = 1,GlobalPumpCount
       IF(GlobalProcCount(iPump).GT.0) THEN
         PumpingSpeed(iPump) = GlobalPumpingSpeed(iPump) / REAL(GlobalProcCount(iPump))
         PumpingAlpha(iPump) = GlobalPumpingAlpha(iPump) / REAL(GlobalProcCount(iPump))
+        PumpingPress(iPump) = GlobalPumpingPress(iPump) / REAL(GlobalProcCount(iPump))
       ELSE
         PumpingSpeed(iPump) = 0.0
         PumpingAlpha(iPump) = 0.0
+        PumpingPress(iPump) = 0.0
       END IF
     END DO
 #endif
-    CALL WritePumpBCInfo(GlobalPumpCount,PumpingSpeed,PumpingAlpha)
+  CALL WritePumpBCInfo(GlobalPumpCount,PumpingSpeed,PumpingAlpha,PumpingPress)
 #ifdef MPI
   END IF
   SDEALLOCATE(GlobalPumpingSpeed)
   SDEALLOCATE(GlobalPumpingAlpha)
+  SDEALLOCATE(GlobalPumpingPress)
   SDEALLOCATE(GlobalProcCount)
   SDEALLOCATE(ProcCount)
 #endif
   SDEALLOCATE(PumpingSpeed)
   SDEALLOCATE(PumpingAlpha)
+  SDEALLOCATE(PumpingPress)
 !END IF
 
 SDEALLOCATE(AlphaOutput)
+SDEALLOCATE(PressAtPumpTemp)
 
 END SUBROUTINE AdaptivePumpBC
 
 
-SUBROUTINE WritePumpBCInfo(PumpCount,PumpingSpeed,PumpingAlpha)
+SUBROUTINE WritePumpBCInfo(PumpCount,PumpingSpeed,PumpingAlpha,PumpingPress)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -6725,7 +6752,7 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)          :: PumpCount
-REAL,INTENT(IN)             :: PumpingSpeed(1:PumpCount), PumpingAlpha(1:PumpCount)
+REAL,INTENT(IN)             :: PumpingSpeed(1:PumpCount), PumpingAlpha(1:PumpCount), PumpingPress(1:PumpCount)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: OutputCounter, unit_index, iPump
@@ -6753,6 +6780,11 @@ IF (.NOT.isOpen) THEN
       WRITE(unit_index,'(I3.3,A7,I3.3)',ADVANCE='NO') OutputCounter,'-Alpha-', iPump
       OutputCounter = OutputCounter + 1
     END DO
+    DO iPump = 1, PumpCount
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(I3.3,A7,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPump
+      OutputCounter = OutputCounter + 1
+    END DO
     WRITE(unit_index,'(A1)') ' '
   END IF
 END IF
@@ -6764,6 +6796,10 @@ END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingAlpha(iPump))
+END DO
+DO iPump=1, PumpCount
+  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingPress(iPump))
 END DO
 WRITE(unit_index,'(A1)') ' '
 
