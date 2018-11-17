@@ -6583,15 +6583,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec, iSF, iSurfSide, ElemID
-INTEGER                       :: PumpElemCount, iPump, GlobalPumpCount
+INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount
+INTEGER, ALLOCATABLE          :: PumpElemCount(:)
 REAL                          :: iRan, VeloMagnitude, PumpingSpeedTemp, DeltaPressure
-REAL, ALLOCATABLE             :: PumpingSpeed(:), AlphaOutput(:), PumpingAlpha(:), PressAtPumpTemp(:), PumpingPress(:)
-#ifdef MPI
-INTEGER, ALLOCATABLE          :: ProcCount(:)
-REAL, ALLOCATABLE             :: GlobalPumpingSpeed(:), GlobalPumpingAlpha(:), GlobalPumpingPress(:)
-INTEGER, ALLOCATABLE          :: GlobalProcCount(:)
-#endif
+REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:)
 !===================================================================================================================================
 
 ! Communication of impinged particles on the pump in halo region
@@ -6601,12 +6596,16 @@ CALL ExchangePumpData()
 
 ALLOCATE(AlphaOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 AlphaOutput = 0.
-ALLOCATE(PressAtPumpTemp(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-PressAtPumpTemp = 0.
+ALLOCATE(PressNormOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
+PressNormOutput = 0.
+ALLOCATE(PumpElemCount(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
+PumpElemCount = 0
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    PumpElemCount = 0
+    ! Resetting the element counter -> only last species counts: Temporary workaround, should not be used with multiple species
+    ! Example: If a species is very dilute, no particle might hit certain elements of the pump -> PumpElemCount would be smaller
+    PumpElemCount(iSF) = 0
     Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
       DO iSurfSide = 1,SurfMesh%nTotalSides
@@ -6631,7 +6630,7 @@ DO iSpec=1,nSpecies
            ELSE
              Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
            END IF
-          ! Calculating the pumping speed C (=S/A) with deltaC and pressure gradient
+          ! Calculating the pumping speed C (=S/A) with a proportional (Kp) and integral part (Ki)
           PumpingSpeedTemp = Adaptive_MacroVal(11,ElemID,iSpec) &
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
@@ -6655,93 +6654,61 @@ DO iSpec=1,nSpecies
                                                                     + Adaptive_MacroVal(11,ElemID,iSpec)
           AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) &
                                                             / REAL(nSpecies)
-          PressAtPumpTemp(iSF) = PressAtPumpTemp(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
+          PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
                                                             / Species(1)%Surfaceflux(iSF)%AdaptivePressure
-          PumpElemCount = PumpElemCount + 1
+          PumpElemCount(iSF) = PumpElemCount(iSF) + 1
         END IF
         ! Reset sampled values at pump surface
         SampWall(iSurfSide)%PumpBCInfo(1:4,iSpec,iSF) = 0.
       END DO
     END IF
-    IF(PumpElemCount.GT.0) THEN
-      Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
-              = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed / REAL(PumpElemCount)
-      AlphaOutput(iSF) = AlphaOutput(iSF) / REAL(PumpElemCount)
-      PressAtPumpTemp(iSF) = PressAtPumpTemp(iSF) / REAL(PumpElemCount)
-    END IF
   END DO
 END DO
 
 !IF(MOD(iter,IterDisplayStep/10).EQ.0) THEN
-  ! Output of pumping speed
+  ! Getting the total number of pumps in the simulation
   GlobalPumpCount = NINT(AdaptiveNbrPumps)
-  ALLOCATE(PumpingSpeed(1:GlobalPumpCount))
-  ALLOCATE(PumpingAlpha(1:GlobalPumpCount))
-  ALLOCATE(PumpingPress(1:GlobalPumpCount))
+  ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
   iPump=1
+  ! Mapping the info from the surface flux array to the pump array
   DO iSF=1,Species(1)%nSurfacefluxBCs
     IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-      PumpingSpeed(iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
-      PumpingAlpha(iPump) = AlphaOutput(iSF)
-      PumpingPress(iPump) = PressAtPumpTemp(iSF)
+      PumpBCInfo(1,iPump) = REAL(PumpElemCount(iSF))
+      PumpBCInfo(2,iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
+      PumpBCInfo(3,iPump) = AlphaOutput(iSF)
+      PumpBCInfo(4,iPump) = PressNormOutput(iSF)
       iPump = iPump + 1
     END IF
   END DO
 #ifdef MPI
-  ALLOCATE(ProcCount(GlobalPumpCount))
-  DO iPump = 1,GlobalPumpCount
-    IF(PumpingSpeed(iPump).GT.0.0) THEN
-      ProcCount(iPump) = 1
-    ELSE
-      ProcCount(iPump) = 0
-    END IF
-  END DO
-    ALLOCATE(GlobalPumpingSpeed(GlobalPumpCount))
-    ALLOCATE(GlobalPumpingAlpha(GlobalPumpCount))
-    ALLOCATE(GlobalPumpingPress(GlobalPumpCount))
-    ALLOCATE(GlobalProcCount(GlobalPumpCount))
-    GlobalPumpingSpeed = 0.0
-    GlobalPumpingAlpha = 0.0
-    GlobalPumpingPress = 0.0
-    GlobalProcCount = 0
-    CALL MPI_REDUCE(PumpingSpeed,GlobalPumpingSpeed,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    CALL MPI_REDUCE(PumpingAlpha,GlobalPumpingAlpha,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    CALL MPI_REDUCE(PumpingPress,GlobalPumpingPress,GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    CALL MPI_REDUCE(ProcCount,GlobalProcCount,GlobalPumpCount,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+  ! Communicating the values and summation at the root
   IF(MPIRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,(/4,GlobalPumpCount/),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  ELSE
+    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,(/4,GlobalPumpCount/),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  END IF
+  IF(MPIRoot) THEN
+#endif
+    ! Averaging of the pump info across the whole pump area
     DO iPump = 1,GlobalPumpCount
-      IF(GlobalProcCount(iPump).GT.0) THEN
-        PumpingSpeed(iPump) = GlobalPumpingSpeed(iPump) / REAL(GlobalProcCount(iPump))
-        PumpingAlpha(iPump) = GlobalPumpingAlpha(iPump) / REAL(GlobalProcCount(iPump))
-        PumpingPress(iPump) = GlobalPumpingPress(iPump) / REAL(GlobalProcCount(iPump))
-      ELSE
-        PumpingSpeed(iPump) = 0.0
-        PumpingAlpha(iPump) = 0.0
-        PumpingPress(iPump) = 0.0
+      IF(PumpBCInfo(1,iPump).GT.0) THEN
+        PumpBCInfo(2:4,iPump) = PumpBCInfo(2:4,iPump) / NINT(PumpBCInfo(1,iPump))
       END IF
     END DO
-#endif
-  CALL WritePumpBCInfo(GlobalPumpCount,PumpingSpeed,PumpingAlpha,PumpingPress)
+    CALL WritePumpBCInfo(GlobalPumpCount,PumpBCInfo)
 #ifdef MPI
   END IF
-  SDEALLOCATE(GlobalPumpingSpeed)
-  SDEALLOCATE(GlobalPumpingAlpha)
-  SDEALLOCATE(GlobalPumpingPress)
-  SDEALLOCATE(GlobalProcCount)
-  SDEALLOCATE(ProcCount)
 #endif
-  SDEALLOCATE(PumpingSpeed)
-  SDEALLOCATE(PumpingAlpha)
-  SDEALLOCATE(PumpingPress)
+  SDEALLOCATE(PumpBCInfo)
 !END IF
 
 SDEALLOCATE(AlphaOutput)
-SDEALLOCATE(PressAtPumpTemp)
+SDEALLOCATE(PressNormOutput)
 
 END SUBROUTINE AdaptivePumpBC
 
 
-SUBROUTINE WritePumpBCInfo(PumpCount,PumpingSpeed,PumpingAlpha,PumpingPress)
+SUBROUTINE WritePumpBCInfo(PumpCount,PumpBCInfo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -6752,7 +6719,7 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)          :: PumpCount
-REAL,INTENT(IN)             :: PumpingSpeed(1:PumpCount), PumpingAlpha(1:PumpCount), PumpingPress(1:PumpCount)
+REAL,INTENT(IN)             :: PumpBCInfo(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: OutputCounter, unit_index, iPump
@@ -6782,7 +6749,7 @@ IF (.NOT.isOpen) THEN
     END DO
     DO iPump = 1, PumpCount
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A7,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPump
+      WRITE(unit_index,'(I3.3,A11,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPump
       OutputCounter = OutputCounter + 1
     END DO
     WRITE(unit_index,'(A1)') ' '
@@ -6791,15 +6758,15 @@ END IF
 WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingSpeed(iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(2,iPump))
 END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingAlpha(iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(3,iPump))
 END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpingPress(iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(4,iPump))
 END DO
 WRITE(unit_index,'(A1)') ' '
 
