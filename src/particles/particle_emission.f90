@@ -3664,9 +3664,9 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, SurfMesh
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, PDM
+                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump, AdaptiveNbrPumps
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
@@ -3689,7 +3689,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
-INTEGER               :: iCopy1, iCopy2, iCopy3, nSides, iSurfSide
+INTEGER               :: iCopy1, iCopy2, iCopy3, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2)
@@ -6567,7 +6567,7 @@ SUBROUTINE AdaptivePumpBC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_Particle_Vars,          ONLY:PDM, Species, nSpecies, Adaptive_MacroVal, AdaptiveNbrPumps
+USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, AdaptiveNbrPumps
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, SampWall
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
@@ -6585,7 +6585,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount
 INTEGER, ALLOCATABLE          :: PumpElemCount(:)
-REAL                          :: iRan, VeloMagnitude, PumpingSpeedTemp, DeltaPressure
+REAL                          :: VeloMagnitude, PumpingSpeedTemp, DeltaPressure
 REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:)
 !===================================================================================================================================
 
@@ -6785,7 +6785,7 @@ SUBROUTINE ExchangePumpData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies,Species
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,SampWall
 USE MOD_Particle_MPI_Vars           ,ONLY:PumpSendBuf,PumpRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -6796,7 +6796,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID,iSpec,iSF
-INTEGER                         :: iPos,p,q,iProc,iReact
+INTEGER                         :: iPos,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
