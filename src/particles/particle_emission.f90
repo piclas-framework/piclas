@@ -6665,7 +6665,7 @@ DO iSpec=1,nSpecies
   END DO
 END DO
 
-!IF(MOD(iter,IterDisplayStep/10).EQ.0) THEN
+!IF(MOD(iter,IterDisplayStep).EQ.0) THEN
   ! Getting the total number of pumps in the simulation
   GlobalPumpCount = NINT(AdaptiveNbrPumps)
   ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
@@ -6683,9 +6683,9 @@ END DO
 #ifdef MPI
   ! Communicating the values and summation at the root
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,(/4,GlobalPumpCount/),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,4*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   ELSE
-    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,(/4,GlobalPumpCount/),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,4*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   END IF
   IF(MPIRoot) THEN
 #endif
