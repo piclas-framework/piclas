@@ -4,9 +4,20 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
 # TODO: eventually require CMake 3.0 in future releases
 # Advantages: Possible to split string
-IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
-  cmake_policy (SET CMP0045 OLD)
-  cmake_policy (SET CMP0046 OLD)
+IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
+    # use the <PackageName>_ROOT for searching packages
+    cmake_policy (SET CMP0074 NEW)
+    # From the following TWO settings,  the OLD behavior is deprecated
+    # produces a "FATAL_ERROR" if "get_target_property()"is called with a
+    # non-existing argument
+    cmake_policy (SET CMP0045 NEW) 
+    # error in non-existing dependencies, NEW report error
+    cmake_policy (SET CMP0046 NEW)
+ELSE()
+  IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
+    cmake_policy (SET CMP0045 OLD)
+    cmake_policy (SET CMP0046 OLD)
+  ENDIF()
 ENDIF()
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
