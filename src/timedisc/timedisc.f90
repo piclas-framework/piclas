@@ -4575,7 +4575,7 @@ SUBROUTINE TimeStepPoissonByLSERK()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iterdt_Min,dtWeight
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
