@@ -128,6 +128,8 @@ CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
   , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [surfacemodel=3].\n'//&
     'If one surface contains less then 5x5 surface atoms program abort is called.\n'//&
     'Default: Species(1)%MPF: Uses macro particle factor of species1.')
+CALL prms%CreateIntOption(     'Particles-Surface-Structure'&
+  , 'Defines the structure of the reconstructed surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2')
 CALL prms%CreateIntOption(      'Surface-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateIntOption(      'Surface-Nbr-DissocReactions'&

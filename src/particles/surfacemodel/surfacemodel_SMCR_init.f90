@@ -33,26 +33,6 @@ CONTAINS
 SUBROUTINE InitSMCR()
 !===================================================================================================================================
 !> Initializing surface distibution reconstruction model for calculating of coverage effects on heat of adsorption
-!> Positions of binding sites in the surface lattice (always rectangular surface lattice assumed)
-!> ------------[        surfsquare       ]--------------
-!>              |       |       |       |
-!>          3---2---3---2---3---2---3---2---3
-!>          |       |       |       |       |
-!>          2   1   2   1   2   1   2   1   2
-!>          |       |       |       |       |
-!>          3---2---3---2---3---2---3---2---3
-!>          |       |       |       |       |
-!>          2   1   2   1   2   1   2   1   2
-!>          |       |       |       |       |
-!>          3---2---3---2---3---2---3---2---3
-!>          |       |       |       |       |
-!>          2   1   2   1   2   1   2   1   2
-!>          |       |       |       |       |
-!>          3---2---3---2---3---2---3---2---3
-!>          |       |       |       |       |
-!>          2   1   2   1   2   1   2   1   2
-!>          |       |       |       |       |
-!>          3---2---3---2---3---2---3---2---3
 !> For now:
 !> Neighbours are all sites, that have the same binding surface atom.
 !> Except for top sites(3) they also interact with the next top site.
@@ -87,6 +67,7 @@ REAL                             :: RanNum
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 INTEGER                          :: DistSquareNum
 LOGICAL                          :: DistNumCase
+INTEGER                          :: SurfaceStructure
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -112,6 +93,7 @@ ELSE
   WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
   surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
 END IF
+SurfaceStructure = GETINT('Particles-Surface-Structure')
 Max_Surfsites_num = 0
 Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
@@ -130,22 +112,29 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   !       surfsquare = INT(SQRT(REAL(surfsquare))) - 1
   !     END IF
         IF (DistNumCase) THEN
-          surfsquare = DistSquareNum
+          surfsquare = DistSquareNum - 1
         ELSE
           surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
                         / surface_mpf)
           surfsquare = INT(SQRT(REAL(surfsquare))) - 1
         END IF
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1) = INT(surfsquare**2)
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
-        IF (surfsquare.LT.5)THEN
-          CALL abort(&
-            __STAMP__&
-            ,'not enough surface spaces for distribution. Surface-MacroParticleFactor too high or DistSquareNumber too low'&
-            ,surfsquare)
-        END IF
+        SELECT CASE (SurfaceStructure)
+        CASE(1) !fcc(100)
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1) = INT(surfsquare**2)
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+        CASE(2) !fcc(111)
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1) = INT(2*surfsquare**2)
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( surfsquare*(3*(surfsquare+1)-1) )
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
+        END SELECT
+        !IF (surfsquare.LT.4)THEN
+        !  CALL abort(&
+        !    __STAMP__&
+        !    ,'not enough surface spaces for distribution. Surface-MacroParticleFactor too high or DistSquareNumber too low'&
+        !    ,surfsquare)
+        !END IF
 
         Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(:))
         IF (iSurfSide.LE.SurfMesh%nSides) THEN
@@ -163,19 +152,37 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
 
         ALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1:3))
         DO Coord = 1,3
-          SELECT CASE (Coord)
-          CASE(1)
-            nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 4
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 16
-          CASE(2)
-            nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 2
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 14
-          CASE(3)
-            nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 1
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 12
+          SELECT CASE (SurfaceStructure)
+          CASE(1) !fcc(100)
+            SELECT CASE (Coord)
+            CASE(1)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 4
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 16
+            CASE(2)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 2
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 14
+            CASE(3)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 1
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 12
+            END SELECT
+          CASE(2) !fcc(111)
+            SELECT CASE (Coord)
+            CASE(1)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 3
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 30
+            CASE(2)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 2
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 24
+            CASE(3)
+              nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Coord)
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom = 1
+              SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nNeighbours = 24
+            END SELECT
           END SELECT
 
           nInterAtom = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%nInterAtom
@@ -214,256 +221,16 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   END DO
 END DO
 
-DO iSurfSide = 1,SurfMesh%nTotalSides
-SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
-PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
-DO iSubSurf = 1,nSurfSample
-DO jSubSurf = 1,nSurfSample
-  ! surfsquare chosen from nSite(1) for correct SurfIndx definitions
-  surfsquare = INT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))))
-  ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours
-  Indx = 1
-  Indy = 1
-  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1)
-    IF (Indx.GT.surfsquare) THEN
-      Indx = 1
-      Indy = Indy + 1
-    END IF
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%UsedSiteMap(Surfpos) = Surfpos
-    ! mapping respective neighbours first hollow then bridge then top
-    ! hollow
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,1) = Surfpos - surfsquare - 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,2) = Surfpos - surfsquare
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,4) = Surfpos - 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,5) = Surfpos + 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,7) = Surfpos + surfsquare
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:8) = 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,2) = .TRUE.
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,4) = .TRUE.
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,5) = .TRUE.
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,7) = .TRUE.
-    ! bridge
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9) = Surfpos +(surfsquare+1)*(Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1) +1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = Surfpos +surfsquare +(surfsquare+1)*(Indy)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,9:12) = 2
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,9:12) = .TRUE.
-    ! top
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = Surfpos + (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = Surfpos + 1 + (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = Surfpos + (surfsquare+1) + (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = Surfpos + (surfsquare+1) + 1 + (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:16) = 3
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,13:16) = .TRUE.
-    ! account for empty edges
-    IF (Indy .EQ. 1) SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
-    IF (Indy .EQ. surfsquare) SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6:8) = 0
-    IF (Indx .EQ. 1) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,4) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6) = 0
-    END IF
-    IF (Indx .EQ. surfsquare) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,3) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,5) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8) = 0
-    END IF
-    ! mapping respective bond atoms
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,1) = Indx
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,2) = Indx+1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,3) = Indx
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,4) = Indx+1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,4) = Indy+1
-    Indx = Indx + 1
-  END DO
-  Indx = 1
-  Indy = 1
-  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2)
-    IF (Indx.GT.(2*surfsquare+1)) THEN
-      Indx = 1
-      Indy = Indy + 1
-    END IF
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%UsedSiteMap(Surfpos) = Surfpos
-    IF (Indx .LE. surfsquare) THEN ! surface atoms are LEFT an RIGHT of adsorbate site
-      ! mapping respective neighbours first hollow then bridge then top
-      ! hollow
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) +1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1) +1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,2) = .TRUE.
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,5) = .TRUE.
-      ! bridge
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - (surfsquare+1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - (surfsquare+1) + 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + surfsquare
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,7:12) = .TRUE.
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,9) = .FALSE.
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,10) = .FALSE.
-      ! top
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -(surfsquare)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos +1 -(surfsquare)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
-      ! account for empty edges
-      IF (Indy .EQ. 1) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:8) = 0
-      END IF
-      IF (Indy .EQ. surfsquare+1) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4:6) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
-      END IF
-      IF (Indx .EQ. 1) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
-      END IF
-      IF (Indx .EQ. surfsquare) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
-      END IF
-      ! mapping respective bond atoms
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx+1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy
-    ELSE ! surface atoms are TOP and DOWN of adsorbate site
-      ! mapping respective neighbours first hollow then bridge then top
-      ! hollow
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos -(2*surfsquare) &
-                                                                                  -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos -(2*surfsquare)&
-                                                                                  -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos -surfsquare &
-                                                                                  -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos - surfsquare -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,3:4) = .TRUE.
-      ! bridge
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - surfsquare - 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - surfsquare
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + (surfsquare+1) - 1
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + (surfsquare+1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + (surfsquare+1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,8:11) = .TRUE.
-      ! top
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -surfsquare*(Indy)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos -surfsquare*(Indy) +(surfsquare+1)
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
-      ! account for empty edges
-      IF (Indy .EQ. 1) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7) = 0
-      END IF
-      IF (Indy .EQ. surfsquare) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5:6) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,12) = 0
-      END IF
-      IF (Indx .EQ. (surfsquare+1)) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
-      END IF
-      IF (Indx .EQ. 2*surfsquare+1) THEN
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,2) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
-      END IF
-      ! mapping respective bond atoms
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx - surfsquare
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx - surfsquare
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
-    END IF
-    Indx = Indx + 1
-  END DO
-  Indx = 1
-  Indy = 1
-  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3)
-    IF (Indx.GT.surfsquare+1) THEN
-      Indx = 1
-      Indy = Indy + 1
-    END IF
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%UsedSiteMap(Surfpos) = Surfpos
-    ! mapping respective neighbours first hollow then bridge then top
-    ! hollow
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,1) = Surfpos - (surfsquare) - 1 -(Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,2) = Surfpos - (surfsquare) - (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - 1 - (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - (Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,1:4) = .TRUE.
-    ! bridge
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,5) = Surfpos + surfsquare*(Indy-1) -(surfsquare+1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,6) = Surfpos -1 +(surfsquare)*(Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,7) = Surfpos +(surfsquare)*(Indy-1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,8) = Surfpos + surfsquare*(Indy)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5:8) = 2
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,5:8) = .TRUE.
-    ! top
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,9) = Surfpos - (surfsquare+1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,10) = Surfpos - 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,11) = Surfpos + 1
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,12) = Surfpos + (surfsquare+1)
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,9:12) = 3
-    ! account for empty edges
-    IF (Indy .EQ. 1) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:2) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,9) = 0
-    END IF
-    IF (Indx .EQ. 1) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,3) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,6) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,10) = 0
-    END IF
-    IF (Indy .EQ. (surfsquare+1)) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,3:4) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,8) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,12) = 0
-    END IF
-    IF (Indx .EQ. (surfsquare+1)) THEN
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,2) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,4) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,7) = 0
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,11) = 0
-    END IF
-    ! mapping respective bond atoms
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndx(Surfpos,1) = Indx
-    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
-    Indx = Indx + 1
-  END DO
+          print*,SurfDistInfo(1,1,1)%nSites(1)
+          print*,SurfDistInfo(1,1,1)%nSites(2)
+          print*,SurfDistInfo(1,1,1)%nSites(3)
 
-END DO
-END DO
-END DO
+SELECT CASE (SurfaceStructure)
+CASE(1) !fcc(100)
+  CALL Initfcc100Mapping()
+CASE(2) !fcc(111)
+  CALL Initfcc111Mapping()
+END SELECT
 
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
@@ -1004,5 +771,830 @@ END IF ! SurfMesh%SurfOnProc
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS DONE!'
 END SUBROUTINE Init_TST_Coeff
+
+
+SUBROUTINE Initfcc100Mapping()
+!===================================================================================================================================
+!> Initializion of the fcc100 mapping for neighbours and neighrest neighbours site type and position
+!> Positions of binding sites in the surface lattice (always rectangular surface lattice assumed)
+!> ------------[        surfsquare       ]--------------
+!>              |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!>          |       |       |       |       |
+!>          2   1   2   1   2   1   2   1   2
+!>          |       |       |       |       |
+!>          3---2---3---2---3---2---3---2---3
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iSurfSide, iSubSurf, jSubSurf
+INTEGER                          :: SideID, PartBoundID
+INTEGER                          :: surfsquare
+INTEGER                          :: Surfpos, Indx, Indy
+INTEGER                          :: nSites
+!===================================================================================================================================
+DO iSurfSide = 1,SurfMesh%nTotalSides
+SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+PartboundID = PartBound%MapToPartBC(BC(SideID))
+IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+DO iSubSurf = 1,nSurfSample
+DO jSubSurf = 1,nSurfSample
+  ! surfsquare chosen from nSite(1) for correct SurfIndx definitions (Nx-1)
+  surfsquare = INT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))))
+  ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1)
+    IF (Indx.GT.surfsquare) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%UsedSiteMap(Surfpos) = Surfpos
+    ! mapping respective neighbours first hollow then bridge then top
+    ! hollow
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,1) = Surfpos - surfsquare - 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,2) = Surfpos - surfsquare
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,3) = Surfpos - surfsquare + 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,4) = Surfpos - 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,5) = Surfpos + 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,6) = Surfpos + surfsquare - 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,7) = Surfpos + surfsquare
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,8) = Surfpos + surfsquare + 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:8) = 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,2) = .TRUE.
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,4) = .TRUE.
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,5) = .TRUE.
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,7) = .TRUE.
+    ! bridge
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9) = Surfpos +(surfsquare+1)*(Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = Surfpos +surfsquare +(surfsquare+1)*(Indy-1) +1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = Surfpos +surfsquare +(surfsquare+1)*(Indy)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,9:12) = 2
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,9:12) = .TRUE.
+    ! top
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = Surfpos + (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = Surfpos + 1 + (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = Surfpos + (surfsquare+1) + (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = Surfpos + (surfsquare+1) + 1 + (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:16) = 3
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,13:16) = .TRUE.
+    ! account for empty edges
+    IF (Indy .EQ. 1) SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
+    IF (Indy .EQ. surfsquare) SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6:8) = 0
+    IF (Indx .EQ. 1) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,4) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6) = 0
+    END IF
+    IF (Indx .EQ. surfsquare) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,3) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,5) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8) = 0
+    END IF
+    ! mapping respective bond atoms
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,1) = Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,2) = Indx+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,3) = Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,4) = Indx+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,4) = Indy+1
+    Indx = Indx + 1
+  END DO
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2)
+    IF (Indx.GT.(2*surfsquare+1)) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%UsedSiteMap(Surfpos) = Surfpos
+    IF (Indx .LE. surfsquare) THEN ! surface atoms are LEFT an RIGHT of adsorbate site
+      ! mapping respective neighbours first hollow then bridge then top
+      ! hollow
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos-surfsquare -(surfsquare+1)*(Indy-1) +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1) +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,2) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,5) = .TRUE.
+      ! bridge
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - (surfsquare+1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - (surfsquare+1) + 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + surfsquare
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,7:12) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,9) = .FALSE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,10) = .FALSE.
+      ! top
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -(surfsquare)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos +1 -(surfsquare)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
+      ! account for empty edges
+      IF (Indy .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:8) = 0
+      END IF
+      IF (Indy .EQ. surfsquare+1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4:6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
+      END IF
+      IF (Indx .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
+      END IF
+      IF (Indx .EQ. surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
+      END IF
+      ! mapping respective bond atoms
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy
+    ELSE ! surface atoms are TOP and DOWN of adsorbate site
+      ! mapping respective neighbours first hollow then bridge then top
+      ! hollow
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1) = Surfpos -(2*surfsquare) &
+                                                                                  -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2) = Surfpos -(2*surfsquare)&
+                                                                                  -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos -surfsquare &
+                                                                                  -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos - surfsquare -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,3:4) = .TRUE.
+      ! bridge
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8) = Surfpos - surfsquare - 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9) = Surfpos - surfsquare
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = Surfpos + (surfsquare+1) - 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = Surfpos + (surfsquare+1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = Surfpos + surfsquare + (surfsquare+1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7:12) = 2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,8:11) = .TRUE.
+      ! top
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = Surfpos -surfsquare*(Indy)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = Surfpos -surfsquare*(Indy) +(surfsquare+1)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13:14) = 3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13:14) = .TRUE.
+      ! account for empty edges
+      IF (Indy .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7) = 0
+      END IF
+      IF (Indy .EQ. surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5:6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,12) = 0
+      END IF
+      IF (Indx .EQ. (surfsquare+1)) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,10) = 0
+      END IF
+      IF (Indx .EQ. 2*surfsquare+1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,2) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
+      END IF
+      ! mapping respective bond atoms
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx - surfsquare
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx - surfsquare
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
+    END IF
+    Indx = Indx + 1
+  END DO
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3)
+    IF (Indx.GT.surfsquare+1) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%UsedSiteMap(Surfpos) = Surfpos
+    ! mapping respective neighbours first hollow then bridge then top
+    ! hollow
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,1) = Surfpos - (surfsquare) - 1 -(Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,2) = Surfpos - (surfsquare) - (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = Surfpos - 1 - (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = Surfpos - (Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:4) = 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,1:4) = .TRUE.
+    ! bridge
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,5) = Surfpos + surfsquare*(Indy-1) -(surfsquare+1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,6) = Surfpos -1 +(surfsquare)*(Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,7) = Surfpos +(surfsquare)*(Indy-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,8) = Surfpos + surfsquare*(Indy)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5:8) = 2
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,5:8) = .TRUE.
+    ! top
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,9) = Surfpos - (surfsquare+1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,10) = Surfpos - 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,11) = Surfpos + 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,12) = Surfpos + (surfsquare+1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,9:12) = 3
+    ! account for empty edges
+    IF (Indy .EQ. 1) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:2) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,9) = 0
+    END IF
+    IF (Indx .EQ. 1) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,3) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,6) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,10) = 0
+    END IF
+    IF (Indy .EQ. (surfsquare+1)) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,3:4) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,8) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,12) = 0
+    END IF
+    IF (Indx .EQ. (surfsquare+1)) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,2) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,4) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,7) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,11) = 0
+    END IF
+    ! mapping respective bond atoms
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndx(Surfpos,1) = Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
+    Indx = Indx + 1
+  END DO
+
+END DO
+END DO
+END DO
+
+END SUBROUTINE Initfcc100Mapping
+
+
+SUBROUTINE Initfcc111Mapping()
+!===================================================================================================================================
+!> Initializion of the fcc111 mapping for neighbours and neighrest neighbours site type and position
+!> Positions of binding sites in the surface lattice (always rectangular surface lattice assumed)
+!>                                   ------------[        surfsquare       ]--------------
+!>                                                |       |       |       |
+!>                                            3---2---3---2---3---2---3---2---3
+!>                                           / \  1  / \  1  / \  1  / \  1  / 
+!>                                          2   2   2   2   2   2   2   2   2
+!>                                         /  1  \ /  1  \ /  1  \ /  1  \ /
+!>                                        3---2---3---2---3---2---3---2---3
+!>                                       / \  1  / \  1  / \  1  / \  1  / 
+!>                                      2   2   2   2   2   2   2   2   2
+!>                                     /  1  \ /  1  \ /  1  \ /  1  \ /
+!>                                    3---2---3---2---3---2---3---2---3
+!>                                   / \  1  / \  1  / \  1  / \  1  / 
+!>                                  2   2   2   2   2   2   2   2   2
+!>                                 /  1  \ /  1  \ /  1  \ /  1  \ /
+!>                                3---2---3---2---3---2---3---2---3
+!>                               / \  1  / \  1  / \  1  / \  1  / 
+!>                              2   2   2   2   2   2   2   2   2
+!>                             /  1  \ /  1  \ /  1  \ /  1  \ /
+!>                            3---2---3---2---3---2---3---2---3
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iSurfSide, iSubSurf, jSubSurf
+INTEGER                          :: SideID, PartBoundID
+INTEGER                          :: surfsquare
+INTEGER                          :: Surfpos, Indx, Indy
+INTEGER                          :: nSites
+!===================================================================================================================================
+DO iSurfSide = 1,SurfMesh%nTotalSides
+SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+PartboundID = PartBound%MapToPartBC(BC(SideID))
+IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+DO iSubSurf = 1,nSurfSample
+DO jSubSurf = 1,nSurfSample
+  ! surfsquare chosen from nSite(3) for correct SurfIndx definitions
+  surfsquare = NINT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))/2.))
+  ! allocate and define surface indexes for adsorbate distribution and build mapping of respective bondatoms and neighbours
+ASSOCIATE ( sq => surfsquare ,&
+            minusyHollow => 2*surfsquare*(indy-2),&
+            plusyHollow => 2*surfsquare*(indy) ,&
+            mainyHollow => 2*surfsquare*(indy-1) &
+            !yBridge => 3*sq+1 ,&
+            !yTop    => sq+1 ,&
+           )
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1)
+    IF (Indx.GT.(2*surfsquare)) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%UsedSiteMap(Surfpos) = Surfpos
+    IF (MOD(Indx,2).NE.0) THEN ! first do the triangles with corner at top
+      ! mapping respective neighbours first hollow then bridge then top
+      ! hollow
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,1)  = minusyHollow  + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,2)  = 2*sq*(indy-2) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,3)  = 2*sq*(indy-2) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,4)  = mainyHollow   + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,5)  = 2*sq*(indy-1) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,6)  = 2*sq*(indy-1) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,7)  = 2*sq*(indy-1) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,8)  = plusyHollow   + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9)  = 2*sq*(indy  ) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = 2*sq*(indy  ) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = 2*sq*(indy  ) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = 2*sq*(indy  ) + Indx+3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:12) = 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,5) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,6) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,10)= .TRUE.
+      ! bridge
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-2) + Indx-2 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-2) + Indx   +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-1) + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-1) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,17) = (3*sq+1)*(indy-1) + Indx-2 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,18) = (3*sq+1)*(indy-1) + Indx   +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,19) = (3*sq+1)*(indy-1) + Indx   +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,20) = (3*sq+1)*(indy-1) + Indx+2 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,21) = (3*sq+1)*(indy  ) + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,22) = (3*sq+1)*(indy  ) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,23) = (3*sq+1)*(indy  ) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,24) = (3*sq+1)*(indy  ) + Indx   +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,25) = (3*sq+1)*(indy  ) + Indx   +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,26) = (3*sq+1)*(indy  ) + Indx+2 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,27) = (3*sq+1)*(indy  ) + Indx+2 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:27) = 2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,15) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,17) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,22) = .TRUE.
+      ! top
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,28) = (sq+1)*(indy-1) + ((Indx+1)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,29) = (sq+1)*(indy  ) + ((Indx+1)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,30) = (sq+1)*(indy  ) + ((Indx+1)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,28:30) = 3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,28:30) = .TRUE.
+      ! account for empty edges
+      IF (Indy .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:3) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:14) = 0
+      END IF
+      IF (Indy .GE. surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8:12) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,24:27) = 0
+      END IF
+      IF (Indx .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:2) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,4:5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,15) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,17) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,21) = 0
+      END IF
+      IF (Indx .EQ. 2*surfsquare-1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,7) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,11:12) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,23) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,27) = 0
+      END IF
+      ! mapping respective bond atoms
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,1) = ((Indx+1)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,2) = ((Indx+1)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,3) = ((Indx+1)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
+    ELSE ! then do the traingles with corner at bottom
+      ! mapping respective neighbours first hollow then bridge then top
+      ! hollow
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,1)  = 2*sq*(indy-2) + Indx-3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,2)  = 2*sq*(indy-2) + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,3)  = 2*sq*(indy-2) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,4)  = 2*sq*(indy-2) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,5)  = 2*sq*(indy-2) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,6)  = 2*sq*(indy-1) + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,7)  = 2*sq*(indy-1) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,8)  = 2*sq*(indy-1) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,9)  = 2*sq*(indy-1) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,10) = 2*sq*(indy  ) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,11) = 2*sq*(indy  ) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,12) = 2*sq*(indy  ) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:12) = 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,3) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,7) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,8) = .TRUE.
+      ! bridge
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-2) + Indx-3 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-2) + Indx-1 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-2) + Indx-1 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-2) + Indx+1 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,17) = (3*sq+1)*(indy-1) + Indx-3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,18) = (3*sq+1)*(indy-1) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,19) = (3*sq+1)*(indy-1) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,20) = (3*sq+1)*(indy-1) + Indx-1 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,21) = (3*sq+1)*(indy-1) + Indx-1 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,22) = (3*sq+1)*(indy-1) + Indx+1 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,23) = (3*sq+1)*(indy-1) + Indx+1 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,24) = (3*sq+1)*(indy  ) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,25) = (3*sq+1)*(indy  ) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,26) = (3*sq+1)*(indy  ) + Indx+1 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,27) = (3*sq+1)*(indy  ) + Indx+1 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:27) = 2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,18) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,21) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,22) = .TRUE.
+      ! top
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,28) = (sq+1)*(indy-1) + ((Indx)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,29) = (sq+1)*(indy-1) + ((Indx)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighPos(Surfpos,30) = (sq+1)*(indy  ) + ((Indx)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,28:30) = 3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%IsNearestNeigh(Surfpos,28:30) = .TRUE.
+      ! account for empty edges
+      IF (Indy .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13:16) = 0
+      END IF
+      IF (Indy .GE. surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,10:12) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,26:27) = 0
+      END IF
+      IF (Indx .EQ. 2) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,1:2) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,13) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,17) = 0
+      END IF
+      IF (Indx .EQ. 2*surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,8:9) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,11:12) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,19) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,23) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,25) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%NeighSite(Surfpos,27) = 0
+      END IF
+      ! mapping respective bond atoms
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,1) = ((Indx)/2)
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,2) = ((Indx)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,2) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndx(Surfpos,3) = ((Indx)/2)+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1)%BondAtomIndy(Surfpos,3) = Indy+1
+    END IF
+    Indx = Indx + 1
+  END DO
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2)
+    IF (Indx.GT.(2*surfsquare+surfsquare+1)) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%UsedSiteMap(Surfpos) = Surfpos
+    IF (Indx .LE. surfsquare) THEN ! surface atoms are LEFT an RIGHT of adsorbate site
+      IF (iSurfSide.EQ.1 .AND. iSubSurf.EQ.1 .AND. jSubSurf.EQ.1 .AND.mpiroot) print*,SurfPos,Indx
+      ! mapping respective neighbours first hollow then bridge then top
+      ! hollow
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1)  = 2*sq*(indy-2) + Indx-2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2)  = 2*sq*(indy-2) + Indx-2 +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3)  = 2*sq*(indy-2) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4)  = 2*sq*(indy-2) + Indx   +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5)  = 2*sq*(indy-2) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6)  = 2*sq*(indy-1) + Indx-2 +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7)  = 2*sq*(indy-1) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8)  = 2*sq*(indy-1) + Indx   +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9)  = 2*sq*(indy-1) + Indx+2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = 2*sq*(indy-1) + Indx+2 +1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:10) = 1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,3) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,8) = .TRUE.
+      ! bridge
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = (3*sq+1)*(indy-2) + Indx-2 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = (3*sq+1)*(indy-2) + Indx   +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-2) + Indx   +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-2) + Indx+2 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-1) + Indx-1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-1) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,17) = (3*sq+1)*(indy-1) + Indx   +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,18) = (3*sq+1)*(indy-1) + Indx   +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,19) = (3*sq+1)*(indy-1) + Indx+2 +sq
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,20) = (3*sq+1)*(indy-1) + Indx+2 +sq+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:20) = 2
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,12:13) = .TRUE.
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,18:19) = .TRUE.
+      ! top
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,21) = (sq+1)*(indy-2) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,22) = (sq+1)*(indy-1) + Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,23) = (sq+1)*(indy-1) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,24) = (sq+1)*(indy  ) + Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,21:24) = 3
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,22:23) = .TRUE.
+      ! account for empty edges
+      IF (Indy .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:14) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,21) = 0
+      END IF
+      IF (Indy .EQ. surfsquare+1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6:10) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,17:20) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,24) = 0
+      END IF
+      IF (Indx .EQ. 1) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
+        IF (iSurfSide.EQ.1 .AND. iSubSurf.EQ.1 .AND. jSubSurf.EQ.1 .AND.mpiroot) print*,&
+SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,15) = 0
+      END IF
+      IF (Indx .EQ. surfsquare) THEN
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,5) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9:10) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,16) = 0
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,20) = 0
+      END IF
+      ! mapping respective bond atoms
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = Indx
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = Indx+1
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy
+    ELSE ! surface atoms are TOP and DOWN of adsorbate site
+      IF (MOD((Indx-surfsquare),2).NE.0) THEN ! first do / direction
+        ! mapping respective neighbours first hollow then bridge then top
+        ! hollow
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1)  = 2*sq*(indy-2) + Indx-sq -2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2)  = 2*sq*(indy-2) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3)  = 2*sq*(indy-2) + Indx-sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4)  = 2*sq*(indy-1) + Indx-sq -2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5)  = 2*sq*(indy-1) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6)  = 2*sq*(indy-1) + Indx-sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7)  = 2*sq*(indy-1) + Indx-sq +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8)  = 2*sq*(indy  ) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9)  = 2*sq*(indy  ) + Indx-sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = 2*sq*(indy  ) + Indx-sq +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:10) = 1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,5:6) = .TRUE.
+        ! bridge
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = (3*sq+1)*(indy-2) + Indx-1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = (3*sq+1)*(indy-2) + Indx
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-1) + Indx-2 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-1) + Indx   -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-1) + Indx-1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-1) + Indx+1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,17) = (3*sq+1)*(indy  ) + Indx-2 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,18) = (3*sq+1)*(indy  ) + Indx   -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,19) = (3*sq+1)*(indy  ) + Indx
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,20) = (3*sq+1)*(indy  ) + Indx+1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:20) = 2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,13) = .TRUE.
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,15:16) = .TRUE.
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,18) = .TRUE.
+        ! top
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,21) = (sq+1)*(indy-1) + ((Indx-sq+1)/2) -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,22) = (sq+1)*(indy-1) + ((Indx-sq+1)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,23) = (sq+1)*(indy  ) + ((Indx-sq+1)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,24) = (sq+1)*(indy  ) + ((Indx-sq+1)/2) +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,21:24) = 3
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,22:23) = .TRUE.
+        ! account for empty edges
+        IF (Indy .EQ. 1) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
+        END IF
+        IF (Indy .EQ. surfsquare) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8:10) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,19:20) = 0
+        END IF
+        IF ((Indx-surfsquare) .EQ. 1) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4:5) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,15) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,17) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,21) = 0
+        END IF
+        IF ((Indx-surfsquare) .EQ. 2*surfsquare+1) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,3) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,6:7) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9:10) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,14) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,16) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,18) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,20) = 0
+        END IF
+        ! mapping respective bond atoms
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = ((Indx-sq+1)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = ((Indx-sq+1)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
+      ELSE ! then do \ direction
+        ! mapping respective neighbours first hollow then bridge then top
+        ! hollow
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,1)  = 2*sq*(indy-2) + Indx-sq -3
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,2)  = 2*sq*(indy-2) + Indx-sq -2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,3)  = 2*sq*(indy-2) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,4)  = 2*sq*(indy-1) + Indx-sq -2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,5)  = 2*sq*(indy-1) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,6)  = 2*sq*(indy-1) + Indx-sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,7)  = 2*sq*(indy-1) + Indx-sq +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,8)  = 2*sq*(indy  ) + Indx-sq -2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,9)  = 2*sq*(indy  ) + Indx-sq -1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,10) = 2*sq*(indy  ) + Indx-sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:10) = 1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,5:6) = .TRUE.
+        ! bridge
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,11) = (3*sq+1)*(indy-2) + Indx-2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,12) = (3*sq+1)*(indy-2) + Indx-1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-1) + Indx-3 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-1) + Indx-1 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-1) + Indx-1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-1) + Indx+1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,17) = (3*sq+1)*(indy  ) + Indx-3 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,18) = (3*sq+1)*(indy  ) + Indx+1 -sq
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,19) = (3*sq+1)*(indy  ) + Indx+1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,20) = (3*sq+1)*(indy  ) + Indx+2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:20) = 2
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,14:17) = .TRUE.
+        ! top
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,21) = (sq+1)*(indy-1) + ((Indx-sq)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,22) = (sq+1)*(indy-1) + ((Indx-sq)/2) +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,23) = (sq+1)*(indy  ) + ((Indx-sq)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighPos(Surfpos,24) = (sq+1)*(indy  ) + ((Indx-sq)/2) +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,21:24) = 3
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%IsNearestNeigh(Surfpos,22:23) = .TRUE.
+        ! account for empty edges
+        IF (Indy .EQ. 1) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:3) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11:12) = 0
+        END IF
+        IF (Indy .EQ. surfsquare) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,8:10) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,19:20) = 0
+        END IF
+        IF ((Indx-surfsquare) .EQ. 2) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,1:2) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,4) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,11) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,13) = 0
+        END IF
+        IF ((Indx-surfsquare) .EQ. 2*surfsquare) THEN
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,7) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,9:10) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,18) = 0
+          SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,20) = 0
+        END IF
+        ! mapping respective bond atoms
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = ((Indx-sq)/2) +1
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = ((Indx-sq)/2)
+        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
+      END IF
+    END IF
+    Indx = Indx + 1
+  END DO
+  Indx = 1
+  Indy = 1
+  DO Surfpos = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3)
+    IF (Indx.GT.surfsquare+1) THEN
+      Indx = 1
+      Indy = Indy + 1
+    END IF
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%UsedSiteMap(Surfpos) = Surfpos
+    ! mapping respective neighbours first hollow then bridge then top
+    ! hollow
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,1) = (2*sq)*(indy-2) + 2*(Indx-1) -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,2) = (2*sq)*(indy-2) + 2*(Indx-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,3) = (2*sq)*(indy-2) + 2*(Indx)   -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,4) = (2*sq)*(indy-1) + 2*(Indx-1)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,5) = (2*sq)*(indy-1) + 2*(Indx)   -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,6) = (2*sq)*(indy-1) + 2*(Indx)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:6) = 1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,1:6) = .TRUE.
+    ! bridge
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,7)  = (3*sq+1)*(indy-2) + Indx -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,8)  = (3*sq+1)*(indy-2) + Indx -1 +sq
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,9)  = (3*sq+1)*(indy-2) + Indx -1 +sq+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,10) = (3*sq+1)*(indy-2) + Indx +sq
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,11) = (3*sq+1)*(indy-2) + Indx +sq+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,12) = (3*sq+1)*(indy-2) + Indx -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,13) = (3*sq+1)*(indy-1) + Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,14) = (3*sq+1)*(indy-1) + Indx -1 +sq+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,15) = (3*sq+1)*(indy-1) + Indx +sq
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,16) = (3*sq+1)*(indy-1) + Indx +sq+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,17) = (3*sq+1)*(indy-1) + Indx +1 +sq+1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,18) = (3*sq+1)*(indy  ) + Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,7:18) = 2
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,9:10) = .TRUE.
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,12:13) = .TRUE.
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%IsNearestNeigh(Surfpos,15:16) = .TRUE.
+    ! top
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,19) = Indx + (sq+1)*(indy-2) -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,20) = Indx + (sq+1)*(indy-2)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,21) = Indx + (sq+1)*(indy-1) -1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,22) = Indx + (sq+1)*(indy-1) +1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,23) = Indx + (sq+1)*(indy)
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighPos(Surfpos,24) = Indx + (sq+1)*(indy) +1
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,19:24) = 3
+    ! account for empty edges
+    IF (Indy .EQ. 1) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:3) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,7:11) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,19:20) = 0
+    END IF
+    IF (Indx .EQ. 1) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,1:2) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,4) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,7:9) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,12) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,14) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,19) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,21) = 0
+    END IF
+    IF (Indy .EQ. (surfsquare+1)) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,4:6) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,14:18) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,23:24) = 0
+    END IF
+    IF (Indx .EQ. (surfsquare+1)) THEN
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,3) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,5:6) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,11) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,13) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,16:18) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,22) = 0
+      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%NeighSite(Surfpos,24) = 0
+    END IF
+    ! mapping respective bond atoms
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndx(Surfpos,1) = Indx
+    SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(3)%BondAtomIndy(Surfpos,1) = Indy
+    Indx = Indx + 1
+  END DO
+END ASSOCIATE
+
+END DO
+END DO
+END DO
+  !DO iSubSurf=1,2
+  !DO iSurfSide=1,24
+  !  print*,iSurfSide,iSubSurf,': ',SurfDistInfo(1,1,1)%AdsMap(1)%NeighPos(iSubSurf,iSurfSide),&
+  !    ': ',SurfDistInfo(1,1,1)%AdsMap(1)%NeighSite(iSubSurf,iSurfSide)
+  !END DO
+  !END DO
+
+END SUBROUTINE Initfcc111Mapping
+
 
 END MODULE MOD_SMCR_Init
