@@ -71,7 +71,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix, iPoint, iVec, iBC
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, r, s, t, iSFfix, iPoint, iVec, iBC, kk, ll, mm
 REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
@@ -90,6 +90,7 @@ IF(.NOT.DoDeposition) THEN
   ! fill deposition type with emtpy string
   DepositionType='NONE'
   OutputSource=.FALSE.
+  RelaxDeposition=.FALSE.
   RETURN
 END IF
 DepositionType = GETSTR('PIC-Deposition-Type','nearest_blurrycenter')
@@ -111,13 +112,54 @@ END IF
 PartSource=0.
 PartSourceConstExists=.FALSE.
 
+!--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
+RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
+IF (RelaxDeposition) THEN
+  RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
+#if (defined (PP_HDG) && (PP_nVar==1))
+  ALLOCATE(PartSourceOld(1,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+#else
+  ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
+#endif
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
+  END IF
+  PartSourceOld=0.
+  OutputSource = .TRUE.
+ELSE
+  OutputSource = GETLOGICAL('PIC-OutputSource','F')
+END IF
+
 !--- check if chargedensity is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
   CALL ReadTimeAverage(TimeAverageFile)
-  DoDeposition=.FALSE.
-  DepositionType='constant'
-  RETURN
+  IF (.NOT.RelaxDeposition) THEN
+  !-- switch off deposition: use only the read PartSource
+    DoDeposition=.FALSE.
+    DepositionType='constant'
+    RETURN
+  ELSE
+  !-- use read PartSource as initialValue for relaxation
+  !-- CAUTION: will be overwritten by DG_Source if present in restart-file!
+    DO iElem = 1, nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+            PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+            PartSourceOld(1,2,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+#else
+            PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+            PartSourceOld(1:4,2,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+#endif
+          END DO !mm
+        END DO !ll
+      END DO !kk
+    END DO !iElem
+  END IF
 END IF
 
 !--- init DepositionType-specific vars
@@ -1161,7 +1203,6 @@ __STAMP__&
   END IF
   PartSourceConst=0.
 END IF
-OutputSource = GETLOGICAL('PIC-OutputSource','F')
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
@@ -1192,6 +1233,7 @@ USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
+USE MOD_TimeDisc_Vars,          ONLY:dtWeight
 !USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 ! only required for shape function??
@@ -1583,7 +1625,7 @@ CASE('shape_function','shape_function_simple')
         END IF
         CALL calcSfSource(1 &
           ,Species(SFdepoLayersSpec(iLayer))%ChargeIC*SFdepoLayersMPF(iLayer)*w_sf &
-          ,Vec1,Vec2,Vec3,layerPartPos,iPart,const_opt=ConstantSFdepoLayers)
+          ,Vec1,Vec2,Vec3,layerPartPos,-iPart,const_opt=ConstantSFdepoLayers)
       END DO ! iPart
       IF (iLayer.EQ.NbrOfSFdepoLayers .AND. ConstantSFdepoLayers) THEN
         SFdepoLayersAlreadyDone=.TRUE.
@@ -1628,7 +1670,7 @@ CASE('shape_function','shape_function_simple')
         CALL calcSfSource(4 &
           ,Species(LastAnalyzeSurfCollis%Species(iPart))%ChargeIC &
           *Species(LastAnalyzeSurfCollis%Species(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,layerPartPos,iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
+          ,Vec1,Vec2,Vec3,layerPartPos,-iPart2,PartVelo=LastAnalyzeSurfCollis%WallState(4:6,iPart))
       END DO ! iPart2
     END IF !SFResampleAnalyzeSurfCollis
 
@@ -1637,13 +1679,13 @@ CASE('shape_function','shape_function_simple')
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
       END DO
     ELSE
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4 &
           ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
-          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),iPart,PartVelo=ExtPartState(iPart,4:6))
+          ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
       END DO
     END IF ! usevMPF
     ! deallocate external state
@@ -1654,13 +1696,42 @@ CASE('shape_function','shape_function_simple')
     NbrOfExtParticles=0
 #endif /*MPI*/
 
-    !-- add const. PartSource (only once, i.e., during call with .NOT.DoInnerParts)
+    !-- add const. PartSource and relaxation (only once, i.e., during call with .NOT.DoInnerParts)
     IF (PartSourceConstExists) THEN
       DO iElem = 1, nElems
         DO kk = 0, PP_N
           DO ll = 0, PP_N
             DO mm = 0, PP_N
               PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
+              IF (RelaxDeposition) THEN
+#if (defined (PP_HDG) && (PP_nVar==1))
+                PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                             + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
+                PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+#else
+                PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                               + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
+                PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+#endif
+              END IF
+            END DO !mm
+          END DO !ll
+        END DO !kk
+      END DO !iElem
+    ELSE IF (RelaxDeposition) THEN
+      DO iElem = 1, nElems
+        DO kk = 0, PP_N
+          DO ll = 0, PP_N
+            DO mm = 0, PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+              PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                           + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
+              PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
+#else
+              PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
+                                             + PartSourceOld(1:4,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
+              PartSourceOld(1:4,1,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem)
+#endif
             END DO !mm
           END DO !ll
         END DO !kk
@@ -3823,6 +3894,7 @@ IMPLICIT NONE
 
 SDEALLOCATE(PartSource)
 SDEALLOCATE(PartSourceConst)
+SDEALLOCATE(PartSourceOld)
 SDEALLOCATE(GaussBorder)
 SDEALLOCATE(ElemDepo_xGP)
 SDEALLOCATE(Vdm_EquiN_GaussN)

@@ -36,22 +36,14 @@ INTERFACE FinalizeAnalyze
   MODULE PROCEDURE FinalizeAnalyze
 END INTERFACE
 
-INTERFACE CalcError
-  MODULE PROCEDURE CalcError
-END INTERFACE
-
-INTERFACE AnalyzeToFile
-  MODULE PROCEDURE AnalyzeToFile
-END INTERFACE
-
 INTERFACE PerformAnalyze
   MODULE PROCEDURE PerformAnalyze
 END INTERFACE
 
 !===================================================================================================================================
 PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze 
+PUBLIC:: DefineParametersAnalyze
 !===================================================================================================================================
-PUBLIC::DefineParametersAnalyze
 
 CONTAINS
 
@@ -330,6 +322,85 @@ L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 
 END SUBROUTINE CalcError
 
+
+#ifdef PARTICLES
+SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+!===================================================================================================================================
+! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_DG_Vars            ,ONLY: U
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)               :: time
+INTEGER,INTENT(IN)            :: PartSource_nVar
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)              :: L_2_PartSource(PartSource_nVar)   !< L2 error of the source
+REAL,INTENT(OUT)              :: L_Inf_PartSource(PartSource_nVar) !< LInf error of the source
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                       :: iElem,k,l,m
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: IntegrationWeight
+
+REAL                          :: PartSource_NAnalyze1(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: PartSource_NAnalyze2(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+!===================================================================================================================================
+
+! nullify
+L_Inf_PartSource(:)=-1.E10
+L_2_PartSource(:)=0.
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,PP_nElems
+  ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+      ,PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+      ,PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
+  PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem)=PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem)
+  DO m=0,NAnalyze
+    DO l=0,NAnalyze
+      DO k=0,NAnalyze
+        IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+        L_Inf_PartSource = MAX(L_Inf_PartSource,abs(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)))
+        L_2_PartSource = L_2_PartSource+(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)) &
+            *(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m))*IntegrationWeight
+      END DO ! k
+    END DO ! l
+  END DO ! m
+END DO ! iElem=1,PP_nElems
+#ifdef MPI
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE     , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE     , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+ELSE
+  CALL MPI_REDUCE(L_2_PartSource   , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_Inf_PartSource , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  ! in this case the receive value is not relevant. 
+END IF
+#endif /*MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_PartSource = SQRT(L_2_PartSource/GEO%MeshVolume)
+
+END SUBROUTINE CalcErrorPartSource
+#endif /*PARTICLES*/
+
 SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
 !===================================================================================================================================
 ! Writes the L2-error norms to file.
@@ -523,6 +594,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -564,6 +638,17 @@ LOGICAL                       :: DoPerformFieldAnalyze
 LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
 LOGICAL                       :: DoPerformErrorCalc
+#ifdef PARTICLES
+#if (defined (PP_HDG) && (PP_nVar==1))
+INTEGER                       :: PartSource_nVar=1
+REAL                          :: L_2_PartSource(1:1)
+REAL                          :: L_Inf_PartSource(1:1)
+#else
+INTEGER                       :: PartSource_nVar=4
+REAL                          :: L_2_PartSource(1:4)
+REAL                          :: L_Inf_PartSource(1:4)
+#endif
+#endif /* PARTICLES */
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -663,6 +748,11 @@ IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
+#ifdef PARTICLES
+    IF (DoDeposition .AND. RelaxDeposition) THEN
+      CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+    END IF
+#endif /*PARTICLES*/
   END IF
 END IF
 
@@ -914,6 +1004,16 @@ IF(DoPerformErrorCalc)THEN
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
     END IF
   END IF
+#ifdef PARTICLES
+  IF (DoDeposition .AND. RelaxDeposition) THEN
+    ! Graphical output
+    IF(MPIroot) THEN
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PartSource_nVar,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2_PartSource  : ',L_2_PartSource
+      WRITE(UNIT_StdOut,formatStr)' L_inf_PartSource: ',L_Inf_PartSource
+    END IF
+  END IF
+#endif /* PARTICLES */
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
