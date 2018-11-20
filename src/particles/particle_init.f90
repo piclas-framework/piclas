@@ -156,6 +156,9 @@ CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defin
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
 
+CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization. Implemented models are:\n'//&                                  
+                                                                ' * Ammosov-Delone-Krainov (ADK) model', '.FALSE.')
+
 CALL prms%SetSection("IMD")
 ! IMD things
 CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
@@ -1460,6 +1463,8 @@ END IF ! nMacroRestartFiles.GT.0
 
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
+
+DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec

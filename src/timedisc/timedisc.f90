@@ -781,7 +781,7 @@ USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,Meas
 USE MOD_PICDepo,                 ONLY: Deposition!, DepositionMPF
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
-                                        doParticleMerge,PartPressureCell
+                                        doParticleMerge,PartPressureCell,DoFieldIonization
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_part_emission,           ONLY: ParticleInserting
@@ -861,6 +861,7 @@ IF (time.GE.DelayTime) THEN
   ! forces on particle
   ! can be used to hide sending of number of particles
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+  IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 END IF
 #if USE_LOADBALANCE
@@ -4579,7 +4580,7 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
-                                     doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux
+                                      doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -4708,6 +4709,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 
   DO iPart=1,PDM%ParticleVecLength
