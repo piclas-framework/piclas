@@ -5689,8 +5689,6 @@ ELSE
     CASE(2) ! adaptive Outlet/freestream
       pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
       T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,FractNbr))
-      !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
-      !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
     CASE(3) ! Constant mass flow and temperature
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(4) ! porous outlet
@@ -6499,20 +6497,31 @@ DO iSpec = 1,nSpecies
     Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
         + AdaptiveWeightFac*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
     ! compute flow Temperature
-    Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
-      + AdaptiveWeightFac*Species(iSpec)%MassIC/ BoltzmannConst &
-      * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
-      - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
+    IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
+      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac &
+          * (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
+          * Species(iSpec)%MassIC/ BoltzmannConst &
+          * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
+          - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
+    ELSE
+      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
+    END IF
     ! compute density
     Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
         + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
     ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
-    TTrans_TempFac = Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
-                    - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                    + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                    - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                    + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                    - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
+    IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
+      TTrans_TempFac = (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
+                      * Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
+                      - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                      + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                      - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                      + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                      - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
+    ELSE
+      TTrans_TempFac = 0.0
+    END IF
     ! compute pressure (without BoltzmannConst, cancels out with the tempreature calculation)
     Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
       +AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
