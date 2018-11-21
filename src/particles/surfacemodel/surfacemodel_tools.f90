@@ -760,8 +760,8 @@ INTEGER :: iNeigh, iCoord
 SpaceOccupied = .FALSE.
 DO iNeigh = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%nNeighbours
   IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%IsNearestNeigh(SurfPos,iNeigh)) CYCLE
-  IF ((Coordination.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh).EQ.1)) &
-      CYCLE
+  !IF ((Coordination.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh).EQ.1)) &
+  !    CYCLE
   DO iCoord = 1,3
     IF (iCoord.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh)) THEN
       IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(iCoord)%Species( &

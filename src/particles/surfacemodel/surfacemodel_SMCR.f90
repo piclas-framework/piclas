@@ -330,12 +330,18 @@ DO ReactNum = 1,(Adsorption%DissNum)
       IF ( SpaceOccupied(SurfID,subsurfxi,subsurfeta,jCoord,Neighpos_j) &
           .OR. SpaceOccupied(SurfID,subsurfxi,subsurfeta,kCoord,Neighpos_k) ) CYCLE
       ! assign bond order of respective surface atoms in the surfacelattice for molecule
-      CALL UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coord,Surfpos,iSpec,.FALSE.)
-      ! calculation of activation energy
-      Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.TRUE.)
-      Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,kSpec,Neighpos_k,.TRUE.)
-      ! remove bond order of respective surface atoms in the surfacelattice for molecule again
-      CALL UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coord,Surfpos,iSpec,.TRUE.)
+      IF (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(SurfPos).NE.0) THEN
+        ! calculation of activation energy
+        Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.TRUE.)
+        Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,kSpec,Neighpos_k,.TRUE.)
+      ELSE
+        CALL UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coord,Surfpos,iSpec,.FALSE.)
+        ! calculation of activation energy
+        Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.TRUE.)
+        Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,kSpec,Neighpos_k,.TRUE.)
+        ! remove bond order of respective surface atoms in the surfacelattice for molecule again
+        CALL UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coord,Surfpos,iSpec,.TRUE.)
+      END IF
       Heat_AB = 0. ! direct dissociative adsorption
       D_AB = Adsorption%EDissBond(ReactNum,iSpec)
       D_A = 0.

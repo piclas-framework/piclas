@@ -1538,7 +1538,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
               SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%NeighSite(Surfpos,20) = 0
             END IF
             ! mapping respective bond atoms
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = b3tot +tstep
+            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,1) = b3tot
             SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,1) = Indy
             SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndx(Surfpos,2) = b3tot +tstep
             SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(2)%BondAtomIndy(Surfpos,2) = Indy+1
