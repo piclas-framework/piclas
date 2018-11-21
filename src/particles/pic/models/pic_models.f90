@@ -35,7 +35,8 @@ CONTAINS
 
 SUBROUTINE FieldIonization()
 !===================================================================================================================================
-! Field Ionization after the Ammosov-Delone-Krainov (ADK) model
+! Field Ionization:
+! * Ammosov-Delone-Krainov (ADK) model (tunnel ionization)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

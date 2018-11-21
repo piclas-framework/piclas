@@ -335,22 +335,23 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Preproc,                    ONLY : PP_N
-USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo, SideToElem
-USE MOD_Globals_Vars,               ONLY : Pi, BoltzmannConst, ElementaryCharge
+USE MOD_Preproc                ,ONLY: PP_N
+USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
+USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
-USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
+USE MOD_DSMC_ElectronicModel   ,ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,              ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
-USE MOD_Particle_Vars,              ONLY: LiquidSimFlag, PartSurfaceModel
-USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
-USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
-USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
-USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
-USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
-USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars,     ONLY: nAdaptiveBC, PartBound
-USE MOD_Particle_Surfaces_Vars,     ONLY: BCdata_auxSF
+USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
+USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
+USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
+USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
+USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
+USE MOD_DSMC_ChemReact         ,ONLY: CalcBackwardRate, CalcPartitionFunction
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_ReadInTools            ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -370,6 +371,7 @@ IMPLICIT NONE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii
 #endif
+  LOGICAL               :: AutoDetect
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
@@ -964,9 +966,9 @@ __STAMP__&
           ,'ERROR: Please specify the previous state of the ion species:', iSpec)
         END IF
       END IF
-      ! Read-in of species for field ionization
+      ! Read-in of species for field ionization (only required if it cannot be determined automatically)
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
-        SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies','0')
+        SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
       ELSE
         SpecDSMC(iSpec)%NextIonizationSpecies = 0
         DSMC%ElectronSpecies = iSpec
@@ -1039,8 +1041,10 @@ __STAMP__&
         SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
       END IF
     END DO
+
     ! Calculating the heat of formation for ionized species (including higher ionization levels)
     ! Requires the completed read-in of species data
+    AutoDetect=.TRUE.
     DO iSpec = 1, nSpecies
       counter = 0
       IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1060,8 +1064,15 @@ __STAMP__&
               ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
             END IF
           END DO
+          IF(AutoDetect)THEN
+            SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
+            AutoDetect=.FALSE.
+          END IF
           ! Add the heat of formation of the ground state
           SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
+          WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+          CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
+              RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
         ELSE
           CALL abort(&
           __STAMP__&
@@ -1070,6 +1081,27 @@ __STAMP__&
       END IF
     END DO
 
+    ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
+    ! NextIonizationSpecies => SpeciesID of the next higher ionization level
+    AutoDetect=.FALSE.
+    DO iSpec = 1, nSpecies
+      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
+          SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
+          AutoDetect=.TRUE.
+        END IF
+      ELSE
+        SpecDSMC(iSpec)%NextIonizationSpecies = 0
+        DSMC%ElectronSpecies = iSpec
+      END IF
+    END DO
+    IF(AutoDetect)THEN
+      SWRITE(UNIT_stdOut,'(A)')' Automatically determined NextIonizationSpecies:'
+      DO iSpec = 1, nSpecies
+        WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+        CALL PrintOption('iSpec='//TRIM(hilf2)//': NextIonizationSpecies','CALCUL.',IntOpt=SpecDSMC(iSpec)%NextIonizationSpecies)
+      END DO
+    END IF
 
     CALL DSMC_chemical_init()
   ELSE IF ((PartSurfaceModel.GT.0 .OR. LiquidSimFlag) .AND. CollisMode.GT.1) THEN
