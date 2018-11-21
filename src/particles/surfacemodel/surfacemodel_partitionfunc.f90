@@ -175,23 +175,24 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 END SUBROUTINE PartitionFuncAct
 
 
-!SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
-SUBROUTINE PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct)
+SUBROUTINE PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
+!SUBROUTINE PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, Temp, VarPartitionFuncAct)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (dissociation at surface)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Particle_Vars,ONLY: Species
 USE MOD_DSMC_Vars    ,ONLY: SpecDSMC, PolyatomMolDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-!INTEGER, INTENT(IN)           :: iSpec
+INTEGER, INTENT(IN)           :: iSpec
 INTEGER, INTENT(IN)           :: Prod_Spec1
 INTEGER, INTENT(IN)           :: Prod_Spec2
 REAL, INTENT(IN)              :: Temp
-!REAL, INTENT(IN)              :: Surfdensity
+REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -201,7 +202,7 @@ REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
-Qtra = 1.!((2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))
+Qtra = ((2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))
 Qrot = 1.
 Qvib = 1.
 IF(SpecDSMC(Prod_Spec1)%InterID.EQ.2) THEN
@@ -233,7 +234,7 @@ VarPartitionFuncAct = Qtra * Qrot * Qvib
 END SUBROUTINE PartitionFuncAct_dissoc
 
 
-SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2, Temp, VarPartitionFuncAct, Surfdensity)
+SUBROUTINE PartitionFuncAct_recomb(Educt_Spec1, Educt_Spec2,Product_Spec, Temp, VarPartitionFuncAct, Surfdensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (recombination for desorption)
 !===================================================================================================================================
@@ -247,6 +248,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: Educt_Spec1
 INTEGER, INTENT(IN)           :: Educt_Spec2
+INTEGER, INTENT(IN)           :: Product_Spec
 REAL, INTENT(IN)              :: Temp
 REAL, INTENT(IN)              :: Surfdensity
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -258,8 +260,9 @@ REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
-Qtra = ((2. * Pi * Species(Educt_Spec1)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5 &
-     * ((2. * Pi * Species(Educt_Spec2)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5
+Qtra = ((2. * Pi * Species(Product_Spec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))
+!Qtra = ((2. * Pi * Species(Educt_Spec1)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5 &
+!     * ((2. * Pi * Species(Educt_Spec2)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/(Surfdensity))**0.5
 Qrot = 1.
 Qvib = 1.
 IF(SpecDSMC(Educt_Spec1)%InterID.EQ.2) THEN
