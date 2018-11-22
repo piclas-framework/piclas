@@ -309,6 +309,7 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+LOGICAL                                  :: UseCircularInflow                !
 LOGICAL                                  :: UseAdaptiveInlet                 !
 LOGICAL                                  :: UseAdaptivePump                  !
 REAL                                     :: AdaptiveNbrPumps                 !

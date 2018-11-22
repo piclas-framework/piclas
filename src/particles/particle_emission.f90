@@ -3667,7 +3667,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
                                    , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump, AdaptiveNbrPumps
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump, AdaptiveNbrPumps, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3693,7 +3693,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, nSides
 CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF, projFak, v_thermal
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), point(2)
-LOGICAL               :: AnyCircularInflow, noAdaptive
+LOGICAL               :: noAdaptive
 INTEGER               :: MaxSurfacefluxBCs
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
 INTEGER,ALLOCATABLE   :: TmpMapToBC(:)                       ! PartBC
@@ -3798,7 +3798,7 @@ IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
 IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 #endif /*CODE_ANALYZE*/ 
 
-AnyCircularInflow=.FALSE.
+UseCircularInflow=.FALSE.
 UseAdaptiveInlet=.FALSE.
 UseAdaptivePump=.FALSE.
 AdaptiveNbrPumps = 0.0
@@ -3946,7 +3946,7 @@ __STAMP__&
           Species(iSpec)%Surfaceflux(iSF)%shiftFac     = GETREAL('Part-Species'//TRIM(hilf2)//'-shiftFac','0.')
         END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
         IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          AnyCircularInflow=.TRUE.
+          UseCircularInflow=.TRUE.
           Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir','1')
           IF (Species(iSpec)%Surfaceflux(iSF)%dir(1).EQ.1) THEN
             Species(iSpec)%Surfaceflux(iSF)%dir(2)=2
@@ -4146,7 +4146,7 @@ DO BCSideID=1,nBCSides
   TmpSideEnd(currentBC) = BCSideID
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
-IF (AnyCircularInflow) THEN
+IF (UseCircularInflow) THEN
   ALLOCATE(nType0(1:MaxSurfacefluxBCs,1:nSpecies), &
     nType1(1:MaxSurfacefluxBCs,1:nSpecies), &
     nType2(1:MaxSurfacefluxBCs,1:nSpecies) )
@@ -4167,7 +4167,7 @@ DO iBC=1,nDataBC
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)) )
-        IF (AnyCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
+        IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
       END IF
