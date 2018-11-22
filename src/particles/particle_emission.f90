@@ -6600,8 +6600,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount
 INTEGER, ALLOCATABLE          :: PumpElemCount(:)
-REAL                          :: VeloNormalToPump, PumpingSpeedTemp, DeltaPressure, vec_nIn(1:3)
-REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:)!, PumpMeanVelo(:,:)
+REAL                          :: VeloMagnitude, PumpingSpeedTemp, DeltaPressure        !, vec_nIn(1:3), VeloNormalToPump
+REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:)      !, PumpMeanVelo(:,:)
 !===================================================================================================================================
 
 ! Communication of impinged particles on the pump in halo region
@@ -6634,12 +6634,18 @@ DO iSpec=1,nSpecies
         IF(ElemID.LE.nElems) THEN
           ! If no particles hit the pump, do not perform calculations
           IF(NINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)).EQ.0) CYCLE
-          ! calculate the normal component of the velocity of impinged particles at the pumping surface
+          ! calculate the velocity of impinged particles at the pumping surface
           SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) &
-                                                          / ANINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF))
-          vec_nIn(1:3) = SurfMeshSubSideData(1,1,SurfMesh%SurfSideToGlobSideMap(iSurfSide))%vec_nIn(1:3)
-          ! Normal vector points inside, but positive velocity required
-          VeloNormalToPump = -DOT_PRODUCT(SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF),vec_nIn)
+                                                          / SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)
+          VeloMagnitude = SQRT(SampWall(iSurfSide)%PumpBCInfo(1,iSpec,iSF)**2 &
+                             + SampWall(iSurfSide)%PumpBCInfo(2,iSpec,iSF)**2 &
+                             + SampWall(iSurfSide)%PumpBCInfo(3,iSpec,iSF)**2)
+          ! ! -----------------------------------------------------
+          ! ! Alternative: use only the normal component as the velocity of the impinging particles (did not really work properly)
+          ! vec_nIn(1:3) = SurfMeshSubSideData(1,1,SurfMesh%SurfSideToGlobSideMap(iSurfSide))%vec_nIn(1:3)
+          ! ! Normal vector points inside, but positive velocity required
+          ! VeloNormalToPump = -DOT_PRODUCT(SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF),vec_nIn)
+          ! ! -----------------------------------------------------
           ! Determining the delta between current gas mixture pressure in adjacent cell and desired input pressure
           DeltaPressure = (SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
           ! Integrating the pressure difference
@@ -6653,12 +6659,12 @@ DO iSpec=1,nSpecies
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
           ! Calculating the alpha, 0: particle is deleted, 1: particle is reflected
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = PumpingSpeedTemp / VeloNormalToPump
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = PumpingSpeedTemp / VeloMagnitude
           ! Making sure that alpha is between 0 and 1
           IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).GT.1.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 1.0
             ! Setting pumping speed to maximum value (alpha=1)
-            Adaptive_MacroVal(11,ElemID,iSpec) = VeloNormalToPump
+            Adaptive_MacroVal(11,ElemID,iSpec) = VeloMagnitude
           ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).LE.0.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 0.0
             ! Avoiding negative pumping speeds
