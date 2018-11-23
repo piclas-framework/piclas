@@ -313,6 +313,9 @@ LOGICAL                                  :: UseCircularInflow                !
 LOGICAL                                  :: UseAdaptiveInlet                 !
 LOGICAL                                  :: UseAdaptivePump                  !
 REAL                                     :: AdaptiveNbrPumps                 !
+REAL, ALLOCATABLE                        :: PumpMacroVal(:,:,:)
+INTEGER                                  :: PumpSampIter
+INTEGER                                  :: PumpOutputIter
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations

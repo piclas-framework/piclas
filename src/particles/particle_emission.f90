@@ -175,6 +175,12 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-D
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed-Ki' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Pump-IterationForMacroVal' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', '0')
+CALL prms%CreateIntOption(      'Part-Pump-IterationForOutput' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'TODO-DEFINE-PARAMETER', '1')
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
@@ -3665,8 +3671,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
-USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges &
-                                   , DoTimeDepInflow, Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
+                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, PumpMacroVal, PumpSampIter, &
+                                     PumpOutputIter
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump, AdaptiveNbrPumps, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
@@ -4104,6 +4111,13 @@ IF (nAdaptiveBC.GT.0) THEN
 __STAMP__&
 , 'Sum of all pressurefractions .NE. 1')
 END IF
+
+PumpSampIter = GETINT('Part-Pump-IterationForMacroVal', '0')
+IF(PumpSampIter.GT.0) THEN
+  ALLOCATE(PumpMacroVal(1:7,1:nElems,1:nSpecies))
+  PumpMacroVal = 0.0
+END IF
+PumpOutputIter = GETINT('Part-Pump-IterationForOutput', '1')
 
 SDEALLOCATE(Adaptive_BC_Map)
 SDEALLOCATE(Adaptive_Found_Flag)
@@ -6425,11 +6439,12 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
-USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal
-USE MOD_Particle_Vars,          ONLY:AdaptiveWeightFac
+USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, PumpMacroVal
+USE MOD_Particle_Vars,          ONLY:AdaptiveWeightFac, PumpSampIter
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
+USE MOD_Timedisc_Vars,          ONLY:iter
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
@@ -6523,8 +6538,28 @@ DO iSpec = 1,nSpecies
       TTrans_TempFac = 0.0
     END IF
     ! compute pressure (without BoltzmannConst, cancels out with the tempreature calculation)
-    Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
+    IF(PumpSampIter.GT.0) THEN
+      ! Sampling the pressure very given number of iterations and RESETTING it after calculation
+      PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
+      PumpMacroVal(7,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
+      IF(MOD(iter,PumpSampIter).EQ.0) THEN
+        IF(PumpMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
+          PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) / PumpMacroVal(7,AdaptiveElemID,iSpec)
+          TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0)) * Species(iSpec)%MassIC &
+                            * (  PumpMacroVal(4,AdaptiveElemID,iSpec) - PumpMacroVal(1,AdaptiveElemID,iSpec)**2   &
+                              + PumpMacroVal(5,AdaptiveElemID,iSpec) - PumpMacroVal(2,AdaptiveElemID,iSpec)**2   &
+                              + PumpMacroVal(6,AdaptiveElemID,iSpec) - PumpMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
+          Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
+                                                        * Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+          PumpMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
+        END IF
+      END IF
+    ELSE
+      ! Pressure with relaxation factor
+      Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
       +AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+    END IF
+    ! !==================================================================================================
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -6581,12 +6616,12 @@ SUBROUTINE AdaptivePumpBC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, AdaptiveNbrPumps
+USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, AdaptiveNbrPumps, PumpOutputIter
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, SampWall
 USE MOD_Particle_Surfaces_Vars, ONLY:SurfMeshSubSideData
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:PartSideToElem
-USE MOD_Timedisc_Vars,          ONLY:iter, IterDisplayStep, dt
+USE MOD_Timedisc_Vars,          ONLY:iter, dt
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
 #endif /*MPI*/
@@ -6689,7 +6724,7 @@ DO iSpec=1,nSpecies
   END DO
 END DO
 
-!IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+IF(MOD(iter,PumpOutputIter).EQ.0) THEN
   ! Getting the total number of pumps in the simulation
   GlobalPumpCount = NINT(AdaptiveNbrPumps)
   ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
@@ -6724,7 +6759,7 @@ END DO
   END IF
 #endif
   SDEALLOCATE(PumpBCInfo)
-!END IF
+END IF
 
 SDEALLOCATE(AlphaOutput)
 SDEALLOCATE(PressNormOutput)
