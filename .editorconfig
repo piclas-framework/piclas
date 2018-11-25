@@ -24,6 +24,13 @@
 # * eclipse, Emacs, gedit, vim
 # * geany, jEdit, micro, NetBeans, Notepad++, PhpStorm, SublimeText
 # * Textadapt, textmate, Visual Studio Code
+#
+# Install in vim using vbundle
+# Add to vbundle settings
+#  " editorconfig
+#  Plugin 'editorconfig/editorconfig-vim'
+# and do not forget the installation
+# :PluginInstall
 #--------------------------------------------------------------------------------
 
 #--------------------------------------------------------------------------------
