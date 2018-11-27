@@ -337,11 +337,10 @@ CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
 IF(CalcLaserInteraction)THEN
   ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
-  WRITE(UNIT=hilf,FMT='(E16.8)') HUGE(1.0)
-  LaserInteractionEkinMaxRadius  = GETREAL('LaserInteractionEkinMaxRadius',hilf)
-  WRITE(UNIT=hilf,FMT='(E16.8)') -1.*HUGE(1.0)
-  LaserInteractionEkinMaxZPosMin = GETREAL('LaserInteractionEkinMaxZPosMin',hilf)
-    
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) 1.0E200!HUGE(1.0) -> HUGE produces IEEE overflow
+  LaserInteractionEkinMaxRadius  = GETREAL('LaserInteractionEkinMaxRadius',TRIM(hilf))
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) -1.0E200!-1.*HUGE(1.0) -> HUGE produces IEEE overflow
+  LaserInteractionEkinMaxZPosMin = GETREAL('LaserInteractionEkinMaxZPosMin',TRIM(hilf))
   CalcEkin=.TRUE.
 END IF
 

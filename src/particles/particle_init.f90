@@ -91,7 +91,7 @@ CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
                                 '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
                                 '4: TODO\n'//&
                                 '5: SEE (secondary e- emission) by Levko2015\n'//&
-                                '6: SEE (secondary e- emission) by Pagonakis2016 (orignally from Harrower1956)'&
+                                '6: SEE (secondary e- emission) by Pagonakis2016 (originally from Harrower1956)'&
                                 , '0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
