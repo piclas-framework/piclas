@@ -32,7 +32,7 @@ CONTAINS
 
 SUBROUTINE InitSMCR()
 !===================================================================================================================================
-!> Initializing surface distibution reconstruction model for calculating of coverage effects on heat of adsorption
+!> Initializing surface distribution reconstruction model for calculating of coverage effects on heat of adsorption
 !> Positions of binding sites in the surface lattice (always rectangular surface lattice assumed)
 !> ------------[        surfsquare       ]--------------
 !>              |       |       |       |
