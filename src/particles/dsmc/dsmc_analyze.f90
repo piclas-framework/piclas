@@ -1604,15 +1604,12 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
             Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
             Total_TempMean = Total_TempMean + Macro_TempMean*Macro_PartNum
             ! compute number density
-            Macro_Density = PartNum / GEO%Volume(iElem)*Species(iSpec)%MacroParticleFactor / REAL(DSMC%SampNum)
-            Total_Density = Total_Density + Macro_Density*Macro_PartNum
-            !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
-            !      IF (usevMPF) THEN
-            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-            !      ELSE 
-            !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
-            !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
-            !      END IF
+            !IF (usevMPF) THEN ! if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
+            !  Macro_Density = Macro_PartNum / GEO%Volume(iELem)
+            !ELSE
+              Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /GEO%Volume(iElem)
+            !END IF
+            Total_Density = Total_Density + Macro_Density
             ! compute internal energies / has to be changed for vfd 
             IF(useDSMC)THEN
               IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
@@ -1656,7 +1653,6 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         Total_Velo = Total_Velo / Total_PartNum
         Total_Temp = Total_Temp / Total_PartNum
         Total_TempMean = Total_TempMean / Total_PartNum
-        Total_Density = Total_Density / Total_PartNum
         IF(useDSMC)THEN
           IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(MolecpartNum.GT.0))THEN
             Total_TempVib = Total_TempVib / MolecPartNum
