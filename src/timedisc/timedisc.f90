@@ -4600,6 +4600,7 @@ USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_SurfaceModel           ,ONLY: UpdateSurfModelVars, SurfaceModel_main
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -4701,6 +4702,14 @@ CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (time.GE.DelayTime) THEN
   IF (DoSurfaceFlux) THEN
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+    CALL SurfaceModel_main()
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
     CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
   END IF
 #if USE_LOADBALANCE
@@ -4794,7 +4803,16 @@ __STAMP__&
       CALL ParticleTracing()
     END IF
   END IF
+
+  CALL UpdateSurfModelVars()
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
   CALL ParticleInserting()
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
@@ -4853,7 +4871,16 @@ DO iStage=2,nRKStages
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   IF (time.GE.DelayTime) THEN
-    IF (DoSurfaceFlux) CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+    IF (DoSurfaceFlux)THEN
+#if USE_LOADBALANCE
+      CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+      CALL SurfaceModel_main()
+#if USE_LOADBALANCE
+      CALL LBPauseTime(LB_SURF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+      CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+    END IF
     ! forces on particle
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -4939,7 +4966,16 @@ DO iStage=2,nRKStages
         CALL ParticleTracing()
       END IF
     END IF
+
+    CALL UpdateSurfModelVars()
+
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
     CALL ParticleInserting()
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_EMISSION,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #ifdef MPI
     CALL SendNbOfParticles() ! send number of particles
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
