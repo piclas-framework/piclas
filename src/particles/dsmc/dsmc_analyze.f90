@@ -883,7 +883,11 @@ DO iSpec=1, nSpecies
   DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
                                         + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
 END DO
-DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+IF(SUM(CollInf%Coll_SpecPartNum).GT.0)THEN
+  DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+ELSE
+  DSMC%InstantTransTemp(nSpecies+1) = 0
+END IF
 
 END SUBROUTINE CalcInstantTransTemp
 
