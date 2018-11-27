@@ -14,7 +14,7 @@
 
 MODULE MOD_SMCR
 !===================================================================================================================================
-!> Main Routines of Surface Approximation Monte Carlo
+!> Main Routines of Surface Monte Carlo Replication
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -34,7 +34,7 @@ CONTAINS
 
 SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
 !===================================================================================================================================
-!> Particle adsorption probability calculation for one impinging particle using a surface reconstruction (SMCR) (surfacemodel = 3)
+!> Particle adsorption probability calculation for one impinging particle using a surface replication (SMCR) (surfacemodel = 3)
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst, PI
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies, Species, WriteMacroSurfaceValues
@@ -538,7 +538,7 @@ END SUBROUTINE SMCR_PartAdsorb
 
 SUBROUTINE SMCR_PartDesorb()
 !===================================================================================================================================
-!> Calculation of number of desorbing particles using surface reconstruction (surfacemodel = 3)
+!> Calculation of number of desorbing particles using surface replication (surfacemodel = 3)
 !> Performing Surface Monte Carlo step (MCS)
 !> 1. diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
 !> 2. Loop over all particles on surfaces and calulate desorption/reaction probabities
@@ -1846,7 +1846,7 @@ SUBROUTINE SMCR_Diffusion()
 !===================================================================================================================================
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
-USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat
+USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat, SpaceOccupied
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1882,8 +1882,12 @@ DO iSubSurf = 1,nSurfSample
       ! find free Neighbour positions of the same site-coordination
       DO i = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours
         IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
+!          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i).EQ.57) print*,SurfPos,i,Coord
           IF ( (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species( &
               SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
+            ! check for occupation with neirest Neighbours of position
+            IF (SpaceOccupied(iSurf,iSubSurf,jSubSurf,Coord &
+                ,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i))) CYCLE
             n_equal_site_Neigh = n_equal_site_Neigh + 1
             free_Neigh_pos(n_equal_site_Neigh) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)
           END IF
