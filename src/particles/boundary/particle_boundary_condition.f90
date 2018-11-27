@@ -2258,7 +2258,7 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
   !   outSpec(1) = SpecID
   !   outSpec(2) = 4!SpecID ! electron
   !   adsorption_case = -2 ! perfect elastic scattering + particle creation
-     WRITE (*,*) "SpecID,outSpec(1),outSpec(2),adsorption_case =", SpecID,outSpec(1),outSpec(2),adsorption_case
+  !   WRITE (*,*) "SpecID,outSpec(1),outSpec(2),adsorption_case =", SpecID,outSpec(1),outSpec(2),adsorption_case
   ! END IF
 END SELECT
 
