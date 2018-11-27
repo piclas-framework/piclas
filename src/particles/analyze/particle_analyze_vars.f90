@@ -68,6 +68,12 @@ LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute 
 LOGICAL                       :: CalcIonizationDegree                !< Compute the ionization degree and quasi neutrality
 !                                                                    !< in each cell
 LOGICAL                       :: CalcLaserInteraction                !<Compute laser-plasma interaction properties such as maximum
+REAL                          :: LaserInteractionEkinMaxRadius       !< maximum radius (x- and y-dir) of particle to be considered
+!                                                                    !< for Ekin maximum calculation (default is HUGE)
+!                                                                    !< OR LaserInteractionEkinMaxZPosMin
+REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum z-position of particle to be considered for Ekin
+!                                                                    !< maximum calculation (default is -1.*HUGE)
+!                                                                    !< OR LaserInteractionEkinMaxRadius
 !                                                                    !<particle energy per species. Default=.FALSE.
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value

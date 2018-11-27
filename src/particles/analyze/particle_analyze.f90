@@ -125,6 +125,12 @@ CALL prms%CreateLogicalOption(  'CalcVelos'               , 'TODO-DEFINE-PARAMET
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcLaserInteraction'     , 'Compute laser-plasma interaction properties such as maximum '//&
                                                              'particle energy per species.','.FALSE.')
+CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
+                                                                'Ekin maximum calculation (default is HUGE) '//&
+                                                                'OR if LaserInteractionEkinMaxZPosMin is true')
+CALL prms%CreateRealOption(     'LaserInteractionEkinMaxZPosMin','minimum z-position of particle to be considered for Ekin '//&
+                                                                 'maximum calculation (default is -1.*HUGE) '//&
+                                                                 'OR if LaserInteractionEkinMaxRadius is true')
 CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
                                                           ,'1 , 1 , 1 , 1')
@@ -180,8 +186,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: dir, VeloDirs_hilf(4),iElem
-REAL      :: DOF,VolumeShapeFunction
+INTEGER       :: dir, VeloDirs_hilf(4),iElem
+REAL          :: DOF,VolumeShapeFunction
+CHARACTER(32) :: hilf
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -328,7 +335,15 @@ END IF
 CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 ! Laser-plasma interaction analysis
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
-IF(CalcLaserInteraction)CalcEkin=.TRUE.
+IF(CalcLaserInteraction)THEN
+  ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
+  WRITE(UNIT=hilf,FMT='(E16.8)') HUGE(1.0)
+  LaserInteractionEkinMaxRadius  = GETREAL('LaserInteractionEkinMaxRadius',hilf)
+  WRITE(UNIT=hilf,FMT='(E16.8)') -1.*HUGE(1.0)
+  LaserInteractionEkinMaxZPosMin = GETREAL('LaserInteractionEkinMaxZPosMin',hilf)
+    
+  CalcEkin=.TRUE.
+END IF
 
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
@@ -1498,7 +1513,7 @@ USE MOD_Preproc
 USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
 USE MOD_PARTICLE_Vars         ,ONLY: PartMPF, usevMPF
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 #ifndef PP_HDG
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/ 
@@ -1517,14 +1532,14 @@ REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 ! LOCAL VARIABLES
 INTEGER                         :: i
 REAL(KIND=8)                    :: partV2, GammaFac
-REAL                            :: EkinMax_zPos,EkinMax_radius,Ekin_loc
+REAL                            :: Ekin_loc
 !===================================================================================================================================
 
 Ekin    = 0.!d0
 EkinMax = -1.        
 ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
-EkinMax_radius = 6.0e-6
-EkinMax_zPos   = 13.0e-6
+LaserInteractionEkinMaxRadius = 6.0e-6
+LaserInteractionEkinMaxZPosMin   = 13.0e-6
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
@@ -1562,7 +1577,8 @@ IF (nSpecAnalyze.GT.1) THEN
         END IF !=usevMPF
       END IF ! partV2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! (PDM%ParticleInside(i))
@@ -1601,7 +1617,8 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 
       END IF ! par2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! particle inside
