@@ -5238,23 +5238,23 @@ __STAMP__&
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-      IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        print*,'herre'
-        nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-                                  PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      ELSE
-        print*,'or here'
+      ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+      !   !print*,'herre' ! TODO: does this need fixing? (see IMPA or Ros)
+      !   nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
+      !   DO iPart=1,NbrOfparticle
+      !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+      !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+      !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+      !   END DO ! iPart
+      ! ELSE
+        !print*,'or here' ! TODO: does this need fixing? (see IMPA or Ros)
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
+      !END IF
 #elif  defined(IMPA) || defined(ROS)
       !IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
