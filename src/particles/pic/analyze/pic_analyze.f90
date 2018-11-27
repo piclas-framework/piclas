@@ -216,7 +216,6 @@ USE MOD_Globals_Vars,         ONLY:ElementaryCharge
 USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_Particle_Mesh_Vars,   ONLY:GEO
 USE MOD_Particle_Vars,        ONLY:RegionElectronRef
 USE MOD_DG_Vars,              ONLY:U
 ! IMPLICIT VARIABLE HANDLING
