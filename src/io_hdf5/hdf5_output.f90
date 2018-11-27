@@ -1127,7 +1127,7 @@ SurfCalcData = 0.
 DO iSurfSide = 1,SurfMesh%nSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%SolidCatalytic(PartboundID)) THEN
+  IF (PartBound%SolidReactive(PartboundID)) THEN
     DO jsubsurf = 1,nSurfSample
       DO isubsurf = 1,nSurfSample
         SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:) = Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:)
@@ -1176,7 +1176,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample
         DO isubsurf = 1,nSurfSample
           DO iCoord = 1,Coordinations
@@ -1210,7 +1210,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample
         DO isubsurf = 1,nSurfSample
           DO iCoord = 1,Coordinations

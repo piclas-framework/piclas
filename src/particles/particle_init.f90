@@ -88,7 +88,11 @@ CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
                                 '0: Maxwell scattering\n'//&
                                 '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
                                 '2: Recombination model\n'//&
-                                '3: (SMCR with UBI-QEP, TST and TCE)', '0')
+                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
+                                '4: TODO\n'//&
+                                '5: SEE (secondary e- emission) by Levko2015\n'//&
+                                '6: SEE (secondary e- emission) by Pagonakis2016 (orignally from Harrower1956)'&
+                                , '0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -854,7 +858,7 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidCatalytic'  &
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidReactive'  &
                                 , 'Flag for defining solid surface to be treated catalytically (for surfacemodel>0).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
@@ -902,22 +906,22 @@ CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
                                   '-> more details see also Part-Boundary[$]-Condition',  'open', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation',  '0', numberedmulti=.TRUE.)
+                                  'Momentum accommodation',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]',  '0', numberedmulti=.TRUE.)
+                                  'Wall temperature of boundary[$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Translation accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Vibrational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Rotational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Electronic accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Resample Equilibirum Distribution with reflection',  '.FALSE.'&
@@ -2128,7 +2132,7 @@ ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidCatalytic(1:nPartBound))
+ALLOCATE(PartBound%SolidReactive(1:nPartBound))
 ALLOCATE(PartBound%SolidSpec(1:nPartBound))
 ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
 ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
@@ -2227,20 +2231,20 @@ __STAMP__&
      PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
-     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
-     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp','0')
-     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC','0')
-     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC','0')
-     PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC','0')
-     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC','0')
-     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
-     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
-     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
-     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
-     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
+     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
+     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
+     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
+     PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
+     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
+     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
+     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
+     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec')
      IF(PartBound%SolidState(iPartBound))THEN
        SolidSimFlag = .TRUE.
-       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic','.FALSE.')
+       PartBound%SolidReactive(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidReactive','.FALSE.')
        PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec','0')
        PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens','1.0E+19')
        PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC','3.2395E-25')
@@ -2397,14 +2401,14 @@ END IF
 KeepWallParticles = .FALSE.
 IF (SolidSimFlag) THEN
   !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
-  PartSurfaceModel = GETINT('Particles-SurfaceModel','0')
+  PartSurfaceModel = GETINT('Particles-SurfaceModel')
 ELSE
   PartSurfaceModel = 0
 END IF
 IF (PartSurfaceModel.GT.0 .AND. .NOT.useDSMC) THEN
   CALL abort(&
 __STAMP__&
-,'Cant use surfacemodel>0 withoput useDSMC flag!')
+,'Cannot use surfacemodel>0 with useDSMC=F!')
 END IF
 
 !--- initialize randomization
@@ -2518,14 +2522,14 @@ IF (nAuxBCs.GT.0) THEN
       PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
     CASE('reflective')
       PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
-      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC','0')
-      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp','0')
-      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC','0')
-      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC','0')
-      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC','0')
-      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC','0')
-      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample','.FALSE.')
-      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
+      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
+      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
+      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
+      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
+      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
+      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
+      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
+      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
       IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
         !read Species to be changed at wall (in, out), out=0: delete
         PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -3076,7 +3080,7 @@ SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidCatalytic)
+SDEALLOCATE(PartBound%SolidReactive)
 SDEALLOCATE(PartBound%SolidSpec)
 SDEALLOCATE(PartBound%SolidPartDens)
 SDEALLOCATE(PartBound%SolidMassIC)

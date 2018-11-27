@@ -585,7 +585,7 @@ IF(SurfMesh%SurfOnProc)THEN
   DO iSurfSide=1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)

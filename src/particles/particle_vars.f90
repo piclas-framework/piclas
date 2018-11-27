@@ -38,6 +38,10 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              ! 2 Recombination coefficient (Laux model)
                                                                              ! 3 adsorption/desorption + chemical interaction 
                                                                              !   (SMCR with UBI-QEP, TST and TCE)
+                                                                             ! 4 TODO
+                                                                             ! 5 SEE (secondary e- emission) by Levko2015
+                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016 
+                                                                             !   (orignally from Harrower1956)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file

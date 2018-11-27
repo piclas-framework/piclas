@@ -4790,7 +4790,7 @@ __STAMP__&
               END IF !TriaSurfaceFlux
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
           END IF !PartSurfaceModel .OR. LiquidSimFlag
-        END IF
+        END IF !noAdaptive
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles

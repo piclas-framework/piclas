@@ -149,7 +149,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -160,11 +160,11 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
-      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC&
+        CALL ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC&
                                               ,TriNum=TriNum)
         ! assign right treatment
         SELECT CASE (adsorbindex)
@@ -374,7 +374,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
       BCSideID=PartBCSideList(SideID)
-      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -385,11 +385,11 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         END IF
-      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex&
+        CALL ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         ! assign right treatment
         SELECT CASE (adsorbindex)
@@ -2074,7 +2074,7 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum)
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum)
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
@@ -2775,7 +2775,7 @@ CASE DEFAULT ! diffuse reflection
   adsindex = 0
 END SELECT
 
-END SUBROUTINE CatalyticTreatment
+END SUBROUTINE ReactiveSurfaceTreatment
 
 SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID,TriNum)
 !===================================================================================================================================
