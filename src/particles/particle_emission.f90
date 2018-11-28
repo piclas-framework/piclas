@@ -4112,12 +4112,17 @@ __STAMP__&
 , 'Sum of all pressurefractions .NE. 1')
 END IF
 
+PumpOutputIter = GETINT('Part-Pump-IterationForOutput', '1')
 PumpSampIter = GETINT('Part-Pump-IterationForMacroVal', '0')
 IF(PumpSampIter.GT.0) THEN
   ALLOCATE(PumpMacroVal(1:7,1:nElems,1:nSpecies))
   PumpMacroVal = 0.0
+  IF(PumpOutputIter.LT.PumpSampIter) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR: IterationForOutput should be larger than or equal to IterationForMacroVal!')
+  END IF
 END IF
-PumpOutputIter = GETINT('Part-Pump-IterationForOutput', '1')
 
 SDEALLOCATE(Adaptive_BC_Map)
 SDEALLOCATE(Adaptive_Found_Flag)
@@ -6635,17 +6640,20 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount
 INTEGER, ALLOCATABLE          :: PumpElemCount(:)
-REAL                          :: VeloMagnitude, PumpingSpeedTemp, DeltaPressure        !, vec_nIn(1:3), VeloNormalToPump
-REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:)      !, PumpMeanVelo(:,:)
+REAL                          :: PumpingSpeedTemp, DeltaPressure, VeloSum        !, vec_nIn(1:3), VeloNormalToPump
+REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:), PumpMeanVelo(:,:), VeloMagnitude(:)
 !===================================================================================================================================
+
+! Getting the total number of pumps in the simulation
+GlobalPumpCount = NINT(AdaptiveNbrPumps)
 
 ! Communication of impinged particles on the pump in halo region
 #ifdef MPI
 CALL ExchangePumpData()
 #endif
 
-! Averaging of velocity
-! CALL AveragePumpData(PumpMeanVelo)
+! Averaging of velocity accross pump
+ CALL AveragePumpData(PumpMeanVelo)
 
 ALLOCATE(AlphaOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 AlphaOutput = 0.
@@ -6653,8 +6661,18 @@ ALLOCATE(PressNormOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 PressNormOutput = 0.
 ALLOCATE(PumpElemCount(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 PumpElemCount = 0
+ALLOCATE(VeloMagnitude(1:GlobalPumpCount))
+VeloMagnitude = 0.
+
+DO iPump = 1, GlobalPumpCount
+  ! If no particles hit the pump, do not perform calculations
+  IF(NINT(PumpMeanVelo(4,iPump)).EQ.0) CYCLE
+  ! calculate the velocity of impinged particles at the pumping surface
+  VeloMagnitude(iPump) = SQRT(PumpMeanVelo(1,iPump)**2 + PumpMeanVelo(2,iPump)**2 + PumpMeanVelo(3,iPump)**2)
+END DO
 
 DO iSpec=1,nSpecies
+  iPump=1
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     ! Resetting the element counter -> only last species counts: Temporary workaround, should not be used with multiple species
     ! Example: If a species is very dilute, no particle might hit certain elements of the pump -> PumpElemCount would be smaller
@@ -6667,14 +6685,16 @@ DO iSpec=1,nSpecies
         ! Only processors with actual pump elements perform calculations, excluding procs with halo cells in pump region
         ! Communication of those impinged particles was performed in ExchangePumpData
         IF(ElemID.LE.nElems) THEN
-          ! If no particles hit the pump, do not perform calculations
+          ! Skip elements/sides where no particle hit the pump surface (otherwise wrong number of elements for averaging)
           IF(NINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)).EQ.0) CYCLE
-          ! calculate the velocity of impinged particles at the pumping surface
-          SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) &
-                                                          / SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)
-          VeloMagnitude = SQRT(SampWall(iSurfSide)%PumpBCInfo(1,iSpec,iSF)**2 &
-                             + SampWall(iSurfSide)%PumpBCInfo(2,iSpec,iSF)**2 &
-                             + SampWall(iSurfSide)%PumpBCInfo(3,iSpec,iSF)**2)
+          ! ! -----------------------------------------------------
+          ! ! Alternative: calculate side local velocity magnitude of impinging particles, very dependent on particle number!
+          ! IF(NINT(SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)).EQ.0) CYCLE
+          ! SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(iSurfSide)%PumpBCInfo(1:3,iSpec,iSF) &
+          !                                                 / SampWall(iSurfSide)%PumpBCInfo(4,iSpec,iSF)
+          ! VeloMagnitude = SQRT(SampWall(iSurfSide)%PumpBCInfo(1,iSpec,iSF)**2 &
+          !                     + SampWall(iSurfSide)%PumpBCInfo(2,iSpec,iSF)**2 &
+          !                     + SampWall(iSurfSide)%PumpBCInfo(3,iSpec,iSF)**2)
           ! ! -----------------------------------------------------
           ! ! Alternative: use only the normal component as the velocity of the impinging particles (did not really work properly)
           ! vec_nIn(1:3) = SurfMeshSubSideData(1,1,SurfMesh%SurfSideToGlobSideMap(iSurfSide))%vec_nIn(1:3)
@@ -6694,12 +6714,12 @@ DO iSpec=1,nSpecies
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
               + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
           ! Calculating the alpha, 0: particle is deleted, 1: particle is reflected
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = PumpingSpeedTemp / VeloMagnitude
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = PumpingSpeedTemp / VeloMagnitude(iPump)
           ! Making sure that alpha is between 0 and 1
           IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).GT.1.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 1.0
             ! Setting pumping speed to maximum value (alpha=1)
-            Adaptive_MacroVal(11,ElemID,iSpec) = VeloMagnitude
+            Adaptive_MacroVal(11,ElemID,iSpec) = VeloMagnitude(iPump)
           ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide).LE.0.0) THEN
             Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(iSurfSide) = 0.0
             ! Avoiding negative pumping speeds
@@ -6716,17 +6736,16 @@ DO iSpec=1,nSpecies
           PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
                                                             / Species(1)%Surfaceflux(iSF)%AdaptivePressure
           PumpElemCount(iSF) = PumpElemCount(iSF) + 1
-        END IF
+        END IF          ! Only perform calculations on local elements (no halo)
         ! Reset sampled values at pump surface
         SampWall(iSurfSide)%PumpBCInfo(1:4,iSpec,iSF) = 0.
-      END DO
-    END IF
-  END DO
-END DO
+      END DO            ! iSurfSide
+      iPump = iPump + 1
+    END IF              ! AdaptInType.EQ.4
+  END DO                ! iSF
+END DO                  ! iSpec
 
 IF(MOD(iter,PumpOutputIter).EQ.0) THEN
-  ! Getting the total number of pumps in the simulation
-  GlobalPumpCount = NINT(AdaptiveNbrPumps)
   ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
   iPump=1
   ! Mapping the info from the surface flux array to the pump array
