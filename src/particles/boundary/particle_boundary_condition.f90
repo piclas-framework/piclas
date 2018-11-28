@@ -94,7 +94,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: adsorbindex
-LOGICAL                              :: isSpeciesSwap
+LOGICAL                              :: isSpeciesSwap, PumpReflection
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -139,7 +139,8 @@ CASE(1) !PartBound%OpenBC)
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- Treatment of adaptive boundary conditions (deletion of particles in case of circular inflow or for the pump BC)
-  IF(UseCircularInflow.OR.UseAdaptivePump) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
+  PumpReflection = .FALSE.
+  IF(UseCircularInflow.OR.UseAdaptivePump) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PumpReflection)
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
 #ifndef IMPA
@@ -154,7 +155,7 @@ CASE(2) !PartBound%ReflectiveBC)
       IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
-        IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+        IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PumpReflection) THEN
           ! perfectly reflecting, specular re-emission
           CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
@@ -3021,7 +3022,7 @@ END SELECT
 END SUBROUTINE ParticleCondensationCase
 
 
-SUBROUTINE AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
+SUBROUTINE AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PumpReflection)
 !===================================================================================================================================
 ! Treatment of particles impinging on the boundary
 ! Circular Inflow: Particles are deleted if within (allows multiple surface flux inflows defined by a circle on a single boundary)
@@ -3042,12 +3043,12 @@ REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)            :: alpha
+LOGICAL,INTENT(INOUT)                :: PumpReflection
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: point(1:2), intersectionPoint(1:3), radius, iRan
 INTEGER                              :: iSpec, iSF, SurfSideID
 !===================================================================================================================================
-
 iSpec = PartSpecies(iPart)
 SurfSideID = SurfMesh%SideIDToSurfID(SideID)
 DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -3061,6 +3062,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
           SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
           SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1.0
+          PumpReflection = .TRUE.
           ! check particle for leaving the domain
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
@@ -3071,6 +3073,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       ELSE
         SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
         SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1.0
+        PumpReflection = .TRUE.
         ! check particle for leaving the domain
         CALL RANDOM_NUMBER(iRan)
         IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
