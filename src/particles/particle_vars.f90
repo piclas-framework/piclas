@@ -40,6 +40,8 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              !   (SMCR with UBI-QEP, TST and TCE)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
+LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
+                                                                             ! specific degree
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
 REAL                  :: IMDTimeScale                                        ! Time unit of input file
 REAL                  :: IMDLengthScale                                      ! global IMD length scale
