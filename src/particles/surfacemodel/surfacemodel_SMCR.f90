@@ -567,6 +567,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
 #endif /*USE_LOADBALANCE*/
+#ifdef MPI
+USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfDistInfo
+#endif /*MPI*/
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -1849,6 +1852,12 @@ END DO ! SurfMesh%nSides
 DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,adsorbates)
 DEALLOCATE(P_actual_react,P_react_forward,P_react_back)
 DEALLOCATE(Coord_ReactP,Pos_ReactP)
+
+! 6. communicate surface state to halo sides of neighbours
+#ifdef MPI
+  ! communicate distribution to halo-sides of neighbour procs
+  CALL ExchangeSurfDistInfo()
+#endif
 
 END SUBROUTINE SMCR_PartDesorb
 
