@@ -3022,7 +3022,7 @@ REAL    :: ChargeAverage
 !===================================================================================================================================
 SpeciesID     = (/1,2,3/)    ! Species IDs for the considered species
 SpeciesCharge = (/0,-1,1/)   ! Charge state for each species
-ChargeAverage = 0.01         ! Average charge for each atom/molecule in the cell (corresponds to the ionization degree)
+ChargeAverage = 1.0!0.01         ! Average charge for each atom/molecule in the cell (corresponds to the ionization degree)
 
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
