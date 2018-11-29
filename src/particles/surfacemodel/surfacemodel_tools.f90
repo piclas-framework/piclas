@@ -57,6 +57,10 @@ INTERFACE UpdateSurfPos
   MODULE PROCEDURE UpdateSurfPos
 END INTERFACE
 
+INTERFACE SampleAdsorptionHeat
+  MODULE PROCEDURE SampleAdsorptionHeat
+END INTERFACE
+
 INTERFACE SMCR_AdjustMapNum
   MODULE PROCEDURE SMCR_AdjustMapNum
 END INTERFACE
@@ -69,6 +73,7 @@ PUBLIC :: Set_TST_Factors
 PUBLIC :: CalcAdsorbReactProb
 PUBLIC :: SpaceOccupied
 PUBLIC :: UpdateSurfPos
+PUBLIC :: SampleAdsorptionHeat
 PUBLIC :: SMCR_AdjustMapNum
 !===================================================================================================================================
 
@@ -776,31 +781,54 @@ END DO
 END FUNCTION SpaceOccupied
 
 
-SUBROUTINE UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coordination,SurfPos,Species,removeFlag)
+SUBROUTINE UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coordination,SurfPos,Species,removeFlag,relaxation)
 !===================================================================================================================================
 !> updates bond order for surfpos and species (if removeflag=True then remove species from space else add it)
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SurfDistInfo
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN) :: SurfID, SubSurfxi, SubSurfeta, Coordination, SurfPos, Species
-LOGICAL, INTENT(IN) :: removeFlag
+INTEGER, INTENT(IN)          :: SurfID, SubSurfxi, SubSurfeta, Coordination, SurfPos, Species
+LOGICAL, INTENT(IN)          :: removeFlag
+LOGICAL, INTENT(IN),OPTIONAL :: relaxation
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iInterAtom, Indx, Indy
-INTEGER :: BondOrderAddon
+INTEGER :: BondOrderAddon, iQuant
+REAL    :: iRan, WallTemp
 !===================================================================================================================================
 IF (removeFlag) THEN
   SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%Species(SurfPos) = 0
   BondOrderAddon = -1
+  IF (PRESENT(relaxation)) SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%EVib(SurfPos) = 0.0
 ELSE
   SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%Species(SurfPos) = Species
   BondOrderAddon = 1
+  IF (PRESENT(relaxation)) THEN
+    ! set vibrational energy of adsorbate
+    IF ((SpecDSMC(Species)%InterID.EQ.2).OR.(SpecDSMC(Species)%InterID.EQ.20)) THEN
+      WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*WallTemp/SpecDSMC(Species)%CharaTVib)
+      DO WHILE (iQuant.GE.SpecDSMC(Species)%MaxVibQuant)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT(-LOG(iRan)*WallTemp/SpecDSMC(Species)%CharaTVib)
+      END DO
+      SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%EVib(SurfPos) = &
+          (iQuant + DSMC%GammaQuant)*SpecDSMC(Species)%CharaTVib*BoltzmannConst
+    ELSE
+      SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%EVib(SurfPos) = 0.0
+    END IF
+  END IF
 END IF
 
 DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%nInterAtom
@@ -811,6 +839,44 @@ DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)
 END DO
 
 END SUBROUTINE UpdateSurfPos
+
+
+REAL FUNCTION SampleAdsorptionHeat(SurfID,iSubSurf,jSubSurf)
+!===================================================================================================================================
+!> Sums up the current heat of adsorption on the specified SMCR surface
+!> If SurfID is non catalytic, adsorptionheat is zero
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: SurfID, iSubSurf, jSubSurf
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: SurfPos, SpecID, AdsorbID, Coord
+!===================================================================================================================================
+SampleAdsorptionHeat = 0.0
+IF (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))) RETURN
+
+ASSOCIATE ( nSites => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%nSites(:) ,&
+            nSitesRemain => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%SitesRemain(:) )
+  DO Coord = 1,3
+    DO AdsorbID = 1,nSites(Coord)-nSitesRemain(Coord)
+      Surfpos = SurfDistInfo(iSubSurf,jSubSurf,SurfID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain(Coord)+AdsorbID)
+      SpecID = SurfDistInfo(iSubSurf,jSubSurf,SurfID)%AdsMap(Coord)%Species(Surfpos)
+      SampleAdsorptionHeat = SampleAdsorptionHeat + Calc_Adsorb_Heat(iSubSurf,jSubSurf,SurfID,SpecID,Surfpos,.FALSE.) &
+                           + SurfDistInfo(iSubSurf,jSubSurf,SurfID)%AdsMap(Coord)%EVib(Surfpos)
+    END DO
+  END DO
+END ASSOCIATE
+
+END FUNCTION SampleAdsorptionHeat
 
 
 SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID)
@@ -825,8 +891,11 @@ SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,Spec
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh, SampWall
+USE MOD_Particle_Vars          ,ONLY: Species, WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 !----------------------------------------------------------------------------------------------------------------------------------!
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -840,6 +909,14 @@ INTEGER                          :: Coord, Surfnum, Surfpos, UsedSiteMapPos, nSi
 INTEGER                          :: iInterAtom, xpos, ypos
 REAL                             :: RanNum
 !===================================================================================================================================
+IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+      + (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
+      / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+      * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
+END IF
+
 PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
 IF (adsorbates_num.GT.0) THEN
   ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
@@ -859,14 +936,7 @@ IF (adsorbates_num.GT.0) THEN
     CALL RANDOM_NUMBER(RanNum)
     Surfpos = 1 + INT(Surfnum * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = SpecID
-    ! assign bond order of respective surface atoms in the surfacelattice
-    DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-      xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
-      ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(SpecID,xpos,ypos) = &
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(SpecID,xpos,ypos) + 1
-    END DO
+    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.TRUE.,relaxation=.TRUE.)
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
@@ -895,14 +965,7 @@ ELSE IF (adsorbates_num.LT.0) THEN
     CALL RANDOM_NUMBER(RanNum)
     Surfpos = 1 + INT(Surfnum * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = 0
-    ! assign bond order of respective surface atoms in the surfacelattice
-    DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-      xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
-      ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(SpecID,xpos,ypos) = &
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(SpecID,xpos,ypos) - 1
-    END DO
+    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.FALSE.,relaxation=.TRUE.)
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos) = &
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1)
@@ -912,6 +975,14 @@ ELSE IF (adsorbates_num.LT.0) THEN
     dist = dist - 1
   END DO
   SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
+END IF
+
+IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+      - (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
+      / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+      * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
 END IF
 
 END SUBROUTINE SMCR_AdjustMapNum

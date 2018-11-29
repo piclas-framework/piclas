@@ -132,6 +132,7 @@ TYPE tAdsorbateMapping
                                                                     ! (1:SitesRemain) --> free site positions
                                                                     ! (SitesRemain+1:nSites) --> vacant site positions
   INTEGER , ALLOCATABLE                  :: Species(:)              ! species of adsorbate on sitepos (1:nSites)
+  REAL    , ALLOCATABLE                  :: EVib(:)                 ! vibrational energy of adsorbate on sitepos (1:nSites)
   INTEGER , ALLOCATABLE                  :: BondAtomIndx(:,:)       ! adjacent surfatoms index x (1:nSites,1:nInterAtom)
   INTEGER , ALLOCATABLE                  :: BondAtomIndy(:,:)       ! adjacent surfatoms index y (1:nSites,1:nInterAtom)
   INTEGER                                :: nInterAtom              ! number of adjacent surface atoms
