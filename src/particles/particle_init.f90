@@ -2995,14 +2995,12 @@ SUBROUTINE InitialIonization()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Globals_Vars  ,ONLY: ElectronCharge
 USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
-USE MOD_Eval_xyz      ,ONLY: eval_xyz_elemcheck
 USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: Eval_XYZ_Poly
+USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3104,7 +3102,7 @@ DO iElem=1,PP_nElems
     PartPosRef(1:3)=PartPosRef(1:3)*2. - 1. ! map (0,1) -> (-1,1)
 
     ! Get the physical coordinates that correspond to the reference coordinates
-    CALL Eval_xyz_Poly(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
+    CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
                       ,PartState(ParticleIndexNbr,1:3)) !Map into phys. space
 
     ! Set the internal energies (vb, rot and electronic) to zero if needed
