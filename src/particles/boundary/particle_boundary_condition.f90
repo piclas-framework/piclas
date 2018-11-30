@@ -3034,6 +3034,8 @@ USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY:PDM, Species, LastPartPos, PartSpecies, PartState
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, SampWall
 USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3068,6 +3070,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
           IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
             PDM%ParticleInside(iPart)=.FALSE.
             alpha=-1.
+            SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1
           END IF
         END IF
       ELSE
@@ -3079,6 +3082,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
           PDM%ParticleInside(iPart)=.FALSE.
           alpha=-1.
+          SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1
         END IF
       END IF
     ELSE
@@ -3090,6 +3094,10 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
           PDM%ParticleInside(iPart)=.FALSE.
           alpha=-1.
+          IF(CalcPartBalance) THEN
+            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+          END IF ! CalcPartBalance
         END IF
       END IF
     END IF

@@ -294,7 +294,7 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
   !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
   IF(UseAdaptivePump) THEN
-    ALLOCATE(SampWall(iSide)%PumpBCInfo(1:4,1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    ALLOCATE(SampWall(iSide)%PumpBCInfo(1:5,1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     SampWall(iSide)%PumpBCInfo=0.
   END IF
 END DO
