@@ -936,7 +936,7 @@ IF (adsorbates_num.GT.0) THEN
     CALL RANDOM_NUMBER(RanNum)
     Surfpos = 1 + INT(Surfnum * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.TRUE.,relaxation=.TRUE.)
+    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.FALSE.,relaxation=.TRUE.)
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
@@ -965,7 +965,7 @@ ELSE IF (adsorbates_num.LT.0) THEN
     CALL RANDOM_NUMBER(RanNum)
     Surfpos = 1 + INT(Surfnum * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos)
-    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.FALSE.,relaxation=.TRUE.)
+    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.TRUE.,relaxation=.TRUE.)
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos) = &
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1)
