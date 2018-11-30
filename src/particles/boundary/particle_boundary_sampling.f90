@@ -68,7 +68,7 @@ USE MOD_ReadInTools
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPumpBCVars
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
 USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel, UseAdaptivePump, Species
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
@@ -294,7 +294,7 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
   !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
   IF(UseAdaptivePump) THEN
-    ALLOCATE(SampWall(iSide)%PumpBCInfo(1:5,1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    ALLOCATE(SampWall(iSide)%PumpBCInfo(1:nPumpBCVars,1:nSpecies,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     SampWall(iSide)%PumpBCInfo=0.
   END IF
 END DO
@@ -556,7 +556,7 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,nPumpBCVars
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_MPI_Vars           ,ONLY:PumpSendBuf,PumpRecvBuf
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
@@ -949,11 +949,11 @@ IF(UseAdaptivePump) THEN
   ALLOCATE(PumpRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-      ALLOCATE(PumpSendBuf(iProc)%content(4*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)*SurfExchange%nSidesSend(iProc)))
+      ALLOCATE(PumpSendBuf(iProc)%content(nPumpBCVars*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)*SurfExchange%nSidesSend(iProc)))
       PumpSendBuf(iProc)%content=0.
     END IF
     IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-      ALLOCATE(PumpRecvBuf(iProc)%content(4*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)*SurfExchange%nSidesRecv(iProc)))
+      ALLOCATE(PumpRecvBuf(iProc)%content(nPumpBCVars*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)*SurfExchange%nSidesRecv(iProc)))
       PumpRecvBuf(iProc)%content=0.
     END IF
   END DO ! iProc

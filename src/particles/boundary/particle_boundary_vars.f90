@@ -99,9 +99,14 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
-  REAL,ALLOCATABLE                      :: PumpBCInfo(:,:,:)             !
+  REAL,ALLOCATABLE                      :: PumpBCInfo(:,:,:)           ! Sampled variables of particles impinging on the pump surf
+                                                                       ! 1-3: Velocity Vector
+                                                                       ! 4: Total number of particles
+                                                                       ! 5: Number of deleted particles
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
+
+INTEGER                                 :: nPumpBCVars            = 5  ! Variable description at PumpBCInfo (above)
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)

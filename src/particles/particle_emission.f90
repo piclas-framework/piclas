@@ -6863,7 +6863,7 @@ SUBROUTINE ExchangePumpData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY:nSpecies,Species
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,SampWall
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,SampWall,nPumpBCVars
 USE MOD_Particle_MPI_Vars           ,ONLY:PumpSendBuf,PumpRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -6873,12 +6873,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID,iSpec,iSF
+INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID,iSpec,iSF,nVar
 INTEGER                         :: iPos,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
-nValues = 4*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)
+nVar = nPumpBCVars
+nValues = nVar*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -6903,8 +6904,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO iSpec=1,nSpecies
       DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-        PumpSendBuf(iProc)%content(iPos+1:iPos+5)= SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF)
-        iPos=iPos+5
+        PumpSendBuf(iProc)%content(iPos+1:iPos+nVar)= SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF)
+        iPos=iPos+nVar
       END DO ! iSF=1,Species(iSpec)%nSurfacefluxBCs
     END DO ! iSpec=1,nSpecies
     SampWall(SurfSideID)%PumpBCInfo(:,:,:)=0.
@@ -6949,9 +6950,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
     DO iSpec=1,nSpecies
       DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-        SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF)=SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF) &
-                                         +PumpRecvBuf(iProc)%content(iPos+1:iPos+5)
-        iPos=iPos+5
+        SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF)=SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF) &
+                                         +PumpRecvBuf(iProc)%content(iPos+1:iPos+nVar)
+        iPos=iPos+nVar
       END DO ! iSF=1,Species(iSpec)%nSurfacefluxBCs
     END DO ! iSpec=1,nSpecies
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
