@@ -259,7 +259,7 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
         Surfpos = 1 + INT(Surfnum * RanNum)
         UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
         ! add species to position and assign bond order of respective surface atoms in the surface lattice
-        CALL UpdateSurfPos(iSurfSide,iSubSurf,jSubSurf,Coord,UsedSiteMapPos,iSpec,.FALSE.)
+        CALL UpdateSurfPos(iSurfSide,iSubSurf,jSubSurf,Coord,UsedSiteMapPos,iSpec,.FALSE.,relaxation=.TRUE.)
         ! rearrange UsedSiteMap-Surfpos-array
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
             SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum)
