@@ -3070,7 +3070,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
           IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
             PDM%ParticleInside(iPart)=.FALSE.
             alpha=-1.
-            SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1
+            SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1.0
           END IF
         END IF
       ELSE
@@ -3082,7 +3082,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
           PDM%ParticleInside(iPart)=.FALSE.
           alpha=-1.
-          SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1
+          SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1.0
         END IF
       END IF
     ELSE

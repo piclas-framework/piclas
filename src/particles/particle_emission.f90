@@ -6544,10 +6544,10 @@ DO iSpec = 1,nSpecies
     END IF
     ! compute pressure (without BoltzmannConst, cancels out with the tempreature calculation)
     IF(PumpSampIter.GT.0) THEN
-      ! Sampling the pressure very given number of iterations and RESETTING it after calculation
+      ! Sampling the pressure every given number of iterations and RESETTING it after calculation
       PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
       PumpMacroVal(7,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
-      IF(MOD(iter,PumpSampIter).EQ.0) THEN
+      IF(MOD(iter+1,PumpSampIter).EQ.0) THEN
         IF(PumpMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
           PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) / PumpMacroVal(7,AdaptiveElemID,iSpec)
           TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0)) * Species(iSpec)%MassIC &
@@ -6744,7 +6744,7 @@ DO iSpec=1,nSpecies
   END DO                ! iSF
 END DO                  ! iSpec
 
-IF(MOD(iter,PumpOutputIter).EQ.0) THEN
+IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
   ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
   iPump=1
   ! Mapping the info from the surface flux array to the pump array
@@ -6790,7 +6790,7 @@ SUBROUTINE WritePumpBCInfo(PumpCount,PumpBCInfo)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_TimeDisc_Vars          ,ONLY: time
+USE MOD_TimeDisc_Vars          ,ONLY: time, dt
 USE MOD_Globals                ,ONLY: FILEEXISTS
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -6833,7 +6833,7 @@ IF (.NOT.isOpen) THEN
     WRITE(unit_index,'(A1)') ' '
   END IF
 END IF
-WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
+WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time+dt
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(2,iPump))
