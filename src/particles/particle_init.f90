@@ -97,8 +97,16 @@ CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of spe
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
                                                           ,numberedmulti=.TRUE.)
+! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
+CALL prms%CreateIntOption(      'InitialIonizationSpecies', 'Supply the number of species that are considered for automatic '//&
+                                                            'ionization')
+CALL prms%CreateIntArrayOption( 'InitialIonizationSpeciesID', 'Supply a vector with the species IDs that are used for the '//&
+                                                              'initial ionization.')
+CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average charge for each atom/molecule in the cell '//&
+                                                                   '(corresponds to the ionization degree)')
+
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
                                                                  , '1')
 CALL prms%CreateRealOption(     'Particles-dt_part_ratio'     , 'TODO-DEFINE-PARAMETER\n'//&
@@ -1096,6 +1104,7 @@ USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
+USE MOD_ReadInTools            ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1352,8 +1361,8 @@ __STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
-PDM%dtFracPush(1:PDM%maxParticleNumber) = .FALSE.
-PDM%IsNewPart(1:PDM%maxParticleNumber) = .FALSE.
+PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
+PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
 LastPartPos(1:PDM%maxParticleNumber,1:3)    = 0.
 PartState=0.
 Pt=0.
@@ -1364,6 +1373,18 @@ nSpecies = GETINT('Part-nSpecies','1')
 
 ! Initial Ionization of species
 DoInitialIonization = GETLOGICAL('Part-DoInitialIonization','.FALSE.')
+IF(DoInitialIonization)THEN
+  ! Supply the number of species that are considered for automatic ionization
+  InitialIonizationSpecies = GETINT('InitialIonizationSpecies')
+  ALLOCATE(InitialIonizationSpeciesID(1:InitialIonizationSpecies))
+
+  ! Supply a vector with the species IDs
+  InitialIonizationSpeciesID = GETINTARRAY('InitialIonizationSpeciesID',InitialIonizationSpecies)
+
+  ! Average charge for each atom/molecule in the cell (corresponds to the ionization degree)
+  InitialIonizationChargeAverage = GETREAL('InitialIonizationChargeAverage')
+END IF
+
 
 ! IMD data import from *.chkpt file
 DoImportIMDFile=.FALSE. ! default
@@ -1378,8 +1399,7 @@ IMDCutOffxValue       = GETREAL('IMDCutOffxValue','-999.9')
 IF(TRIM(IMDAtomFile).NE.'no file found')DoImportIMDFile=.TRUE.
 IF(DoImportIMDFile)THEN
   DoRefMapping=.FALSE. ! for faster init don't use DoRefMapping!
-  SWRITE(UNIT_stdOut,'(A68,L,A)') ' | DoImportIMDFile=T DoRefMapping |                                 ',DoRefMapping,&
-  ' | *CHANGE |'
+  CALL PrintOption('DoImportIMDFile=T. Setting DoRefMapping =','*CHANGE',LogOpt=DoRefMapping)
 END IF
 
 
@@ -2988,19 +3008,22 @@ END SUBROUTINE ReadMacroRestartFiles
 SUBROUTINE InitialIonization() 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! 1.) assign charges to each atom/molecule using the charge supplied by the user
-! 2.) reconstruct the electron phase space using the summed charged per cell for which an electron is 
+! 2.) reconstruct the electron phase space using the summed charges in each cell for which an electron is 
 !     created to achieve an ionization degree supplied by the user
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars     ,ONLY:  ElementaryCharge
 USE MOD_PreProc
-USE MOD_Particle_Vars ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
-USE MOD_Mesh_Vars     ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_DSMC_Vars     ,ONLY: CollisMode,DSMC,PartStateIntEn
-USE MOD_part_emission ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars     ,ONLY: useDSMC
-USE MOD_Eval_xyz      ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Vars    ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
+USE MOD_Particle_Vars    ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
+USE MOD_Mesh_Vars        ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_DSMC_Vars        ,ONLY: CollisMode,DSMC,PartStateIntEn
+USE MOD_part_emission    ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Vars        ,ONLY: useDSMC
+USE MOD_Eval_xyz         ,ONLY: TensorProductInterpolation
+USE MOD_Particle_Analyze ,ONLY: PARTISELECTRON
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -3008,26 +3031,30 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: ChargeLower,ChargeUpper
-INTEGER :: ElemCharge(1:PP_nElems)
-INTEGER :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
-REAL    :: ChargeProbability
-REAL    :: iRan
-REAL    :: PartPosRef(1:3)
-REAL    :: CellElectronTemperature=300
-!REAL    :: MaxElectronTemp_eV
-INTEGER :: SpeciesID(3)
-INTEGER :: SpeciesCharge(3)
-REAL    :: ChargeAverage
+INTEGER       :: ChargeLower,ChargeUpper
+INTEGER       :: ElemCharge(1:PP_nElems)
+INTEGER       :: ElecSpecIndx,iSpec,location,iElem,iPart,ParticleIndexNbr
+REAL          :: ChargeProbability
+REAL          :: iRan
+REAL          :: PartPosRef(1:3)
+REAL          :: CellElectronTemperature=300
+!INTEGER       :: SpeciesID(3)
+!INTEGER       :: SpeciesCharge(3)
+CHARACTER(32) :: hilf
+INTEGER       :: SpeciesCharge(1:InitialIonizationSpecies)
+INTEGER       :: I
 !===================================================================================================================================
-SpeciesID     = (/1,2,3/)    ! Species IDs for the considered species
-SpeciesCharge = (/0,-1,1/)   ! Charge state for each species
-ChargeAverage = 1.0!0.01         ! Average charge for each atom/molecule in the cell (corresponds to the ionization degree)
+! Determine the charge number of each species
+DO I = 1, InitialIonizationSpecies
+  iSpec = InitialIonizationSpeciesID(I)
+  SpeciesCharge(I) = NINT(Species(iSpec)%ChargeIC/(ElementaryCharge))
+END DO ! I = 1, InitialIonizationSpecies
 
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'1.) Reconstructing ions and determining charge'
+SWRITE(UNIT_stdOut,*)'InitialIonization:'
+SWRITE(UNIT_stdOut,*)'  1.) Reconstructing ions and determining the charge of each particle'
 
 ! Initialize the element charge with zero
 ElemCharge(1:PP_nElems)=0
@@ -3037,12 +3064,15 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
 
     ! If the current particle is part of the species list, then a charge can be assigned
-    IF(ANY(PartSpecies(iPart).EQ.SpeciesID(:)))THEN ! 
+    IF(ANY(PartSpecies(iPart).EQ.InitialIonizationSpeciesID(:)))THEN ! 
 
-      ! Get the TTM cell charge average value and select and upper and lower charge number
-      ChargeLower       = ChargeAverage !INT(TTM_Cell_11(PEM%Element(iPart))) ! use first DOF (0,0,0) because the data is const. in each cell
+      IF(PARTISELECTRON(iPart))THEN
+        CYCLE
+      END IF
+      ! Get the cell charge average value and select and upper and lower charge number
+      ChargeLower       = INT(InitialIonizationChargeAverage)
       ChargeUpper       = ChargeLower+1
-      ChargeProbability = REAL(ChargeUpper)-ChargeAverage !TTM_Cell_11(PEM%Element(iPart)) ! 2-1,4=0.6 -> 60% probability to get lower charge
+      ChargeProbability = REAL(ChargeUpper)-InitialIonizationChargeAverage !e.g. 2-1.4 = 0.6 -> 60% probability to get lower charge
 
       ! Compare the random number with the charge difference
       CALL RANDOM_NUMBER(iRan)
@@ -3051,7 +3081,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1) 
         ElemCharge(PEM%Element(iPart))      = ElemCharge(PEM%Element(iPart))+ChargeLower
-      ELSE ! select the upper charge number
+      ELSE ! Select the upper charge number
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1) 
@@ -3059,7 +3089,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
-      PartSpecies(iPart)=SpeciesID(location)
+      PartSpecies(iPart)=InitialIonizationSpeciesID(location)
     END IF
   END IF
 END DO
@@ -3067,16 +3097,17 @@ END DO
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 2.) reconstruct electrons
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'2.) Reconstructing electrons'
+SWRITE(UNIT_stdOut,*)'  2.) Reconstructing electrons'
 
 ! Initialize the species index for the electron species with -1
 ElecSpecIndx = -1
 
-! Loop over all species and find the index corresponding to the electron species
+! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
+! encountered
 DO iSpec = 1, nSpecies
-  IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-  IF(NINT(Species(iSpec)%ChargeIC/(-1.60217653E-19)).EQ.1) THEN
-    ElecSpecIndx = iSpec
+  IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
+    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+      ElecSpecIndx = iSpec
     EXIT
   END IF
 END DO
@@ -3084,6 +3115,10 @@ IF (ElecSpecIndx.EQ.-1) CALL abort(&
   __STAMP__&
   ,'Electron species not found. Cannot create electrons without the defined species!')
 
+WRITE(UNIT=hilf,FMT='(I0)') iSpec
+SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index.'
+WRITE(UNIT=hilf,FMT=WRITEFORMAT) CellElectronTemperature
+SWRITE(UNIT_stdOut,'(A)')'  Using T='//TRIM(hilf)//' K for the initial electron temperatture (maxwell_lpn) in each cell.'
 ! Loop over all elements and the sum of charges in each element (for each charge assigned in an element, an electron is created)
 DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
