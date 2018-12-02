@@ -217,7 +217,9 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:sJ
 USE MOD_Interpolation_Vars,   ONLY:wGP
 USE MOD_Particle_Vars,        ONLY:RegionElectronRef
+#if (defined (PP_HDG) && (PP_nVar==1))
 USE MOD_DG_Vars,              ONLY:U
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
