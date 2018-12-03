@@ -3094,6 +3094,9 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
           PDM%ParticleInside(iPart)=.FALSE.
           alpha=-1.
+          IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) THEN
+            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
+          END IF
           IF(CalcPartBalance) THEN
             nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
             PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)

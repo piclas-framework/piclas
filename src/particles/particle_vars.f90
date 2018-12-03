@@ -291,7 +291,10 @@ TYPE typeSurfaceflux
   REAL                                   :: AdaptivePumpingSpeed             ! pumping speed per area of the pumping surface (C=S/A)
   REAL                                   :: AdaptiveDeltaPumpingSpeedKp      ! linear relaxationfactor for the pumping speed
   REAL                                   :: AdaptiveDeltaPumpingSpeedKi      ! integral relaxationfactor for the pumping speed
-  REAL, ALLOCATABLE                      :: AdaptivePumpAlpha(:) 
+  REAL, ALLOCATABLE                      :: AdaptivePumpAlpha(:)
+  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)
+  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)
+  INTEGER, ALLOCATABLE                   :: AdaptivePartNumOut
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

@@ -1314,7 +1314,7 @@ __STAMP__&
               TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
                       / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
               TRot = TVib
-            CASE(3) ! Constant mass flow and temperature
+            CASE(3,5) ! Constant mass flow and temperature
               TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
               TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
             CASE(4) ! porous outlet
