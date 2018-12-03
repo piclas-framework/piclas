@@ -801,8 +801,8 @@ github:
     - rm -rf piclas_github || true ;
     - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
     - cd piclas_github ;
-    - git checkout --orphan orphan_branch 1081e3c604013409d483b3da02d36d788ada620c ;
+    - git checkout --orphan orphan_branch c5eed40b12ebc2a24951d2d0bc3991c68f4ef89f ;
     - git commit -m 'truncated history before 1081e3' ;
-    - git rebase --onto orphan_branch 1081e3c604013409d483b3da02d36d788ada620c master ;
+    - git rebase --onto orphan_branch c5eed40b12ebc2a24951d2d0bc3991c68f4ef89f master ;
     - git branch -D orphan_branch ;
     - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../
