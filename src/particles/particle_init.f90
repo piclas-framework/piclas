@@ -142,10 +142,10 @@ CALL prms%CreateIntOption(      'NbrOfRegions'                , 'TODO-DEFINE-PAR
 CALL prms%CreateRealArrayOption('RegionBounds[$]'                , 'TODO-DEFINE-PARAMETER\nRegionBounds ((xmin,xmax,ymin,...)'//&
                                                                 '|1:NbrOfRegions)'&
                                                                 , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'RegionElectronRef'//&
-                                                                '((rho0,phi0,Te[eV])|1:NbrOfRegions)'&
+CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
                                                               , '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
+                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
@@ -155,6 +155,9 @@ CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defin
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
+
+CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization. Implemented models are:\n'//&                                  
+                                                                ' * Ammosov-Delone-Krainov (ADK) model', '.FALSE.')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -1019,7 +1022,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
-    ALLOCATE(DSMC_HOSolution(1:10,1,1,1,1:nElems,1:nSpecies))
+    ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
     ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
@@ -1113,7 +1116,7 @@ INTEGER               :: dummy_int
 INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
-REAL                  :: particlenumber_tmp
+REAL                  :: particlenumber_tmp, phimax_tmp
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -1460,6 +1463,8 @@ END IF ! nMacroRestartFiles.GT.0
 
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
+
+DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -2086,7 +2091,7 @@ DO iSpec = 1, nSpecies
   IsIMDSpecies = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsIMDSpecies','.FALSE.')
   IF(IsIMDSpecies)THEN
     IMDSpeciesID(iIMDSpec)=iSpec
-    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/1.60217653E-19)
+    IMDSpeciesCharge(iIMDSpec)=NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     iIMDSpec=iIMDSpec+1
   END IF
 END DO
@@ -2732,7 +2737,16 @@ IF (NbrOfRegions .GT. 0) THEN
   ALLOCATE(RegionElectronRef(1:3,1:NbrOfRegions))
   DO iRegions=1,NbrOfRegions
     WRITE(UNIT=hilf2,FMT='(I0)') iRegions
+    ! 1:3 - rho_ref, phi_ref, and Te[eV]
     RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
+    WRITE(UNIT=hilf,FMT='(G0)') RegionElectronRef(2,iRegions)
+    phimax_tmp = GETREAL('Part-RegionElectronRef'//TRIM(hilf2)//'-PhiMax',TRIM(hilf))
+    IF (phimax_tmp.NE.RegionElectronRef(2,iRegions)) THEN !shift reference point (rho_ref, phi_ref) to phi_max:
+      RegionElectronRef(1,iRegions) = RegionElectronRef(1,iRegions) &
+        * EXP((phimax_tmp-RegionElectronRef(2,iRegions))/RegionElectronRef(3,iRegions))
+      RegionElectronRef(2,iRegions) = phimax_tmp
+      SWRITE(*,*) 'WARNING: BR-reference point is shifted to:', RegionElectronRef(1:2,iRegions)
+    END IF
   END DO
 END IF
 

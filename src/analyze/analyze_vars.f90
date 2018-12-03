@@ -29,17 +29,20 @@ REAL              :: Analyze_dt                  !< time difference to trigger a
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
+REAL              :: PoyntingIntPlaneFactor      !< factor for poyntingintplanes
 INTEGER           :: nPoyntingIntPlanes          !< number of planes
+REAL,ALLOCATABLE  :: PoyntingIntegral(:)         !< poyntingintegral of each plane
 INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
 REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
-REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   !< plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
-LOGICAL           :: DoAnalyze                   !< perform analyze
-LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
+LOGICAL           :: DoFieldAnalyze              !< perform analyze
+INTEGER           :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
+LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
-LOGICAL           :: CalcEtot                    !< Computation of the total energy (summed up)
+REAL              :: Wel                         !< energy of the electric field
+REAL              :: Wmag                        !< energy of the magnetic field
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 #ifdef CODE_ANALYZE

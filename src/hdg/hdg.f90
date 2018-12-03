@@ -761,6 +761,7 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
+LOGICAL :: warning_linear
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
@@ -823,14 +824,18 @@ DO BCsideID=1,nNeumannBCSides
   END SELECT ! BCType
 END DO !BCsideID=1,nNeumannBCSides
 
-
+warning_linear=.FALSE.
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-END DO !iElem 
+END DO !iElem
+IF (warning_linear) THEN
+  SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+    '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+END IF
 
   !prepare RHS_face ( RHS for lamdba system.)
 RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
@@ -963,13 +968,18 @@ ELSE
     !volume source (volume RHS of u system)
     !SWRITE(*,*) '!!!!!!!!!!!!!!!!!', iter
 
+    warning_linear=.FALSE.
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear)
       END DO; END DO; END DO !i,j,k
       RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-    END DO !iElem 
+    END DO !iElem
+    IF (warning_linear) THEN
+      SWRITE(*,*) 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
+        '=> Increase Part-RegionElectronRef#-PhiMax if already steady!'
+    END IF
 
     !prepare RHS_face ( RHS for lamdba system.)
     RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)

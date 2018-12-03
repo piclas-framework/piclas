@@ -260,7 +260,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : BoltzmannConst, ElementaryCharge
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, CollisMode, PartStateIntEn, DSMC
   USE MOD_Particle_Vars,      ONLY : PartSpecies
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
@@ -270,7 +270,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
    IMPLICIT NONE 
 ! LOCAL VARIABLES
 !--------------------------------------------------------------------------------------------------!
-  REAL                          :: ZetaRot, ZetaVib, TvibToTemp, JToEv
+  REAL                          :: ZetaRot, ZetaVib, TvibToTemp
 !  REAL                          :: ModTvibToTemp, PartTvib
   INTEGER                       :: iSpec
 !--------------------------------------------------------------------------------------------------!
@@ -280,7 +280,6 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 !#ifdef MPI
 !#endif
 !===================================================================================================
-  JToEv = 1.602176565E-19
   iSpec = PartSpecies(iPart)
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     ZetaRot = 2.0
@@ -296,7 +295,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
         ZetaVib = 0.0     
       ELSE
         TvibToTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TvibToTemp-DSMC%GammaQuant))
-!!!!!!!      ModTvibToTemp = SpecDSMC(iSpec)%Ediss_eV * JToEv / (BoltzmannConst * PartTvib)
+!!!!!!!      ModTvibToTemp = SpecDSMC(iSpec)%Ediss_eV * ElementaryCharge / (BoltzmannConst * PartTvib)
         ZetaVib = 2.0 * SpecDSMC(iSpec)%CharaTVib/TvibToTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/TvibToTemp)-1)
       END IF
     ELSE

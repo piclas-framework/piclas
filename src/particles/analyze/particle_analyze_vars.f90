@@ -27,6 +27,7 @@ LOGICAL                       :: CalcNumSpec                         !< Calculat
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
+LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
@@ -41,6 +42,8 @@ LOGICAL                       :: ChargeCalcDone                      !< Check fl
 LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
 CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
 INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
+INTEGER                       :: FieldAnalyzeStep                    !< Analyze is performed each Nth time step
+LOGICAL                       :: DoPartAnalyze                       !< perform analyze
 INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles

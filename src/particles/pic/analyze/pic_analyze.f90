@@ -29,8 +29,12 @@ INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
+INTERFACE CalculateBRElectronsPerCell
+  MODULE PROCEDURE CalculateBRElectronsPerCell
+END INTERFACE
 
-PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge 
+
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
 !===================================================================================================================================
 
 CONTAINS
@@ -201,6 +205,56 @@ IF (PartMPI%MPIRoot) THEN
 END IF
 
 END SUBROUTINE CalcDepositedCharge
+
+SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell) 
+!===================================================================================================================================
+! calcs integrated (physical) number of BR electrons in cell
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY:ElementaryCharge
+USE MOD_Preproc
+USE MOD_Mesh_Vars,            ONLY:sJ
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_Particle_Mesh_Vars,   ONLY:GEO
+USE MOD_Particle_Vars,        ONLY:RegionElectronRef
+USE MOD_DG_Vars,              ONLY:U
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN):: iElem, RegionID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)  :: ElectronNumberCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: i,j,k
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: source_e
+!===================================================================================================================================
+ElectronNumberCell=0.
+J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+  source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+#else
+  CALL abort(&
+__STAMP__&
+,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
+#endif
+  IF (source_e .LT. 0.) THEN
+    source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+    * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+  ELSE
+    source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
+    * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+  END IF
+  ElectronNumberCell = ElectronNumberCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
+END DO; END DO; END DO
+ElectronNumberCell=ElectronNumberCell/ElementaryCharge
+
+END SUBROUTINE CalculateBRElectronsPerCell
 
 
 END MODULE MOD_PIC_Analyze
