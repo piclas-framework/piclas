@@ -7,6 +7,7 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
+  - deploy
 
 .template: &defaults_gnu
   tags:
@@ -790,3 +791,18 @@ gnu_DSMC/:
 #     - withmodules
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
+
+github:
+  stage: deploy
+  tags:
+    - withmodules
+  script:
+    - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
+    - rm -rf piclas_github || true ;
+    - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
+    - cd piclas_github ;
+    - git checkout --orphan orphan_branch 1081e3c604013409d483b3da02d36d788ada620c ;
+    - git commit -m 'truncated history before 1081e3' ;
+    - git rebase --onto orphan_branch 1081e3c604013409d483b3da02d36d788ada620c master ;
+    - git branch -D orphan_branch ;
+    - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../
