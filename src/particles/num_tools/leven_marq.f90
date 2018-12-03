@@ -1,3 +1,12 @@
+!==================================================================================================================================
+!
+! File from: https://jblevins.org/mirror/amiller/
+! -----------------------------------------------
+! lm.zip Levenberg-Marquardt algorithm for non-linear least squares (unconstrained). This is a translation of the MINPACK routines,
+! LMDER & LMDIF. Use LMDER for functions which can be differentiated, and LMDIF when it is necessary to use differences. The ZIPped
+! file includes the MINPACK test programs, and a simple example fitting a 4-parameter logistic. 
+!
+!==================================================================================================================================
 MODULE Levenberg_Marquardt
 !===================================================================================================================================
 ! MINPACK routines which are used by both LMDIF & LMDER
