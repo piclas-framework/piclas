@@ -301,22 +301,6 @@ gnu_PIC_IMD_coupling:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
-    
-gnu_DSMC_check:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
-
-# intel_DSMC_check:
-#   <<: *defaults_intel
-#   stage: reggie_feature_checkin
-#   tags:
-#     - withmodules
-#   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
@@ -325,6 +309,22 @@ gnu_PIC_maxwell_implicitBC:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+
+gnu_PIC_initial_ionization:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+    
+gnu_DSMC_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -359,6 +359,22 @@ gnu_PIC_maxwell_implicitBC:
 #     - withmodules
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+#
+# intel_PIC_initial_ionization:
+#  <<: *defaults_intel
+#  stage: reggie_feature_checkin
+#  tags:
+#    - withmodules
+#  script:
+#    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+#
+# intel_DSMC_check:
+#   <<: *defaults_intel
+#   stage: reggie_feature_checkin
+#   tags:
+#     - withmodules
+#   script:
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
