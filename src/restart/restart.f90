@@ -89,6 +89,11 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+#ifdef PP_POIS
+#elif defined PP_HDG
+USE MOD_HDF5_Input         ,ONLY: DatasetExists
+#else
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,6 +103,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(20)               :: hilf
+LOGICAL                     :: DG_SolutionUExists
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -134,7 +140,10 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       ,'InitRestart: This case is not implemented here. Fix this!')
 #endif
 #elif defined PP_HDG
-  CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+  IF(DG_SolutionUExists)THEN
+    CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  END IF
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif
