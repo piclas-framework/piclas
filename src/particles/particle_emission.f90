@@ -6576,11 +6576,11 @@ DO iSpec = 1,nSpecies
       IF(MOD(iter+1,PumpSampIter).EQ.0) THEN
         IF(PumpMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
           PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) / PumpMacroVal(7,AdaptiveElemID,iSpec)
-          TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0)) * Species(iSpec)%MassIC &
-                            * (  PumpMacroVal(4,AdaptiveElemID,iSpec) - PumpMacroVal(1,AdaptiveElemID,iSpec)**2   &
+          TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0))*Species(iSpec)%MassIC &
+                            * ( PumpMacroVal(4,AdaptiveElemID,iSpec) - PumpMacroVal(1,AdaptiveElemID,iSpec)**2   &
                               + PumpMacroVal(5,AdaptiveElemID,iSpec) - PumpMacroVal(2,AdaptiveElemID,iSpec)**2   &
                               + PumpMacroVal(6,AdaptiveElemID,iSpec) - PumpMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
-          Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
+          Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
                                                         * Species(iSpec)%MacroParticleFactor*TTrans_TempFac
           PumpMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
         END IF
@@ -6665,10 +6665,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount, iLocSide, iSurfFluxSide, SideID, BCSideID
-INTEGER                       :: SurfSideID
+INTEGER                       :: SurfSideID, nVarOut
 INTEGER, ALLOCATABLE          :: PumpElemCount(:)
 REAL                          :: PumpingSpeedTemp, DeltaPressure, VeloSum        !, vec_nIn(1:3), VeloNormalToPump
 REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:), PumpMeanVelo(:,:), VeloMagnitude(:)
+REAL, ALLOCATABLE             :: PumpSpeedFarbar2014(:)
 !===================================================================================================================================
 
 ! Getting the total number of pumps in the simulation
@@ -6690,6 +6691,8 @@ ALLOCATE(PumpElemCount(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 PumpElemCount = 0
 ALLOCATE(VeloMagnitude(1:GlobalPumpCount))
 VeloMagnitude = 0.
+ALLOCATE(PumpSpeedFarbar2014(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
+PumpSpeedFarbar2014 = 0
 
 DO iPump = 1, GlobalPumpCount
   ! If no particles hit the pump, do not perform calculations
@@ -6753,14 +6756,19 @@ DO iSpec=1,nSpecies
           ! Only adapting the pumping speed if alpha is between zero and one
           Adaptive_MacroVal(11,ElemID,iSpec) = PumpingSpeedTemp
         END IF
-        ! Sampling the pumping speed for the output
+        ! Sampling the instantaneous pumping speed for the output
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
                                 + SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) * Species(iSpec)%MacroParticleFactor &
                                   / (Adaptive_MacroVal(7,ElemID,iSpec)*dt)
+        ! Removal probability
         AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) &
                                                           / REAL(nSpecies)
+        ! "Pumping speed/velocity C" according to Farbar2014, used as input at simulation start
+        PumpSpeedFarbar2014(iSF) = PumpSpeedFarbar2014(iSF) + Adaptive_MacroVal(11,ElemID,iSpec)
+        ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
         PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
                                                           / Species(1)%Surfaceflux(iSF)%AdaptivePressure
+        ! Element counter at the pump surface
         PumpElemCount(iSF) = PumpElemCount(iSF) + 1
         ! Reset the sampled values (excluding halo region, those were resetted in after the communication)
         SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF) = 0.0
@@ -6771,7 +6779,8 @@ DO iSpec=1,nSpecies
 END DO                  ! iSpec
 
 IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
-  ALLOCATE(PumpBCInfo(1:4,1:GlobalPumpCount))
+  nVarOut = 5
+  ALLOCATE(PumpBCInfo(1:nVarOut,1:GlobalPumpCount))
   iPump=1
   ! Mapping the info from the surface flux array to the pump array
   DO iSF=1,Species(1)%nSurfacefluxBCs
@@ -6780,15 +6789,16 @@ IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
       PumpBCInfo(2,iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
       PumpBCInfo(3,iPump) = AlphaOutput(iSF)
       PumpBCInfo(4,iPump) = PressNormOutput(iSF)
+      PumpBCInfo(5,iPump) = PumpSpeedFarbar2014(iSF)
       iPump = iPump + 1
     END IF
   END DO
 #ifdef MPI
   ! Communicating the values and summation at the root
   IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,4*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,nVarOut*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   ELSE
-    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,4*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,nVarOut*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
   END IF
   IF(MPIRoot) THEN
 #endif
@@ -6796,7 +6806,7 @@ IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
     DO iPump = 1,GlobalPumpCount
       IF(PumpBCInfo(1,iPump).GT.0) THEN
         ! Pumping Speed is the sum of all elements (counter over particles exiting through pump), not a mean value
-        PumpBCInfo(3:4,iPump) = PumpBCInfo(3:4,iPump) / NINT(PumpBCInfo(1,iPump))
+        PumpBCInfo(3:5,iPump) = PumpBCInfo(3:5,iPump) / NINT(PumpBCInfo(1,iPump))
       END IF
     END DO
     CALL WritePumpBCInfo(GlobalPumpCount,PumpBCInfo)
@@ -6808,6 +6818,7 @@ END IF
 
 SDEALLOCATE(AlphaOutput)
 SDEALLOCATE(PressNormOutput)
+SDEALLOCATE(PumpSpeedFarbar2014)
 
 END SUBROUTINE AdaptivePumpBC
 
@@ -6856,21 +6867,30 @@ IF (.NOT.isOpen) THEN
       WRITE(unit_index,'(I3.3,A11,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPump
       OutputCounter = OutputCounter + 1
     END DO
+    DO iPump = 1, PumpCount
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(I3.3,A9,I3.3)',ADVANCE='NO') OutputCounter,'-FarbarC-', iPump
+      OutputCounter = OutputCounter + 1
+    END DO
     WRITE(unit_index,'(A1)') ' '
   END IF
 END IF
 WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time+dt
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(2,iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(2,iPump)
 END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(3,iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(3,iPump)
 END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(PumpBCInfo(4,iPump))
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(4,iPump)
+END DO
+DO iPump=1, PumpCount
+  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(5,iPump)
 END DO
 WRITE(unit_index,'(A1)') ' '
 
