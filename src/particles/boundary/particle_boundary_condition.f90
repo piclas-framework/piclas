@@ -1980,7 +1980,7 @@ INTEGER                          :: outSpec(2)
 !   REAL                             :: IntersectionPos(1:3)
 REAL                             :: TransArray(1:6),IntArray(1:6), AdsorptionEnthalpie
 REAL                             :: VelXold, VelYold, VelZold
-INTEGER                          :: locBCID, VibQuant, VibQuantWall
+INTEGER                          :: locBCID, VibQuant!, VibQuantWall
 !   INTEGER                          :: VibQuantNew
 !   REAL                             :: VibQuantNewR
 REAL                             :: VeloReal, EtraOld
@@ -1989,9 +1989,9 @@ REAL                             :: WallVelo(1:3), WallTemp
 !   REAL                             :: TransACC, VibACC, RotACC
 REAL                             :: ErotNew, ErotWall, EVibNew, EVibWall
 ! Polyatomic Molecules
-REAL, ALLOCATABLE                :: RanNumPoly(:)
+!REAL, ALLOCATABLE                :: RanNumPoly(:)
 INTEGER                          :: iPolyatMole, iDOF
-INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
+!INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
 !   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
 INTEGER                          :: iReact
@@ -2398,7 +2398,6 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   IF (CollisMode.GT.1) THEN
   IF (SpecDSMC(outSpec(2))%InterID.EQ.2) THEN
     ErotWall = 0.
-    EvibOld = 0.
     EvibWall = 0.
 !    IF(SpecDSMC(outSpec(2))%PolyatomicMol) THEN
 !      iPolyatMole = SpecDSMC(outSpec(2))%SpecToPolyArray
