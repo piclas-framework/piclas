@@ -619,7 +619,7 @@ IF(SurfMesh%SurfOnProc)THEN
     END IF
   END DO
   END DO
-  IF (CalcSurfCoverage) THEN
+  IF (CalcSurfCoverage .AND. SurfMesh%nSides.GT.0) THEN
     WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
 END IF
