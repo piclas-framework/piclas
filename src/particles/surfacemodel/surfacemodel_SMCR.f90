@@ -501,7 +501,7 @@ IF (sum_probabilities .GT. RanNum) THEN
       D_AB = Adsorption%EDissBond(ReactNum,iSpec)
       D_A = 0.
       D_B = 0.
-      AdsorptionEnthalpie = 0. ! (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+      AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
       IF (DSMC%ReservoirRateStatistic) THEN
@@ -522,7 +522,7 @@ IF (sum_probabilities .GT. RanNum) THEN
       outSpec(1) = iSpec
       outSpec(2) = 0
       ! calculate adsorption Enthalpie
-      AdsorptionEnthalpie = - Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.) * BoltzmannConst
+      AdsorptionEnthalpie = 0. !- Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.) * BoltzmannConst
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
       IF (DSMC%ReservoirRateStatistic) THEN
