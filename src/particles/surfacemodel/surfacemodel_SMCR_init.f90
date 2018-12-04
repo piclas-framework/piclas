@@ -685,7 +685,7 @@ __STAMP__&
   END DO
 #endif
 
-  CalcTST_Case = GETINT('Surface-Adsorption-CalcTST','0')
+  CalcTST_Case = GETINT('Surface-Adsorption-CalcTST')
   ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
   Adsorption%TST_Calc(:,:) = .FALSE.
   IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
@@ -723,10 +723,7 @@ INTEGER                         :: iSpec, iReactNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
 
-Adsorption%PartitionMaxTemp = GETREAL('Surface-AdsorptionTST-PartitionMaxTemp','10000.')
-Adsorption%PartitionInterval = GETREAL('Surface-AdsorptionTST-PartitionInterval','20.')
 IF (SurfMesh%SurfOnProc) THEN
-ALLOCATE(Adsorption%PartitionTemp(1:nElems,1:nSpecies))
 
 IF (TST_Case.EQ.1) THEN
   DO iSpec=1,nSpecies
@@ -748,23 +745,6 @@ ELSE
   Adsorption%TST_Calc(:,:) = .TRUE.
 END IF
 
-!IF(MOD(Adsorption%PartitionMaxTemp,Adsorption%PartitionInterval).EQ.0.0) THEN
-!  PartitionArraySize = INT(Adsorption%PartitionMaxTemp / Adsorption%PartitionInterval)
-!ELSE
-!  CALL abort(&
-!__STAMP__&
-!,'ERROR INIT_TST_FACTORS: Partition temperature limit must be multiple of partition interval!')
-!END IF
-!
-!! calculate array of partitionfunction values
-!ALLOCATE(Adsorption%TST_Factors(1:2,0:Adsorption%ReactNum,1:nSpecies)
-!DO iSpec=1,nSpecies
-!  DO iReactNum=0,Adsorption%ReactNum
-!    IF(Adsorption%TST_Calc(iReactNum,iSpec))THEN
-!
-!    END IF
-!  END DO
-!END DO
 END IF ! SurfMesh%SurfOnProc
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS DONE!'

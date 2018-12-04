@@ -180,12 +180,6 @@ CALL prms%CreateRealArrayOption('Surface-ExchReact[$]-DissBond_K-Products'&
 
 CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
                                           , 'TODO-DEFINE-PARAMETER','0')
-CALL prms%CreateRealOption(     'Surface-AdsorptionTST-PartitionMaxTemp'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Temperature limit for pre-stored partition function (DEF: 20 000K)','10000.')
-CALL prms%CreateRealOption(     'Surface-AdsorptionTST-PartitionInterval'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Temperature interval for pre-stored partition function (DEF: 10K)','20.')
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -302,7 +296,7 @@ DO iSpec = 1,nSpecies
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
           Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
-          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
             CALL abort(&
 __STAMP__,&
@@ -320,6 +314,7 @@ __STAMP__,&
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
           Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
             CALL abort(&
