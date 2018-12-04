@@ -785,7 +785,7 @@ github:
     - rm -rf piclas_github || true ;
     - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
     - cd piclas_github ;
-    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to c5eed40b12ebc2a24951d2d0bc3991c68f4ef89f
+    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
     - git commit -m 'truncated history before v1.0.0' ;
     - git rebase --onto orphan_branch v1.0.0 master ;
     - git branch -D orphan_branch ;
