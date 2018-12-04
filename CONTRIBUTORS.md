@@ -17,6 +17,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Hannes Frank
 * Gregor Gassner
 * Florian Hindenlang
+* Andrea Hinkel
 * Konstantin Hinsberger
 * Timon Hitz
 * Malte Hoffmann
