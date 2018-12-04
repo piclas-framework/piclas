@@ -789,6 +789,6 @@ github:
     - git commit -m 'truncated history before v1.0.0' ;
     - git rebase --onto orphan_branch v1.0.0 master ;
     - git branch -D orphan_branch ;
-    - git remote add piclas-framework git@gitlab.com:iagcopple/piclas-framework.git ;
+    - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
     - git push --force piclas-framework master ;
 #    - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../
