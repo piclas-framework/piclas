@@ -157,6 +157,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: SolidPartDens(:)
   REAL    , ALLOCATABLE                  :: SolidMassIC(:)
   REAL    , ALLOCATABLE                  :: SolidAreaIncrease(:)
+  INTEGER , ALLOCATABLE                  :: SolidStructure(:)             ! crystal structure of solid boundary (1:fcc100 2:fcc111)
   INTEGER , ALLOCATABLE                  :: SolidCrystalIndx(:)
   INTEGER , ALLOCATABLE                  :: LiquidSpec(:)                 ! Species of Liquid Boundary
   REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)       ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]

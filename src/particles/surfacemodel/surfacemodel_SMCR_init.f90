@@ -93,7 +93,6 @@ ELSE
   WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
   surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
 END IF
-SurfaceStructure = GETINT('Particles-Surface-Structure')
 Max_Surfsites_num = 0
 Max_Surfsites_own = 0
 Max_Surfsites_halo = 0
@@ -119,7 +118,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
                         / surface_mpf)
           surfsquare = INT(SQRT(REAL(surfsquare))) - 1
         END IF
-        SELECT CASE (SurfaceStructure)
+        SELECT CASE (PartBound%SolidStructure(PartBoundID))
         CASE(1) !fcc(100)
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1) = INT(surfsquare**2)
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( 2*(surfsquare*(surfsquare+1)) )
@@ -152,7 +151,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
 
         ALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(1:3))
         DO Coord = 1,3
-          SELECT CASE (SurfaceStructure)
+          SELECT CASE (PartBound%SolidStructure(PartBoundID))
           CASE(1) !fcc(100)
             SELECT CASE (Coord)
             CASE(1)
@@ -223,12 +222,12 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   END DO
 END DO
 
-SELECT CASE (SurfaceStructure)
-CASE(1) !fcc(100)
+!SELECT CASE (SurfaceStructure)
+!CASE(1) !fcc(100)
   CALL Initfcc100Mapping()
-CASE(2) !fcc(111)
+!CASE(2) !fcc(111)
   CALL Initfcc111Mapping()
-END SELECT
+!END SELECT
 
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
@@ -796,7 +795,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
 SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+IF (.NOT.PartBound%SolidCatalytic(PartboundID) .AND. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
 DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions (Nx-1)
@@ -1093,7 +1092,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+  IF (.NOT.PartBound%SolidCatalytic(PartboundID) .AND. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
   DO iSubSurf = 1,nSurfSample ; DO jSubSurf = 1,nSurfSample
     ! surfsquare chosen from nSite(3) for correct SurfIndx definitions
     surfsquare = NINT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))/2.))

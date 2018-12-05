@@ -128,8 +128,6 @@ CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
   , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [surfacemodel=3].\n'//&
     'If one surface contains less then 5x5 surface atoms program abort is called.\n'//&
     'Default: Species(1)%MPF: Uses macro particle factor of species1.')
-CALL prms%CreateIntOption(     'Particles-Surface-Structure'&
-  , 'Defines the structure of the reconstructed surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2')
 CALL prms%CreateIntOption(      'Surface-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateIntOption(      'Surface-Nbr-DissocReactions'&
@@ -179,7 +177,10 @@ CALL prms%CreateRealArrayOption('Surface-ExchReact[$]-DissBond_K-Products'&
                                          , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
-                                          , 'TODO-DEFINE-PARAMETER','0')
+                                          , 'Define, which rate coefficient for adsorption are used:\n'//&
+                                          ' 0: only those, specified in INI\n'//&
+                                          ' 1: those not define in INI are calculated with TST\n'//&
+                                          ' 2: calculate every coefficient with TST','0')
 
 END SUBROUTINE DefineParametersSurfModel
 
