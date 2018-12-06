@@ -52,6 +52,7 @@ TYPE tAdsorption
 #if (PP_TimeDiscMethod==42)
   TYPE(tMeanInfo), ALLOCATABLE           :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
   TYPE(tProperInfo), ALLOCATABLE         :: AdsorpReactInfo(:)      ! Adsorption info for species n (nSpecies)
+  LOGICAL                                :: LateralInactive         ! Flag for deactivation of lateral interactions in Q_a
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
