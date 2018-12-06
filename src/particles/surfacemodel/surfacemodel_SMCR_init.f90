@@ -795,7 +795,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
 SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidCatalytic(PartboundID) .AND. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
+IF (.NOT.PartBound%SolidCatalytic(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
 DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions (Nx-1)
@@ -1092,7 +1092,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidCatalytic(PartboundID) .AND. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
+  IF (.NOT.PartBound%SolidCatalytic(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
   DO iSubSurf = 1,nSurfSample ; DO jSubSurf = 1,nSurfSample
     ! surfsquare chosen from nSite(3) for correct SurfIndx definitions
     surfsquare = NINT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))/2.))

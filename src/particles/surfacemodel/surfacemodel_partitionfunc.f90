@@ -127,10 +127,10 @@ IF ( DSMC%ElectronicModel ) THEN
   ELSE
     Qelec = 1.
   END IF
+  VarPartitionFuncGas = Qtra * Qrot * Qvib * Qelec
 ELSE
-  Qelec = 1.
+  VarPartitionFuncGas = Qtra * Qrot * Qvib
 END IF
-VarPartitionFuncGas = Qtra * Qrot * Qvib * Qelec
 
 END SUBROUTINE PartitionFuncGas
 
@@ -192,10 +192,10 @@ IF ( DSMC%ElectronicModel ) THEN
   ELSE
     Qelec = 1.
   END IF
+  VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 ELSE
-  Qelec = 1.
+  VarPartitionFuncAct = Qtra * Qrot * Qvib
 END IF
-VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 
 END SUBROUTINE PartitionFuncActAdsorb
 
@@ -257,10 +257,10 @@ IF ( DSMC%ElectronicModel ) THEN
   ELSE
     Qelec = 1.
   END IF
+  VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 ELSE
-  Qelec = 1.
+  VarPartitionFuncAct = Qtra * Qrot * Qvib
 END IF
-VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 
 END SUBROUTINE PartitionFuncActER
 
@@ -270,7 +270,7 @@ SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct)!, Surfdensity)
 !> Calculation of Partitionfunction of activated complex (molecular desorption)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars ,ONLY: Pi, PlanckConst, BoltzmannConst
+!USE MOD_Globals_Vars ,ONLY: Pi, PlanckConst, BoltzmannConst
 USE MOD_DSMC_Vars    ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -321,10 +321,10 @@ IF ( DSMC%ElectronicModel ) THEN
   ELSE
     Qelec = 1.
   END IF
+  VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 ELSE
-  Qelec = 1.
+  VarPartitionFuncAct = Qtra * Qrot * Qvib
 END IF
-VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
 
 END SUBROUTINE PartitionFuncAct
 
@@ -479,7 +479,7 @@ SUBROUTINE PartitionFuncAct_exch(Educt_Spec1, Educt_Spec2, Temp, VarPartitionFun
 !> Calculate Partitionfunction of activated complex (exchange reactions at surface)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: PlanckConst, BoltzmannConst, Pi
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Vars ,ONLY: Species
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -495,7 +495,6 @@ REAL, INTENT(IN)              :: Surfdensity
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
@@ -536,7 +535,7 @@ END IF
 !ELSE
 !  Qelec = 1.
 !END IF
-VarPartitionFuncAct = Qtra * Qrot * Qvib * Qelec
+VarPartitionFuncAct = Qtra * Qrot * Qvib! * Qelec
 
 END SUBROUTINE PartitionFuncAct_exch
 
@@ -547,8 +546,8 @@ SUBROUTINE PartitionFuncSurf(iSpec, Temp, VarPartitionFuncSurf, CharaTemp, PartB
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars      ,ONLY: PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
+!USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -562,7 +561,6 @@ INTEGER, INTENT(IN)           :: PartBoundID
 REAL, INTENT(OUT)             :: VarPartitionFuncSurf
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
@@ -593,15 +591,19 @@ END IF
 !END IF
 Qvib = Qvib * 1. / (1. - EXP(-CharaTemp / Temp))
 Qrot = 1.
-IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
-  Qelec = 0.
-  DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
-  END DO
+IF ( DSMC%ElectronicModel ) THEN
+  IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+    Qelec = 0.
+    DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
+    END DO
+  ELSE
+    Qelec = 1.
+  END IF
+  VarPartitionFuncSurf = Qtra * Qrot * Qvib * Qelec
 ELSE
-  Qelec = 1.
+  VarPartitionFuncSurf = Qtra * Qrot * Qvib
 END IF
-VarPartitionFuncSurf = Qtra * Qrot * Qvib * Qelec
 
 END SUBROUTINE PartitionFuncSurf
 

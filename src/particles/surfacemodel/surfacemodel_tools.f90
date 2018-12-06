@@ -41,10 +41,6 @@ INTERFACE Calc_E_Act
   MODULE PROCEDURE Calc_E_Act
 END INTERFACE
 
-!INTERFACE Set_TST_Factors
-!  MODULE PROCEDURE Set_TST_Factors
-!END INTERFACE
-
 INTERFACE CalcAdsorbReactProb
   MODULE PROCEDURE CalcAdsorbReactProb
 END INTERFACE
@@ -69,7 +65,6 @@ PUBLIC :: CalcAdsorbProb
 PUBLIC :: CalcDesorbProb
 PUBLIC :: Calc_Adsorb_Heat
 PUBLIC :: Calc_E_Act
-!PUBLIC :: Set_TST_Factors
 PUBLIC :: CalcAdsorbReactProb
 PUBLIC :: SpaceOccupied
 PUBLIC :: UpdateSurfPos
@@ -507,80 +502,6 @@ END IF
 IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 
 END FUNCTION Calc_E_Act
-
-
-!SUBROUTINE Set_TST_Factors(ReactionCase,ReactNum,a_f,b_f,SpecID,GasTemp,SurfID)!,PartBoundID)
-!!===================================================================================================================================
-!!> set the Transition state theory (TST) factors for surface chemistry
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
-!USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
-!USE MOD_Particle_Vars          ,ONLY: PartSpecies
-!USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-!!===================================================================================================================================
-!IMPLICIT NONE
-!!===================================================================================================================================
-!! INPUT VARIABLES
-!INTEGER, INTENT(IN) :: ReactionCase, ReactNum
-!INTEGER, INTENT(IN) :: SpecID
-!REAL, INTENT(IN)    :: GasTemp
-!INTEGER, INTENT(IN) :: SurfID
-!!===================================================================================================================================
-!! OUTPUT VARIABLES
-!REAL, INTENT(OUT) :: a_f, b_f
-!!===================================================================================================================================
-!! LOCAL VARIABLES
-!INTEGER :: globSide, PartBoundID
-!REAL    :: WallTemp, SurfDensity
-!!===================================================================================================================================
-!
-!SELECT CASE(ReactionCase)
-!Case(1)
-!  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-!    globSide = Adsorption%SurfSideToGlobSideMap(SurfID)
-!    PartBoundID = PartBound%MapToPartBC(BC(globSide))
-!    WallTemp = PartBound%WallTemp(PartBoundID)
-!    CALL PartitionFuncGas(SpecID, WallTemp, VarPartitionFuncGas)
-!    CALL PartitionFuncActAdsorb(SpecID, WallTemp, VarPartitionFuncAct,PartBoundID)
-!    a_f = SQRT(GasTemp)*(VarPartitionFuncAct/VarPartitionFuncGas)
-!    b_f = 0.0
-!  ELSE
-!    a_f = Adsorption%Ads_Prefactor(SpecID)
-!    b_f = Adsorption%Ads_Powerfactor(SpecID)
-!  END IF
-!CASE(2)
-!  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-!    ProdSpec1 = Adsorption%DissocReact(1,ReactNum,SpecID)
-!    ProdSpec2 = Adsorption%DissocReact(2,ReactNum,SpecID)
-!    SurfDensity = Adsorption%DensSurfAtoms(SurfID)/Adsorption%AreaIncrease(SurfID)
-!    CALL PartitionFuncGas(SpecID, GasTemp, VarPartitionFuncGas)
-!    CALL PartitionFuncAct_dissoc(SpecID,ProdSpec1,ProdSpec2, GasTemp, VarPartitionFuncAct, Surfdensity)
-!    a_f = SQRT(GasTemp)*(VarPartitionFuncAct/VarPartitionFuncGas)
-!    b_f = 0.0
-!  ELSE
-!    a_f = Adsorption%Diss_Prefactor(ReactNum,SpecID)
-!    b_f = Adsorption%Diss_Powerfactor(ReactNum,SpecID)
-!  END IF
-!CASE(3)
-!  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-!    globSide = Adsorption%SurfSideToGlobSideMap(SurfID)
-!    PartBoundID = PartBound%MapToPartBC(BC(globSide))
-!    WallTemp = PartBound%WallTemp(PartBoundID)
-!    ProdSpec1 = Adsorption%AssocReact(1,ReactNum-Adsorption%DissNum,SpecID)
-!    ProdSpec2 = Adsorption%DissocReact(2,ReactNum-Adsorption%DissNum,SpecID)
-!    CALL PartitionFuncGas(SpecID, GasTemp, VarPartitionFuncGas)
-!    CALL PartitionFuncSurf(ProdSpec1, WallTemp, VarPartitionFuncWall,CharaTemp,PartBoundID)
-!    CALL PartitionFuncActER(SpecID,ProdSpec1,ProdSpec2, GasTemp, VarPartitionFuncAct, Surfdensity)
-!    a_f = SQRT(GasTemp)*(VarPartitionFuncAct/VarPartitionFuncGas)
-!    b_f = 0.0
-!  ELSE
-!    a_f = Adsorption%ER_Prefactor(ReactNum-Adsorption%DissNum,SpecID)
-!    b_f = Adsorption%ER_Powerfactor(ReactNum-Adsorption%DissNum,SpecID)
-!  END IF
-!END SELECT
-!
-!END SUBROUTINE Set_TST_Factors
 
 
 REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,c_f,CharaTemp &

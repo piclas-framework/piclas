@@ -263,6 +263,7 @@ ELSE IF (PartSurfaceModel.EQ.2) THEN
 ELSE IF (PartSurfaceModel.EQ.3) THEN
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies),&
             Adsorption%Coordination(1:nPartBound,1:nSpecies),&
+            Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
             Adsorption%DiCoord(1:nPartBound,1:nSpecies))
 END IF
 
