@@ -6779,8 +6779,9 @@ DO iSpec=1,nSpecies
 END DO                  ! iSpec
 
 IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
-  nVarOut = 5
+  nVarOut = 6
   ALLOCATE(PumpBCInfo(1:nVarOut,1:GlobalPumpCount))
+  PumpBCInfo = 0.
   iPump=1
   ! Mapping the info from the surface flux array to the pump array
   DO iSF=1,Species(1)%nSurfacefluxBCs
@@ -6807,6 +6808,7 @@ IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
       IF(PumpBCInfo(1,iPump).GT.0) THEN
         ! Pumping Speed is the sum of all elements (counter over particles exiting through pump), not a mean value
         PumpBCInfo(3:5,iPump) = PumpBCInfo(3:5,iPump) / NINT(PumpBCInfo(1,iPump))
+        PumpBCInfo(6,iPump) = VeloMagnitude(iPump)
       END IF
     END DO
     CALL WritePumpBCInfo(GlobalPumpCount,PumpBCInfo)
@@ -6819,6 +6821,7 @@ END IF
 SDEALLOCATE(AlphaOutput)
 SDEALLOCATE(PressNormOutput)
 SDEALLOCATE(PumpSpeedFarbar2014)
+SDEALLOCATE(VeloMagnitude)
 
 END SUBROUTINE AdaptivePumpBC
 
@@ -6872,6 +6875,11 @@ IF (.NOT.isOpen) THEN
       WRITE(unit_index,'(I3.3,A9,I3.3)',ADVANCE='NO') OutputCounter,'-FarbarC-', iPump
       OutputCounter = OutputCounter + 1
     END DO
+    DO iPump = 1, PumpCount
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(I3.3,A9,I3.3)',ADVANCE='NO') OutputCounter,'-VeloMag-', iPump
+      OutputCounter = OutputCounter + 1
+    END DO
     WRITE(unit_index,'(A1)') ' '
   END IF
 END IF
@@ -6891,6 +6899,10 @@ END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(5,iPump)
+END DO
+DO iPump=1, PumpCount
+  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(6,iPump)
 END DO
 WRITE(unit_index,'(A1)') ' '
 
