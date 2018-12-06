@@ -46,6 +46,8 @@ CALL prms%SetSection("SurfaceModel")
 !CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
 !  , 'Flag to track adsorbed Particles on surface if they are adsorbed. Currently only [FALSE] implemented','.FALSE.')
 #if (PP_TimeDiscMethod==42)
+CALL prms%CreateLogicalOption(  'Surface-Adsorption-LateralInactive'&
+  , 'Flag for disabling lateral innteractions. Only for TD=42 (RESERVOIR)','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surface-Adsorption-doTPD'&
   , 'Flag for TPD spectrum calculation. Only for TD=42 (RESERVOIR)','.FALSE.')
 CALL prms%CreateRealOption(     'Surface-Adsorption-TPD-Beta'&
@@ -330,6 +332,7 @@ __STAMP__,&
 END DO
 ! initialize temperature programmed desorption specific variables
 #if (PP_TimeDiscMethod==42)
+  Adsorption%LateralInactive = GETLOGICAL('Surface-Adsorption-LateralInactive','.FALSE.')
   Adsorption%TPD = GETLOGICAL('Surface-Adsorption-doTPD','.FALSE.')
   Adsorption%TPD_beta = GETREAL('Surface-Adsorption-TPD-Beta','0.')
   Adsorption%TPD_Temp = 0.

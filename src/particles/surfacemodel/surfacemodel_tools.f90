@@ -264,7 +264,6 @@ x(:) = 1. ! averaged bond-index for surface atoms
 m(:) = 1  ! number of adsorbates belonging to surface atom
 Calc_Adsorb_Heat = 0.
 sigma = 0.
-sigma_m = 0.
 IF (Surfpos.GT.0) THEN
   DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
     Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndx(Surfpos,j)
@@ -288,18 +287,28 @@ __STAMP__,&
     x(j) = 1.
   END DO
 END IF
-! calculate local scaling factor for chosen surface site
-DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
-!     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
-!     sigma = sigma + (2.*x(j) - x(j)**2.) * (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.)
-  sigma_m = sigma_m + (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.) &
-                  / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
-END DO
-IF (Coordination.EQ.1) THEN
-  sigma = (2 - 1. / REAL(Adsorption%CrystalIndx(SurfSideID)) )
+
+#if (PP_TimeDiscMethod==42)
+IF (Adsorption%LateralInactive) THEN
+  sigma_m = 1.
 ELSE
-  sigma = (2 - 1. / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
+#endif
+  sigma_m = 0.
+  ! calculate local scaling factor for chosen surface site
+  DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
+  !     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
+  !     sigma = sigma + (2.*x(j) - x(j)**2.) * (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.)
+    sigma_m = sigma_m + (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.) &
+                    / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
+  END DO
+  IF (Coordination.EQ.1) THEN
+    sigma = (2 - 1. / REAL(Adsorption%CrystalIndx(SurfSideID)) )
+  ELSE
+    sigma = (2 - 1. / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
+  END IF
+#if (PP_TimeDiscMethod==42)
 END IF
+#endif
 
 ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
 ! and calculate right heat of adsorption to surface atoms
