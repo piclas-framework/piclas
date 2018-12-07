@@ -30,6 +30,10 @@ LOGICAL                       :: CalcEvaporation                     ! Calculate
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
 LOGICAL                       :: CalcAdsorbRates                     ! Calculate the adsorption probabilities of species
+LOGICAL                       :: CalcAdsorbProb                      ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfRates                       ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (k_r)
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

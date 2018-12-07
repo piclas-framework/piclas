@@ -72,7 +72,19 @@ CALL prms%CreateLogicalOption(  'Surf-CalcEvaporation'    , 'TODO-DEFINE-PARAMET
 CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbRates'    , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calcualte the adsorption probabilities of species'&
                                                           ,'.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbProb'     , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcAdsorbE'        , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfRates'      , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfProb'       , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the surface reaction rate per reaction'//&
                                                             ' (k_r)','.FALSE.')
 
@@ -113,15 +125,36 @@ IF (SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = 123456789
 DoSurfModelAnalyze = .FALSE.
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-CalcSurfNumSpec = GETLOGICAL('Surf-CalcNumSpec','.FALSE.')
-CalcSurfCoverage = GETLOGICAL('Surf-CalcCoverage','.FALSE.')
+CalcSurfNumSpec = GETLOGICAL('Surf-CalcNumSpec')
+CalcSurfCoverage = GETLOGICAL('Surf-CalcCoverage')
 #if (PP_TimeDiscMethod==42)
-CalcAccomodation = GETLOGICAL('Surf-CalcAccomodation','.FALSE.')
-CalcEvaporation = GETLOGICAL('Surf-CalcEvaporation','.FALSE.')
+CalcAccomodation = GETLOGICAL('Surf-CalcAccomodation')
+CalcEvaporation = GETLOGICAL('Surf-CalcEvaporation')
 IF (CalcEvaporation) DoSurfModelAnalyze = .TRUE.
-CalcAdsorbRates = GETLOGICAL('Surf-CalcAdsorbRates','.FALSE.')
-CalcSurfRates = GETLOGICAL('Surf-CalcSurfRates','.FALSE.')
-IF(CalcSurfNumSpec.OR.CalcSurfRates.OR.CalcSurfCoverage.OR.CalcAccomodation.OR.Adsorption%TPD.OR.CalcAdsorbRates) &
+CalcAdsorbRates = GETLOGICAL('Surf-CalcAdsorbRates')
+IF (CalcSurfRates) THEN
+  CalcAdsorbProb  = .TRUE.
+  CalcAdsorbE     = .TRUE.
+ELSE
+  CalcAdsorbProb  = GETLOGICAL('Surf-CalcAdsorbProb')
+  CalcAdsorbE     = GETLOGICAL('Surf-CalcAdsorbE')
+  IF (CalcAdsorbProb.OR.CalcAdsorbE) CalcAdsorbRates=.TRUE.
+END IF
+CalcSurfRates = GETLOGICAL('Surf-CalcSurfRates')
+IF (CalcSurfRates) THEN
+  CalcSurfProb  = .TRUE.
+  CalcSurfE     = .TRUE.
+ELSE
+  CalcSurfProb  = GETLOGICAL('Surf-CalcSurfProb')
+  CalcSurfE     = GETLOGICAL('Surf-CalcSurfE')
+  IF (CalcSurfProb.OR.CalcSurfE) CalcSurfRates=.TRUE.
+END IF
+IF (    CalcSurfNumSpec &
+   .OR. CalcSurfRates &
+   .OR. CalcSurfCoverage &
+   .OR. CalcAccomodation &
+   .OR. Adsorption%TPD &
+   .OR. CalcAdsorbRates) &
   DoSurfModelAnalyze = .TRUE.
 IF (Adsorption%TPD.AND.((.NOT.CalcSurfRates))) CalcSurfRates = .TRUE.
 #else
@@ -233,98 +266,106 @@ REAL                :: WallCoverage(nSpecies)
             CALL WriteDataHeaderInfo(unit_index,'Alpha-Spec',OutputCounter,nSpecies)
           END IF
           IF (CalcAdsorbRates) THEN
-            CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
-            CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
-            CALL WriteDataHeaderInfo(unit_index,'Prob_adsorption-Spec',OutputCounter,nSpecies)
-            DO iSpec = 1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              DO iCase = 1,Adsorption%DissNum
+            IF (CalcAdsorbProb) THEN
+              CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
+              CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
+              CALL WriteDataHeaderInfo(unit_index,'Prob_adsorption-Spec',OutputCounter,nSpecies)
+              DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec,' '
+                  OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1, Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-P_ER-Spec-',iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
               END DO
-              DO iCase = 1, Adsorption%RecombNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-P_ER-Spec-',iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
+            END IF
+            IF (CalcAdsorbE) THEN
+              DO iSpec = 1, nSpecies
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
               END DO
-            END DO
-            DO iSpec = 1, nSpecies
-              DO iCase = 1,Adsorption%DissNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-              DO iCase = 1,Adsorption%RecombNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-            END DO
+            END IF
           END IF
           IF (CalcSurfRates) THEN
-            CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
-            CALL WriteDataHeaderInfo(unit_index,'P_Des-Spec',OutputCounter,nSpecies)
-            DO iSpec = 1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec,' '
-              OutputCounter = OutputCounter + 1
-              DO iCase = 1, Adsorption%DissNum
+            IF (CalcSurfProb) THEN
+              CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
+              CALL WriteDataHeaderInfo(unit_index,'P_Des-Spec',OutputCounter,nSpecies)
+              DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-P-SurfDissoc-Spec-',iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec,' '
                 OutputCounter = OutputCounter + 1
+                DO iCase = 1, Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-P-SurfDissoc-Spec-',iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1, Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-P-SurfLH-Spec-',iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
               END DO
-              DO iCase = 1, Adsorption%RecombNum
+              CALL WriteDataHeaderInfo(unit_index,'P-Surfexch-Case',OutputCounter,Adsorption%NumOfExchReact)
+            END IF
+            IF (CalcSurfE) THEN
+              DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-P-SurfLH-Spec-',iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Desorb-Spec-', iSpec,' '
                 OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
               END DO
-            END DO
-            CALL WriteDataHeaderInfo(unit_index,'P-Surfexch-Case',OutputCounter,Adsorption%NumOfExchReact)
-            DO iSpec = 1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Desorb-Spec-', iSpec,' '
-              OutputCounter = OutputCounter + 1
-              DO iCase = 1,Adsorption%DissNum
+              CALL WriteDataHeaderInfo(unit_index,'E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+              DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-E-Desorb-Spec-', iSpec,' '
                 OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
               END DO
-              DO iCase = 1,Adsorption%RecombNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-            END DO
-            CALL WriteDataHeaderInfo(unit_index,'E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
-            DO iSpec = 1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-E-Desorb-Spec-', iSpec,' '
-              OutputCounter = OutputCounter + 1
-              DO iCase = 1,Adsorption%DissNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Proper-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-              DO iCase = 1,Adsorption%RecombNum
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Proper-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-            END DO
-            CALL WriteDataHeaderInfo(unit_index,'Proper-E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+              CALL WriteDataHeaderInfo(unit_index,'Proper-E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+            END IF
           END IF
           IF (Adsorption%TPD) THEN
             CALL WriteDataHeaderInfo(unit_index,'WallTemp',OutputCounter,1)
@@ -399,18 +440,26 @@ IF (PartMPI%MPIROOT) THEN
         CALL WriteDataInfo(unit_index,nSpecies,RealArray=Accomodation(:))
       END IF
       IF (CalcAdsorbRates) THEN
-        CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=SurfCollNum(:))
-        CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=AdsorptionNum(:))
-        CALL WriteDataInfo(unit_index,nSpecies                         ,RealArray=Adsorptionrate(:))
-        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1) ,RealArray=AdsorptionReactRate(:))
-        CALL WriteDataInfo(unit_index,nSpecies*Adsorption%ReactNum     ,RealArray=AdsorptionActE(:))
+        IF (CalcAdsorbProb) THEN
+          CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=SurfCollNum(:))
+          CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=AdsorptionNum(:))
+          CALL WriteDataInfo(unit_index,nSpecies                         ,RealArray=Adsorptionrate(:))
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1) ,RealArray=AdsorptionReactRate(:))
+        END IF
+        IF (CalcAdsorbE) THEN
+          CALL WriteDataInfo(unit_index,nSpecies*Adsorption%ReactNum     ,RealArray=AdsorptionActE(:))
+        END IF
       END IF
       IF (CalcSurfRates) THEN
-        CALL WriteDataInfo(unit_index,nSpecies                                                   ,IntegerArray=DesorptionNum(:))
-        CALL WriteDataInfo(unit_index,nSpecies                                                   ,RealArray=Desorptionrate(:))
-        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfReactRate(:))
-        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfaceActE(:))
-        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=ProperSurfaceActE(:))
+        IF (CalcSurfProb) THEN
+          CALL WriteDataInfo(unit_index,nSpecies                                                   ,IntegerArray=DesorptionNum(:))
+          CALL WriteDataInfo(unit_index,nSpecies                                                   ,RealArray=Desorptionrate(:))
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfReactRate(:))
+        END IF
+        IF (CalcSurfE) THEN
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfaceActE(:))
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=ProperSurfaceActE(:))
+        END IF
       END IF
       IF (Adsorption%TPD) THEN
         CALL WriteDataInfo(unit_index,1,RealScalar=Adsorption%TPD_Temp)
