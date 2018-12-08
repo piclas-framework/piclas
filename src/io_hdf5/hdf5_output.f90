@@ -143,7 +143,7 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
-INTEGER                        :: nVar
+INTEGER(KIND=IK)               :: nVar
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -164,6 +164,7 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*PP_POIS*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
+INTEGER(KIND=IK)               :: PP_nVarTmp
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
@@ -206,152 +207,161 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
-! Write DG solution ----------------------------------------------------------------------------------------------------------------
-!nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-! Store the Solution of the Maxwell-Poisson System
+! Associate construct for integer KIND=8 possibility
+PP_nVarTmp = INT(PP_nVar,IK)
+ASSOCIATE (&
+      PP_N         => INT(PP_N,IK)         ,&
+      nGlobalElems => INT(nGlobalElems,IK) ,&
+      PP_nElems    => INT(PP_nElems,IK)    ,&
+      offsetElem   => INT(offsetElem,IK)   )
+
+  ! Write DG solution ----------------------------------------------------------------------------------------------------------------
+  !nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+  ! Store the Solution of the Maxwell-Poisson System
 #ifdef PP_POIS
-ALLOCATE(Utemp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  ALLOCATE(Utemp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 #if (PP_nVar==8)
-Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
-Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
-Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
+  Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
+  Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
+  Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=Utemp)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=Utemp)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionE', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=U)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionE', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=U)
 
-!CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-!,offsetElem,5,existing=.FALSE.,RealArray=Phi)
-! missing addiontal attributes and data preparation
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionPhi', rank=5,&
-                        nValGlobal=(/4,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=Phi)
+  !CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+  !,offsetElem,5,existing=.FALSE.,RealArray=Phi)
+  ! missing addiontal attributes and data preparation
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionPhi', rank=5,&
+      nValGlobal=(/4_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==8)*/
-! Store the solution of the electrostatic-poisson system
+  ! Store the solution of the electrostatic-poisson system
 #if (PP_nVar==4)
-Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
-Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+  Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
+  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=Utemp)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=Utemp)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionE', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=U)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionE', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=U)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionPhi', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=Phi)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionPhi', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==4)*/
-DEALLOCATE(Utemp)
+  DEALLOCATE(Utemp)
 #elif defined PP_HDG
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionLambda', rank=3,&
-                        nValGlobal=(/PP_nVar,nGP_face,nGlobalUniqueSides/),&
-                        nVal=      (/PP_nVar,nGP_face,nUniqueSides/),&
-                        offset=    (/0,      0,       offsetSide/),&
-                        collective=.TRUE., RealArray=lambda(:,:,1:nUniqueSides))
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_SolutionU', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE., RealArray=U)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionLambda', rank=3,&
+      nValGlobal=(/PP_nVarTmp,nGP_face,nGlobalUniqueSides/),&
+      nVal=      (/PP_nVarTmp,nGP_face,nUniqueSides/),&
+      offset=    (/0_IK,      0_IK,       offsetSide/),&
+      collective=.TRUE., RealArray=lambda(:,:,1:nUniqueSides))
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_SolutionU', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE., RealArray=U)
 #if (PP_nVar==1)
-Utemp(1,:,:,:,:)=U(1,:,:,:,:)
-Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/4,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE., RealArray=Utemp)
+  Utemp(1,:,:,:,:)=U(1,:,:,:,:)
+  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/4_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE., RealArray=Utemp)
 
 #elif (PP_nVar==3)
-Utemp(1:3,:,:,:,:)=B(1:3,:,:,:,:)
-!CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-!,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/3,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/3,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE., RealArray=Utemp)
+  Utemp(1:3,:,:,:,:)=B(1:3,:,:,:,:)
+  !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+  !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/3_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/3_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE., RealArray=Utemp)
 #else /*(PP_nVar==4)*/
-Utemp(1,:,:,:,:)=U(4,:,:,:,:)
-Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-Utemp(5:7,:,:,:,:)=B(1:3,:,:,:,:)
+  Utemp(1,:,:,:,:)=U(4,:,:,:,:)
+  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+  Utemp(5:7,:,:,:,:)=B(1:3,:,:,:,:)
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/7,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/7,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE., RealArray=Utemp)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/7_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/7_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #else
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=U)
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      collective=.TRUE.,RealArray=U)
 #endif /*PP_POIS*/
-                   
+
 
 #ifdef PARTICLES
-! output of last source term
+  ! output of last source term
 #ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
-IF(OutPutSource) THEN
-  ! output of pure current and density
-  ! not scaled with epsilon0 and c_corr
-  nVar=4
-  ALLOCATE(LocalStrVarNames(1:nVar))
-  LocalStrVarNames(1)='CurrentDensityX'
-  LocalStrVarNames(2)='CurrentDensityY'
-  LocalStrVarNames(3)='CurrentDensityZ'
-  LocalStrVarNames(4)='ChargeDensity'
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVar,StrArray=LocalStrVarnames)
-    CALL CloseDataFile()
-  END IF
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Source', rank=5,  &
-                          nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                          offset=    (/0,      0,     0,     0,     offsetElem/),&
-                          collective=.TRUE.,RealArray=PartSource)
+  IF(OutPutSource) THEN
+    ! output of pure current and density
+    ! not scaled with epsilon0 and c_corr
+    nVar=4_IK
+    ALLOCATE(LocalStrVarNames(1:nVar))
+    LocalStrVarNames(1)='CurrentDensityX'
+    LocalStrVarNames(2)='CurrentDensityY'
+    LocalStrVarNames(3)='CurrentDensityZ'
+    LocalStrVarNames(4)='ChargeDensity'
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',INT(nVar,4),StrArray=LocalStrVarnames)
+      CALL CloseDataFile()
+    END IF
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        DataSetName='DG_Source', rank=5,  &
+        nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+        nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+        offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+        collective=.TRUE.,RealArray=PartSource)
 
-  DEALLOCATE(LocalStrVarNames)
-END IF
+    DEALLOCATE(LocalStrVarNames)
+  END IF
 #endif /*PARTICLES*/
 
+END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
@@ -450,12 +460,18 @@ IF(MPIRoot)THEN
   CALL CloseDataFile()
 END IF
 
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='ElemData', rank=2,  &
-                        nValGlobal=(/nVar,nGlobalElems/),&
-                        nVal=      (/nVar,PP_nElems   /),&
-                        offset=    (/0,   offsetElem  /),&
-                        collective=.TRUE.,RealArray=ElemData)
+ASSOCIATE (&
+      nVar         => INT(nVar,IK)         ,&
+      nGlobalElems => INT(nGlobalElems,IK) ,&
+      PP_nElems    => INT(PP_nElems,IK)    ,&
+      offsetElem   => INT(offsetElem,IK)   )
+  CALL GatheredWriteArray(FileName,create = .FALSE.,&
+                          DataSetName     = 'ElemData', rank = 2,  &
+                          nValGlobal      = (/nVar,nGlobalElems/),&
+                          nVal            = (/nVar,PP_nElems   /),&
+                          offset          = (/0_IK,offsetElem  /),&
+                          collective      = .TRUE.,RealArray        = ElemData)
+END ASSOCIATE
 DEALLOCATE(ElemData,StrVarNames)
 
 END SUBROUTINE WriteAdditionalElemData
@@ -524,12 +540,20 @@ IF(DoPML)THEN
     CALL CloseDataFile()
   END IF
 
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nGlobalElems    => INT(nGlobalElems,IK)    ,&
+      PP_N            => INT(PP_N,IK)            ,&
+      PMLnVar         => INT(PMLnVar,IK)         ,&
+      PP_nElems       => INT(PP_nElems,IK)       ,&
+      offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='PML_Solution', rank=5,&
-                          nValGlobal=(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                          offset=    (/0,      0,     0,     0,     offsetElem/),&
-                          collective=.TRUE.,RealArray=Upml)
+                          DataSetName = 'PML_Solution', rank = 5,&
+                          nValGlobal  = (/PMLnVar , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
+                          nVal        = (/PMLnVar , PP_N+1 , PP_N+1 , PP_N+1 , PP_nElems/)    , &
+                          offset      = (/0_IK    , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                          collective  = .TRUE.,RealArray = Upml)
+END ASSOCIATE
 
 !  CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
 !                      nValGlobal=(/5,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
@@ -581,15 +605,15 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVar
 #ifdef MPI
-INTEGER                        :: sendbuf(2),recvbuf(2)
+INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 INTEGER                        :: nParticles(0:nProcessors-1)
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
-INTEGER                        :: locnPart,offsetnPart
-INTEGER                        :: iPart,nPart_glob, iElem_glob, iElem_loc
-INTEGER,ALLOCATABLE            :: PartInt(:,:)
+INTEGER(KIND=IK)               :: locnPart,offsetnPart
+INTEGER(KIND=IK)               :: iPart,nPart_glob, iElem_glob, iElem_loc
+INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
@@ -603,272 +627,281 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 ! Open dataset
 !CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
  
-  !!added for Evib, Erot writeout
-  withDSMC=useDSMC
-  IF (withDSMC.AND.(.NOT.(useLD))) THEN
-  !IF (withDSMC) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
-      PartDataSize=11
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
-                                                                              ! or int energ +3 but no vmpf +1
-      PartDataSize=10
-    ELSE IF (CollisMode.GT.1) THEN
-      PartDataSize=9 !int ener + 2
-    ELSE IF (usevMPF) THEN
-      PartDataSize=8 !+ 1 vmpf
-    ELSE
-      PartDataSize=7 !+ 0
-    END IF
-  ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
-      PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
-                                                                             ! or int energ +3 but no vmpf +1
-      PartDataSize=15
-    ELSE IF (CollisMode.GT.1) THEN
-      PartDataSize=14!int ener + 2
-    ELSE IF (usevMPF) THEN
-      PartDataSize=13!+ 1 vmpf
-    ELSE
-      PartDataSize=12 !+ 0
-    END IF
+!!added for Evib, Erot writeout
+withDSMC=useDSMC
+IF (withDSMC.AND.(.NOT.(useLD))) THEN
+!IF (withDSMC) THEN
+  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+    PartDataSize=11
+  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
+                                                                            ! or int energ +3 but no vmpf +1
+    PartDataSize=10
+  ELSE IF (CollisMode.GT.1) THEN
+    PartDataSize=9 !int ener + 2
   ELSE IF (usevMPF) THEN
-    PartDataSize=8 !vmpf +1
+    PartDataSize=8 !+ 1 vmpf
   ELSE
-    PartDataSize=7
-  END IF  
-
-  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-    MaxQuantNum = 0
-    DO iSpec = 1, nSpecies
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      END IF
-    END DO
+    PartDataSize=7 !+ 0
   END IF
+ELSE IF (useLD) THEN
+  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+    PartDataSize=16
+  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
+                                                                           ! or int energ +3 but no vmpf +1
+    PartDataSize=15
+  ELSE IF (CollisMode.GT.1) THEN
+    PartDataSize=14!int ener + 2
+  ELSE IF (usevMPF) THEN
+    PartDataSize=13!+ 1 vmpf
+  ELSE
+    PartDataSize=12 !+ 0
+  END IF
+ELSE IF (usevMPF) THEN
+  PartDataSize=8 !vmpf +1
+ELSE
+  PartDataSize=7
+END IF  
 
-  locnPart =   0
-  DO pcount = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(pcount)) THEN
-      locnPart = locnPart + 1
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  MaxQuantNum = 0
+  DO iSpec = 1, nSpecies
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
     END IF
-  END DO         
+  END DO
+END IF
+
+locnPart =   0
+DO pcount = 1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(pcount)) THEN
+    locnPart = locnPart + 1
+  END IF
+END DO         
 
 #ifdef MPI
-  sendbuf(1)=locnPart
-  recvbuf=0
-  CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-  offsetnPart=recvbuf(1)
-  sendbuf(1)=recvbuf(1)+locnPart
-  CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
-  !global numbers
-  nPart_glob=sendbuf(1)
-  CALL MPI_GATHER(locnPart,1,MPI_INTEGER,nParticles,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-  !IF (myRank.EQ.0) THEN
-  !  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION' 
-  !  WRITE(*,*) 'iProc, firstelemInd,   nElems,  locnPart,  totalnPart'
-  !  DO pcount=0,nProcessors-1
-  !    WRITE(*,'(I5,4I12)')pcount,offsetElemMPI(pcount),offsetElemMPI(pcount+1)-offsetElemMPI(pcount),&
-  !                       nParticles(pcount),SUM(nParticles(0:pcount))
-  !  END DO
-  !END IF
-  LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
+sendbuf(1)=locnPart
+recvbuf=0
+CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
+offsetnPart=recvbuf(1)
+sendbuf(1)=recvbuf(1)+locnPart
+CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+!global numbers
+nPart_glob=sendbuf(1)
+CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+!IF (myRank.EQ.0) THEN
+!  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION' 
+!  WRITE(*,*) 'iProc, firstelemInd,   nElems,  locnPart,  totalnPart'
+!  DO pcount=0,nProcessors-1
+!    WRITE(*,'(I5,4I12)')pcount,offsetElemMPI(pcount),offsetElemMPI(pcount+1)-offsetElemMPI(pcount),&
+!                       nParticles(pcount),SUM(nParticles(0:pcount))
+!  END DO
+!END IF
+LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
 #ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
+CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #endif /* HDF5_F90 */
 #else
-  offsetnPart=0
-  nPart_glob=locnPart
+offsetnPart=0
+nPart_glob=locnPart
 #ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-  minnParts=locnPart
+minnParts=locnPart
 #endif /* HDF5_F90 */
 #endif
-  ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
-  ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
-  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-    ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
-    VibQuantData = 0
-    !+1 is real number of necessary vib quants for the particle
-  END IF
+ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
+ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+  VibQuantData = 0
+  !+1 is real number of necessary vib quants for the particle
+END IF
 
 !!! Kleiner Hack von JN (Teil 1/2):
-  
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
-    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
-             PEM%pNumber(1:PP_nElems)          , &
-             PEM%pNext(1:PDM%maxParticleNumber), &
-             PEM%pEnd(1:PP_nElems) )!            , &
-             !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
-    useDSMC=.TRUE.
-  END IF
-  CALL UpdateNextFreePosition()
+
+IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  ALLOCATE(PEM%pStart(1:PP_nElems)           , &
+           PEM%pNumber(1:PP_nElems)          , &
+           PEM%pNext(1:PDM%maxParticleNumber), &
+           PEM%pEnd(1:PP_nElems) )!            , &
+           !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
+  useDSMC=.TRUE.
+END IF
+CALL UpdateNextFreePosition()
 !!! Ende kleiner Hack von JN (Teil 1/2)
-  iPart=offsetnPart
-  DO iElem_loc=1,PP_nElems
-    iElem_glob = iElem_loc + offsetElem
-    PartInt(iElem_glob,1)=iPart
-    IF (ALLOCATED(PEM%pNumber)) THEN
-      nPartsPerElem(iElem_loc) = PEM%pNumber(iElem_loc)
-      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + PEM%pNumber(iElem_loc)
-      pcount = PEM%pStart(iElem_loc)
-      DO iPart=PartInt(iElem_glob,1)+1,PartInt(iElem_glob,2)
-        PartData(iPart,1)=PartState(pcount,1)
-        PartData(iPart,2)=PartState(pcount,2)
-        PartData(iPart,3)=PartState(pcount,3)
+iPart=offsetnPart
+DO iElem_loc=1,PP_nElems
+  iElem_glob = iElem_loc + offsetElem
+  PartInt(iElem_glob,1)=INT(iPart,IK)
+  IF (ALLOCATED(PEM%pNumber)) THEN
+    nPartsPerElem(iElem_loc) = PEM%pNumber(iElem_loc)
+    PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+    pcount = PEM%pStart(iElem_loc)
+    DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+      PartData(iPart,1)=PartState(pcount,1)
+      PartData(iPart,2)=PartState(pcount,2)
+      PartData(iPart,3)=PartState(pcount,3)
 #if (PP_TimeDiscMethod==509)
-        IF (velocityOutputAtTime) THEN
-          PartData(iPart,4)=velocityAtTime(pcount,1)
-          PartData(iPart,5)=velocityAtTime(pcount,2)
-          PartData(iPart,6)=velocityAtTime(pcount,3)
-        ELSE
+      IF (velocityOutputAtTime) THEN
+        PartData(iPart,4)=velocityAtTime(pcount,1)
+        PartData(iPart,5)=velocityAtTime(pcount,2)
+        PartData(iPart,6)=velocityAtTime(pcount,3)
+      ELSE
 #endif /*(PP_TimeDiscMethod==509)*/
-        PartData(iPart,4)=PartState(pcount,4)
-        PartData(iPart,5)=PartState(pcount,5)
-        PartData(iPart,6)=PartState(pcount,6)
+      PartData(iPart,4)=PartState(pcount,4)
+      PartData(iPart,5)=PartState(pcount,5)
+      PartData(iPart,6)=PartState(pcount,6)
 #if (PP_TimeDiscMethod==509)
-        END IF
+      END IF
 #endif /*(PP_TimeDiscMethod==509)*/
-        PartData(iPart,7)=REAL(PartSpecies(pcount))
+      PartData(iPart,7)=REAL(PartSpecies(pcount))
 #ifdef CODE_ANALYZE
-        IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-          IF(pcount.EQ.PARTOUT)THEN
-            PartData(iPart,7)=-PartData(iPart,7)
-          END IF
+      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+        IF(pcount.EQ.PARTOUT)THEN
+          PartData(iPart,7)=-PartData(iPart,7)
         END IF
+      END IF
 #endif /*CODE_ANALYZE*/
-        IF (withDSMC.AND.(.NOT.(useLD))) THEN
-        !IF (withDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartStateIntEn(pcount,3)    
-            PartData(iPart,11)=PartMPF(pcount)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)
-            PartData(iPart,10)=PartStateIntEn(pcount,3)
-          ELSE IF (CollisMode.GT.1) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2) 
-          ELSE IF (usevMPF) THEN
-            PartData(iPart,8)=PartMPF(pcount)    
-          END IF
-        ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-            PartData(iPart,11)=PartStateIntEn(pcount,3)  
-            PartData(iPart,12)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,13)=PartStateBulkValues(pcount,2)
-            PartData(iPart,14)=PartStateBulkValues(pcount,3)
-            PartData(iPart,15)=PartStateBulkValues(pcount,4)
-            PartData(iPart,16)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,12)=PartStateBulkValues(pcount,2)
-            PartData(iPart,13)=PartStateBulkValues(pcount,3)
-            PartData(iPart,14)=PartStateBulkValues(pcount,4)
-            PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)
-            PartData(iPart,10)=PartStateIntEn(pcount,3)
-            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,12)=PartStateBulkValues(pcount,2)
-            PartData(iPart,13)=PartStateBulkValues(pcount,3)
-            PartData(iPart,14)=PartStateBulkValues(pcount,4)
-            PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF (CollisMode.GT.1) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2) 
-            PartData(iPart,10)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,11)=PartStateBulkValues(pcount,2)
-            PartData(iPart,12)=PartStateBulkValues(pcount,3)
-            PartData(iPart,13)=PartStateBulkValues(pcount,4)
-            PartData(iPart,14)=PartStateBulkValues(pcount,5)
-          ELSE IF (usevMPF) THEN
-            PartData(iPart,8)=PartMPF(pcount)    
-            PartData(iPart,9)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,10)=PartStateBulkValues(pcount,2)
-            PartData(iPart,11)=PartStateBulkValues(pcount,3)
-            PartData(iPart,12)=PartStateBulkValues(pcount,4)
-            PartData(iPart,13)=PartStateBulkValues(pcount,5)
-          ELSE
-            PartData(iPart,8)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,9)=PartStateBulkValues(pcount,2)
-            PartData(iPart,10)=PartStateBulkValues(pcount,3)
-            PartData(iPart,11)=PartStateBulkValues(pcount,4)
-            PartData(iPart,12)=PartStateBulkValues(pcount,5)
-          END IF
+      IF (withDSMC.AND.(.NOT.(useLD))) THEN
+      !IF (withDSMC) THEN
+        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,10)=PartStateIntEn(pcount,3)    
+          PartData(iPart,11)=PartMPF(pcount)
+        ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,10)=PartMPF(pcount)
+        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateIntEn(pcount,3)
+        ELSE IF (CollisMode.GT.1) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2) 
         ELSE IF (usevMPF) THEN
-            PartData(iPart,8)=PartMPF(pcount)
+          PartData(iPart,8)=PartMPF(pcount)    
         END IF
-        !PartData(iPart,8)=Species(PartSpecies(pcount))%ChargeIC*Species(PartSpecies(pcount))%MacroParticleFactor
-        !PartData(iPart,9)=Species(PartSpecies(pcount))%MassIC*Species(PartSpecies(pcount))%MacroParticleFactor
-
-        IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-          IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
-            iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
-            VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
-              VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
-          ELSE
-             VibQuantData(iPart,:) = 0
-          END IF
+      ELSE IF (useLD) THEN
+        IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,10)=PartMPF(pcount)
+          PartData(iPart,11)=PartStateIntEn(pcount,3)  
+          PartData(iPart,12)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,13)=PartStateBulkValues(pcount,2)
+          PartData(iPart,14)=PartStateBulkValues(pcount,3)
+          PartData(iPart,15)=PartStateBulkValues(pcount,4)
+          PartData(iPart,16)=PartStateBulkValues(pcount,5)
+        ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,10)=PartMPF(pcount)
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,12)=PartStateBulkValues(pcount,2)
+          PartData(iPart,13)=PartStateBulkValues(pcount,3)
+          PartData(iPart,14)=PartStateBulkValues(pcount,4)
+          PartData(iPart,15)=PartStateBulkValues(pcount,5)
+        ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateIntEn(pcount,3)
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,12)=PartStateBulkValues(pcount,2)
+          PartData(iPart,13)=PartStateBulkValues(pcount,3)
+          PartData(iPart,14)=PartStateBulkValues(pcount,4)
+          PartData(iPart,15)=PartStateBulkValues(pcount,5)
+        ELSE IF (CollisMode.GT.1) THEN
+          PartData(iPart,8)=PartStateIntEn(pcount,1)
+          PartData(iPart,9)=PartStateIntEn(pcount,2) 
+          PartData(iPart,10)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateBulkValues(pcount,2)
+          PartData(iPart,12)=PartStateBulkValues(pcount,3)
+          PartData(iPart,13)=PartStateBulkValues(pcount,4)
+          PartData(iPart,14)=PartStateBulkValues(pcount,5)
+        ELSE IF (usevMPF) THEN
+          PartData(iPart,8)=PartMPF(pcount)    
+          PartData(iPart,9)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,10)=PartStateBulkValues(pcount,2)
+          PartData(iPart,11)=PartStateBulkValues(pcount,3)
+          PartData(iPart,12)=PartStateBulkValues(pcount,4)
+          PartData(iPart,13)=PartStateBulkValues(pcount,5)
+        ELSE
+          PartData(iPart,8)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,9)=PartStateBulkValues(pcount,2)
+          PartData(iPart,10)=PartStateBulkValues(pcount,3)
+          PartData(iPart,11)=PartStateBulkValues(pcount,4)
+          PartData(iPart,12)=PartStateBulkValues(pcount,5)
         END IF
+      ELSE IF (usevMPF) THEN
+          PartData(iPart,8)=PartMPF(pcount)
+      END IF
+      !PartData(iPart,8)=Species(PartSpecies(pcount))%ChargeIC*Species(PartSpecies(pcount))%MacroParticleFactor
+      !PartData(iPart,9)=Species(PartSpecies(pcount))%MassIC*Species(PartSpecies(pcount))%MacroParticleFactor
 
-        pcount = PEM%pNext(pcount)
-      END DO
-      iPart = PartInt(iElem_glob,2)
-    ELSE
-      CALL abort(&
-      __STAMP__&
-      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
-    END IF
-    PartInt(iElem_glob,2)=iPart
-  END DO 
+      IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+        IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
+          VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
+            VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+        ELSE
+           VibQuantData(iPart,:) = 0
+        END IF
+      END IF
 
-  nVar=2
-  ALLOCATE(StrVarNames(nVar))
-  StrVarNames(1)='FirstPartID'
-  StrVarNames(2)='LastPartID'
-  !CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',2,StrArray=StrVarNames)
-
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',nVar,StrArray=StrVarNames)
-    CALL CloseDataFile()
+      pcount = PEM%pNext(pcount)
+    END DO
+    iPart = PartInt(iElem_glob,2)
+  ELSE
+    CALL abort(&
+    __STAMP__&
+    , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
   END IF
+  PartInt(iElem_glob,2)=iPart
+END DO 
 
-  reSwitch=.FALSE.
-  IF(gatheredWrite)THEN
-    ! gatheredwrite not working with distributed particles
-    ! particles require own routine for which the communicator has to be build each time
-    reSwitch=.TRUE.
-    gatheredWrite=.FALSE.
-  END IF
+nVar=2
+ALLOCATE(StrVarNames(nVar))
+StrVarNames(1)='FirstPartID'
+StrVarNames(2)='LastPartID'
+!CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',2,StrArray=StrVarNames)
 
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='PartInt', rank=2,&
-                          nValGlobal=(/nGlobalElems,nVar/),&
-                          nVal=      (/PP_nElems,nVar/),&
-                          offset=    (/offsetElem,0/),&
-                          collective=.TRUE.,IntegerArray=PartInt)
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',nVar,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF
 
-!  CALL WriteArrayToHDF5(DataSetName='PartInt', rank=2,&
-!                        nValGlobal=(/nGlobalElems, nVar/),&
-!                        nVal=      (/PP_nElems, nVar   /),&
-!                        offset=    (/offsetElem, 0  /),&
-!                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
-!
+reSwitch=.FALSE.
+IF(gatheredWrite)THEN
+  ! gatheredwrite not working with distributed particles
+  ! particles require own routine for which the communicator has to be build each time
+  reSwitch=.TRUE.
+  gatheredWrite=.FALSE.
+END IF
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nGlobalElems    => INT(nGlobalElems,IK)    ,&
+      nVar            => INT(nVar,IK)            ,&
+      PP_nElems       => INT(PP_nElems,IK)       ,&
+      offsetnPart     => INT(offsetnPart,IK)     ,&
+      offsetElem      => INT(offsetElem,IK)      ,&
+      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
+      PartDataSize    => INT(PartDataSize,IK)    )
+  CALL GatheredWriteArray(FileName                         , create = .FALSE.            , &
+                          DataSetName     = 'PartInt'      , rank   = 2                  , &
+                          nValGlobal      = (/nGlobalElems , nVar/)                      , &
+                          nVal            = (/PP_nElems    , nVar/)                      , &
+                          offset          = (/offsetElem   , 0_IK/)                      , &
+                          collective      = .TRUE.         , IntegerArray = PartInt)
+
+  !  CALL WriteArrayToHDF5(DataSetName='PartInt', rank=2,&
+  !                        nValGlobal=(/nGlobalElems, nVar/),&
+  !                        nVal=      (/PP_nElems, nVar   /),&
+  !                        offset=    (/offsetElem, 0_IK  /),&
+  !                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
+  !
   DEALLOCATE(StrVarNames)
   !CALL CloseDataFile()
 
@@ -882,7 +915,7 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
   StrVarNames(7)='Species'
 
   IF(withDSMC.AND.(.NOT.(useLD)))THEN
- ! IF(withDSMC)THEN
+    ! IF(withDSMC)THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
@@ -954,74 +987,75 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
       StrVarNames(12)='BulkDOF'
     END IF
   ELSE IF (usevMPF) THEN
-      StrVarNames( 8)='MPF'
+    StrVarNames( 8)='MPF'
   END IF
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(PartDataSize,4),StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
 
 #ifdef MPI
-  CALL DistributedWriteArray(FileName,&
-                            DataSetName='PartData', rank=2         ,&
-                            nValGlobal=(/nPart_glob,PartDataSize/) ,&
-                            nVal=      (/locnPart,PartDataSize/)   ,&
-                            offset=    (/offsetnPart,0/)           ,&
-                            collective=.FALSE.,offSetDim=1         ,&
-                            communicator=PartMPI%COMM,RealArray=PartData)
+  CALL DistributedWriteArray(FileName                     , &
+                             DataSetName  = 'PartData'    , rank = 2          , &
+                             nValGlobal   = (/nPart_glob  , PartDataSize/)    , &
+                             nVal         = (/locnPart    , PartDataSize/)    , &
+                             offset       = (/offsetnPart , 0_IK/)            , &
+                             collective   = .FALSE.       , offSetDim = 1     , &
+                             communicator = PartMPI%COMM  , RealArray = PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-    CALL DistributedWriteArray(FileName,&
-                              DataSetName='VibQuantData', rank=2    ,&
-                              nValGlobal=(/nPart_glob,MaxQuantNum/) ,&
-                              nVal=      (/locnPart,MaxQuantNum  /) ,&
-                              offset=    (/offsetnPart , 0  /)      ,&
-                              collective=.FALSE.,offSetDim=1        ,&
-                              communicator=PartMPI%COMM,IntegerArray=VibQuantData)
+    CALL DistributedWriteArray(FileName , &
+                               DataSetName ='VibQuantData', rank=2            , &
+                               nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
+                               nVal        =(/locnPart    , MaxQuantNum  /)   , &
+                               offset      =(/offsetnPart , 0_IK  /)          , &
+                               collective  =.FALSE.       , offSetDim=1       , &
+                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-                        nValGlobal=(/nPart_glob,PartDataSize/),&
-                        nVal=      (/locnPart,PartDataSize  /),&
-                        offset=    (/offsetnPart , 0  /),&
-                        collective=.TRUE., RealArray=PartData)
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'    , rank = 2                , &
+                        nValGlobal  = (/nPart_glob  , PartDataSize/)          , &
+                        nVal        = (/locnPart    , PartDataSize/)          , &
+                        offset      = (/offsetnPart , 0_IK  /)                , &
+                        collective  = .TRUE.        , RealArray = PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-    CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2    ,&
-                          nValGlobal=(/nPart_glob,MaxQuantNum/) ,&
-                          nVal=      (/locnPart,MaxQuantNum  /) ,&
-                          offset=    (/offsetnPart , 0  /)      ,&
-                          collective=.TRUE.,IntegerArray=VibQuantData)
+    CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
+                          nValGlobal  = (/nPart_glob   , MaxQuantNum/)        , &
+                          nVal        = (/locnPart     , MaxQuantNum  /)      , &
+                          offset      = (/offsetnPart  , 0_IK /)              , &
+                          collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
   CALL CloseDataFile()
 #endif /*MPI*/                          
 
-  ! reswitch
-  IF(reSwitch) gatheredWrite=.TRUE.
+END ASSOCIATE
+! reswitch
+IF(reSwitch) gatheredWrite=.TRUE.
 
 
-  !CALL CloseDataFile()
+!CALL CloseDataFile()
 
 !  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
 !                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
                                                         ! problematisch werden
 
-  DEALLOCATE(StrVarNames)
-  DEALLOCATE(PartInt)
-  DEALLOCATE(PartData)
+DEALLOCATE(StrVarNames)
+DEALLOCATE(PartInt)
+DEALLOCATE(PartData)
 
 !!! Kleiner Hack von JN (Teil 2/2):
-  useDSMC=withDSMC
-  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
-    DEALLOCATE(PEM%pStart , &
-               PEM%pNumber, &
-               PEM%pNext  , &
-               PEM%pEnd   )!, &
-               !PDM%nextUsedPosition  )
-  END IF
+useDSMC=withDSMC
+IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+  DEALLOCATE(PEM%pStart , &
+             PEM%pNumber, &
+             PEM%pNext  , &
+             PEM%pEnd   )!, &
+             !PDM%nextUsedPosition  )
+END IF
 !!! Ende kleiner Hack von JN (Teil 2/2)
 
 
@@ -1152,11 +1186,21 @@ WRITE(H5_Name,'(A)') 'SurfCalcData'
 !#else
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=5,&
-                nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
-                nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nSides      ,nSpecies/),&
-                offset=    (/0   ,0          ,0          ,offsetSurfSide       ,0       /),&
-                collective=.TRUE.,  RealArray=SurfCalcData)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nSpecies       => INT(nSpecies,IK)              ,&
+      nVar           => INT(nVar,IK)                  ,&
+      nSurfSample    => INT(nSurfSample,IK)           ,&
+      nGlobalSides   => INT(SurfMesh%nGlobalSides,IK) ,&
+      nSides         => INT(SurfMesh%nSides,IK)       ,&
+      offsetSurfSide => INT(offsetSurfSide,IK) )
+  CALL WriteArrayToHDF5(DataSetName=H5_Name , rank=5                                                          , &
+                        nValGlobal =(/nVar   , nSurfSample , nSurfSample , nGlobalSides   , nSpecies/) , &
+                        nVal       =(/nVar   , nSurfSample , nSurfSample , nSides         , nSpecies/) , &
+                        offset     =(/0_IK   , 0_IK        , 0_IK        , offsetSurfSide , 0_IK    /) , &
+                        collective =.TRUE.   , RealArray=SurfCalcData)
+END ASSOCIATE
 CALL CloseDataFile()
 !#endif /*MPI*/                          
 SDEALLOCATE(StrVarNames)
@@ -1193,10 +1237,10 @@ IF (PartSurfaceModel.EQ.3) THEN
 #ifdef MPI
   sendbuf(1)=locnSurfPart
   recvbuf(1)=0
-  CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER,MPI_SUM,SurfCOMM%OutputCOMM,iError)
+  CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,SurfCOMM%OutputCOMM,iError)
   offsetnSurfPart=recvbuf(1)
   sendbuf(1)=recvbuf(1)+locnSurfPart
-  CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER,SurfCOMM%nOutputProcs-1,SurfCOMM%OutputCOMM,iError) !last proc knows global number
+  CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,SurfCOMM%nOutputProcs-1,SurfCOMM%OutputCOMM,iError) !last proc knows global number
   !global numbers
   nSurfPart_glob=sendbuf(1)
 #else
@@ -1284,16 +1328,30 @@ IF (PartSurfaceModel.EQ.3) THEN
 !#else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
   !CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName='SurfPartInt', rank=5,&
-                        nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-                        nVal=      (/SurfMesh%nSides      ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
-                        offset=    (/offsetSurfSide       ,0          ,0          ,0            ,0              /),&
-                        collective=.TRUE.,IntegerArray=SurfPartInt(:,:,:,:,:))
-  CALL WriteArrayToHDF5(DataSetName='SurfPartData', rank=2              ,&
-                        nValGlobal=(/nSurfPart_glob ,SurfPartDataSize/) ,&
-                        nVal=      (/locnSurfPart   ,SurfPartDataSize/) ,&
-                        offset=    (/offsetnSurfPart,0               /) ,&
-                        collective=.TRUE.,IntegerArray=SurfPartData(:,:))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        Coordinations    => INT(Coordinations,IK)        ,&
+        SurfPartIntSize  => INT(SurfPartIntSize,IK)      ,&
+        nSurfSample      => INT(nSurfSample,IK)          ,&
+        nGlobalSides     => INT(SurfMesh%nGlobalSides,IK),&
+        nSides           => INT(SurfMesh%nSides,IK)      ,&
+        offsetSurfSide   => INT(offsetSurfSide,IK)       ,&
+        nSurfPart_glob   => INT(nSurfPart_glob,IK)       ,&
+        locnSurfPart     => INT(locnSurfPart,IK)         ,&
+        offsetnSurfPart  => INT(offsetnSurfPart,IK)      ,&
+        SurfPartDataSize => INT(SurfPartDataSize,IK) )
+    CALL WriteArrayToHDF5(DataSetName = 'SurfPartInt'    , rank = 5                                                      , &
+                          nValGlobal  = (/nGlobalSides   , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
+                          nVal        = (/nSides         , nSurfSample , nSurfSample , Coordinations , SurfPartIntSize/) , &
+                          offset      = (/offsetSurfSide , 0_IK        , 0_IK        , 0_IK          , 0_IK           /) , &
+                          collective  = .TRUE.                  , IntegerArray_i4 = SurfPartInt(:,:,:,:,:))
+    CALL WriteArrayToHDF5(DataSetName = 'SurfPartData'    , rank = 2                          , &
+                          nValGlobal  = (/nSurfPart_glob  , SurfPartDataSize/)                , &
+                          nVal        = (/locnSurfPart    , SurfPartDataSize/)                , &
+                          offset      = (/offsetnSurfPart , 0_IK            /)                , &
+                          collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
+  END ASSOCIATE
   CALL CloseDataFile()
 !#endif /*MPI*/                          
   SDEALLOCATE(StrVarNames)
@@ -1368,11 +1426,20 @@ END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=3,&
-                nValGlobal=(/nVar,nSpecies,nGlobalElems/),&
-                nVal=      (/nVar,nSpecies,nElems      /),&
-                offset=    (/0   ,0       ,offsetElem  /),&
-                collective=.false.,  RealArray=AdaptiveData)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nGlobalElems    => INT(nGlobalElems,IK)    ,&
+      nElems          => INT(nElems,IK)          ,&
+      nVar            => INT(nVar,IK)            ,&
+      nSpecies        => INT(nSpecies,IK)        ,&
+      offsetElem      => INT(offsetElem,IK)      )
+  CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
+                        nValGlobal  = (/nVar  , nSpecies  , nGlobalElems/) , &
+                        nVal        = (/nVar  , nSpecies  , nElems      /) , &
+                        offset      = (/0_IK  , 0_IK      , offsetElem  /) , &
+                        collective  = .false. , RealArray = AdaptiveData)
+END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)
@@ -1434,12 +1501,20 @@ IF(nVar_Avg.GT.0)THEN
 #endif
 
   ! Reopen file and write DG solution
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution', rank=5,&
-                          nValGlobal=(/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/nVar_Avg,PP_N+1,PP_N+1,PP_N+1,nElems/),&
-                          offset=    (/0,       0,     0,     0,     offsetElem/),&
-                          collective=.TRUE., RealArray=UAvg)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        nElems          => INT(nElems,IK)          ,&
+        nVar_Avg        => INT(nVar_Avg,IK)        ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+    CALL GatheredWriteArray(FileName , create = .FALSE.  , &
+                            DataSetName     = 'DG_Solution' , rank = 5                                             , &
+                            nValGlobal      = (/nVar_Avg    , PP_N+1            , PP_N+1 , PP_N+1 , nGlobalElems/) , &
+                            nVal            = (/nVar_Avg    , PP_N+1            , PP_N+1 , PP_N+1 , nElems/)       , &
+                            offset          = (/0_IK        , 0_IK              , 0_IK   , 0_IK   , offsetElem/)   , &
+                            collective      = .TRUE.        , RealArray = UAvg)
+  END ASSOCIATE
 END IF
 
 ! Write fluctuations ---------------------------------------------------------------------------------------------------------------
@@ -1456,12 +1531,20 @@ IF(nVar_Fluc.GT.0)THEN
 #endif
 
   ! Reopen file and write DG solution
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution', rank=5,&
-                          nValGlobal=(/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/nVar_Fluc,PP_N+1,PP_N+1,PP_N+1,nElems/),&
-                          offset=    (/0,        0,     0,     0,     offsetElem/),&
-                          collective=.TRUE., RealArray=UFluc)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        nElems          => INT(nElems,IK)          ,&
+        nVar_Fluc       => INT(nVar_Fluc,IK)       ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+    CALL GatheredWriteArray(FileName , create = .FALSE.                                                             , &
+                            DataSetName     = 'DG_Solution' , rank = 5                                              , &
+                            nValGlobal      = (/nVar_Fluc   , PP_N+1             , PP_N+1 , PP_N+1 , nGlobalElems/) , &
+                            nVal            = (/nVar_Fluc   , PP_N+1             , PP_N+1 , PP_N+1 , nElems/)       , &
+                            offset          = (/0_IK        , 0_IK               , 0_IK   , 0_IK   , offsetElem/)   , &
+                            collective      = .TRUE.        , RealArray = UFluc)
+  END ASSOCIATE
 END IF
 
 endT=PICLASTIME()
@@ -1712,7 +1795,7 @@ END SUBROUTINE WriteHDF5Header
 
 SUBROUTINE WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,offset,&
                             collective,resizeDim,chunkSize,&
-                            RealArray,IntegerArray,StrArray)
+                            RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
 ! Subroutine to write Data to HDF5 format
 !===================================================================================================================================
@@ -1723,16 +1806,17 @@ USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)   :: DataSetName
-INTEGER,INTENT(IN)            :: rank             ! number of dimensions of the array
-INTEGER,INTENT(IN)            :: nValGlobal(rank) ! max size of array in offset dimension
-INTEGER,INTENT(IN)            :: nVal(rank)       ! size of complete (local) array to write
-INTEGER,INTENT(IN)            :: offset(rank)     ! offset =0, start at beginning of the array
-LOGICAL,INTENT(IN)            :: collective       ! use collective writes from all procs
-LOGICAL,INTENT(IN),OPTIONAL   :: resizeDim(rank)  ! specify dimensions which can be resized (enlarged)
-INTEGER,INTENT(IN),OPTIONAL   :: chunkSize(rank)  ! specify chunksize
+CHARACTER(LEN=*),INTENT(IN)                   :: DataSetName
+INTEGER,INTENT(IN)                            :: rank                  ! < number of dimensions of the array
+INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)      ! < max size of array in offset dimension
+INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)            ! < size of complete (local) array to write
+INTEGER(KIND=IK),INTENT(IN)                   :: offset(rank)          ! < offset =0, start at beginning of the array
+LOGICAL,INTENT(IN)                            :: collective            ! < use collective writes from all procs
+LOGICAL,INTENT(IN),OPTIONAL                   :: resizeDim(rank)       ! < specify dimensions which can be resized (enlarged)
+INTEGER,INTENT(IN),OPTIONAL                   :: chunkSize(rank)       ! < specify chunksize
 REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(rank)
-INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray(rank)
+INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray_i4(rank) ! KIND=4
+INTEGER(KIND=IK),INTENT(IN),OPTIONAL,TARGET   :: IntegerArray(rank)    ! KIND=IK
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray(rank)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1767,8 +1851,10 @@ IF(PRESENT(resizeDim))THEN
 END IF
 
 ! Create the dataset with default properties.
-IF(PRESENT(RealArray))     Type_ID=H5T_NATIVE_DOUBLE
-IF(PRESENT(IntegerArray))  Type_ID=H5T_NATIVE_INTEGER
+IF(PRESENT(RealArray))        Type_ID=H5T_NATIVE_DOUBLE
+!IF(PRESENT(IntegerArray))  Type_ID=H5T_NATIVE_INTEGER
+IF(PRESENT(IntegerArray))     Type_ID=h5kind_to_type(IK,H5_INTEGER_KIND)
+IF(PRESENT(IntegerArray_i4))  Type_ID=h5kind_to_type(4,H5_INTEGER_KIND)
 IF(PRESENT(StrArray))THEN
   ! Create HDF5 datatype for the character array.
   CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, Type_ID, iError)
@@ -1829,9 +1915,10 @@ IF(PRESENT(StrArray))THEN
   CALL H5DWRITE_F(DSet_ID,Type_ID,StrArray    ,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
 END IF
 #else
-IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
-IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
-IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
+IF(PRESENT(IntegerArray))    buf=C_LOC(IntegerArray)
+IF(PRESENT(IntegerArray_i4)) buf=C_LOC(IntegerArray_i4)
+IF(PRESENT(RealArray))       buf=C_LOC(RealArray)
+IF(PRESENT(StrArray))        buf=C_LOC(StrArray(1))
 !IF(ANY(Dimsf.EQ.0)) buf =NULL()
 IF(ANY(Dimsf.EQ.0)) THEN
   CALL H5DWRITE_F(DSet_ID,Type_ID,C_NULL_PTR,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
@@ -1970,22 +2057,26 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)    :: FileName,DataSetName
-LOGICAL,INTENT(IN)             :: create,collective
-INTEGER,INTENT(IN)             :: rank,nVal(rank),nValGlobal(rank),offset(rank)
+CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
+LOGICAL,INTENT(IN)                            :: create,collective
+INTEGER,INTENT(IN)                            :: rank
+INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
+INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
+INTEGER(KIND=IK),INTENT(IN)                   :: offset(rank)                   ! offset =0, start at beginning of the array
 REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(PRODUCT(nVal))
-INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray( PRODUCT(nVal))
+INTEGER(KIND=IK),INTENT(IN),OPTIONAL,TARGET   :: IntegerArray( PRODUCT(nVal))
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
-REAL,              ALLOCATABLE :: UReal(:)
-CHARACTER(LEN=255),ALLOCATABLE :: UStr(:)
-INTEGER,           ALLOCATABLE :: UInt(:)
-INTEGER                        :: i,nValGather(rank),nDOFLocal
-INTEGER,DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
+REAL,              ALLOCATABLE          :: UReal(:)
+CHARACTER(LEN=255),ALLOCATABLE          :: UStr(:)
+INTEGER(KIND=IK),ALLOCATABLE            :: UInt(:)
+INTEGER(KIND=IK)                        :: nValGather(rank),nDOFLocal
+INTEGER(KIND=IK),DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
+INTEGER(KIND=IK)                        :: i
 !===================================================================================================================================
 IF(gatheredWrite)THEN
   IF(ANY(offset(1:rank-1).NE.0)) &
@@ -1995,40 +2086,50 @@ IF(gatheredWrite)THEN
   
   ! Get last dim of each array on IO nodes
   nDOFLocal=PRODUCT(nVal)
-  CALL MPI_GATHER(nDOFLocal,1,MPI_INTEGER,nDOFPerNode,1,MPI_INTEGER,0,MPI_COMM_NODE,iError)
+  CALL MPI_GATHER(nDOFLocal,1,MPI_INTEGER_INT_KIND,nDOFPerNode,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_NODE,iError)
   
   ! Allocate big array and compute offsets of small arrs inside big
-  offsetNode=0
+  offsetNode=0_IK
   IF(MPILocalRoot)THEN
     nValGather=nVal
     nValGather(rank)=SUM(nDOFPerNode)/PRODUCT(nVal(1:rank-1))
     DO i=2,nLocalProcs
       offsetNode(i)=offsetNode(i-1)+nDOFPerNode(i-1)
     END DO
-    IF(PRESENT(RealArray)) ALLOCATE(UReal(PRODUCT(nValGather)))
+    IF(PRESENT(RealArray))     ALLOCATE(UReal(PRODUCT(nValGather)))
     IF(PRESENT(IntegerArray))  ALLOCATE(UInt( PRODUCT(nValGather)))
-    IF(PRESENT(StrArray))  ALLOCATE(UStr( PRODUCT(nValGather)))
+    IF(PRESENT(StrArray))      ALLOCATE(UStr( PRODUCT(nValGather)))
   ELSE
-    IF(PRESENT(RealArray)) ALLOCATE(UReal(1))
+    IF(PRESENT(RealArray))     ALLOCATE(UReal(1))
     IF(PRESENT(IntegerArray))  ALLOCATE(UInt( 1))
-    IF(PRESENT(StrArray))  ALLOCATE(UStr( 1))
+    IF(PRESENT(StrArray))      ALLOCATE(UStr( 1))
   ENDIF
   
-  ! Gather small arrays on IO nodes
-  IF(PRESENT(RealArray)) CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE_PRECISION,&
-                                          UReal,nDOFPerNode,offsetNode,MPI_DOUBLE_PRECISION,0,MPI_COMM_NODE,iError)
-  IF(PRESENT(IntegerArray))  CALL MPI_GATHERV(IntegerArray, nDOFLocal,MPI_INTEGER,&
-                                          UInt, nDOFPerNode,offsetNode,MPI_INTEGER,0,MPI_COMM_NODE,iError)
-  !IF(PRESENT(StrArray))  CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE,&
-  !                                        UReal,nDOFPerNode, offsetNode,MPI_DOUBLE,0,MPI_COMM_NODE,iError)
-  
+  ! Associate construct for integer settings
+  ASSOCIATE (&
+        nDOFLocal    => INT(nDOFLocal)   ,&
+        nDOFPerNode  => INT(nDOFPerNode) ,&
+        offsetNode   => INT(offsetNode)  )
+    ! Gather small arrays on IO nodes
+    IF(PRESENT(RealArray)) CALL MPI_GATHERV(&
+        RealArray , nDOFLocal     ,              MPI_DOUBLE_PRECISION , &
+        UReal     , nDOFPerNode   , offsetNode , MPI_DOUBLE_PRECISION , &
+        0         , MPI_COMM_NODE , iError)
+    IF(PRESENT(IntegerArray))  CALL MPI_GATHERV(&
+        IntegerArray  , nDOFLocal     ,              MPI_INTEGER_INT_KIND , &
+        UInt          , nDOFPerNode   , offsetNode , MPI_INTEGER_INT_KIND , &
+        0             , MPI_COMM_NODE , iError)
+    !IF(PRESENT(StrArray))  CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE,&
+    !                                        UReal,nDOFPerNode, offsetNode,MPI_DOUBLE,0,MPI_COMM_NODE,iError)
+  END ASSOCIATE
+
   IF(MPILocalRoot)THEN
     ! Reopen file and write DG solution (only IO nodes)
     CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS)
-    IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
-                                                 offset,collective=collective,RealArray=UReal)
-    IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
-                                                 offset,collective=collective,IntegerArray =UInt)
+    IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank                  , nValGlobal , nValGather , &
+                                                 offset      , collective=collective , RealArray=UReal)
+    IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank                  , nValGlobal , nValGather , &
+                                                     offset      , collective=collective , IntegerArray =UInt)
     !IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nValGather,&
     !                                             offset,collective=collective,StrArr =UStr)
     CALL CloseDataFile()
@@ -2040,12 +2141,12 @@ IF(gatheredWrite)THEN
 ELSE
 #endif
   CALL OpenDataFile(FileName,create=create,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-  IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,RealArray=RealArray)
-  IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,IntegerArray =IntegerArray)
-  IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,StrArray =StrArray)
+  IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
+                                               offset      , collective , RealArray=RealArray)
+  IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                               offset          , collective , IntegerArray =IntegerArray)
+  IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
+                                               offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
 #ifdef MPI
 END IF
@@ -2056,7 +2157,7 @@ END SUBROUTINE GatheredWriteArray
 #ifdef PARTICLES
 #ifdef MPI
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
-                                 offSetDim,communicator,RealArray,IntegerArray,StrArray)
+                                 offSetDim,communicator,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
 ! Write distributed data to proc, e.g. particles which are not hosted by each proc
 ! a new output-communicator is build and afterwards killed
@@ -2068,12 +2169,16 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)    :: FileName,DataSetName
-LOGICAL,INTENT(IN)             :: collective
-INTEGER,INTENT(IN)             :: offSetDim,communicator
-INTEGER,INTENT(IN)             :: rank,nVal(rank),nValGlobal(rank),offset(rank)
+CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
+LOGICAL,INTENT(IN)                            :: collective
+INTEGER,INTENT(IN)                            :: offSetDim,communicator
+INTEGER,INTENT(IN)                            :: rank
+INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
+INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
+INTEGER(KIND=IK),INTENT(IN)                   :: offset(rank)                   ! offset =0, start at beginning of the array
 REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(PRODUCT(nVal))
-INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray( PRODUCT(nVal))
+INTEGER(KIND=IK),INTENT(IN),OPTIONAL,TARGET   :: IntegerArray( PRODUCT(nVal))   ! KIND=IK
+INTEGER         ,INTENT(IN),OPTIONAL,TARGET   :: IntegerArray_i4( PRODUCT(nVal))! KIND=4
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2099,21 +2204,21 @@ IF(.NOT.DoNotSplit)THEN
     CALL MPI_COMM_SIZE(OutputCOMM, nOutPutProcs,iError)
     IF(nOutPutProcs.EQ.1)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
-      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective=.FALSE.,RealArray=RealArray)
-      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective=.FALSE.,IntegerArray =IntegerArray)
-      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective=.FALSE.,StrArray =StrArray)
+      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal           , nVal , &
+                                                   offset      , collective=.FALSE. , RealArray=RealArray)
+      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal                  , nVal , &
+                                                   offset          , collective=.FALSE. , IntegerArray =IntegerArray)
+      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal          , nVal , &
+                                                   offset      , collective=.FALSE. , StrArray =StrArray)
       CALL CloseDataFile()
     ELSE 
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
-      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective,RealArray=RealArray)
-      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective,IntegerArray =IntegerArray)
-      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                                   offset,collective,StrArray =StrArray)
+      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
+                                                   offset      , collective , RealArray=RealArray)
+      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                                   offset          , collective , IntegerArray =IntegerArray)
+      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
+                                                   offset      , collective , StrArray =StrArray)
       CALL CloseDataFile()
     END IF
     CALL MPI_BARRIER(OutputCOMM,IERROR)
@@ -2125,12 +2230,12 @@ IF(.NOT.DoNotSplit)THEN
 ELSE
 #endif
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-  IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,RealArray=RealArray)
-  IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,IntegerArray =IntegerArray)
-  IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
-                                               offset,collective,StrArray =StrArray)
+  IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
+                                               offset      , collective , RealArray=RealArray)
+  IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                               offset         , collective , IntegerArray =IntegerArray)
+  IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
+                                               offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
 #ifdef MPI
 END IF
@@ -2371,12 +2476,21 @@ IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TR
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
-                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
-                        collective=.TRUE.,RealArray=PMLzetaGlobal)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        PP_nElems       => INT(PP_nElems,IK)       ,&
+        N_variables     => INT(N_variables,IK)     ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution', rank=5,&
+                          nValGlobal =(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal       =(/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                          offset     =(/       0_IK,  0_IK,  0_IK,  0_IK,offsetElem  /),&
+                          collective =.TRUE.,RealArray=PMLzetaGlobal)
+END ASSOCIATE
 #ifdef MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
@@ -2451,12 +2565,21 @@ IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
-                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
-                        collective=.TRUE.,RealArray=DielectricGlobal)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        PP_nElems       => INT(PP_nElems,IK)       ,&
+        N_variables     => INT(N_variables,IK)     ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName='DG_Solution' , rank=5                                    , &
+                          nValGlobal =(/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
+                          nVal       =(/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+                          collective =.TRUE.        , RealArray=DielectricGlobal)
+END ASSOCIATE
 #ifdef MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
@@ -2547,12 +2670,21 @@ IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFil
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5(File_ID,'VarNamesQDS',N_variables,StrArray=StrVarNames)
 CALL CloseDataFile()
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,nQDSElems   /),&
-                        offset=    (/          0,     0,     0,     0,offsetElem  /),&
-                        collective=.TRUE.,RealArray=Utemp)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        nQDSElems       => INT(nQDSElems,IK)       ,&
+        N_variables     => INT(N_variables,IK)     ,&
+        PP_N            => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                          DataSetName    = 'DG_Solution' , rank = 5                                  , &
+                          nValGlobal     = (/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
+                          nVal           = (/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nQDSElems   /) , &
+                          offset         = (/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+                          collective     = .TRUE.        , RealArray = Utemp)
+END ASSOCIATE
 #ifdef MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()

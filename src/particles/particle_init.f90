@@ -2983,7 +2983,14 @@ __STAMP__&
 ,'Error in Macrofile read in: wrong nVar_HDF5 !')
     SDEALLOCATE(State_HDF5)
     ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
-    CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=State_HDF5(:,:))
+
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+          offsetElem => INT(offsetElem,IK),&
+          nElems     => INT(nElems,IK)    )
+          CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=State_HDF5(:,:))
+    END ASSOCIATE
     iVar = 1
     DO iSpec = 1, nSpecies
       DO iElem = 1, nElems

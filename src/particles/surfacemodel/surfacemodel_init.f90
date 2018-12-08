@@ -658,8 +658,16 @@ __STAMP__&
 ,'Error in surface coverage init: number of variables in HDF5-file does not match!')
     SDEALLOCATE(SurfState_HDF5)
     ALLOCATE(SurfState_HDF5(1:nVarSurf_HDF5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-    CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5,nSurfSample,nSurfSample,SurfMesh%nSides/)&
-                   ,offsetSurfSide,4,RealArray=SurfState_HDF5)
+
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nVarSurf_HDF5   => INT(nVarSurf_HDF5,IK)   ,&
+          nSurfSample     => INT(nSurfSample,IK)     ,&
+          nSides          => INT(SurfMesh%nSides,IK) ,&
+          offsetSurfSide  => INT(offsetSurfSide,IK)  )
+      CALL ReadArray(  'SurfaceData',4,(/nVarSurf_HDF5,nSurfSample,nSurfSample,nSides/)&
+                     ,offsetSurfSide,4,RealArray=SurfState_HDF5)
+    END ASSOCIATE
     iVar = 3
     DO iSpec = 1, nSpecies
       DO iSurfSide = 1, SurfMesh%nSides

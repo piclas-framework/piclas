@@ -4175,7 +4175,13 @@ IF(nAdaptiveBC.GT.0)THEN
     IF(AdaptiveDataExists)THEN
       AdaptiveInitDone = .TRUE.
       ALLOCATE(ElemData_HDF5(1:4,1:nSpecies,1:nElems))
-      CALL ReadArray('AdaptiveInfo',3,(/4, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            nSpecies   => INT(nSpecies,IK) ,&
+            offsetElem => INT(offsetElem,IK),&
+            nElems     => INT(nElems,IK)    )
+        CALL ReadArray('AdaptiveInfo',3,(/4_IK, nSpecies, nElems/),offsetElem,3,RealArray=ElemData_HDF5(:,:,:))
+      END ASSOCIATE
       DO iElem = 1,nElems
         Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
         Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)

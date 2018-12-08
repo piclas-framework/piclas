@@ -195,8 +195,8 @@ INTEGER                        :: offsetElemMPI_opt(0:nProcessors),offsetElemMPI
 INTEGER                        :: offsetElemMPI_tmp(0:nProcessors)
 INTEGER                        :: iDistriIter,itershift,imax,numOfCalls,nthMinLoad_Idx,startIdx,iShiftLocal,currentRight
 #ifdef PARTICLES
-INTEGER,ALLOCATABLE            :: PartInt(:,:)
-INTEGER                        :: locnPart
+INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
+INTEGER(KIND=IK)               :: locnPart
 LOGICAL                        :: PartIntExists
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
@@ -213,7 +213,8 @@ CALL DatasetExists(File_ID,'PartInt',PartIntExists)
 IF(PartIntExists)THEN
   ALLOCATE(PartInt(1:nGlobalElems,2))
   PartInt(:,:)=0
-  CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
+  ! Check integer KIND=8 possibility
+  CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),2_IK/),0_IK,1,IntegerArray=PartInt)
 END IF
 CALL CloseDataFile() 
 #endif /*PARTICLES*/
