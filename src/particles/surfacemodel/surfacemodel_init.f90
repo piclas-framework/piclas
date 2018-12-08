@@ -194,7 +194,7 @@ SUBROUTINE InitSurfaceModel()
 ! MODULES
 USE MOD_Globals                    ,ONLY: abort
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
-USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode
+USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
 USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues, PartSurfaceModel
 USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars         ,ONLY: nTotalSides
@@ -317,6 +317,45 @@ __STAMP__,&
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
           Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+          ! check posibilities of coodrination of dicoord pairing. some pairing unphysical
+          IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+            SELECT CASE(Adsorption%Coordination(iPartBound,iSpec))
+            CASE(1)
+              SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+              CASE(1,2,3)
+              CASE DEFAULT
+                CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=1 only dicoord 1,2,3 possible. Wrong dicoord for species:",iSpec)
+              END SELECT
+            CASE(2)
+              IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+                CASE(1,2,3,4,7)
+                CASE DEFAULT
+                  CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=2 only dicoord 1,2,3,4,7 possible. Wrong dicoord for species:",iSpec)
+                END SELECT
+              ELSE
+                SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+                CASE(1,2,3,4,6)
+                CASE DEFAULT
+                  CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=2 only dicoord 1,2,3,4,6 possible. Wrong dicoord for species:",iSpec)
+                END SELECT
+              END IF
+            CASE(3)
+              SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+              CASE(1,2,3,5)
+              CASE DEFAULT
+                CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=3 only dicoord 1,2,3,5 possible. Wrong dicoord for species:",iSpec)
+              END SELECT
+            END SELECT
+          END IF
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
           Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
