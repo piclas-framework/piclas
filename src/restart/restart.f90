@@ -358,7 +358,10 @@ INTEGER                            :: IndNum    ! > auxiliary variable containin
 #if (USE_QDS_DG) || (PARTICLES)
 INTEGER                            :: i
 #endif
-INTEGER(KIND=IK) :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PMLnVarTmp,PP_nElemsTmp,N_RestartTmp
+INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
+#ifndef PP_HDG
+INTEGER(KIND=IK)                   :: PMLnVarTmp
+#endif /*not PP_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 #ifdef MPI
@@ -370,9 +373,11 @@ IF(DoRestart)THEN
   PP_NTmp       = INT(PP_N,IK)
   OffsetElemTmp = INT(OffsetElem,IK)
   PP_nVarTmp    = INT(PP_nVar,IK)
-  PMLnVarTmp    = INT(PMLnVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
   N_RestartTmp  = INT(N_Restart,IK)
+#ifndef PP_HDG
+  PMLnVarTmp    = INT(PMLnVar,IK)
+#endif /*not PP_HDG*/
   ! ===========================================================================
   ! 1.) Read the field solution
   ! ===========================================================================
