@@ -103,7 +103,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(20)               :: hilf
+#ifdef PP_HDG
 LOGICAL                     :: DG_SolutionUExists
+#endif /* PP_HDG */
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -729,7 +731,7 @@ __STAMP__&
           END IF
         END DO
       END IF
-      ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize_HDF5))
+      ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize_HDF5))
 
       ! Associate construct for integer KIND=8 possibility
       ASSOCIATE (&
@@ -744,7 +746,7 @@ __STAMP__&
         IF (.NOT.VibQuantDataExists) CALL abort(&
   __STAMP__&
   ,' Restart file does not contain "VibQuantData" in restart file for reading of polyatomic data')
-        ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+        ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
 
         ! Associate construct for integer KIND=8 possibility
         ASSOCIATE (&
@@ -756,7 +758,7 @@ __STAMP__&
       END IF
 
       iPart=0
-      DO iLoop = 1,locnPart
+      DO iLoop = 1,INT(locnPart)
         IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
         iPart = iPart +1
         PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
@@ -869,7 +871,7 @@ __STAMP__&
       iPart = 0
       DO iElem=FirstElemInd,LastElemInd
         IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 , PartInt(iElem,ELEM_LastPartInd) -offsetnPart
+          DO iLoop = INT(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK) , INT(PartInt(iElem,ELEM_LastPartInd) -offsetnPart)
             IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
             iPart = iPart +1
             PEM%Element(iPart)  = iElem-offsetElem

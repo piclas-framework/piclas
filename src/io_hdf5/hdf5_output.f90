@@ -227,16 +227,16 @@ ASSOCIATE (&
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionE', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 
   !CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
@@ -244,9 +244,9 @@ ASSOCIATE (&
   ! missing addiontal attributes and data preparation
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionPhi', rank=5,&
-      nValGlobal=(/4_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/4_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/4_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==8)*/
   ! Store the solution of the electrostatic-poisson system
@@ -256,23 +256,23 @@ ASSOCIATE (&
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionE', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionPhi', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==4)*/
   DEALLOCATE(Utemp)
@@ -285,18 +285,18 @@ ASSOCIATE (&
       collective=.TRUE., RealArray=lambda(:,:,1:nUniqueSides))
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionU', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE., RealArray=U)
 #if (PP_nVar==1)
   Utemp(1,:,:,:,:)=U(1,:,:,:,:)
   Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/4_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/4_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/4_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/4_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 
 #elif (PP_nVar==3)
@@ -305,9 +305,9 @@ ASSOCIATE (&
   !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/3_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/3_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/3_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/3_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #else /*(PP_nVar==4)*/
   Utemp(1,:,:,:,:)=U(4,:,:,:,:)
@@ -316,17 +316,17 @@ ASSOCIATE (&
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/7_IK,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/7_IK,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/7_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/7_IK , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #else
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-      nVal=      (/PP_nVarTmp,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-      offset=    (/0_IK   ,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+      nValGlobal=(/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 #endif /*PP_POIS*/
 
@@ -352,9 +352,9 @@ ASSOCIATE (&
     END IF
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName='DG_Source', rank=5,  &
-        nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-        nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-        offset=    (/0_IK,0_IK  ,0_IK  ,0_IK  ,offsetElem/),&
+        nValGlobal=(/nVar , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+        nVal=      (/nVar , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
+        offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
         collective=.TRUE.,RealArray=PartSource)
 
     DEALLOCATE(LocalStrVarNames)
@@ -549,8 +549,8 @@ ASSOCIATE (&
       offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName = 'PML_Solution', rank = 5,&
-                          nValGlobal  = (/PMLnVar , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
-                          nVal        = (/PMLnVar , PP_N+1 , PP_N+1 , PP_N+1 , PP_nElems/)    , &
+                          nValGlobal  = (/PMLnVar , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                          nVal        = (/PMLnVar , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems/)    , &
                           offset      = (/0_IK    , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
                           collective  = .TRUE.,RealArray = Upml)
 END ASSOCIATE
@@ -708,10 +708,10 @@ nPart_glob=locnPart
 minnParts=locnPart
 #endif /* HDF5_F90 */
 #endif
-ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
-ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
+ALLOCATE(PartInt(offsetElem+1_IK:offsetElem+PP_nElems,PartIntSize))
+ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize))
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+  ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
   VibQuantData = 0
   !+1 is real number of necessary vib quants for the particle
 END IF
@@ -1509,10 +1509,10 @@ IF(nVar_Avg.GT.0)THEN
         PP_N            => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
     CALL GatheredWriteArray(FileName , create = .FALSE.  , &
-                            DataSetName     = 'DG_Solution' , rank = 5                                             , &
-                            nValGlobal      = (/nVar_Avg    , PP_N+1            , PP_N+1 , PP_N+1 , nGlobalElems/) , &
-                            nVal            = (/nVar_Avg    , PP_N+1            , PP_N+1 , PP_N+1 , nElems/)       , &
-                            offset          = (/0_IK        , 0_IK              , 0_IK   , 0_IK   , offsetElem/)   , &
+                            DataSetName     = 'DG_Solution' , rank = 5                                        , &
+                            nValGlobal      = (/nVar_Avg , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                            nVal            = (/nVar_Avg , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nElems/)       , &
+                            offset          = (/0_IK     , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
                             collective      = .TRUE.        , RealArray = UAvg)
   END ASSOCIATE
 END IF
@@ -1538,11 +1538,11 @@ IF(nVar_Fluc.GT.0)THEN
         nVar_Fluc       => INT(nVar_Fluc,IK)       ,&
         PP_N            => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
-    CALL GatheredWriteArray(FileName , create = .FALSE.                                                             , &
-                            DataSetName     = 'DG_Solution' , rank = 5                                              , &
-                            nValGlobal      = (/nVar_Fluc   , PP_N+1             , PP_N+1 , PP_N+1 , nGlobalElems/) , &
-                            nVal            = (/nVar_Fluc   , PP_N+1             , PP_N+1 , PP_N+1 , nElems/)       , &
-                            offset          = (/0_IK        , 0_IK               , 0_IK   , 0_IK   , offsetElem/)   , &
+    CALL GatheredWriteArray(FileName , create = .FALSE.                                                          , &
+                            DataSetName     = 'DG_Solution' , rank = 5                                           , &
+                            nValGlobal      = (/nVar_Fluc   , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                            nVal            = (/nVar_Fluc   , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nElems/)       , &
+                            offset          = (/0_IK        , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
                             collective      = .TRUE.        , RealArray = UFluc)
   END ASSOCIATE
 END IF
@@ -2485,11 +2485,11 @@ ASSOCIATE (&
         PP_N            => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution', rank=5,&
-                          nValGlobal =(/N_variables,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal       =(/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
-                          offset     =(/       0_IK,  0_IK,  0_IK,  0_IK,offsetElem  /),&
-                          collective =.TRUE.,RealArray=PMLzetaGlobal)
+                          DataSetName='DG_Solution' , rank=5                                             , &
+                          nValGlobal =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
+                          collective =.TRUE.        , RealArray=PMLzetaGlobal)
 END ASSOCIATE
 #ifdef MPI
 IF(MPIROOT)THEN
@@ -2574,10 +2574,10 @@ ASSOCIATE (&
         PP_N            => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution' , rank=5                                    , &
-                          nValGlobal =(/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
-                          nVal       =(/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , PP_nElems   /) , &
-                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+                          DataSetName='DG_Solution' , rank=5                                             , &
+                          nValGlobal =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                          nVal       =(/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , PP_nElems   /) , &
+                          offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=DielectricGlobal)
 END ASSOCIATE
 #ifdef MPI
@@ -2679,10 +2679,10 @@ ASSOCIATE (&
         PP_N            => INT(PP_N,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName    = 'DG_Solution' , rank = 5                                  , &
-                          nValGlobal     = (/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nGlobalElems/) , &
-                          nVal           = (/N_variables , PP_N+1 , PP_N+1 , PP_N+1 , nQDSElems   /) , &
-                          offset         = (/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+                          DataSetName    = 'DG_Solution' , rank = 5                                           , &
+                          nValGlobal     = (/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nGlobalElems/) , &
+                          nVal           = (/N_variables , PP_N+1_IK , PP_N+1_IK , PP_N+1_IK , nQDSElems   /) , &
+                          offset         = (/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
                           collective     = .TRUE.        , RealArray = Utemp)
 END ASSOCIATE
 #ifdef MPI

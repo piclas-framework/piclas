@@ -1222,7 +1222,7 @@ ASSOCIATE (&
                             nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nSides/)        , &
                             offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/), &
                             collective =.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
-  nVarCount = nVarCount + nVar2D_Spec
+  nVarCount = nVarCount + INT(nVar2D_Spec)
   END DO
   CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
                         nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &

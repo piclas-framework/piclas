@@ -225,7 +225,7 @@ PartsInElem=0
 IF (PartIntExists) THEN
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
-    PartsInElem(iElem)=locnPart
+    PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
     IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
   END DO
 END IF
