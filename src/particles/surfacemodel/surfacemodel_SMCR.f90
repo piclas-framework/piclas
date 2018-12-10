@@ -611,6 +611,7 @@ INTEGER                           :: IDRearrange
 ! reservoir sample variables
 INTEGER                           :: iSampleReact
 REAL                              :: loc_SurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1)
+REAL                              :: loc_Surfnu(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1)
 #endif
 INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%RecombNum)
 #if USE_LOADBALANCE
@@ -721,6 +722,7 @@ DO iSubSurf = 1,nSurfSample
 
 #if (PP_TimeDiscMethod==42)
     loc_SurfActE = 0.
+    loc_Surfnu = 0.
 #endif
 
     Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
@@ -823,8 +825,11 @@ DO iSubSurf = 1,nSurfSample
           END IF
         END IF
         loc_SurfActE(iSampleReact) = E_d
+        loc_Surfnu(iSampleReact) = nu_react
         Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) + E_d
+        Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iSampleReact) = &
+            Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iSampleReact) + nu_react
         Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) = &
             Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) + 1
 #endif
@@ -991,8 +996,11 @@ DO iSubSurf = 1,nSurfSample
               END IF
             END IF
             loc_SurfActE(iSampleReact) = E_d
+            loc_Surfnu(iSampleReact) = nu_react
             Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) = &
                 Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iSampleReact) + E_d
+            Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iSampleReact) = &
+                Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iSampleReact) + nu_react
             Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) = &
                 Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iSampleReact) + 1
 #endif
@@ -1356,7 +1364,9 @@ DO iSubSurf = 1,nSurfSample
       END IF
     END IF
     loc_SurfActE(1) = E_d
+    loc_Surfnu(1) = nu_des
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1) + E_d
+    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(1) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(1) + nu_des
     Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) = Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1) + 1
 #endif
     ! initialize sum of all probabilities
@@ -1398,6 +1408,8 @@ DO iSubSurf = 1,nSurfSample
         END IF
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1)+loc_SurfActE(iReact+Adsorption%DissNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact+Adsorption%DissNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact+Adsorption%DissNum+1)+loc_Surfnu(iReact+Adsorption%DissNum+1)
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) + 1
       !-----------------------------------------------------------------------------------------------------------------------------
@@ -1409,6 +1421,8 @@ DO iSubSurf = 1,nSurfSample
         END IF
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) + loc_SurfActE(DissocNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(DissocNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(DissocNum+1) + loc_Surfnu(DissocNum+1)
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) + 1
       !-----------------------------------------------------------------------------------------------------------------------------
@@ -1419,6 +1433,8 @@ DO iSubSurf = 1,nSurfSample
         END IF
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) + loc_SurfActE(1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(1) + loc_Surfnu(1)
         Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) = &
             Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) + 1
       END SELECT

@@ -34,6 +34,7 @@ LOGICAL                       :: CalcAdsorbProb                      ! Calculate
 LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfRates                       ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcSurfnu                          ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (k_r)
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

@@ -84,6 +84,9 @@ CALL prms%CreateLogicalOption(  'Surf-CalcSurfRates'      , 'TODO-DEFINE-PARAMET
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfProb'       , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the surface reaction rate per reaction'//&
                                                             ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcSurfnu'         , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the surface reaction rate per reaction'//&
                                                             ' (k_r)','.FALSE.')
@@ -143,11 +146,13 @@ END IF
 CalcSurfRates = GETLOGICAL('Surf-CalcSurfRates')
 IF (CalcSurfRates) THEN
   CalcSurfProb  = .TRUE.
+  CalcSurfnu    = .TRUE.
   CalcSurfE     = .TRUE.
 ELSE
   CalcSurfProb  = GETLOGICAL('Surf-CalcSurfProb')
+  CalcSurfnu    = GETLOGICAL('Surf-CalcSurfnu')
   CalcSurfE     = GETLOGICAL('Surf-CalcSurfE')
-  IF (CalcSurfProb.OR.CalcSurfE) CalcSurfRates=.TRUE.
+  IF (CalcSurfProb.OR.CalcSurfnu.OR.CalcSurfE) CalcSurfRates=.TRUE.
 END IF
 IF (    CalcSurfNumSpec &
    .OR. CalcSurfRates &
@@ -210,7 +215,8 @@ CHARACTER(LEN=350)  :: hilf
 REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies), Accomodation(nSpecies)
 REAL                :: EvaporationRate(nSpecies)
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
-REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:), AdsorptionActE(:), SurfaceActE(:), ProperSurfaceActE(:)
+REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:), AdsorptionActE(:)
+REAL,ALLOCATABLE    :: SurfaceActE(:), ProperSurfaceActE(:), Surfacenu(:), ProperSurfacenu(:)
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
 INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
@@ -328,6 +334,44 @@ REAL                :: WallCoverage(nSpecies)
               END DO
               CALL WriteDataHeaderInfo(unit_index,'P-Surfexch-Case',OutputCounter,Adsorption%NumOfExchReact)
             END IF
+            IF (CalcSurfnu) THEN
+              DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nu-Desorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-nu-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-nu-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+              CALL WriteDataHeaderInfo(unit_index,'nu-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+              DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-nu-Desorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+              CALL WriteDataHeaderInfo(unit_index,'Proper-nu-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+            END IF
             IF (CalcSurfE) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -407,10 +451,15 @@ IF (PartSurfaceModel.EQ.3) THEN
   IF (CalcSurfRates) THEN
     SDEALLOCATE(SurfReactRate)
     SDEALLOCATE(SurfaceActE)
+    SDEALLOCATE(ProperSurfaceActE)
+    SDEALLOCATE(Surfacenu)
+    SDEALLOCATE(ProperSurfacenu)
     ALLOCATE(SurfReactRate(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
     ALLOCATE(SurfaceActE(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
     ALLOCATE(ProperSurfaceActE(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
-    CALL GetSurfRates(Desorptionrate,DesorptionNum,SurfReactRate,SurfaceActE,ProperSurfaceActE)
+    ALLOCATE(Surfacenu(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
+    ALLOCATE(ProperSurfacenu(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
+    CALL GetSurfRates(Desorptionrate,DesorptionNum,SurfReactRate,SurfaceActE,ProperSurfaceActE,Surfacenu,ProperSurfacenu)
   END IF
 #endif
 END IF
@@ -455,6 +504,10 @@ IF (PartMPI%MPIROOT) THEN
           CALL WriteDataInfo(unit_index,nSpecies                                                   ,IntegerArray=DesorptionNum(:))
           CALL WriteDataInfo(unit_index,nSpecies                                                   ,RealArray=Desorptionrate(:))
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfReactRate(:))
+        END IF
+        IF (CalcSurfnu) THEN
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=Surfacenu(:))
+          CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=ProperSurfacenu(:))
         END IF
         IF (CalcSurfE) THEN
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfaceActE(:))
@@ -919,7 +972,7 @@ END IF
 END SUBROUTINE GetAdsRates
 
 
-SUBROUTINE GetSurfRates(DesorbRate,DesorbNum,ReactRate,SurfaceActE,ProperSurfaceActE)
+SUBROUTINE GetSurfRates(DesorbRate,DesorbNum,ReactRate,SurfaceActE,ProperSurfaceActE,Surfacenu,ProperSurfacenu)
 !===================================================================================================================================
 ! Calculate adsorption, desorption and accomodation rates for all species
 !===================================================================================================================================
@@ -945,6 +998,8 @@ INTEGER, INTENT(OUT)            :: DesorbNum(nSpecies)
 REAL   , INTENT(OUT)            :: ReactRate(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 REAL   , INTENT(OUT)            :: SurfaceActE(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 REAL   , INTENT(OUT)            :: ProperSurfaceActE(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
+REAL   , INTENT(OUT)            :: Surfacenu(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
+REAL   , INTENT(OUT)            :: ProperSurfacenu(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iReact, iCase
@@ -1059,6 +1114,44 @@ ELSE
   ProperSurfaceActE(:)= 0.
 END IF
 
+IF(SurfMesh%SurfOnProc)THEN
+  iCase = 1
+  DO iSpec = 1,nSpecies
+    DO iReact = 1,Adsorption%ReactNum+1
+      IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+        IF (PartSurfaceModel.EQ.3) THEN
+          Surfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iReact) &
+              / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
+        END IF
+      ELSE
+        Surfacenu(iCase) = 0.
+      END IF
+      iCase = iCase + 1
+    END DO
+  END DO
+ELSE
+  Surfacenu(:)= 0.
+END IF
+
+IF(SurfMesh%SurfOnProc)THEN
+  iCase = 1
+  DO iSpec = 1,nSpecies
+    DO iReact = 1,Adsorption%ReactNum+1
+      IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
+        IF (PartSurfaceModel.EQ.3) THEN
+          ProperSurfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact) &
+              / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
+        END IF
+      ELSE
+        ProperSurfacenu(iCase) = 0.
+      END IF
+      iCase = iCase + 1
+    END DO
+  END DO
+ELSE
+  ProperSurfacenu(:)= 0.
+END IF
+
 #ifdef MPI
 commSize = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
 IF (PartMPI%MPIRoot) THEN
@@ -1081,6 +1174,8 @@ IF(SurfMesh%SurfOnProc)THEN
     Adsorption%AdsorpInfo(iSPec)%NumOfDes = 0
     Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE = 0.
     Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu = 0.
     Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact = 0.
     Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0
     Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0
