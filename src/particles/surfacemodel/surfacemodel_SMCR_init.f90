@@ -67,7 +67,6 @@ REAL                             :: RanNum
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 INTEGER                          :: DistSquareNum
 LOGICAL                          :: DistNumCase
-INTEGER                          :: SurfaceStructure
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -222,12 +221,8 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   END DO
 END DO
 
-!SELECT CASE (SurfaceStructure)
-!CASE(1) !fcc(100)
-  CALL Initfcc100Mapping()
-!CASE(2) !fcc(111)
-  CALL Initfcc111Mapping()
-!END SELECT
+CALL Initfcc100Mapping()
+CALL Initfcc111Mapping()
 
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
@@ -707,7 +702,6 @@ SUBROUTINE Init_TST_Coeff(TST_Case)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
-USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
