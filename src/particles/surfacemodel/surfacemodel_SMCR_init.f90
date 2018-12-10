@@ -41,7 +41,7 @@ SUBROUTINE InitSMCR()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, ManualTimeStep
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
@@ -49,6 +49,9 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
 #endif /*MPI*/
+#if (PP_TimeDiscMethod==42)
+USE MOD_TimeDisc_Vars          ,ONLY: tend
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -91,6 +94,11 @@ IF (DistNumCase) THEN
 ELSE
   WRITE(UNIT=particle_mpf,FMT='(E11.3)') Species(1)%MacroParticleFactor
   surface_mpf = GETREAL('Particles-Surface-MacroParticleFactor',TRIM(particle_mpf))
+#if (PP_TimeDiscMethod==42)
+  IF (Adsorption%CoverageReduction) CALL abort(&
+__STAMP__&
+,'Do not use coverage reduction flag with different surface weightings')
+#endif
 END IF
 Max_Surfsites_num = 0
 Max_Surfsites_own = 0
@@ -224,6 +232,9 @@ END DO
 CALL Initfcc100Mapping()
 CALL Initfcc111Mapping()
 
+#if (PP_TimeDiscMethod==42)
+IF(Adsorption%CoverageReduction) ALLOCATE(Adsorption%CovReductionStep(1:nSpecies))
+#endif
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   DO iSurfSide = 1,SurfMesh%nSides
@@ -236,6 +247,12 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
       ! adjust coverage to actual discrete value
       Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) &
                   * SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Adsorption%Coordination(PartboundID,iSpec)))
+#if (PP_TimeDiscMethod==42)
+      IF(Adsorption%CoverageReduction) THEN
+        Adsorption%CovReductionStep(iSpec) = NINT( REAL(Adsorbates) / (tend/ManualTimeStep))
+        IF (Adsorption%CovReductionStep(iSpec).LE.0) Adsorption%CovReductionStep(iSpec) = 1
+      END IF
+#endif
       Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
       IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Adsorption%Coordination(PartboundID,iSpec)).LT.Adsorbates) THEN
