@@ -440,6 +440,7 @@ SDEALLOCATE(Vdm_GaussN_NAnalyze)
 SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
+SDEALLOCATE(PPWCell)
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
