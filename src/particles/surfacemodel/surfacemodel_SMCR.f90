@@ -1367,7 +1367,6 @@ DO iSubSurf = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     ! choose which surface reaction takes place
     !-------------------------------------------------------------------------------------------------------------------------------
-    IF (DSMC%ReservoirSurfaceRate) sum_probabilities = 0. !only probabilities are calculated without desorption taking place
     CALL RANDOM_NUMBER(RanNum)
     IF (sum_probabilities .GT. RanNum) THEN
       DO iReact = 1,ReactNum_run+1
@@ -1388,6 +1387,44 @@ DO iSubSurf = 1,nSurfSample
           sum_probabilities = sum_probabilities - P_actual_react(iReact)
         END IF
       END DO
+#if (PP_TimeDiscMethod==42)
+      !-----------------------------------------------------------------------------------------------------------------------------
+      SELECT CASE(surf_react_case)
+      !-----------------------------------------------------------------------------------------------------------------------------
+      CASE(1) ! association
+        IF (DSMC%ReservoirRateStatistic) THEN
+          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) = &
+              Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) + 1
+        END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1)+loc_SurfActE(iReact+Adsorption%DissNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) + 1
+      !-----------------------------------------------------------------------------------------------------------------------------
+      CASE(2) ! dissociation
+      !-----------------------------------------------------------------------------------------------------------------------------
+        IF (DSMC%ReservoirRateStatistic) THEN
+          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) = &
+              Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) + 1
+        END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) + loc_SurfActE(DissocNum+1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) + 1
+      !-----------------------------------------------------------------------------------------------------------------------------
+      CASE(5) !(desorption)
+      !-----------------------------------------------------------------------------------------------------------------------------
+        IF (DSMC%ReservoirRateStatistic) THEN
+          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) + 1
+        END IF
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) + loc_SurfActE(1)
+        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) = &
+            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) + 1
+      END SELECT
+      !-----------------------------------------------------------------------------------------------------------------------------
+#endif
+      IF (DSMC%ReservoirSurfaceRate) surf_react_case = 0 !only probabilities and analyze are calculated without actual desorption
       !-----------------------------------------------------------------------------------------------------------------------------
       SELECT CASE(surf_react_case)
       !-----------------------------------------------------------------------------------------------------------------------------
@@ -1398,16 +1435,6 @@ DO iSubSurf = 1,nSurfSample
         reactdesorbnum(Adsorption%AssocReact(2,iReact,iSpec)) = reactdesorbnum(Adsorption%AssocReact(2,iReact,iSpec)) + 1
         reactdesorbnum(Adsorption%AssocReact(1,iReact,iSpec)) = reactdesorbnum(Adsorption%AssocReact(1,iReact,iSpec)) - 1
         reactdesorbnum(iSpec) = reactdesorbnum(iSpec) - 1
-#if (PP_TimeDiscMethod==42)
-        IF (DSMC%ReservoirRateStatistic) THEN
-          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) = &
-              Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact+Adsorption%DissNum+1) + 1
-        END IF
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact+Adsorption%DissNum+1)+loc_SurfActE(iReact+Adsorption%DissNum+1)
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact+Adsorption%DissNum+1) + 1
-#endif
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
         !  ! calculate Enthalpie of desorption and sample
@@ -1438,20 +1465,20 @@ DO iSubSurf = 1,nSurfSample
         nSitesRemain(4) = nSitesRemain(4) + 1
         ! remove adsorbate reaction partner and update map
         DO PartnerID = nSitesRemain(Coord_ReactP(iReact))+1,nSites(Coord_ReactP(iReact))
-        IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(PartnerID) &
-            .EQ.Pos_ReactP(iReact)) THEN
-          CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord_ReactP(iReact), &
-                             Pos_ReactP(iReact),Adsorption%AssocReact(1,iReact,iSpec),.TRUE.,relaxation=.TRUE.)
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(PartnerID) = &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap( &
-              nSitesRemain(Coord_ReactP(iReact))+1)
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap( &
-              nSitesRemain(Coord_ReactP(iReact))+1) = Pos_ReactP(iReact)
-          nSitesRemain(Coord_ReactP(iReact)) = nSitesRemain(Coord_ReactP(iReact)) + 1
-          nSitesRemain(4) = nSitesRemain(4) + 1
-          ! additional increment to trace number
-          trace = trace + 1
-        END IF
+          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(PartnerID) &
+              .EQ.Pos_ReactP(iReact)) THEN
+            CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord_ReactP(iReact), &
+                               Pos_ReactP(iReact),Adsorption%AssocReact(1,iReact,iSpec),.TRUE.,relaxation=.TRUE.)
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap(PartnerID) = &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap( &
+                nSitesRemain(Coord_ReactP(iReact))+1)
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%UsedSiteMap( &
+                nSitesRemain(Coord_ReactP(iReact))+1) = Pos_ReactP(iReact)
+            nSitesRemain(Coord_ReactP(iReact)) = nSitesRemain(Coord_ReactP(iReact)) + 1
+            nSitesRemain(4) = nSitesRemain(4) + 1
+            ! additional increment to trace number
+            trace = trace + 1
+          END IF
         END DO !PartnerID
       !-----------------------------------------------------------------------------------------------------------------------------
       CASE(2) ! dissociation
@@ -1463,16 +1490,7 @@ DO iSubSurf = 1,nSurfSample
         reactdesorbnum(Adsorption%DissocReact(2,DissocNum,iSpec)) = &
                 reactdesorbnum(Adsorption%DissocReact(2,DissocNum,iSpec)) + 1
         reactdesorbnum(iSpec) = reactdesorbnum(iSpec) - 1
-#if (PP_TimeDiscMethod==42)
-        IF (DSMC%ReservoirRateStatistic) THEN
-          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) = &
-              Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(DissocNum+1) + 1
-        END IF
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(DissocNum+1) + loc_SurfActE(DissocNum+1)
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(DissocNum+1) + 1
-#endif
+
         IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
             .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
         !  ! calculate Enthalpie of desorption and sample
@@ -1523,23 +1541,23 @@ DO iSubSurf = 1,nSurfSample
         ! second product
         jCoord = Coord_Product(2,iReact)
         DO i = 1,nSites(jCoord)
-        IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(2,iReact)) THEN
-          jSpec = Adsorption%DissocReact(2,DissocNum,iSpec)
-          CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,jCoord,Pos_Product(2,iReact),jSpec,.FALSE.,relaxation=.TRUE.)
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord))
-!           SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = Pos_Product(2,iReact)
-          ! move Surfpos to MapID in remainNum segment
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord))
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord)) = &
-              Pos_Product(2,iReact)
-          remainNum(jCoord) = remainNum(jCoord) + 1
-          remainNum(4) = remainNum(4) + 1
-          nSitesRemain(jCoord) = nSitesRemain(jCoord) - 1
-          nSitesRemain(4) = nSitesRemain(4) - 1
-          EXIT
-        END IF
+          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(2,iReact)) THEN
+            jSpec = Adsorption%DissocReact(2,DissocNum,iSpec)
+            CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,jCoord,Pos_Product(2,iReact),jSpec,.FALSE.,relaxation=.TRUE.)
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord))
+  !           SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = Pos_Product(2,iReact)
+            ! move Surfpos to MapID in remainNum segment
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord))
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord)) = &
+                Pos_Product(2,iReact)
+            remainNum(jCoord) = remainNum(jCoord) + 1
+            remainNum(4) = remainNum(4) + 1
+            nSitesRemain(jCoord) = nSitesRemain(jCoord) - 1
+            nSitesRemain(4) = nSitesRemain(4) - 1
+            EXIT
+          END IF
         END DO !i
       !-----------------------------------------------------------------------------------------------------------------------------
       CASE(3) ! exchange reactions (disproportionation)
@@ -1602,16 +1620,16 @@ DO iSubSurf = 1,nSurfSample
         jCoord = Coord_ReactP(iReact)
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,jCoord,Pos_ReactP(iReact),jSpec,.TRUE.,relaxation=.TRUE.)
         DO i = nSitesRemain(jCoord)+1,nSites(jCoord)
-        IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_ReactP(iReact)) THEN
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = SurfDistInfo( &
-              iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)+1)
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord) + 1) = Pos_ReactP(iReact)
-          nSitesRemain(jCoord) = nSitesRemain(jCoord) + 1
-          nSitesRemain(4) = nSitesRemain(4) + 1
-          ! additional increment to trace number
-          trace = trace + 1
-          EXIT
-        END IF
+          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_ReactP(iReact)) THEN
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = SurfDistInfo( &
+                iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)+1)
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord) + 1) = Pos_ReactP(iReact)
+            nSitesRemain(jCoord) = nSitesRemain(jCoord) + 1
+            nSitesRemain(4) = nSitesRemain(4) + 1
+            ! additional increment to trace number
+            trace = trace + 1
+            EXIT
+          END IF
         END DO
         ! add resulting adsorbates from dissociation and update map
         ! first product
@@ -1642,27 +1660,27 @@ DO iSubSurf = 1,nSurfSample
         ! second product
         jCoord = Coord_Product(2,iReact)
         DO i = 1,nSites(jCoord)
-        IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(2,iReact)) THEN
-          IF (ReactDirForward) THEN
-            jSpec = Adsorption%ChemProduct(2,ExchNum)
-          ELSE
-            jSpec = Adsorption%ChemReactant(2,ExchNum)
+          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i).EQ.Pos_Product(2,iReact)) THEN
+            IF (ReactDirForward) THEN
+              jSpec = Adsorption%ChemProduct(2,ExchNum)
+            ELSE
+              jSpec = Adsorption%ChemReactant(2,ExchNum)
+            END IF
+            CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,jCoord,Pos_Product(2,iReact),jSpec,.FALSE.,relaxation=.TRUE.)
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord))
+  !           SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = Pos_Product(2,iReact)
+            ! move Surfpos to MapID in remainNum segment
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord))
+            SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord)) = &
+                Pos_Product(2,iReact)
+            remainNum(jCoord) = remainNum(jCoord) + 1
+            remainNum(4) = remainNum(4) + 1
+            nSitesRemain(jCoord) = nSitesRemain(jCoord) - 1
+            nSitesRemain(4) = nSitesRemain(4) - 1
+            EXIT
           END IF
-          CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,jCoord,Pos_Product(2,iReact),jSpec,.FALSE.,relaxation=.TRUE.)
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(i) = &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord))
-!           SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = Pos_Product(2,iReact)
-          ! move Surfpos to MapID in remainNum segment
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSitesRemain(jCoord)) = &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord))
-          SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(jCoord)%UsedSiteMap(nSites(jCoord)-remainNum(jCoord)) = &
-              Pos_Product(2,iReact)
-          remainNum(jCoord) = remainNum(jCoord) + 1
-          remainNum(4) = remainNum(4) + 1
-          nSitesRemain(jCoord) = nSitesRemain(jCoord) - 1
-          nSitesRemain(4) = nSitesRemain(4) - 1
-          EXIT
-        END IF
         END DO !i
       !-----------------------------------------------------------------------------------------------------------------------------
       CASE(4) !diffusion
@@ -1701,27 +1719,6 @@ DO iSubSurf = 1,nSurfSample
       CASE(5) !(desorption)
       !-----------------------------------------------------------------------------------------------------------------------------
         desorbnum(iSpec) = desorbnum(iSpec) + 1
-#if (PP_TimeDiscMethod==42)
-        IF (DSMC%ReservoirRateStatistic) THEN
-          Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1) + 1
-        END IF
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1) + loc_SurfActE(1)
-        Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) = &
-            Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1) + 1
-#endif
-        !IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
-        !    .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-        !  ! calculate Enthalpie of desorption and sample
-        !  AdsorptionEnthalpie = (Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,iSpec,-1,.TRUE.) * BoltzmannConst &
-        !                  / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
-        !                  * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
-        !                  * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor
-        !  !----  Sampling of energies
-        !  SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
-        !                                                          + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
-        !END IF
-
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,iSpec,.TRUE.,relaxation=.TRUE.)
         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
             SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(nSitesRemain(Coord)+1)
