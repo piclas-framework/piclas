@@ -138,7 +138,7 @@ CalcAccomodation = GETLOGICAL('Surf-CalcAccomodation')
 CalcEvaporation = GETLOGICAL('Surf-CalcEvaporation')
 IF (CalcEvaporation) DoSurfModelAnalyze = .TRUE.
 CalcAdsorbRates = GETLOGICAL('Surf-CalcAdsorbRates')
-IF (CalcSurfRates) THEN
+IF (CalcAdsorbRates) THEN
   CalcAdsorbProb  = .TRUE.
   CalcAdsorbE     = .TRUE.
   CalcAdsorbnu    = .TRUE.
@@ -285,7 +285,7 @@ REAL                :: WallCoverage(nSpecies)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec,' '
-                  OutputCounter = OutputCounter + 1
+                OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
@@ -304,6 +304,7 @@ REAL                :: WallCoverage(nSpecies)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nu-Adsorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
@@ -317,11 +318,29 @@ REAL                :: WallCoverage(nSpecies)
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
+              DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-nu-Adsorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
             END IF
             IF (CalcAdsorbE) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Adsorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
@@ -332,6 +351,23 @@ REAL                :: WallCoverage(nSpecies)
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
                       OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+              DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-E-Adsorb-Spec-', iSpec,' '
+                OutputCounter = OutputCounter + 1
+                DO iCase = 1,Adsorption%DissNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iCase = 1,Adsorption%RecombNum
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
