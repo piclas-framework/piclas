@@ -156,11 +156,12 @@ IF (PartSurfaceModel.GT.0) THEN
 #if (PP_TimeDiscMethod==42)
               IF (Adsorption%CoverageReduction) THEN
                 ! calculate number of desorbed particles for each species
-                desorbnum_covreduce = + ((REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
+                desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
                     * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                    * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor)
+                    * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
                 coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                    - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor / maxPart
+                    - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
+                    / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
                 IF(coverage_tmp.GT.0.) THEN
                   Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
                   new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
