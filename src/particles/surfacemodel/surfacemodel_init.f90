@@ -103,11 +103,15 @@ CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
     '3=on-top'//&
     '[surfacemodel=3]','0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
-  , 'If particles of species [$] are di-, polyatomic and bind with additional coordination at Boundary [$].\n'//&
-    '0: no DiCoordination\n'//&
-    '1: bound via bridge bonding\n'//&
-    '2: chelating binding\n'//&
-    '[surfacemodel=3','0', numberedmulti=.TRUE.)
+  , 'Define energy interaction type for particle of species [$] at Boundary [$] (di-, polyatomic).\n'//&
+    '1: strong, erect\n'//&
+    '2: weak, erect\n'//&
+    '3: intermediate (strong+weak)/2 \n'//&
+    '4: parallel, bridge span, acceptor \n'//&
+    '5: parallel, across bridge, donor \n'//&
+    '6: on top, parallel to one surface atom \n'//&
+    '7: chelating, similar to 4 for poly \n'//&
+    '[surfacemodel=3]','1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
   , 'Define heat of adsorption [K] on clear surface for binding atom of species [$] on boundary [$].\n'// &
     '[Assumption of on-top side bind, surfacemodel=3]','0.', numberedmulti=.TRUE.)
@@ -317,8 +321,8 @@ __STAMP__,&
         IF(PartBound%SolidCatalytic(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
-          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination')
+          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination')
           ! check posibilities of coodrination of dicoord pairing. some pairing unphysical
           IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
             SELECT CASE(Adsorption%Coordination(iPartBound,iSpec))
