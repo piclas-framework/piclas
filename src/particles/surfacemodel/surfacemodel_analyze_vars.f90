@@ -31,6 +31,7 @@ LOGICAL                       :: CalcSurfCoverage                    ! Calculate
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
 LOGICAL                       :: CalcAdsorbRates                     ! Calculate the adsorption probabilities of species
 LOGICAL                       :: CalcAdsorbProb                      ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcAdsorbnu                        ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfRates                       ! Calculate the surface reaction rate per reaction (k_r)
 LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (k_r)

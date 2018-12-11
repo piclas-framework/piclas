@@ -678,24 +678,32 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
   DO iSpec=1,nSpecies
     ALLOCATE( Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(1:Adsorption%ReactNum+1),&
+              Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(1:Adsorption%ReactNum+1),&
               Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
-              Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(1:Adsorption%ReactNum),&
               Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
-              Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(1:Adsorption%ReactNum+1),&
               Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1),&
               Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(1:Adsorption%ReactNum+Adsorption%NumOfExchReact+1))
-    Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
-    Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(:) = 0
+    Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(:)       = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(:)           = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:)       = 0
+    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(:) = 0
+    Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(:)       = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(:)           = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(:)         = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(:)       = 0
     Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(:) = 0
   END DO
 #endif

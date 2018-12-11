@@ -509,8 +509,13 @@ IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 END FUNCTION Calc_E_Act
 
 
-REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,c_f,CharaTemp &
+#if (PP_TimeDiscMethod==42)
+REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp &
+                                 ,SurfPartVibE,loc_ActE,loc_nu)
+#else
+REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp &
                                  ,SurfPartVibE)!,PartnerSpecies)
+#endif
 !===================================================================================================================================
 !> Calculates the Probability for Adsorption with TCE Model
 !>   if automatic TST is enabled, then mean probability from rate expression with particle temperature is used
@@ -519,7 +524,7 @@ REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo
 !> 3: eley-rideal reaction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
+USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst, PI
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species !,PartState
@@ -541,22 +546,28 @@ INTEGER, INTENT(IN)          :: SurfID
 REAL, INTENT(IN)             :: NormalVelo
 REAL, INTENT(IN)             :: E_Activation
 REAL, INTENT(IN)             :: E_Activation_max
-REAL, INTENT(IN)             :: c_f
 !INTEGER, INTENT(IN),OPTIONAL :: PartnerSpecies
 REAL, INTENT(IN),OPTIONAL    :: CharaTemp
 REAL, INTENT(IN),OPTIONAL    :: SurfPartVibE
+#if (PP_TimeDiscMethod==42)
+REAL, INTENT(INOUT),OPTIONAL :: loc_ActE
+REAL, INTENT(INOUT),OPTIONAL :: loc_nu
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2
-REAL    :: SurfPartIntE, Beta, a_f, b_f, ParticleTemp
+REAL    :: SurfPartIntE, Beta, a_f, b_f, c_f, ParticleTemp
 INTEGER :: SpecID, ProdSpec1, ProdSpec2
 INTEGER :: globSide, PartBoundID
 !INTEGER :: iQuant, iPolyAtMole,iDof
 !REAL    :: RanNum
 REAL    :: VarPartitionFuncAct, VarPartitionFuncGas, VarPartitionFuncSurf
 REAL    :: WallTemp
+#if (PP_TimeDiscMethod==42)
+INTEGER :: iSampleReact
+#endif
 !===================================================================================================================================
 !IF(ReactionCase.EQ.3.AND. (.NOT.PRESENT(PartnerSpecies)))THEN
 !  CALL abort(&
@@ -626,11 +637,17 @@ CASE(1) ! adsorption
       phi_1 = b_f - 1. + Xi_Total/2.
       phi_2 = 1. - Xi_Total/2.
       IF((phi_1+1).GT.0.0) THEN
+        c_f = BoltzmannConst/PlanckConst &
+            * REAL(Adsorption%DensSurfAtoms(SurfID)*Adsorption%AreaIncrease(SurfID)) &
+            / ( (BoltzmannConst / (2*Pi*Species(SpecID)%MassIC))**0.5 )
         Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
       END IF
       CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
     END IF
   END IF
+#if (PP_TimeDiscMethod==42)
+  iSampleReact = 1
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) ! dissociation
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -653,11 +670,17 @@ CASE(2) ! dissociation
       phi_1 = b_f - 1. + Xi_Total/2.
       phi_2 = 1. - Xi_Total/2.
       IF((phi_1+1).GT.0.0) THEN
+        c_f = BoltzmannConst/PlanckConst &
+            * REAL(Adsorption%DensSurfAtoms(SurfID)*Adsorption%AreaIncrease(SurfID)) &
+            / ( (BoltzmannConst / (2*Pi*Species(SpecID)%MassIC))**0.5 )
         Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
       END IF
       CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
     END IF
   END IF
+#if (PP_TimeDiscMethod==42)
+  iSampleReact = 1 + ReactNum
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! eley-rideal
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -736,15 +759,48 @@ CASE(3) ! eley-rideal
       phi_1 = b_f - 1. + Xi_Total/2.
       phi_2 = 1. - Xi_Total/2.
       IF((phi_1+1).GT.0.0) THEN
+        c_f = BoltzmannConst/PlanckConst &
+            * REAL(Adsorption%DensSurfAtoms(SurfID)*Adsorption%AreaIncrease(SurfID)) &
+            / ( (BoltzmannConst / (2*Pi*Species(SpecID)%MassIC))**0.5 )
         !Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
         Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
       END IF
       CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
     END IF
   END IF
+#if (PP_TimeDiscMethod==42)
+  iSampleReact = 1 + Adsorption%DissNum + ReactNum
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
+#if (PP_TimeDiscMethod==42)
+IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(CalcAdsorbReactProb.GT.0.)) THEN
+  !IF (calcAdsorbReactProb.GT.1) THEN
+  !  Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) = &
+  !      Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) + 1.
+  !ELSE
+    Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) = &
+        Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) + CalcAdsorbReactProb
+  !END IF
+END IF
+Adsorption%AdsorpReactInfo(SpecID)%MeanAdsActE(iSampleReact-1) = &
+    Adsorption%AdsorpReactInfo(SpecID)%MeanAdsActE(iSampleReact-1) + (E_Activation - E_Activation_max) /BoltzmannConst
+loc_ActE = (E_Activation - E_Activation_max) /BoltzmannConst
+IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
+  Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact-1) = &
+      Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact-1) + a_f
+  loc_nu = a_f
+ELSE
+  ParticleTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
+  Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact-1) = &
+      Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact-1) + a_f*c_f*ParticleTemp**b_f
+  loc_nu = a_f*c_f*ParticleTemp**b_f
+END IF
+Adsorption%AdsorpReactInfo(SpecID)%AdsReactCount(iSampleReact) = &
+    Adsorption%AdsorpReactInfo(SpecID)%AdsReactCount(iSampleReact) + 1
+#endif
+
 
 END FUNCTION CalcAdsorbReactProb
 

@@ -38,9 +38,11 @@ TYPE tProperInfo
   REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
   REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
   REAL     , ALLOCATABLE                 :: MeanAdsActE(:)          ! mean activation energy of adsorption reaction
+  REAL     , ALLOCATABLE                 :: MeanAdsnu(:)            ! mean pre-exponential factor of desorption reaction
   REAL     , ALLOCATABLE                 :: MeanSurfActE(:)         ! mean activation energy of desorption reaction
   REAL     , ALLOCATABLE                 :: MeanSurfnu(:)           ! mean pre-exponential factor of desorption reaction
   REAL     , ALLOCATABLE                 :: ProperAdsActE(:)        ! activation energy of accepted adsorption reaction
+  REAL     , ALLOCATABLE                 :: ProperAdsnu(:)          ! pre-exponential factor of accepted adsorption reaction
   REAL     , ALLOCATABLE                 :: ProperSurfActE(:)       ! activation energy of accepted desorption reaction
   REAL     , ALLOCATABLE                 :: ProperSurfnu(:)         ! pre-exponential factor accepted desorption reaction
   INTEGER  , ALLOCATABLE                 :: AdsReactCount(:)        ! Number of reactive adsorption probability calculations
