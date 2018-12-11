@@ -302,6 +302,8 @@ REAL                :: WallCoverage(nSpecies)
             END IF
             IF (CalcAdsorbnu) THEN
               DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nu-Adsorb-Spec-', iSpec,' '
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
@@ -318,6 +320,8 @@ REAL                :: WallCoverage(nSpecies)
             END IF
             IF (CalcAdsorbE) THEN
               DO iSpec = 1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Adsorb-Spec-', iSpec,' '
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &

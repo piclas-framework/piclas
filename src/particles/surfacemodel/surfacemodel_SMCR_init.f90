@@ -741,7 +741,7 @@ INTEGER , INTENT(IN)            :: TST_Case
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                            :: PartitionArraySize
-INTEGER                         :: iSpec, iReactNum
+INTEGER                         :: iSpec, iReactNum, AssocNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
 
@@ -752,12 +752,13 @@ IF (TST_Case.EQ.1) THEN
     DO iReactNum=0,Adsorption%ReactNum
       IF ((iReactNum.EQ.0) .AND. (Adsorption%Ads_Prefactor(iSpec).EQ.0.) .AND. (Adsorption%Ads_Powerfactor(iSpec).EQ.0.)) THEN
         Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
-      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LT.Adsorption%DissNum)) THEN
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LE.Adsorption%DissNum)) THEN
         IF ((Adsorption%Diss_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%Diss_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
           Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
         END IF
       ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.GT.Adsorption%DissNum)) THEN
-        IF ((Adsorption%ER_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+        AssocNum = iReactNum - Adsorption%DissNum
+        IF ((Adsorption%ER_Prefactor(AssocNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(AssocNum,iSpec).EQ.0.)) THEN
           Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
         END IF
       END IF
