@@ -606,7 +606,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVar
 #ifdef MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
-INTEGER                        :: nParticles(0:nProcessors-1)
+INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
@@ -623,6 +623,8 @@ INTEGER                        :: minnParts
 #endif /* HDF5_F90 */
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 !=============================================
+! Required default values for KIND=IK
+MaxQuantNum=-1
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
 !CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
@@ -672,16 +674,16 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END DO
 END IF
 
-locnPart =   0
+locnPart =   0_IK
 DO pcount = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(pcount)) THEN
-    locnPart = locnPart + 1
+    locnPart = locnPart + 1_IK
   END IF
 END DO         
 
 #ifdef MPI
 sendbuf(1)=locnPart
-recvbuf=0
+recvbuf=0_IK
 CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
 offsetnPart=recvbuf(1)
 sendbuf(1)=recvbuf(1)+locnPart
@@ -702,14 +704,14 @@ LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
 CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #endif /* HDF5_F90 */
 #else
-offsetnPart=0
+offsetnPart=0_IK
 nPart_glob=locnPart
 #ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
 minnParts=locnPart
 #endif /* HDF5_F90 */
 #endif
-ALLOCATE(PartInt(offsetElem+1_IK:offsetElem+PP_nElems,PartIntSize))
-ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize))
+ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
+ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
   VibQuantData = 0
@@ -729,9 +731,9 @@ END IF
 CALL UpdateNextFreePosition()
 !!! Ende kleiner Hack von JN (Teil 1/2)
 iPart=offsetnPart
-DO iElem_loc=1,PP_nElems
+DO iElem_loc=1,INT(PP_nElems,IK)
   iElem_glob = iElem_loc + offsetElem
-  PartInt(iElem_glob,1)=INT(iPart,IK)
+  PartInt(iElem_glob,1)=iPart
   IF (ALLOCATED(PEM%pNumber)) THEN
     nPartsPerElem(iElem_loc) = PEM%pNumber(iElem_loc)
     PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
@@ -885,7 +887,6 @@ ASSOCIATE (&
       nGlobalElems    => INT(nGlobalElems,IK)    ,&
       nVar            => INT(nVar,IK)            ,&
       PP_nElems       => INT(PP_nElems,IK)       ,&
-      offsetnPart     => INT(offsetnPart,IK)     ,&
       offsetElem      => INT(offsetElem,IK)      ,&
       MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
       PartDataSize    => INT(PartDataSize,IK)    )
@@ -2224,7 +2225,7 @@ IF(.NOT.DoNotSplit)THEN
     CALL MPI_BARRIER(OutputCOMM,IERROR)
     CALL MPI_COMM_FREE(OutputCOMM,iERROR)
   END IF
-  ! MPI Barrier is requried, that the other procs don't open the datafile while this procs are still writring
+  ! MPI Barrier is required, that the other procs don't open the datafile while this procs are still writing
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
   OutputCOMM=MPI_UNDEFINED
 ELSE
