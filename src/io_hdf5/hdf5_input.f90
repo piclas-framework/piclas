@@ -402,8 +402,14 @@ IF (found) THEN
   ALLOCATE(array(PRODUCT(nVal(1:dims))))
   ALLOCATE(VarNames(nVal(1)))
 
-  ! read array
-  CALL ReadArray(TRIM(ArrayName),dims,nVal(1:dims),OffsetElem,dims,RealArray=array)
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVal       => INT(nVal(1:dims),IK)    ,&
+        OffsetElem => INT(OffsetElem,IK) )
+    ! read array
+    CALL ReadArray(TRIM(ArrayName),dims,nVal,OffsetElem,dims,RealArray=array)
+  END ASSOCIATE
 
   ! read variable names
   CALL ReadAttribute(File_ID,TRIM(AttribName),nVal(1),StrArray=VarNames)
@@ -415,21 +421,27 @@ END SUBROUTINE GetArrayAndName
 !==================================================================================================================================
 !> Subroutine to read arrays of rank "Rank" with dimensions "Dimsf(1:Rank)".
 !==================================================================================================================================
-SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerArray,StrArray)
+SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER                        :: Rank                  !< number of dimensions of the array
-INTEGER                        :: offset_in             !< offset =0, start at beginning of the array
-INTEGER                        :: offset_dim            !< which dimension is the offset (only one dimension possible here)
-INTEGER                        :: nVal(Rank)            !< size of complete (local) array to write
-CHARACTER(LEN=*),INTENT(IN)    :: ArrayName             !< name of array to be read
-REAL              ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: RealArray    !< only if real array shall be read
-INTEGER           ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: IntegerArray !< only if integer array shall be read
-CHARACTER(LEN=255),DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: StrArray     !< only if real string shall be read
+INTEGER                                                   :: Rank         !< number of dimensions of the array
+INTEGER(KIND=IK)                                          :: offset_in    !< offset =0, start at beginning of the array
+INTEGER                                                   :: offset_dim   !< which dimension is the offset (only one dim. possible)
+INTEGER(KIND=IK)                                          :: nVal(Rank)   !< size of complete (local) array to write
+CHARACTER(LEN=*),INTENT(IN)                               :: ArrayName    !< name of array to be read
+REAL,&
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: RealArray    !< only if real array shall be read
+INTEGER(KIND=IK),&
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray !< only if integer array shall be read of KIND=IK
+INTEGER,&
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be 
+!                                                                            !< read of KIND=4
+CHARACTER(LEN=255),&
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: StrArray        !< only if string shall be read
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
@@ -475,9 +487,10 @@ IF(PRESENT(StrArray))THEN
   CALL H5DREAD_F(DSet_ID,Type_ID,StrArray    ,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
 END IF
 #else /*HDF5_F90*/
-IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
-IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
-IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
+IF(PRESENT(RealArray))       buf=C_LOC(RealArray)
+IF(PRESENT(IntegerArray))    buf=C_LOC(IntegerArray)
+IF(PRESENT(IntegerArray_i4)) buf=C_LOC(IntegerArray_i4)
+IF(PRESENT(StrArray))        buf=C_LOC(StrArray(1))
 CALL H5DREAD_F(DSet_ID,Type_ID,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
 #endif /*HDF5_F90*/
 

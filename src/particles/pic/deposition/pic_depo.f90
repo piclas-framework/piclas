@@ -3776,7 +3776,14 @@ REAL                     :: StartT,EndT
   ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
   CALL ReadAttribute(File_ID,'N',1,IntegerScalar=N_HDF5)
   IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
-    CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+          nVars       => INT(nVars,IK)     ,&
+          PP_N        => INT(PP_N,IK)      ,&
+          PP_nElems   => INT(PP_nElems,IK) ,&
+          OffsetElem  => INT(OffsetElem,IK) )
+          CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    END ASSOCIATE
   ELSE
     CALL abort(__STAMP__, &
           'N_HDF5.NE.PP_N !',999,999.)

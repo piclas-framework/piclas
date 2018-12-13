@@ -25,6 +25,8 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
+LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization:
+!                                                                            ! * Ammosov-Delone-Krainov (ADK) model
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
@@ -38,6 +40,13 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              !   (SMCR with UBI-QEP, TST and TCE)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
+LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
+                                                                             ! specific degree
+INTEGER               :: InitialIonizationSpecies                            ! Supply the number of species that are considered for 
+                                                                             ! automatic ionization
+INTEGER , ALLOCATABLE :: InitialIonizationSpeciesID(:)                       ! Supply a vector with the species IDs that are used 
+                                                                             ! for the initial ionization.
+REAL                  :: InitialIonizationChargeAverage                      ! Average charge for each atom/molecule in the cell
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
 REAL                  :: IMDTimeScale                                        ! Time unit of input file
 REAL                  :: IMDLengthScale                                      ! global IMD length scale

@@ -304,7 +304,15 @@ DO iArgs = 2,nArgs
 
   ! Read in solution
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.)
-  CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVar_State => INT(nVar_State,IK) ,&
+        offsetElem => INT(offsetElem,IK),&
+        N_State    => INT(N_State,IK),&
+        nElems     => INT(nElems,IK)    )
+    CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+  END ASSOCIATE
 
   FV_Elems=0
 
@@ -319,7 +327,14 @@ DO iArgs = 2,nArgs
       CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd_HDF5,StrArray=VarNamesAdd_HDF5)
       SDEALLOCATE(ElemData_HDF5)
       ALLOCATE(ElemData_HDF5(1:nVarAdd_HDF5, nElems))
-      CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5)
+
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            nVarAdd_HDF5 => INT(nVarAdd_HDF5,IK) ,&
+            offsetElem => INT(offsetElem,IK),&
+            nElems     => INT(nElems,IK)    )
+        CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5)
+      END ASSOCIATE
     END IF
 
     ! read additional data (e.g. indicators etc)

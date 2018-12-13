@@ -1,5 +1,12 @@
-! Modified for user-defined seed !!!
-!!!!!!
+!==================================================================================================================================
+!
+! File from: https://jblevins.org/mirror/amiller/
+! -----------------------------------------------
+! ziggurat.f90 George Marsaglia's functions for generating random samples from the uniform, normal and exponential distributions.
+! Translated from C.2
+!
+! 2018: Modified for user-defined seed !!!
+!==================================================================================================================================
 ! Marsaglia & Tsang generator for random normals & random exponentials.
 ! Translated from C by Alan Miller (amiller@bigpond.net.au)
 

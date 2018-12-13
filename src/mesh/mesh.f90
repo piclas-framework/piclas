@@ -928,6 +928,11 @@ USE MOD_Mesh_Vars
 #ifdef PARTICLES
 !USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 #endif
+#ifdef CODE_ANALYZE
+#ifndef PARTICLES
+USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
+#endif
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -970,6 +975,11 @@ SDEALLOCATE(nVecLoc)
 SDEALLOCATE(SurfLoc)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
+#ifdef CODE_ANALYZE
+#ifndef PARTICLES
+SDEALLOCATE(SideBoundingBoxVolume)
+#endif
+#endif
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
