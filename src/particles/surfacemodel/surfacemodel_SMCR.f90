@@ -512,8 +512,8 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
 USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos
-USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncAct, PartitionFuncAct_dissoc
-USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncAct_recomb, PartitionFuncAct_exch
+USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncActDissSurf
+USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncActLH, PartitionFuncActExchSurf
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
@@ -753,17 +753,16 @@ DO iSubSurf = 1,nSurfSample
           CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
         END IF
         ! calculate partition function of first particle bound on surface
-        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
+        VarPartitionFuncWall1 = PartitionFuncSurf(iSpec, WallTemp,CharaTemp)
         IF (Coord_ReactP(iReact).EQ.1) THEN
           CharaTemp = Heat_B / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
         ELSE
           CharaTemp = Heat_B / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact))%nInterAtom)
         END IF
         ! calculate partition function of second particle bound on surface
-        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
+        VarPartitionFuncWall2 = PartitionFuncSurf(jSpec,WallTemp,CharaTemp)
         ! estimate partition function of activated complex
-        CALL PartitionFuncAct_recomb(iSpec,jSpec,Prod_Spec1, WallTemp, VarPartitionFuncAct, &
-                    Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
+        VarPartitionFuncAct = PartitionFuncActLH(iSpec,jSpec,Prod_Spec1,WallTemp,Adsorption%DensSurfAtoms(iSurf))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct)/(VarPartitionFuncWall1*VarPartitionFuncWall2)
         rate = nu_react * exp(-E_d/(WallTemp))
@@ -932,11 +931,9 @@ DO iSubSurf = 1,nSurfSample
               CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
             END IF
             ! calculate partition function of particles bound on surface
-            CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
+            VarPartitionFuncWall1 = PartitionFuncSurf(iSpec, WallTemp,CharaTemp)
             ! estimate partition function of activated complex
-            !CALL PartitionFuncAct_dissoc(Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct)
-            CALL PartitionFuncAct_dissoc(iSpec,Prod_Spec1,Prod_Spec2, WallTemp, VarPartitionFuncAct, &
-                                  Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
+            VarPartitionFuncAct = PartitionFuncActDissSurf(iSpec,Prod_Spec1,Prod_Spec2,WallTemp,Adsorption%DensSurfAtoms(iSurf))
             ! transition state theory to estimate pre-exponential factor
             nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/VarPartitionFuncWall1)
             rate = nu_react * exp(-E_d/(WallTemp))
@@ -1233,7 +1230,7 @@ DO iSubSurf = 1,nSurfSample
           CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
         END IF
         ! calculate partition function of first particle bound on surface
-        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
+        VarPartitionFuncWall1 = PartitionFuncSurf(iSpec, WallTemp,CharaTemp)
         IF (Coord_ReactP(iReact+ReactNum_run).EQ.1) THEN
           CharaTemp = Heat_ReactP / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
         ELSE
@@ -1241,10 +1238,9 @@ DO iSubSurf = 1,nSurfSample
                     / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(iReact+ReactNum_run))%nInterAtom)
         END IF
         ! calculate partition function of second particle bound on surface
-        CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall2,CharaTemp,PartBoundID)
+        VarPartitionFuncWall2 = PartitionFuncSurf(jSpec, WallTemp,CharaTemp)
         ! estimate partition function of activated complex
-        CALL PartitionFuncAct_exch(iSpec,jSpec, WallTemp, VarPartitionFuncAct, &
-                    Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
+        VarPartitionFuncAct = PartitionFuncActExchSurf(iSpec,jSpec,iSpec,jSpec,WallTemp,Adsorption%DensSurfAtoms(iSurf))
         ! transition state theory to estimate pre-exponential factor
         nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct/(VarPartitionFuncWall1*VarPartitionFuncWall2))
         rate = nu_react * exp(-E_d/(WallTemp))
@@ -1301,9 +1297,9 @@ DO iSubSurf = 1,nSurfSample
       CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
     END IF
     ! calculate partition function of particles bound on surface
-    CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall1,CharaTemp,PartBoundID)
+    VarPartitionFuncWall1 = PartitionFuncSurf(iSpec, WallTemp,CharaTemp)
     ! estimate partition function of activated complex
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)!, Adsorption%DensSurfAtoms(iSurf)/Adsorption%AreaIncrease(iSurf))
+    VarPartitionFuncAct = PartitionFuncActDesorb(iSpec, WallTemp)
     ! transition state theory to estimate pre-exponential factor
     nu_des = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
     E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)
