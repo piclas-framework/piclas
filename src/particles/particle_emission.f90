@@ -4548,8 +4548,22 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
-              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+              ! Trying to avoid a zero density in the Adaptive_Macroval at the pump
+              IF(Species(iSpec)%Surfaceflux(iSF)%PartDensity.EQ.0.0) THEN
+                IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
+                  Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity
+                ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
+                  CALL abort(&
+__STAMP__&
+,'ERROR in Pump Definition: Currently, only one init domain per species can be combined with pump RB ')
+                ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
+                  Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity
+                END IF
+              ELSE
+                Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+              END IF
               Adaptive_MacroVal(11,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed
+              ! Trying to avoid a zero pressure in the Adaptive_Macroval at the pump
               IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
                 Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity * BoltzmannConst &
                                                    * Species(iSpec)%Init(1)%MWTemperatureIC
@@ -6553,39 +6567,45 @@ DO iSpec = 1,nSpecies
     ELSE
       Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
     END IF
-    ! compute density
-    Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
-    ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
-    IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
-      TTrans_TempFac = (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
-                      * Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
-                      - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                      + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                      - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
-                      + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
-                      - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
-    ELSE
-      TTrans_TempFac = 0.0
-    END IF
-    ! compute pressure (without BoltzmannConst, cancels out with the tempreature calculation)
+    ! ================================================================
     IF(PumpSampIter.GT.0) THEN
-      ! Sampling the pressure every given number of iterations and RESETTING it after calculation
+      ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
       PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
       PumpMacroVal(7,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
-      IF(MOD(iter+1,PumpSampIter).EQ.0) THEN
+      IF(MOD(iter,PumpSampIter).EQ.0) THEN
         IF(PumpMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
+          ! number density
+          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
+                                                        * Species(iSpec)%MacroParticleFactor
+          ! instantaneous temperature WITHOUT 1/BoltzmannConst
           PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) / PumpMacroVal(7,AdaptiveElemID,iSpec)
           TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0))*Species(iSpec)%MassIC &
                             * ( PumpMacroVal(4,AdaptiveElemID,iSpec) - PumpMacroVal(1,AdaptiveElemID,iSpec)**2   &
                               + PumpMacroVal(5,AdaptiveElemID,iSpec) - PumpMacroVal(2,AdaptiveElemID,iSpec)**2   &
                               + PumpMacroVal(6,AdaptiveElemID,iSpec) - PumpMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
-          Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
-                                                        * Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+          ! pressure (BoltzmannConstant canceled out in temperature calculation)
+          Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=Adaptive_MacroVal(7,AdaptiveElemID,iSpec)*TTrans_TempFac
+          ! Resetting the sampling values
           PumpMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
         END IF
       END IF
     ELSE
+      ! Calculation of the number density and pressure with the relaxation factor
+      ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
+      IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
+        TTrans_TempFac = (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
+                        * Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
+                        - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                        + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                        - (Source(2,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
+                        + Source(6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
+                        - (Source(3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2) / 3.
+      ELSE
+        TTrans_TempFac = 0.0
+      END IF
+      ! compute density
+      Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+        + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
       ! Pressure with relaxation factor
       Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
       +AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
@@ -6667,9 +6687,8 @@ IMPLICIT NONE
 INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount, iLocSide, iSurfFluxSide, SideID, BCSideID
 INTEGER                       :: SurfSideID, nVarOut
 INTEGER, ALLOCATABLE          :: PumpElemCount(:)
-REAL                          :: PumpingSpeedTemp, DeltaPressure, VeloSum        !, vec_nIn(1:3), VeloNormalToPump
-REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:), PumpMeanVelo(:,:), VeloMagnitude(:)
-REAL, ALLOCATABLE             :: PumpSpeedFarbar2014(:)
+REAL                          :: PumpingSpeedTemp, DeltaPressure, VeloSum
+REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:), PumpMeanVelo(:,:), PumpSpeed(:)
 !===================================================================================================================================
 
 ! Getting the total number of pumps in the simulation
@@ -6689,17 +6708,8 @@ ALLOCATE(PressNormOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 PressNormOutput = 0.
 ALLOCATE(PumpElemCount(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
 PumpElemCount = 0
-ALLOCATE(VeloMagnitude(1:GlobalPumpCount))
-VeloMagnitude = 0.
-ALLOCATE(PumpSpeedFarbar2014(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-PumpSpeedFarbar2014 = 0
-
-DO iPump = 1, GlobalPumpCount
-  ! If no particles hit the pump, do not perform calculations
-  IF(NINT(PumpMeanVelo(4,iPump)).EQ.0) CYCLE
-  ! calculate the velocity of impinged particles at the pumping surface
-  VeloMagnitude(iPump) = SQRT(PumpMeanVelo(1,iPump)**2 + PumpMeanVelo(2,iPump)**2 + PumpMeanVelo(3,iPump)**2)
-END DO
+ALLOCATE(PumpSpeed(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
+PumpSpeed = 0
 
 DO iSpec=1,nSpecies
   iPump=1
@@ -6730,24 +6740,30 @@ DO iSpec=1,nSpecies
         ! Get the surface side id (all sides with a reflective BC)
         SurfSideID = SurfMesh%SideIDToSurfID(SideID)
         ! Determining the delta between current gas mixture pressure in adjacent cell and desired input pressure
-        DeltaPressure = (SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)
+        DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
         ! Integrating the pressure difference
-          IF(Adaptive_MacroVal(11,ElemID,iSpec).GT.0.0) THEN
-            Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + DeltaPressure * dt
-          ELSE
-            Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
-          END IF
-        ! Calculating the pumping speed C (=S/A) with a proportional (Kp) and integral part (Ki)
+        IF(Adaptive_MacroVal(11,ElemID,iSpec).GT.0.0) THEN
+          Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + DeltaPressure * dt
+        ELSE
+          Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
+        END IF
+        ! Adapting the pumping speed S (m^3/s) according to the pressure difference (control through proportional and integral part)
         PumpingSpeedTemp = Adaptive_MacroVal(11,ElemID,iSpec) &
             + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
             + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
-        ! Calculating the alpha, 0: particle is deleted, 1: particle is reflected
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = PumpingSpeedTemp / VeloMagnitude(iPump)
+        ! Calculate the removal probability if any particles hit the pump
+        IF(NINT(PumpMeanVelo(4,iPump)).GT.0) THEN
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = PumpingSpeedTemp*Adaptive_MacroVal(7,ElemID,iSpec) * dt &
+                                                                      / (PumpMeanVelo(4,iPump)*Species(iSpec)%MacroParticleFactor)
+        ELSE
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 0.0
+        END IF
         ! Making sure that alpha is between 0 and 1
         IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID).GT.1.0) THEN
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 1.0
           ! Setting pumping speed to maximum value (alpha=1)
-          Adaptive_MacroVal(11,ElemID,iSpec) = VeloMagnitude(iPump)
+          Adaptive_MacroVal(11,ElemID,iSpec) = PumpMeanVelo(4,iPump)*Species(iSpec)%MacroParticleFactor &
+                                                / (Adaptive_MacroVal(7,ElemID,iSpec)*dt)
         ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID).LE.0.0) THEN
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 0.0
           ! Avoiding negative pumping speeds
@@ -6756,20 +6772,24 @@ DO iSpec=1,nSpecies
           ! Only adapting the pumping speed if alpha is between zero and one
           Adaptive_MacroVal(11,ElemID,iSpec) = PumpingSpeedTemp
         END IF
-        ! Sampling the instantaneous pumping speed for the output
+        ! -------- Sampling for output ---------------------------------------------------------------------------------------------
+        ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
                                 + SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) * Species(iSpec)%MacroParticleFactor &
                                   / (Adaptive_MacroVal(7,ElemID,iSpec)*dt)
-        ! Removal probability
-        AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) &
-                                                          / REAL(nSpecies)
-        ! "Pumping speed/velocity C" according to Farbar2014, used as input at simulation start
-        PumpSpeedFarbar2014(iSF) = PumpSpeedFarbar2014(iSF) + Adaptive_MacroVal(11,ElemID,iSpec)
-        ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
-        PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
-                                                          / Species(1)%Surfaceflux(iSF)%AdaptivePressure
-        ! Element counter at the pump surface
-        PumpElemCount(iSF) = PumpElemCount(iSF) + 1
+        IF(SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF).GT.0.0) THEN
+          ! Counting only sides, where a particle hit the pump
+          ! Removal probability
+          AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) &
+                                                            / REAL(nSpecies)
+          ! Pumping speed S (m^3/s) used at the pump to calculate the removal probability (-PumpSpeed-Control-)
+          PumpSpeed(iSF) = PumpSpeed(iSF) + Adaptive_MacroVal(11,ElemID,iSpec)
+          ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
+          PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
+                                                            / Species(1)%Surfaceflux(iSF)%AdaptivePressure
+          ! Element counter at the pump surface
+          PumpElemCount(iSF) = PumpElemCount(iSF) + 1
+        END IF
         ! Reset the sampled values (excluding halo region, those were resetted in after the communication)
         SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF) = 0.0
       END DO            ! iSurfFluxSide
@@ -6779,7 +6799,7 @@ DO iSpec=1,nSpecies
 END DO                  ! iSpec
 
 IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
-  nVarOut = 6
+  nVarOut = 5
   ALLOCATE(PumpBCInfo(1:nVarOut,1:GlobalPumpCount))
   PumpBCInfo = 0.
   iPump=1
@@ -6790,7 +6810,7 @@ IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
       PumpBCInfo(2,iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
       PumpBCInfo(3,iPump) = AlphaOutput(iSF)
       PumpBCInfo(4,iPump) = PressNormOutput(iSF)
-      PumpBCInfo(5,iPump) = PumpSpeedFarbar2014(iSF)
+      PumpBCInfo(5,iPump) = PumpSpeed(iSF)
       iPump = iPump + 1
     END IF
   END DO
@@ -6808,7 +6828,6 @@ IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
       IF(PumpBCInfo(1,iPump).GT.0) THEN
         ! Pumping Speed is the sum of all elements (counter over particles exiting through pump), not a mean value
         PumpBCInfo(3:5,iPump) = PumpBCInfo(3:5,iPump) / NINT(PumpBCInfo(1,iPump))
-        PumpBCInfo(6,iPump) = VeloMagnitude(iPump)
       END IF
     END DO
     CALL WritePumpBCInfo(GlobalPumpCount,PumpBCInfo)
@@ -6820,8 +6839,7 @@ END IF
 
 SDEALLOCATE(AlphaOutput)
 SDEALLOCATE(PressNormOutput)
-SDEALLOCATE(PumpSpeedFarbar2014)
-SDEALLOCATE(VeloMagnitude)
+SDEALLOCATE(PumpSpeed)
 
 END SUBROUTINE AdaptivePumpBC
 
@@ -6857,7 +6875,7 @@ IF (.NOT.isOpen) THEN
     WRITE(unit_index,'(A4)',ADVANCE='NO') 'Time'
     DO iPump = 1, PumpCount
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A14,I3.3)',ADVANCE='NO') OutputCounter,'-PumpingSpeed-', iPump
+      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Measure-', iPump
       OutputCounter = OutputCounter + 1
     END DO
     DO iPump = 1, PumpCount
@@ -6872,12 +6890,7 @@ IF (.NOT.isOpen) THEN
     END DO
     DO iPump = 1, PumpCount
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A9,I3.3)',ADVANCE='NO') OutputCounter,'-FarbarC-', iPump
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPump = 1, PumpCount
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A9,I3.3)',ADVANCE='NO') OutputCounter,'-VeloMag-', iPump
+      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Control-', iPump
       OutputCounter = OutputCounter + 1
     END DO
     WRITE(unit_index,'(A1)') ' '
@@ -6899,10 +6912,6 @@ END DO
 DO iPump=1, PumpCount
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(5,iPump)
-END DO
-DO iPump=1, PumpCount
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(6,iPump)
 END DO
 WRITE(unit_index,'(A1)') ' '
 
