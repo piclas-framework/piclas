@@ -406,7 +406,7 @@ IF(DoRestart)THEN
       END IF
 
       IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-        CALL ReadArray('DG_Solution',5,(/6_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,INT(nQDSElems,IK)/),&
+        CALL ReadArray('DG_Solution',5,(/6_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,INT(nQDSElems,IK)/),&
             OffsetElemTmp,5,RealArray=QDSMacroValues)
         DO iElem =1, nQDSElems
           DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
@@ -417,7 +417,7 @@ IF(DoRestart)THEN
         CALL CloseDataFile() 
       ELSE! We need to interpolate the solution to the new computational grid
         ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
-        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
             OffsetElemTmp,5,RealArray=U_local)
         DO iElem =1, nQDSElems
           DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
@@ -438,22 +438,22 @@ IF(DoRestart)THEN
     IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 #ifdef PP_POIS
 #if (PP_nVar==8)
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif
 #elif defined PP_HDG
       CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
       IF(DG_SolutionUExists)THEN
-        CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+        CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       ELSE
         ! CALL abort(&
         !     __STAMP__&
         !     ,' DG_SolutionU does not exist in restart-file!')
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
-        CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+        CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
       CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
       IF(DG_SolutionLambdaExists)THEN
@@ -463,10 +463,10 @@ IF(DoRestart)THEN
         lambda=0.
       END IF
 #else
-      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),&
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
             OffsetElemTmp,5,RealArray=U_local)
         DO iPML=1,nPMLElems
           U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
@@ -480,7 +480,7 @@ IF(DoRestart)THEN
 #ifdef PP_POIS
 #if (PP_nVar==8)
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
@@ -488,7 +488,7 @@ IF(DoRestart)THEN
       DEALLOCATE(U_local)
 
       ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
@@ -496,12 +496,12 @@ IF(DoRestart)THEN
       DEALLOCATE(U_local)
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
@@ -513,7 +513,7 @@ IF(DoRestart)THEN
           __STAMP__&
           ,' Restart with changed polynomial degree not implemented for HDG!')
       !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
+      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
       !    DO iElem=1,PP_nElems
       !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       !    END DO
@@ -521,7 +521,7 @@ IF(DoRestart)THEN
       !CALL RestartHDG(U)     
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1,N_RestartTmp+1,N_RestartTmp+1,PP_nElemsTmp/),&
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
@@ -530,7 +530,7 @@ IF(DoRestart)THEN
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
         ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),&
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
             OffsetElemTmp,5,RealArray=U_local)
         DO iElem=1,PP_nElems
           CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))

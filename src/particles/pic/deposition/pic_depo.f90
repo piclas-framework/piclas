@@ -3773,7 +3773,7 @@ REAL                     :: StartT,EndT
           PP_N        => INT(PP_N,IK)      ,&
           PP_nElems   => INT(PP_nElems,IK) ,&
           OffsetElem  => INT(OffsetElem,IK) )
-          CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+          CALL ReadArray('DG_Solution',5,(/nVars,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
     END ASSOCIATE
   ELSE
     CALL abort(__STAMP__, &

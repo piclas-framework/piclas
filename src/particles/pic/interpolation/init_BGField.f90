@@ -151,11 +151,11 @@ ASSOCIATE (&
       OffsetElem    => INT(OffsetElem,IK) ) 
   IF(NBG.EQ.N_IN)THEN
     ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField)
+    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)
   ELSE
     ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
     ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
+    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
   END IF
 END ASSOCIATE
 

@@ -311,7 +311,7 @@ DO iArgs = 2,nArgs
         offsetElem => INT(offsetElem,IK),&
         N_State    => INT(N_State,IK),&
         nElems     => INT(nElems,IK)    )
-    CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
+    CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)  
   END ASSOCIATE
 
   FV_Elems=0
