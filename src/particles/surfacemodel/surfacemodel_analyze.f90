@@ -182,11 +182,11 @@ END SUBROUTINE InitSurfModelAnalyze
 
 SUBROUTINE AnalyzeSurface(Time)
 !===================================================================================================================================
-!> create/open SurfaceDatabase.csv and write calculated variables for surface analyze
+!> create/open SurfaceAnalyze.csv and write calculated variables for surface analyze
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars              ,ONLY: BoltzmannConst,ProjectName
 USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
@@ -245,14 +245,12 @@ REAL                :: WallCoverage(nSpecies)
     ! if only the reaction rate is desired (resevoir) the initial temperature
     ! of the second species is added to the filename
       IF (Adsorption%TPD) THEN
-          iCov = INT(Adsorption%Coverage(1,1,1,1)*1000)
-          WRITE( hilf, '(I4.4)') iCov
-        outfile = 'SurfaceDatabase_Cov_'//TRIM(hilf)//'.csv'
+        outfile = 'SurfaceAnalyze_'//TRIM(ProjectName)//'.csv'
       ELSE
-        outfile = 'SurfaceDatabase.csv'
+        outfile = 'SurfaceAnalyze.csv'
       END IF
 #else
-      outfile = 'SurfaceDatabase.csv'
+      outfile = 'SurfaceAnalyze.csv'
 #endif
 
 !===================================================================================================================================
