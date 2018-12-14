@@ -4401,9 +4401,9 @@ __STAMP__&
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
               Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC / SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             END IF
           END IF
@@ -4823,8 +4823,6 @@ __STAMP__&
             ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
             pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
             T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
-            !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
-            !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
           CASE(3) ! pressure outlet (pressure defined)
           CASE DEFAULT
             CALL abort(&
