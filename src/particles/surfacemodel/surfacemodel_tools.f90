@@ -745,7 +745,7 @@ CASE(3) ! eley-rideal
     PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
     Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
     ProdSpec1 = Adsorption%AssocReact(1,AssocNum,SpecID)
-    ProdSpec2 = Adsorption%DissocReact(2,AssocNum,SpecID)
+    ProdSpec2 = Adsorption%AssocReact(2,AssocNum,SpecID)
     ! set zero point vibrational energy of product particle
     EZeroPoint_Product = 0.
     IF(SpecDSMC(ProdSpec2)%InterID.EQ.2) THEN
