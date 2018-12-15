@@ -7,6 +7,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Andrea Beck
 * Tilman Binder
 * Thomas Bolemann
+* Sven Buchfelner
 * Stephen Copplestone
 * Jakob Duerrwaechter
 * Stefanos Fasoulas
@@ -16,6 +17,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Hannes Frank
 * Gregor Gassner
 * Florian Hindenlang
+* Andrea Hinkel
 * Konstantin Hinsberger
 * Timon Hitz
 * Malte Hoffmann
