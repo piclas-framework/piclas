@@ -7,6 +7,7 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
+  - deploy
 
 .template: &defaults_gnu
   tags:
@@ -301,22 +302,6 @@ gnu_PIC_IMD_coupling:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
-    
-gnu_DSMC_check:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
-
-# intel_DSMC_check:
-#   <<: *defaults_intel
-#   stage: reggie_feature_checkin
-#   tags:
-#     - withmodules
-#   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
@@ -325,6 +310,22 @@ gnu_PIC_maxwell_implicitBC:
     - withmodules
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+
+gnu_PIC_initial_ionization:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+    
+gnu_DSMC_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -359,6 +360,22 @@ gnu_PIC_maxwell_implicitBC:
 #     - withmodules
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+#
+# intel_PIC_initial_ionization:
+#  <<: *defaults_intel
+#  stage: reggie_feature_checkin
+#  tags:
+#    - withmodules
+#  script:
+#    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+#
+# intel_DSMC_check:
+#   <<: *defaults_intel
+#   stage: reggie_feature_checkin
+#   tags:
+#     - withmodules
+#   script:
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
@@ -774,3 +791,20 @@ gnu_DSMC/:
 #     - withmodules
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
+
+github:
+  stage: deploy
+  tags:
+    - withmodules
+  script:
+    - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
+    - rm -rf piclas_github || true ;
+    - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
+    - cd piclas_github ;
+    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
+    - git commit -m 'truncated history before v1.0.0' ;
+    - git rebase --onto orphan_branch v1.0.0 master ;
+    - git branch -D orphan_branch ;
+    - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
+    - git push --force piclas-framework master ;
+#    - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../

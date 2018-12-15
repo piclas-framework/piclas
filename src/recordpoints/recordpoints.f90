@@ -321,7 +321,7 @@ SUBROUTINE RecordPoints(t,Output)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars          ,ONLY:U
-USE MOD_Timedisc_Vars,    ONLY:dt, iter
+USE MOD_Timedisc_Vars,    ONLY:dt!, iter
 USE MOD_TimeDisc_Vars    ,ONLY:tAnalyze
 USE MOD_Analyze_Vars     ,ONLY:Analyze_dt,FieldAnalyzeStep
 USE MOD_RecordPoints_Vars,ONLY:RP_Data,RP_ElemID

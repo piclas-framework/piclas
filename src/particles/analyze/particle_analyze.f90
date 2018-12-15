@@ -449,7 +449,6 @@ USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
@@ -1378,7 +1377,7 @@ SUBROUTINE CalcKineticEnergy(Ekin)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
-USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
+USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars         ,ONLY: PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 #ifndef PP_HDG
@@ -3404,7 +3403,11 @@ DO iElem=1,PP_nElems
     IF(QuasiNeutralityCell(iElem).GT.ElectronDensityCell(iElem))THEN
       QuasiNeutralityCell(iElem) = ElectronDensityCell(iElem) / QuasiNeutralityCell(iElem)
     ELSE
-      QuasiNeutralityCell(iElem) = QuasiNeutralityCell(iElem) / ElectronDensityCell(iElem)
+      IF(ABS(ElectronDensityCell(iElem)).GT.0.0)THEN
+        QuasiNeutralityCell(iElem) = QuasiNeutralityCell(iElem) / ElectronDensityCell(iElem)
+      ELSE
+        QuasiNeutralityCell(iElem) = -1.0
+      END IF
     END IF
   END IF
 END DO ! iElem=1,PP_nElems

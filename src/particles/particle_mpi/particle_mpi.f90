@@ -564,17 +564,17 @@ END SUBROUTINE SendNbOfParticles
 SUBROUTINE MPIParticleSend()
 !===================================================================================================================================
 ! this routine sends the particles. Following steps are performed
-! first steps are perforemd in SendNbOfParticles
+! first steps are performed in SendNbOfParticles
 ! 1) Compute number of Send Particles
-! 2) Performe MPI_ISEND with number of particles
+! 2) Perform MPI_ISEND with number of particles
 ! Starting Here:
 ! 3) Build Message 
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are send for deposition, PartTargetProc has the information, if a particle is send
-!          and after the buld and wait for number of particles reused to build array with external parts
-!          informations in PartState,.. can be reusded, because they are not overwritten
+! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is send
+!          and after the build and wait for number of particles reused to build array with external parts
+!          informations in PartState,.. can be reused, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
