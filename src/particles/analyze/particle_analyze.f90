@@ -3706,7 +3706,7 @@ SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeInitIsDone,DebyeLengthCell,PICTimeStepCell &
-                                    ,ElectronTemperatureCell,ElectronDensityCell,PlasmaFrequencyCell
+                                    ,ElectronTemperatureCell,ElectronDensityCell,PlasmaFrequencyCell,PPSCell,PPSCellEqui
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3720,6 +3720,8 @@ SDEALLOCATE(PICTimeStepCell)
 SDEALLOCATE(ElectronDensityCell)
 SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(PlasmaFrequencyCell)
+SDEALLOCATE(PPSCell)
+SDEALLOCATE(PPSCellEqui)
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/
 
