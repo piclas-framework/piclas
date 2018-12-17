@@ -731,7 +731,7 @@ END IF
 CALL UpdateNextFreePosition()
 !!! Ende kleiner Hack von JN (Teil 1/2)
 iPart=offsetnPart
-DO iElem_loc=1,INT(PP_nElems,IK)
+DO iElem_loc=1_IK,INT(PP_nElems,IK)
   iElem_glob = iElem_loc + offsetElem
   PartInt(iElem_glob,1)=iPart
   IF (ALLOCATED(PEM%pNumber)) THEN
