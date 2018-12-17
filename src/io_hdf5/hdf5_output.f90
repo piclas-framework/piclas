@@ -612,7 +612,8 @@ LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
-INTEGER(KIND=IK)               :: iPart,nPart_glob, iElem_glob, iElem_loc
+INTEGER(KIND=IK)               :: iPart,nPart_glob
+INTEGER                        :: iElem_glob, iElem_loc
 INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
@@ -731,11 +732,11 @@ END IF
 CALL UpdateNextFreePosition()
 !!! Ende kleiner Hack von JN (Teil 1/2)
 iPart=offsetnPart
-DO iElem_loc=1,INT(PP_nElems,IK)
+DO iElem_loc=1,PP_nElems
   iElem_glob = iElem_loc + offsetElem
   PartInt(iElem_glob,1)=iPart
   IF (ALLOCATED(PEM%pNumber)) THEN
-    nPartsPerElem(iElem_loc) = PEM%pNumber(iElem_loc)
+    nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
     PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
     pcount = PEM%pStart(iElem_loc)
     DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
