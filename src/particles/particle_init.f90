@@ -862,8 +862,10 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
                                 , 'Set mass of solid surface particles (in [kg]).', '3.2395E-25', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
                                 , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidStructure'  &
+  , 'Defines the structure of the reconstructed surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
-                                , 'Set number of interaction for hollow sites.', '4', numberedmulti=.TRUE.)
+                                , 'Set number of interaction for hollow sites.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-LiquidSpec'  &
                                 , 'Set used species of Liquid Boundary', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
@@ -2128,6 +2130,7 @@ ALLOCATE(PartBound%SolidSpec(1:nPartBound))
 ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
 ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
 ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
+ALLOCATE(PartBound%SolidStructure(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
 ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
@@ -2235,12 +2238,18 @@ __STAMP__&
      PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
      IF(PartBound%SolidState(iPartBound))THEN
        SolidSimFlag = .TRUE.
-       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic','.FALSE.')
-       PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec','0')
-       PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens','1.0E+19')
-       PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC','3.2395E-25')
-       PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease','1.')
-       PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx','4')
+       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic')
+       PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec')
+       PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
+       PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
+       PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
+       PartBound%SolidStructure(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidStructure')
+       IF (PartBound%SolidStructure(iPartBound).EQ.1) THEN
+         hilf2 ='4'
+       ELSE IF (PartBound%SolidStructure(iPartBound).EQ.2) THEN
+         hilf2 ='3'
+       END IF
+       PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
      END IF
      IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
 __STAMP__&
@@ -3076,6 +3085,7 @@ SDEALLOCATE(PartBound%SolidSpec)
 SDEALLOCATE(PartBound%SolidPartDens)
 SDEALLOCATE(PartBound%SolidMassIC)
 SDEALLOCATE(PartBound%SolidAreaIncrease)
+SDEALLOCATE(PartBound%SolidStructure)
 SDEALLOCATE(PartBound%SolidCrystalIndx)
 SDEALLOCATE(PartBound%LiquidSpec)
 SDEALLOCATE(PartBound%ParamAntoine)

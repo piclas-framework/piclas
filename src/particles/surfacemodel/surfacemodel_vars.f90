@@ -38,9 +38,13 @@ TYPE tProperInfo
   REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
   REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
   REAL     , ALLOCATABLE                 :: MeanAdsActE(:)          ! mean activation energy of adsorption reaction
+  REAL     , ALLOCATABLE                 :: MeanAdsnu(:)            ! mean pre-exponential factor of desorption reaction
   REAL     , ALLOCATABLE                 :: MeanSurfActE(:)         ! mean activation energy of desorption reaction
+  REAL     , ALLOCATABLE                 :: MeanSurfnu(:)           ! mean pre-exponential factor of desorption reaction
   REAL     , ALLOCATABLE                 :: ProperAdsActE(:)        ! activation energy of accepted adsorption reaction
+  REAL     , ALLOCATABLE                 :: ProperAdsnu(:)          ! pre-exponential factor of accepted adsorption reaction
   REAL     , ALLOCATABLE                 :: ProperSurfActE(:)       ! activation energy of accepted desorption reaction
+  REAL     , ALLOCATABLE                 :: ProperSurfnu(:)         ! pre-exponential factor accepted desorption reaction
   INTEGER  , ALLOCATABLE                 :: AdsReactCount(:)        ! Number of reactive adsorption probability calculations
   INTEGER  , ALLOCATABLE                 :: SurfReactCount(:)       ! Number of reactive desorption probability caluclations
   INTEGER  , ALLOCATABLE                 :: ProperAdsReactCount(:)  ! Number of reactive adsorptions
@@ -52,6 +56,9 @@ TYPE tAdsorption
 #if (PP_TimeDiscMethod==42)
   TYPE(tMeanInfo), ALLOCATABLE           :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
   TYPE(tProperInfo), ALLOCATABLE         :: AdsorpReactInfo(:)      ! Adsorption info for species n (nSpecies)
+  LOGICAL                                :: LateralInactive         ! Flag for deactivation of lateral interactions in Q_a
+  LOGICAL                                :: CoverageReduction       ! Flag for activating coverage reduction per iteration
+  INTEGER, ALLOCATABLE                   :: CovReductionStep(:)     ! Step size for coverage reduction
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
@@ -121,9 +128,6 @@ TYPE tAdsorption
   INTEGER                                :: NumOfExchReact
   ! TST Factor calculation variables
   LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)
-  REAL                                   :: PartitionMaxTemp
-  REAL                                   :: PartitionInterval
-  REAL    , ALLOCATABLE                  :: PartitionTemp(:,:)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
@@ -132,6 +136,7 @@ TYPE tAdsorbateMapping
                                                                     ! (1:SitesRemain) --> free site positions
                                                                     ! (SitesRemain+1:nSites) --> vacant site positions
   INTEGER , ALLOCATABLE                  :: Species(:)              ! species of adsorbate on sitepos (1:nSites)
+  REAL    , ALLOCATABLE                  :: EVib(:)                 ! vibrational energy of adsorbate on sitepos (1:nSites)
   INTEGER , ALLOCATABLE                  :: BondAtomIndx(:,:)       ! adjacent surfatoms index x (1:nSites,1:nInterAtom)
   INTEGER , ALLOCATABLE                  :: BondAtomIndy(:,:)       ! adjacent surfatoms index y (1:nSites,1:nInterAtom)
   INTEGER                                :: nInterAtom              ! number of adjacent surface atoms

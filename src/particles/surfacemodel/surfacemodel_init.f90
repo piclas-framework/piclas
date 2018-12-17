@@ -46,6 +46,10 @@ CALL prms%SetSection("SurfaceModel")
 !CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
 !  , 'Flag to track adsorbed Particles on surface if they are adsorbed. Currently only [FALSE] implemented','.FALSE.')
 #if (PP_TimeDiscMethod==42)
+CALL prms%CreateLogicalOption(  'Surface-Adsorption-LateralInactive'&
+  , 'Flag for disabling lateral innteractions. Only for TD=42 (RESERVOIR)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surface-Adsorption-CoverageReduction'&
+  , 'Flag for reducing coverage by time dependant interval. Interval=coverage_start/num_iter. Only for TD=42 (RESERVOIR)','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surface-Adsorption-doTPD'&
   , 'Flag for TPD spectrum calculation. Only for TD=42 (RESERVOIR)','.FALSE.')
 CALL prms%CreateRealOption(     'Surface-Adsorption-TPD-Beta'&
@@ -99,11 +103,15 @@ CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
     '3=on-top'//&
     '[surfacemodel=3]','0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
-  , 'If particles of species [$] are di-, polyatomic and bind with additional coordination at Boundary [$].\n'//&
-    '0: no DiCoordination\n'//&
-    '1: bound via bridge bonding\n'//&
-    '2: chelating binding\n'//&
-    '[surfacemodel=3','0', numberedmulti=.TRUE.)
+  , 'Define energy interaction type for particle of species [$] at Boundary [$] (di-, polyatomic).\n'//&
+    '1: strong, erect\n'//&
+    '2: weak, erect\n'//&
+    '3: intermediate (strong+weak)/2 \n'//&
+    '4: parallel, bridge span, acceptor \n'//&
+    '5: parallel, across bridge, donor \n'//&
+    '6: on top, parallel to one surface atom \n'//&
+    '7: chelating, similar to 4 for poly \n'//&
+    '[surfacemodel=3]','1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
   , 'Define heat of adsorption [K] on clear surface for binding atom of species [$] on boundary [$].\n'// &
     '[Assumption of on-top side bind, surfacemodel=3]','0.', numberedmulti=.TRUE.)
@@ -128,8 +136,6 @@ CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
   , 'Weighting factor used for particles adsorbed on surface in case of reconstruction [surfacemodel=3].\n'//&
     'If one surface contains less then 5x5 surface atoms program abort is called.\n'//&
     'Default: Species(1)%MPF: Uses macro particle factor of species1.')
-CALL prms%CreateIntOption(     'Particles-Surface-Structure'&
-  , 'Defines the structure of the reconstructed surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2')
 CALL prms%CreateIntOption(      'Surface-MaxDissNum'&
                                          , 'TODO-DEFINE-PARAMETER','0')
 CALL prms%CreateIntOption(      'Surface-Nbr-DissocReactions'&
@@ -179,13 +185,10 @@ CALL prms%CreateRealArrayOption('Surface-ExchReact[$]-DissBond_K-Products'&
                                          , 'TODO-DEFINE-PARAMETER','0. , 0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
-                                          , 'TODO-DEFINE-PARAMETER','0')
-CALL prms%CreateRealOption(     'Surface-AdsorptionTST-PartitionMaxTemp'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Temperature limit for pre-stored partition function (DEF: 20 000K)','10000.')
-CALL prms%CreateRealOption(     'Surface-AdsorptionTST-PartitionInterval'&
-                                          , 'TODO-DEFINE-PARAMETER\n'//&
-                                             'Temperature interval for pre-stored partition function (DEF: 10K)','20.')
+                                          , 'Define, which rate coefficient for adsorption are used:\n'//&
+                                          ' 0: only those, specified in INI\n'//&
+                                          ' 1: those not define in INI are calculated with TST\n'//&
+                                          ' 2: calculate every coefficient with TST','0')
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -197,7 +200,7 @@ SUBROUTINE InitSurfaceModel()
 ! MODULES
 USE MOD_Globals                    ,ONLY: abort
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
-USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode
+USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
 USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues, PartSurfaceModel
 USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Mesh_Vars         ,ONLY: nTotalSides
@@ -268,6 +271,7 @@ ELSE IF (PartSurfaceModel.EQ.2) THEN
 ELSE IF (PartSurfaceModel.EQ.3) THEN
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies),&
             Adsorption%Coordination(1:nPartBound,1:nSpecies),&
+            Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
             Adsorption%DiCoord(1:nPartBound,1:nSpecies))
 END IF
 
@@ -302,7 +306,7 @@ DO iSpec = 1,nSpecies
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
           Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
-          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation','1.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
             CALL abort(&
 __STAMP__,&
@@ -317,9 +321,49 @@ __STAMP__,&
         IF(PartBound%SolidCatalytic(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination','0')
-          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination','0')
+          Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination')
+          Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination')
+          ! check posibilities of coodrination of dicoord pairing. some pairing unphysical
+          IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+            SELECT CASE(Adsorption%Coordination(iPartBound,iSpec))
+            CASE(1)
+              SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+              CASE(1,2,3)
+              CASE DEFAULT
+                CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=1 only dicoord 1,2,3 possible. Wrong dicoord for species:",iSpec)
+              END SELECT
+            CASE(2)
+              IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+                SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+                CASE(1,2,3,4,7)
+                CASE DEFAULT
+                  CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=2 only dicoord 1,2,3,4,7 possible. Wrong dicoord for species:",iSpec)
+                END SELECT
+              ELSE
+                SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+                CASE(1,2,3,4,6)
+                CASE DEFAULT
+                  CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=2 only dicoord 1,2,3,4,6 possible. Wrong dicoord for species:",iSpec)
+                END SELECT
+              END IF
+            CASE(3)
+              SELECT CASE(Adsorption%DiCoord(iPartBound,iSpec))
+              CASE(1,2,3,5)
+              CASE DEFAULT
+                CALL abort(&
+__STAMP__&
+,"ERROR in INIT: for molecule at coordination=3 only dicoord 1,2,3,5 possible. Wrong dicoord for species:",iSpec)
+              END SELECT
+            END SELECT
+          END IF
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
+          Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
             CALL abort(&
@@ -333,6 +377,8 @@ __STAMP__,&
 END DO
 ! initialize temperature programmed desorption specific variables
 #if (PP_TimeDiscMethod==42)
+  Adsorption%LateralInactive = GETLOGICAL('Surface-Adsorption-LateralInactive','.FALSE.')
+  Adsorption%CoverageReduction = GETLOGICAL('Surface-Adsorption-CoverageReduction','.FALSE.')
   Adsorption%TPD = GETLOGICAL('Surface-Adsorption-doTPD','.FALSE.')
   Adsorption%TPD_beta = GETREAL('Surface-Adsorption-TPD-Beta','0.')
   Adsorption%TPD_Temp = 0.

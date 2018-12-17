@@ -103,6 +103,9 @@ REAL                             :: coverage_tmp, coverage_corrected
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if (PP_TimeDiscMethod==42)
+REAL                             :: desorbnum_covreduce
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 
 IF (PartSurfaceModel.GT.0) THEN
@@ -150,6 +153,22 @@ IF (PartSurfaceModel.GT.0) THEN
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                   + Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)
             CASE(3)
+#if (PP_TimeDiscMethod==42)
+              IF (Adsorption%CoverageReduction) THEN
+                ! calculate number of desorbed particles for each species
+                desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
+                    * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                    * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
+                coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                    - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
+                    / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+                IF(coverage_tmp.GT.0.) THEN
+                  Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
+                  new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
+                  CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
+                END IF
+              END IF
+#endif
               maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
               coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
                   + REAL(( Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec) &
