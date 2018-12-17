@@ -115,7 +115,12 @@ DEALLOCATE(HSize)
 ALLOCATE(BCNames(nBCs))
 ALLOCATE(BCMapping(nBCs))
 ALLOCATE(UserBCFound(nUserBCs))
-CALL ReadArray('BCNames',1,(/nBCs/),Offset,1,StrArray=BCNames)  ! Type is a dummy type only
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
+            Offset => INT(Offset,IK) )
+  CALL ReadArray('BCNames',1,(/nBCs/),Offset,1,StrArray=BCNames)  ! Type is a dummy type only
+END ASSOCIATE
 ! User may have redefined boundaries in the ini file. So we have to create mappings for the boundaries.
 BCMapping=0
 UserBCFound=.FALSE.
@@ -142,7 +147,12 @@ IF((HSize(1).NE.4).OR.(HSize(2).NE.nBCs)) STOP 'Problem in readBC'
 DEALLOCATE(HSize)
 ALLOCATE(BCType(4,nBCs))
 offset=0
-CALL ReadArray('BCType',2,(/4,nBCs/),Offset,1,IntegerArray=BCType)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
+            Offset => INT(Offset,IK) )
+  CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
+END ASSOCIATE
 ! Now apply boundary mappings
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
@@ -457,7 +467,14 @@ FirstElemInd=offsetElem+1
 LastElemInd=offsetElem+nElems
 ALLOCATE(Elems(                FirstElemInd:LastElemInd))
 ALLOCATE(ElemInfo(ElemInfoSize,FirstElemInd:LastElemInd))
-CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray=ElemInfo)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      ElemInfoSize => INT(ElemInfoSize,IK) ,&
+      nElems       => INT(nElems,IK)       ,&
+      offsetElem   => INT(offsetElem,IK)  )
+  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo)
+END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
   iSide=ElemInfo(ELEM_FirstSideInd,iElem) !first index -1 in Sideinfo
@@ -482,7 +499,14 @@ nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,First
 FirstSideInd=offsetSideID+1
 LastSideInd=offsetSideID+nSideIDs
 ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
-CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray=SideInfo)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      SideInfoSize   => INT(SideInfoSize,IK)   ,&
+      nSideIDs       => INT(nSideIDs,IK)       ,&
+      offsetSideID   => INT(offsetSideID,IK)  )
+  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo)
+END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
@@ -628,9 +652,15 @@ nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,First
 FirstNodeInd=offsetNodeID+1
 LastNodeInd=offsetNodeID+nNodeIDs
 ALLOCATE(NodeInfo(FirstNodeInd:LastNodeInd))
-CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray=NodeInfo)
-ALLOCATE(NodeCoords_indx(3,nNodeIDs))
-CALL ReadArray('NodeCoords',2,(/3,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nNodeIDs     => INT(nNodeIDs,IK)     ,&
+      offsetNodeID => INT(offsetNodeID,IK) )
+  CALL ReadArray('GlobalNodeIDs',1,(/nNodeIDs/),offsetNodeID,1,IntegerArray_i4=NodeInfo)
+  ALLOCATE(NodeCoords_indx(3,nNodeIDs))
+  CALL ReadArray('NodeCoords',2,(/3_IK,nNodeIDs/),offsetNodeID,2,RealArray=NodeCoords_indx)
+END ASSOCIATE
 
 CALL GetNodeMap() !get nNodes and local NodeMap from NodeInfo array
 LOGWRITE(*,*)'MIN,MAX,SIZE of NodeMap',MINVAL(NodeMap),MAXVAL(NodeMap),SIZE(NodeMap,1)
@@ -669,14 +699,15 @@ DO iElem=FirstElemInd,LastElemInd
 END DO
 DEALLOCATE(NodeCoords_indx)
 
+
 ! get physical coordinates
 IF(useCurveds)THEN
   ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  CALL ReadArray('NodeCoords',2,(/3,nElems*(NGeo+1)**3/),offsetElem*(NGeo+1)**3,2,RealArray=NodeCoords)
+  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
 ELSE
   ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
   ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  CALL ReadArray('NodeCoords',2,(/3,nElems*(NGeo+1)**3/),offsetElem*(NGeo+1)**3,2,RealArray=NodeCoordsTmp)
+  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
   NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
   NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
   NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
@@ -686,8 +717,8 @@ ELSE
   NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
   NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
   DEALLOCATE(NodeCoordsTmp)
-  NGeo=1
 ENDIF
+IF(.NOT.useCurveds) NGeo=1
 
 !! IJK SORTING --------------------------------------------
 !!read local ElemInfo from data file
@@ -703,19 +734,24 @@ isMortarMeshExists=.FALSE.
 iMortar=0
 CALL DatasetExists(File_ID,'isMortarMesh',isMortarMeshExists,.TRUE.)
 IF(isMortarMeshExists)&
-  CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
+    CALL ReadAttribute(File_ID,'isMortarMesh',1,IntegerScalar=iMortar)
 isMortarMesh=(iMortar.EQ.1)
 IF(isMortarMesh)THEN
   CALL ReadAttribute(File_ID,'NgeoTree',1,IntegerScalar=NGeoTree)
   CALL ReadAttribute(File_ID,'nTrees',1,IntegerScalar=nGlobalTrees)
 
   ALLOCATE(xiMinMax(3,2,1:nElems))
-  xiMinMax=-1.
-  CALL ReadArray('xiMinMax',3,(/3,2,nElems/),offsetElem,3,RealArray=xiMinMax)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nElems     => INT(nElems,IK)     ,&
+        offsetElem => INT(offsetElem,IK) )
+    xiMinMax=-1.
+    CALL ReadArray('xiMinMax',3,(/3_IK,3_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
 
-  ALLOCATE(ElemToTree(1:nElems))
-  ElemToTree=0
-  CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray=ElemToTree)
+    ALLOCATE(ElemToTree(1:nElems))
+    ElemToTree=0
+    CALL ReadArray('ElemToTree',1,(/nElems/),offsetElem,1,IntegerArray_i4=ElemToTree)
+  END ASSOCIATE
 
   ! only read trees, connected to a procs elements
   offsetTree=MINVAL(ElemToTree)-1
@@ -724,8 +760,14 @@ IF(isMortarMesh)THEN
 
   ALLOCATE(TreeCoords(3,0:NGeoTree,0:NGeoTree,0:NGeoTree,nTrees))
   TreeCoords=-1.
-  CALL ReadArray('TreeCoords',2,(/3,(NGeoTree+1)**3*nTrees/),&
-                 (NGeoTree+1)**3*offsetTree,2,RealArray=TreeCoords)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        NGeoTree   => INT(NGeoTree)            ,&
+        nTrees     => INT(nTrees)              ,&
+        offsetTree => INT(offsetTree)          )
+    CALL ReadArray('TreeCoords',2,(/3_IK,(NGeoTree+1_IK)**3_IK*nTrees/),&
+        (NGeoTree+1_IK)**3_IK*offsetTree,2,RealArray=TreeCoords)
+  END ASSOCIATE
 ELSE
   nTrees=0
 END IF
