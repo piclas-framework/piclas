@@ -276,9 +276,9 @@ REAL                :: WallCoverage(nSpecies)
             CALL WriteDataHeaderInfo(unit_index,'Alpha-Spec',OutputCounter,nSpecies)
           END IF
           IF (CalcAdsorbRates) THEN
+            CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
+            CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
             IF (CalcAdsorbProb) THEN
-              CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
-              CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
               CALL WriteDataHeaderInfo(unit_index,'Prob_adsorption-Spec',OutputCounter,nSpecies)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -372,9 +372,9 @@ REAL                :: WallCoverage(nSpecies)
             END IF
           END IF
           IF (CalcSurfRates) THEN
+            CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
+            CALL WriteDataHeaderInfo(unit_index,'P_Des-Spec',OutputCounter,nSpecies)
             IF (CalcSurfProb) THEN
-              CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
-              CALL WriteDataHeaderInfo(unit_index,'P_Des-Spec',OutputCounter,nSpecies)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec,' '
@@ -556,9 +556,9 @@ IF (PartMPI%MPIROOT) THEN
         CALL WriteDataInfo(unit_index,nSpecies,RealArray=Accomodation(:))
       END IF
       IF (CalcAdsorbRates) THEN
+        CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=SurfCollNum(:))
+        CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=AdsorptionNum(:))
         IF (CalcAdsorbProb) THEN
-          CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=SurfCollNum(:))
-          CALL WriteDataInfo(unit_index,nSpecies                         ,IntegerArray=AdsorptionNum(:))
           CALL WriteDataInfo(unit_index,nSpecies                         ,RealArray=Adsorptionrate(:))
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1) ,RealArray=AdsorptionReactRate(:))
         END IF
@@ -572,9 +572,9 @@ IF (PartMPI%MPIROOT) THEN
         END IF
       END IF
       IF (CalcSurfRates) THEN
+        CALL WriteDataInfo(unit_index,nSpecies                                                   ,IntegerArray=DesorptionNum(:))
+        CALL WriteDataInfo(unit_index,nSpecies                                                   ,RealArray=Desorptionrate(:))
         IF (CalcSurfProb) THEN
-          CALL WriteDataInfo(unit_index,nSpecies                                                   ,IntegerArray=DesorptionNum(:))
-          CALL WriteDataInfo(unit_index,nSpecies                                                   ,RealArray=Desorptionrate(:))
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfReactRate(:))
         END IF
         IF (CalcSurfnu) THEN
