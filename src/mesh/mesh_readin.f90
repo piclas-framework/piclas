@@ -746,7 +746,7 @@ IF(isMortarMesh)THEN
         nElems     => INT(nElems,IK)     ,&
         offsetElem => INT(offsetElem,IK) )
     xiMinMax=-1.
-    CALL ReadArray('xiMinMax',3,(/3_IK,3_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
+    CALL ReadArray('xiMinMax',3,(/3_IK,2_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
 
     ALLOCATE(ElemToTree(1:nElems))
     ElemToTree=0
