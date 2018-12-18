@@ -30,6 +30,10 @@ INTERFACE Riemann
   MODULE PROCEDURE Riemann
 END INTERFACE
 
+INTERFACE RiemannVacuum
+  MODULE PROCEDURE RiemannVacuum
+END INTERFACE
+
 INTERFACE RiemannPML                ! is called in src/dg/fillflux.f90 (additional 24 auxiliary variables)
   MODULE PROCEDURE RiemannPML
 END INTERFACE
@@ -50,12 +54,83 @@ INTERFACE ExactFlux
   MODULE PROCEDURE ExactFlux
 END INTERFACE
 
-PUBLIC::Riemann,RiemannPML,Exactflux,RiemannDielectric,RiemannDielectricInterFace,RiemannDielectricInterFace2
+PUBLIC::Riemann,RiemannVacuum,RiemannPML,Exactflux,RiemannDielectric,RiemannDielectricInterFace,RiemannDielectricInterFace2
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE Riemann(F,U_L,U_R,nv)
+SUBROUTINE Riemann(Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
+USE MOD_Globals         ,ONLY: Abort
+USE MOD_PML_vars        ,ONLY: PMLnVar
+USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)   :: SideID
+REAL,INTENT(IN)      :: NormVec(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(IN)      :: U_master(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(IN)      :: U_slave (PP_nVar,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)   :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! Check every face and set the correct identifier for selecting the corresponding Riemann solver
+! possible connections are (Master <-> Slave direction is important):
+SELECT CASE(InterfaceRiemann(SideID))
+  !   - vaccuum    <-> vacuum       : RIEMANN_VACUUM            = 0
+  !   - PML        <-> vacuum       : RIEMANN_PML               = 1
+  !   - PML        <-> PML          : RIEMANN_PML               = 1
+  !   - dielectric <-> dielectric   : RIEMANN_DIELECTRIC        = 2
+  !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC    = 3 ! for conservative fluxes (one flux)
+  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC    = 4 ! for conservative fluxes (one flux)
+  !   - dielectric  -> vacuum       : RIEMANN_DIELECTRIC2VAC_NC = 5 ! for non-conservative fluxes (two fluxes)
+  !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
+CASE(RIEMANN_VACUUM) 
+  ! standard flux
+  CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+CASE(RIEMANN_PML) 
+  ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
+  CALL RiemannPML(Flux_Master(1:32,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:))
+CASE(RIEMANN_DIELECTRIC) 
+  ! dielectric region <-> dielectric region
+  CALL RiemannDielectric(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE(RIEMANN_DIELECTRIC2VAC)
+  ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
+  CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE(RIEMANN_VAC2DIELECTRIC) 
+  ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
+  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+CASE(RIEMANN_DIELECTRIC2VAC_NC)  ! use non-conserving fluxes (two different fluxes for master and slave side)
+  ! 1.) dielectric master side
+  CALL RiemannDielectric(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  ! 2.) vacuum slave side
+  CALL RiemannVacuum(Flux_Slave(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxes for master and slave side) 
+  ! 1.) dielectric slave side
+  CALL RiemannDielectric(Flux_Slave(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  ! 2.) vacuum master side
+  CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+CASE DEFAULT
+  CALL abort(&
+      __STAMP__&
+      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+END SELECT
+
+END SUBROUTINE Riemann
+
+
+SUBROUTINE RiemannVacuum(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -261,7 +336,7 @@ ELSE
   END DO
 END IF
 
-END SUBROUTINE Riemann
+END SUBROUTINE RiemannVacuum
 
 
 SUBROUTINE RiemannPML(F,U_L,U_R,nv)
@@ -533,7 +608,7 @@ Flux_loc=0.
 ! check interface type for Riemann solver selection
 SELECT CASE(InterfaceRiemann(SideID))
 CASE(RIEMANN_VACUUM) ! standard flux
-  CALL Riemann(Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
 CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
   CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
 CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
@@ -600,7 +675,7 @@ END IF
 !END DO ! q
 !
 !!CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
-!CALL Riemann(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+!CALL RiemannVacuum(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
 !IF(Usemaster)THEN
 !  DO q=0,PP_N
 !    DO p=0,PP_N
