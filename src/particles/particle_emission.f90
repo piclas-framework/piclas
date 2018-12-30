@@ -5087,7 +5087,6 @@ __STAMP__&
                                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow * dt*RKdtFrac    &
                                           / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
                                           + Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut) +RandVal1)
-              Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
             ELSE
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
@@ -5460,6 +5459,10 @@ __STAMP__&
       CALL LBElemSplitTime(ElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO ! iSide
+
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+    END IF
 
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
 __STAMP__&
