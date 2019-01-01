@@ -1211,20 +1211,30 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 
 nVarCount=0
 WRITE(H5_Name,'(A)') 'SurfaceData'
-DO iSpec = 1,nSpecies
-    CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
-                    nValGlobal=(/nVar2D_Total,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/nVar2D_Spec ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
-                    offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
-                    collective=.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
-nVarCount = nVarCount + nVar2D_Spec
-END DO
-CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=4,&
-                    nValGlobal=(/NVar2D_Total,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/nVar2D      ,nSurfSample,nSurfSample,SurfMesh%nSides/),&
-                    offset=    (/nVarCount   ,          0,          0,offsetSurfSide/),&
-                    collective=.TRUE., RealArray=MacroSurfaceVal)
+ASSOCIATE (&
+      nVar2D_Total    => INT(nVar2D_Total,IK)          ,&
+      nSurfSample     => INT(nSurfSample,IK)           ,&
+      nGlobalSides    => INT(SurfMesh%nGlobalSides,IK) ,&
+      nSides          => INT(SurfMesh%nSides,IK)       ,&
+      offsetSurfSide  => INT(offsetSurfSide,IK)        ,&
+      nVar2D_Spec     => INT(nVar2D_Spec,IK)           ,&
+      nVar2D          => INT(nVar2D,IK) )
 
+  DO iSpec = 1,nSpecies
+      CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
+                            nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
+                            nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nSides/)        , &
+                            offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/), &
+                            collective =.TRUE.,  RealArray=MacroSurfaceSpecVal(:,:,:,:,iSpec))
+  nVarCount = nVarCount + INT(nVar2D_Spec)
+  END DO
+  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
+                        nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
+                        nVal       =(/nVar2D           , nSurfSample, nSurfSample , nSides/)        , &
+                        offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/), &
+                        collective =.TRUE.         , RealArray=MacroSurfaceVal)
+  
+END ASSOCIATE
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIOutputROOT)THEN
@@ -1298,8 +1308,15 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
   ! Read in state
   DO iSpec=1,nSpecies
     WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
-    IF (AnalyzeSurfCollis%Number(iSpec).GT.0) CALL ReadArray(TRIM(H5_Name),2,(/AnalyzeSurfCollis%Number(iSpec),PartDataSize/), &
-      0,1,RealArray=PartSpecData(iSpec,1:AnalyzeSurfCollis%Number(iSpec),1:PartDataSize))
+    IF (AnalyzeSurfCollis%Number(iSpec).GT.0) THEN
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            AnalyzeSurfCollis  => INT(AnalyzeSurfCollis%Number(iSpec),IK) ,&
+            PartDataSize       => INT(PartDataSize,IK)                    )
+        CALL ReadArray(TRIM(H5_Name) , 2 , (/AnalyzeSurfCollis          , PartDataSize/)      , &
+            0_IK                     , 1 , RealArray=PartSpecData(iSpec , 1:AnalyzeSurfCollis , 1:PartDataSize))
+      END ASSOCIATE
+    END IF
   END DO !iSpec
   CALL ReadAttribute(File_ID,'TotalFlowrateMPF',1,RealScalar=TotalFlowrateMPF)
   SWRITE(UNIT_stdOut,*)'DONE!' 

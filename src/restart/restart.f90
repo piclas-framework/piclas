@@ -89,6 +89,11 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Interpolation_Vars ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+#ifdef PP_POIS
+#elif defined PP_HDG
+USE MOD_HDF5_Input         ,ONLY: DatasetExists
+#else
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,6 +103,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(20)               :: hilf
+#ifdef PP_HDG
+LOGICAL                     :: DG_SolutionUExists
+#endif /* PP_HDG */
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
@@ -134,7 +142,10 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       ,'InitRestart: This case is not implemented here. Fix this!')
 #endif
 #elif defined PP_HDG
-  CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+  IF(DG_SolutionUExists)THEN
+    CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  END IF
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif
@@ -291,72 +302,84 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if (USE_QDS_DG) || (!PP_HDG)
-REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
-REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
-INTEGER                  :: iPML
+REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
+INTEGER                            :: iPML
 #endif
 #ifdef PP_HDG
-LOGICAL                  :: DG_SolutionLambdaExists,DG_SolutionUExists
-INTEGER(KIND=8)          :: iter
+LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionUExists
+INTEGER(KIND=8)                    :: iter
 #endif /*PP_HDG*/
-INTEGER                  :: iElem
+INTEGER                            :: iElem
 #ifdef MPI
-REAL                     :: StartT,EndT
+REAL                               :: StartT,EndT
 #endif /*MPI*/
 #ifdef PARTICLES
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames_HDF5(:)
-INTEGER                  :: FirstElemInd,LastelemInd,iInit
-INTEGER,ALLOCATABLE      :: PartInt(:,:)
-INTEGER,PARAMETER        :: PartIntSize=2        !number of entries in each line of PartInt
-INTEGER                  :: PartDataSize,PartDataSize_HDF5 !number of entries in each line of PartData
-INTEGER                  :: locnPart,offsetnPart
-INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
-INTEGER,PARAMETER        :: ELEM_LastPartInd=2
-REAL,ALLOCATABLE         :: PartData(:,:)
-REAL                     :: xi(3)
-LOGICAL                  :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
-REAL                     :: det(6,2)
-INTEGER                  :: COUNTER, COUNTER2, CounterPoly
-INTEGER, ALLOCATABLE     :: VibQuantData(:,:)
-INTEGER                  :: MaxQuantNum, iPolyatMole, iSpec, iPart, iLoop, iVar
+CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
+CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
+INTEGER                            :: FirstElemInd,LastelemInd,iInit
+INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
+INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
+INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
+INTEGER(KIND=IK)                   :: locnPart,offsetnPart,iLoop
+INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
+INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
+REAL,ALLOCATABLE                   :: PartData(:,:)
+REAL                               :: xi(3)
+LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
+REAL                               :: det(6,2)
+INTEGER                            :: COUNTER, COUNTER2, CounterPoly
+INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
+INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar
 #ifdef MPI
-REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
-INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
-INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
-INTEGER, ALLOCATABLE     :: SendBuffPoly(:), RecBuffPoly(:)
-INTEGER                  :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
+REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
+INTEGER                            :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
+INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
+INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
+INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
 #endif /*MPI*/
-REAL                     :: VFR_total
-!CHARACTER(255)           :: TTMRestartFile !> TTM Data file for restart
-!LOGICAL                  :: TTM_DG_SolutionExists
-INTEGER                  :: locnSurfPart,offsetnSurfPart
-INTEGER,ALLOCATABLE      :: SurfPartInt(:,:,:,:,:)
-INTEGER,ALLOCATABLE      :: SurfPartData(:,:)
-REAL,ALLOCATABLE         :: SurfCalcData(:,:,:,:,:)
-INTEGER                  :: Coordinations, SurfPartIntSize, SurfPartDataSize
-INTEGER                  :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
-INTEGER                  :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
-INTEGER                  :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-INTEGER                  :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
-LOGICAL                  :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
-LOGICAL,ALLOCATABLE      :: readVarFromState(:)
+REAL                               :: VFR_total
+INTEGER                            :: locnSurfPart,offsetnSurfPart
+INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
+INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
+REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
+INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
+INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
+INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
+INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
+INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5, Wallmodel_HDF5
+LOGICAL                            :: SurfCalcDataExists, WallmodelExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
+LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 #endif /*PARTICLES*/
 #if USE_QDS_DG
-CHARACTER(255)           :: QDSRestartFile !> QDS Data file for restart
-LOGICAL                  :: QDS_DG_SolutionExists
-INTEGER                  :: j,k
-INTEGER                  :: IndNum         !> auxiliary variable containing the index number of a substring within a string
+CHARACTER(255)                     :: QDSRestartFile        ! > QDS Data file for restart
+LOGICAL                            :: QDS_DG_SolutionExists
+INTEGER                            :: j,k
+INTEGER                            :: IndNum    ! > auxiliary variable containing the index number of a substring within a string
 #endif /*USE_QDS_DG*/
 #if (USE_QDS_DG) || (PARTICLES)
-INTEGER                  :: i
+INTEGER                            :: i
 #endif
+INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
+#ifndef PP_HDG
+INTEGER(KIND=IK)                   :: PMLnVarTmp
+#endif /*not PP_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
 
+              
+  ! Temp. vars for integer KIND=8 possibility
+  PP_NTmp       = INT(PP_N,IK)
+  OffsetElemTmp = INT(OffsetElem,IK)
+  PP_nVarTmp    = INT(PP_nVar,IK)
+  PP_nElemsTmp  = INT(PP_nElems,IK)
+  N_RestartTmp  = INT(N_Restart,IK)
+#ifndef PP_HDG
+  PMLnVarTmp    = INT(PMLnVar,IK)
+#endif /*not PP_HDG*/
   ! ===========================================================================
   ! 1.) Read the field solution
   ! ===========================================================================
@@ -383,7 +406,8 @@ IF(DoRestart)THEN
       END IF
 
       IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-        CALL ReadArray('DG_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,nQDSElems/),OffsetElem,5,RealArray=QDSMacroValues)
+        CALL ReadArray('DG_Solution',5,(/6_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,INT(nQDSElems,IK)/),&
+            OffsetElemTmp,5,RealArray=QDSMacroValues)
         DO iElem =1, nQDSElems
           DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
             QDSMacroValues(1  ,i,j,k,iElem) = QDSMacroValues(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
@@ -393,7 +417,8 @@ IF(DoRestart)THEN
         CALL CloseDataFile() 
       ELSE! We need to interpolate the solution to the new computational grid
         ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
-        CALL ReadArray('DG_Solution',5,(/6,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+            OffsetElemTmp,5,RealArray=U_local)
         DO iElem =1, nQDSElems
           DO k=0, N_Restart; DO j=0, N_Restart; DO i=0, N_Restart
             U_local(1  ,i,j,k,iElem) = U_local(1  ,i,j,k,iElem)*QDSSpeciesMass!Species(QDS_Species)%MassIC
@@ -413,35 +438,36 @@ IF(DoRestart)THEN
     IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 #ifdef PP_POIS
 #if (PP_nVar==8)
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif
 #elif defined PP_HDG
       CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
       IF(DG_SolutionUExists)THEN
-        CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+        CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       ELSE
         ! CALL abort(&
         !     __STAMP__&
         !     ,' DG_SolutionU does not exist in restart-file!')
         ! !DG_Solution contains a 4er-/3er-/7er-array, not PP_nVar!!!
-        CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+        CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       END IF
       CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
       IF(DG_SolutionLambdaExists)THEN
-        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
       ELSE
         lambda=0.
       END IF
 #else
-      CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
+            OffsetElemTmp,5,RealArray=U_local)
         DO iPML=1,nPMLElems
           U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
         END DO ! iPML
@@ -454,25 +480,29 @@ IF(DoRestart)THEN
 #ifdef PP_POIS
 #if (PP_nVar==8)
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
       DEALLOCATE(U_local)
 
       ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionPhi',5,(/4,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
       END DO
       DEALLOCATE(U_local)
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
       END DO
@@ -483,7 +513,7 @@ IF(DoRestart)THEN
           __STAMP__&
           ,' Restart with changed polynomial degree not implemented for HDG!')
       !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
       !    DO iElem=1,PP_nElems
       !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       !    END DO
@@ -491,7 +521,8 @@ IF(DoRestart)THEN
       !CALL RestartHDG(U)     
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
       DO iElem=1,PP_nElems
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
@@ -499,7 +530,8 @@ IF(DoRestart)THEN
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
         ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
+            OffsetElemTmp,5,RealArray=U_local)
         DO iElem=1,PP_nElems
           CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
         END DO
@@ -652,7 +684,14 @@ IF(DoRestart)THEN
   CALL DatasetExists(File_ID,'PartInt',PartIntExists)
   IF(PartIntExists)THEN
     ALLOCATE(PartInt(FirstElemInd:LastElemInd,PartIntSize))
-    CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartInt)
+
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (&
+      PP_nElems   => INT(PP_nElems,IK)   ,&
+      PartIntSize => INT(PartIntSize,IK) ,&
+      offsetElem  => INT(offsetElem,IK)   )
+      CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartInt)
+    END ASSOCIATE
     ! read local Particle Data from HDF5
     locnPart=PartInt(LastElemInd,ELEM_LastPartInd)-PartInt(FirstElemInd,ELEM_FirstPartInd)
     offsetnPart=PartInt(FirstElemInd,ELEM_FirstPartInd)
@@ -697,31 +736,33 @@ __STAMP__&
           END IF
         END DO
       END IF
-      ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize_HDF5))
-      CALL ReadArray('PartData',2,(/locnPart,PartDataSize_HDF5/),offsetnPart,1,RealArray=PartData)!,&
-                             !xfer_mode_independent=.TRUE.)
+      ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize_HDF5))
+
+      CALL ReadArray('PartData',2,(/locnPart,INT(PartDataSize_HDF5,IK)/),offsetnPart,1,RealArray=PartData)!,&
+      !xfer_mode_independent=.TRUE.)
 
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
         CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
         IF (.NOT.VibQuantDataExists) CALL abort(&
   __STAMP__&
   ,' Restart file does not contain "VibQuantData" in restart file for reading of polyatomic data')
-        ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
-        CALL ReadArray('VibQuantData',2,(/locnPart,MaxQuantNum/),offsetnPart,1,IntegerArray=VibQuantData)
+        ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
+
+        CALL ReadArray('VibQuantData',2,(/locnPart,INT(MaxQuantNum,IK)/),offsetnPart,1,IntegerArray_i4=VibQuantData)
         !+1 is real number of necessary vib quants for the particle
       END IF
 
       iPart=0
-      DO iLoop = 1,locnPart
-        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
-        iPart = iPart +1
+      DO iLoop = 1_IK,locnPart
+        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
+        iPart = iPart + 1
         PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
         PartState(iPart,2)   = PartData(offsetnPart+iLoop,2)
         PartState(iPart,3)   = PartData(offsetnPart+iLoop,3)
         PartState(iPart,4)   = PartData(offsetnPart+iLoop,4)
         PartState(iPart,5)   = PartData(offsetnPart+iLoop,5)
         PartState(iPart,6)   = PartData(offsetnPart+iLoop,6)
-        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7))
+        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
         IF (useDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
             PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
@@ -825,8 +866,8 @@ __STAMP__&
       iPart = 0
       DO iElem=FirstElemInd,LastElemInd
         IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1 , PartInt(iElem,ELEM_LastPartInd) -offsetnPart
-            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
+          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
+            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
             iPart = iPart +1
             PEM%Element(iPart)  = iElem-offsetElem
             PEM%LastElement(iPart)  = iElem-offsetElem
@@ -1173,8 +1214,17 @@ __STAMP__&
           nVar = 1
         END IF
         ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nSides,nSpecies))
-        CALL ReadArray('SurfCalcData',5,(/nVar,nSurfSample,nSurfSample,SurfMesh%nSides,nSpecies/) ,&
-                       offsetSurfSide,4,RealArray=SurfCalcData)
+
+        ! Associate construct for integer KIND=8 possibility
+        ASSOCIATE (&
+              nVar            => INT(nVar,IK) ,&
+              nSurfSample     => INT(nSurfSample,IK) ,&
+              nSides          => INT(SurfMesh%nSides,IK) ,&
+              nSpecies        => INT(nSpecies,IK) ,&
+              offsetSurfSide  => INT(offsetSurfSide,IK) )
+          CALL ReadArray('SurfCalcData',5,(/nVar,nSurfSample,nSurfSample,nSides,nSpecies/) ,&
+                         offsetSurfSide,4,RealArray=SurfCalcData)
+        END ASSOCIATE
         DO iSurfSide = 1,SurfMesh%nSides
           SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
           PartboundID = PartBound%MapToPartBC(BC(SideID))
@@ -1203,9 +1253,18 @@ __STAMP__&
           IF(SurfPartIntExists)THEN
             ALLOCATE(SurfPartInt(offsetSurfSide+1:offsetSurfSide+SurfMesh%nSides &
                                  ,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize))
-            ! read local Surface Particle indexing from HDF5
-            CALL ReadArray('SurfPartInt',5,(/SurfMesh%nSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/) &
-                ,offsetSurfSide,1,IntegerArray=SurfPartInt)
+
+            ! Associate construct for integer KIND=8 possibility
+            ASSOCIATE (&
+                  nSides          => INT(SurfMesh%nSides,IK) ,&
+                  nSurfSample     => INT(nSurfSample,IK)     ,&
+                  Coordinations   => INT(Coordinations,IK)   ,&
+                  SurfPartIntSize => INT(SurfPartIntSize,IK) ,&
+                  offsetSurfSide  => INT(offsetSurfSide,IK)   )
+              ! read local Surface Particle indexing from HDF5
+              CALL ReadArray('SurfPartInt',5,(/nSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/) &
+                             ,offsetSurfSide,1,IntegerArray_i4=SurfPartInt)
+            END ASSOCIATE
             ! check if surfpartdata exists
             SurfPartDataExists=.FALSE.
             CALL DatasetExists(File_ID,'SurfPartData',SurfPartDataExists)
@@ -1220,7 +1279,14 @@ __STAMP__&
               END IF
               ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
               ! read local Surface Particle Data from HDF5
-              CALL ReadArray('SurfPartData',2,(/locnSurfPart,SurfPartDataSize/),offsetnSurfPart,1,IntegerArray=SurfPartData)
+              
+              ! Associate construct for integer KIND=8 possibility
+              ASSOCIATE (&
+                    locnSurfPart      => INT(locnSurfPart,IK)      ,&
+                    SurfPartDataSize  => INT(SurfPartDataSize,IK)  ,&
+                    offsetnSurfPart   => INT(offsetnSurfPart,IK)   )
+                CALL ReadArray('SurfPartData',2,(/locnSurfPart,SurfPartDataSize/),offsetnSurfPart,1,IntegerArray_i4=SurfPartData)
+              END ASSOCIATE
               DO iSurfSide = 1,SurfMesh%nSides
                 SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
                 PartboundID = PartBound%MapToPartBC(BC(SideID))
