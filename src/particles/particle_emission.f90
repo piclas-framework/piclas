@@ -61,14 +61,11 @@ INTERFACE AdaptiveBCAnalyze
   MODULE PROCEDURE AdaptiveBCAnalyze
 END INTERFACE
 
-INTERFACE AdaptivePumpBC
-  MODULE PROCEDURE AdaptivePumpBC
-END INTERFACE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF &
-                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn, AdaptivePumpBC
+                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleEmission
 CONTAINS
@@ -166,21 +163,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Ma
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-PumpingSpeed' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed-Kp' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveOutlet-DeltaPumpingSpeed-Ki' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Pump-IterationForMacroVal' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', '0')
-CALL prms%CreateIntOption(      'Part-Pump-IterationForOutput' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', '1')
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
@@ -736,11 +718,11 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 ! modules
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
-USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -3670,11 +3652,10 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
-                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, PumpMacroVal, PumpSampIter, &
-                                     PumpOutputIter
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseAdaptivePump, AdaptiveNbrPumps, UseCircularInflow
+                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3709,7 +3690,6 @@ INTEGER,ALLOCATABLE   :: TmpSideNumber(:)                    ! Number of Particl
 INTEGER,ALLOCATABLE   :: TmpSideEnd(:)                       ! End of Linked List for Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same SurfacefluxBC (Linked List)
 INTEGER,ALLOCATABLE   :: nType0(:,:), nType1(:,:), nType2(:,:)
-REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalArea
 REAL,ALLOCATABLE      :: tmp_SubSideAreas(:,:), tmp_SubSideDmax(:,:)
 REAL,ALLOCATABLE      :: tmp_Vec_nOut(:,:,:), tmp_Vec_t1(:,:,:), tmp_Vec_t2(:,:,:)
@@ -3735,6 +3715,7 @@ REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
 INTEGER               :: iElem
 #ifdef MPI
+REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalAreaSF_global
 #endif
 !===================================================================================================================================
@@ -3807,8 +3788,6 @@ IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 
 UseCircularInflow=.FALSE.
 UseAdaptiveInlet=.FALSE.
-UseAdaptivePump=.FALSE.
-AdaptiveNbrPumps = 0.0
 MaxSurfacefluxBCs=0
 nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
@@ -4063,46 +4042,20 @@ __STAMP__&
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
       !              Case 3: Inlet Type 2, constant mass flow and temperature
-      !              Case 4: Outlet Type 2, porous
-      ! Lei2017    - Case 5: cf_3, constant mass flow and temperature N through mass flow and particles out
+      ! Lei2017    - Case 4: cf_3, constant mass flow and temperature N through mass flow and particles out
       CASE(1,2)
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
-      CASE(3,5)
+      CASE(3,4)
         Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow')
         IF(Species(iSpec)%Surfaceflux(iSF)%VeloIC.LE.0.0) THEN
           CALL abort(__STAMP__&
-            ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3 condition required!')
+            ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
         Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
-      CASE(4)
-        IF(PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).NE.PartBound%ReflectiveBC) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR in init of adaptive inlet: BC of pump outflow condition must be reflective!')
-        END IF
-        UseAdaptivePump = .TRUE.
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
-        Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
-                                                            / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-PumpingSpeed')
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp = &
-                                                      GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed-Kp')
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi = &
-                                                      GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveOutlet-DeltaPumpingSpeed-Ki')
-        ! Determining the order of magnitude
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp &
-                                                        / 10.0**(ANINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
-        Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi = Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi &
-                                                        / 10.0**(ANINT(LOG10(Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure)))
-        AdaptiveNbrPumps = AdaptiveNbrPumps + 1. / REAL(nSpecies)
-        IF(nSpecies.GT.1) THEN
-          CALL abort( &
-          __STAMP__&
-          , 'ADAPTIVE PUMPS ONLY FOR 1 SPECIES!!!')
-        END IF
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -4112,18 +4065,6 @@ IF (nAdaptiveBC.GT.0) THEN
   IF( (MINVAL(sum_pressurefraction(:)).LT.0.99).OR.(MAXVAL(sum_pressurefraction(:)).GT.1.01) ) CALL abort( &
 __STAMP__&
 , 'Sum of all pressurefractions .NE. 1')
-END IF
-
-PumpOutputIter = GETINT('Part-Pump-IterationForOutput', '1')
-PumpSampIter = GETINT('Part-Pump-IterationForMacroVal', '0')
-IF(PumpSampIter.GT.0) THEN
-  ALLOCATE(PumpMacroVal(1:7,1:nElems,1:nSpecies))
-  PumpMacroVal = 0.0
-  IF(PumpOutputIter.LT.PumpSampIter) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR: IterationForOutput should be larger than or equal to IterationForMacroVal!')
-  END IF
 END IF
 
 SDEALLOCATE(Adaptive_BC_Map)
@@ -4279,7 +4220,7 @@ DEALLOCATE(TmpMapToBC &
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
-IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet)THEN
+IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet.OR.(nPorousBC.GT.0))THEN
   ALLOCATE(Adaptive_MacroVal(1:13,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
@@ -4315,7 +4256,7 @@ DO iSpec=1,nSpecies
     END IF
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
       ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
       Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
@@ -4446,7 +4387,7 @@ DO iSpec=1,nSpecies
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
           IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
         END IF ! CircularInflow: check r-bounds
         IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -4533,10 +4474,10 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
-              IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+              IF(nPorousBC.GT.0) THEN
                 CALL abort(&
 __STAMP__&
-,'Macroscopic restart with pump BC and without state file including adaptive BC info not implemented!')
+,'Macroscopic restart with porous BC and without state file including adaptive BC info not implemented!')
               END IF
             ELSE
               Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
@@ -4545,32 +4486,36 @@ __STAMP__&
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2)
               Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
                   * Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)
-              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
-              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC !/ SQRT(3.)
+              Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+              Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+              Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+              !--------------------------------- might not be required anymore, initial distribution is sampled if no restart
               ! Trying to avoid a zero density in the Adaptive_Macroval at the pump
               IF(Species(iSpec)%Surfaceflux(iSF)%PartDensity.EQ.0.0) THEN
                 IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
                   Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity
                 ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
-                  CALL abort(&
+                  IF(nPorousBC.GT.0) THEN
+                    CALL abort(&
 __STAMP__&
-,'ERROR in Pump Definition: Currently, only one init domain per species can be combined with pump RB ')
+,'ERROR in Porous BC Definition: Currently, only one init domain per species can be combined with porous BC')
+                  END IF
                 ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
                   Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity
                 END IF
               ELSE
                 Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               END IF
-              Adaptive_MacroVal(11,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed
               ! Trying to avoid a zero pressure in the Adaptive_Macroval at the pump
               IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
                 Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity * BoltzmannConst &
                                                    * Species(iSpec)%Init(1)%MWTemperatureIC
               ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
-                CALL abort(&
+                IF(nPorousBC.GT.0) THEN
+                  CALL abort(&
 __STAMP__&
-,'ERROR in Pump Definition: Currently, only one init domain per species can be combined with pump RB ')
+,'ERROR in Porous BC Definition: Currently, only one init domain per species can be combined with porous BC')
+                END IF
               ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
                 Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity * BoltzmannConst &
                                                    * Species(iSpec)%Init(0)%MWTemperatureIC
@@ -4839,7 +4784,7 @@ DO iSpec=1,nSpecies
         shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
       CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
@@ -5036,14 +4981,18 @@ __STAMP__&
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
                 vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
                 veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
-                ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
-                                  / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+                IF(veloNormal.GT.0.0) THEN
+                  ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+                    / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+                ELSE
+                  SWRITE(*,*) 'WARNING: No particles inserted!'
+                  SWRITE(*,*) 'WARNING: Possibly different adaptive BCs of Type3/4 have been defined next to each other.'
+                  SWRITE(*,*) 'WARNING: Adaptive BCs sharing a mesh element is currently not supported -> wrong velocity vector!'
+                  ElemPartDensity = 0
+                END IF
               END IF
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-            CASE(4) ! Porous outlet
-              T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-              ElemPartDensity = 0
-            CASE(5)
+            CASE(4)
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
             CASE DEFAULT
               SWRITE(*,*) 'Selected adaptive boundary condition type: ', Species(iSpec)%Surfaceflux(iSF)%AdaptInType
@@ -5081,7 +5030,7 @@ __STAMP__&
   __STAMP__&
   ,'wrong velo-distri for adaptive Surfaceflux!')
             END SELECT
-            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) THEN
+            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
                                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow * dt*RKdtFrac    &
@@ -5461,7 +5410,7 @@ __STAMP__&
     END DO ! iSide
 
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
     END IF
 
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
@@ -5746,14 +5695,11 @@ ELSE
     Velo_t2 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
   ELSE !Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet
     SELECT CASE(Species(FractNbr)%Surfaceflux(iSF)%AdaptInType)
-    CASE(1) ! Pressure inlet (pressure, temperature const)
+    CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(2) ! adaptive Outlet/freestream
       pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
       T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,FractNbr))
-    CASE(3,5) ! Constant mass flow and temperature
-      T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
-    CASE(4) ! porous outlet
     CASE DEFAULT
       CALL abort(&
   __STAMP__&
@@ -6487,8 +6433,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Vars,              ONLY:useDSMC
-USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, PumpMacroVal
-USE MOD_Particle_Vars,          ONLY:AdaptiveWeightFac, PumpSampIter
+USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
+USE MOD_Particle_Boundary_Vars, ONLY:PorousBCSampIter, PorousBCMacroVal
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
@@ -6571,25 +6517,26 @@ DO iSpec = 1,nSpecies
       Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
     END IF
     ! ================================================================
-    IF(PumpSampIter.GT.0) THEN
+    IF(PorousBCSampIter.GT.0) THEN
       ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
-      PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
-      PumpMacroVal(7,AdaptiveElemID,iSpec) = PumpMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
-      IF(MOD(iter,PumpSampIter).EQ.0) THEN
-        IF(PumpMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
+      PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
+      PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
+      IF(MOD(iter,PorousBCSampIter).EQ.0) THEN
+        IF(PorousBCMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
           ! number density
-          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PumpMacroVal(7,AdaptiveElemID,iSpec)/PumpSampIter/GEO%Volume(AdaptiveElemID) &
-                                                        * Species(iSpec)%MacroParticleFactor
+          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/PorousBCSampIter   &
+                                                      /GEO%Volume(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
           ! instantaneous temperature WITHOUT 1/BoltzmannConst
-          PumpMacroVal(1:6,AdaptiveElemID,iSpec) = PumpMacroVal(1:6,AdaptiveElemID,iSpec) / PumpMacroVal(7,AdaptiveElemID,iSpec)
-          TTrans_TempFac = (PumpMacroVal(7,AdaptiveElemID,iSpec)/(PumpMacroVal(7,AdaptiveElemID,iSpec)-1.0))*Species(iSpec)%MassIC &
-                            * ( PumpMacroVal(4,AdaptiveElemID,iSpec) - PumpMacroVal(1,AdaptiveElemID,iSpec)**2   &
-                              + PumpMacroVal(5,AdaptiveElemID,iSpec) - PumpMacroVal(2,AdaptiveElemID,iSpec)**2   &
-                              + PumpMacroVal(6,AdaptiveElemID,iSpec) - PumpMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
+          PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
+                                                        / PorousBCMacroVal(7,AdaptiveElemID,iSpec)
+          TTrans_TempFac = (PorousBCMacroVal(7,AdaptiveElemID,iSpec)/(PorousBCMacroVal(7,AdaptiveElemID,iSpec)-1.0)) &
+              *Species(iSpec)%MassIC*(PorousBCMacroVal(4,AdaptiveElemID,iSpec) - PorousBCMacroVal(1,AdaptiveElemID,iSpec)**2   &
+                                    + PorousBCMacroVal(5,AdaptiveElemID,iSpec) - PorousBCMacroVal(2,AdaptiveElemID,iSpec)**2   &
+                                    + PorousBCMacroVal(6,AdaptiveElemID,iSpec) - PorousBCMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
           ! pressure (BoltzmannConstant canceled out in temperature calculation)
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=Adaptive_MacroVal(7,AdaptiveElemID,iSpec)*TTrans_TempFac
           ! Resetting the sampling values
-          PumpMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
+          PorousBCMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
         END IF
       END IF
     ELSE
@@ -6661,448 +6608,15 @@ END DO
 END SUBROUTINE AdaptiveBCAnalyze
 
 
-SUBROUTINE AdaptivePumpBC()
-!===================================================================================================================================
-! Routine for adaptive case 4 (active pump BC)
-! 1. pumping speed per area of pumping surface and alpha is determined
-! 2. particles that leave the domain through the pump are deleted
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal, AdaptiveNbrPumps, PumpOutputIter
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, SampWall
-USE MOD_Particle_Surfaces_Vars, ONLY:SurfMeshSubSideData, BCdata_auxSF
-USE MOD_Mesh_Vars,              ONLY:nElems, SideToElem
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
-USE MOD_Timedisc_Vars,          ONLY:iter, dt
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
-#endif /*MPI*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iSpec, iSF, iSurfSide, ElemID, iPump, GlobalPumpCount, iLocSide, iSurfFluxSide, SideID, BCSideID
-INTEGER                       :: SurfSideID, nVarOut
-INTEGER, ALLOCATABLE          :: PumpElemCount(:)
-REAL                          :: PumpingSpeedTemp, DeltaPressure, VeloSum
-REAL, ALLOCATABLE             :: PumpBCInfo(:,:), AlphaOutput(:), PressNormOutput(:), PumpMeanVelo(:,:), PumpSpeed(:)
-!===================================================================================================================================
-
-! Getting the total number of pumps in the simulation
-GlobalPumpCount = NINT(AdaptiveNbrPumps)
-
-! Communication of impinged particles on the pump in halo region
-#ifdef MPI
-CALL ExchangePumpData()
-#endif
-
-! Averaging of velocity accross pump
- CALL AveragePumpData(PumpMeanVelo)
-
-ALLOCATE(AlphaOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-AlphaOutput = 0.
-ALLOCATE(PressNormOutput(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-PressNormOutput = 0.
-ALLOCATE(PumpElemCount(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-PumpElemCount = 0
-ALLOCATE(PumpSpeed(MAXVAL(Species(1:nSpecies)%nSurfacefluxBCs)))
-PumpSpeed = 0
-
-DO iSpec=1,nSpecies
-  iPump=1
-  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    ! Resetting the element counter -> only last species counts: Temporary workaround, should not be used with multiple species
-    ! Example: If a species is very dilute, no particle might hit certain elements of the pump -> PumpElemCount would be smaller
-    PumpElemCount(iSF) = 0
-    Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = 0.0
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-      ! Go over all sides for the respective surface flux
-      DO iSurfFluxSide = 1,BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber
-        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          ! Skipping sides, which are completely outside the circular region
-          IF(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSurfFluxSide).EQ.1) CYCLE
-        END IF
-        ! Get the global BCSideID
-        BCSideID=BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideList(iSurfFluxSide)
-        ! Get the element
-        ElemID = SideToElem(1,BCSideID)
-        IF (ElemID.LT.1) THEN !not sure if necessary
-          ElemID = SideToElem(2,BCSideID)
-          iLocSide = SideToElem(4,BCSideID)
-        ELSE
-          iLocSide = SideToElem(3,BCSideID)
-        END IF
-        ! Get the global side id (all sides including inner sides)
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-        ! Get the surface side id (all sides with a reflective BC)
-        SurfSideID = SurfMesh%SideIDToSurfID(SideID)
-        ! Determining the delta between current gas mixture pressure in adjacent cell and desired input pressure
-        DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-        ! Integrating the pressure difference
-        IF(Adaptive_MacroVal(11,ElemID,iSpec).GT.0.0) THEN
-          Adaptive_MacroVal(13,ElemID,iSpec) = Adaptive_MacroVal(13,ElemID,iSpec) + DeltaPressure * dt
-        ELSE
-          Adaptive_MacroVal(13,ElemID,iSpec) = 0.0
-        END IF
-        ! Adapting the pumping speed S (m^3/s) according to the pressure difference (control through proportional and integral part)
-        PumpingSpeedTemp = Adaptive_MacroVal(11,ElemID,iSpec) &
-            + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKp * DeltaPressure &
-            + Species(iSpec)%Surfaceflux(iSF)%AdaptiveDeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,iSpec)
-        ! Calculate the removal probability if any particles hit the pump
-        IF(NINT(PumpMeanVelo(4,iPump)).GT.0) THEN
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = PumpingSpeedTemp*Adaptive_MacroVal(7,ElemID,iSpec) * dt &
-                                                                      / (PumpMeanVelo(4,iPump)*Species(iSpec)%MacroParticleFactor)
-        ELSE
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 0.0
-        END IF
-        ! Making sure that alpha is between 0 and 1
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID).GT.1.0) THEN
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 1.0
-          ! Setting pumping speed to maximum value (alpha=1)
-          Adaptive_MacroVal(11,ElemID,iSpec) = PumpMeanVelo(4,iPump)*Species(iSpec)%MacroParticleFactor &
-                                                / (Adaptive_MacroVal(7,ElemID,iSpec)*dt)
-        ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID).LE.0.0) THEN
-          Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) = 0.0
-          ! Avoiding negative pumping speeds
-          Adaptive_MacroVal(11,ElemID,iSpec) = 0.0
-        ELSE
-          ! Only adapting the pumping speed if alpha is between zero and one
-          Adaptive_MacroVal(11,ElemID,iSpec) = PumpingSpeedTemp
-        END IF
-        ! -------- Sampling for output ---------------------------------------------------------------------------------------------
-        ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed = Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpingSpeed &
-                                + SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) * Species(iSpec)%MacroParticleFactor &
-                                  / (Adaptive_MacroVal(7,ElemID,iSpec)*dt)
-        IF(SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF).GT.0.0) THEN
-          ! Counting only sides, where a particle hit the pump
-          ! Removal probability
-          AlphaOutput(iSF) = AlphaOutput(iSF) + Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID) &
-                                                            / REAL(nSpecies)
-          ! Pumping speed S (m^3/s) used at the pump to calculate the removal probability (-PumpSpeed-Control-)
-          PumpSpeed(iSF) = PumpSpeed(iSF) + Adaptive_MacroVal(11,ElemID,iSpec)
-          ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
-          PressNormOutput(iSF) = PressNormOutput(iSF) + Adaptive_MacroVal(12,ElemID,iSpec) &
-                                                            / Species(1)%Surfaceflux(iSF)%AdaptivePressure
-          ! Element counter at the pump surface
-          PumpElemCount(iSF) = PumpElemCount(iSF) + 1
-        END IF
-        ! Reset the sampled values (excluding halo region, those were resetted in after the communication)
-        SampWall(SurfSideID)%PumpBCInfo(1:5,iSpec,iSF) = 0.0
-      END DO            ! iSurfFluxSide
-      iPump = iPump + 1
-    END IF              ! AdaptInType.EQ.4
-  END DO                ! iSF
-END DO                  ! iSpec
-
-IF(MOD(iter+1,PumpOutputIter).EQ.0) THEN
-  nVarOut = 5
-  ALLOCATE(PumpBCInfo(1:nVarOut,1:GlobalPumpCount))
-  PumpBCInfo = 0.
-  iPump=1
-  ! Mapping the info from the surface flux array to the pump array
-  DO iSF=1,Species(1)%nSurfacefluxBCs
-    IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-      PumpBCInfo(1,iPump) = REAL(PumpElemCount(iSF))
-      PumpBCInfo(2,iPump) = Species(1)%Surfaceflux(iSF)%AdaptivePumpingSpeed
-      PumpBCInfo(3,iPump) = AlphaOutput(iSF)
-      PumpBCInfo(4,iPump) = PressNormOutput(iSF)
-      PumpBCInfo(5,iPump) = PumpSpeed(iSF)
-      iPump = iPump + 1
-    END IF
-  END DO
-#ifdef MPI
-  ! Communicating the values and summation at the root
-  IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,PumpBCInfo,nVarOut*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  ELSE
-    CALL MPI_REDUCE(PumpBCInfo,PumpBCInfo,nVarOut*GlobalPumpCount,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-  END IF
-  IF(MPIRoot) THEN
-#endif
-    ! Averaging of the pump info across the whole pump area
-    DO iPump = 1,GlobalPumpCount
-      IF(PumpBCInfo(1,iPump).GT.0) THEN
-        ! Pumping Speed is the sum of all elements (counter over particles exiting through pump), not a mean value
-        PumpBCInfo(3:5,iPump) = PumpBCInfo(3:5,iPump) / NINT(PumpBCInfo(1,iPump))
-      END IF
-    END DO
-    CALL WritePumpBCInfo(GlobalPumpCount,PumpBCInfo)
-#ifdef MPI
-  END IF
-#endif
-  SDEALLOCATE(PumpBCInfo)
-END IF
-
-SDEALLOCATE(AlphaOutput)
-SDEALLOCATE(PressNormOutput)
-SDEALLOCATE(PumpSpeed)
-
-END SUBROUTINE AdaptivePumpBC
-
-
-SUBROUTINE WritePumpBCInfo(PumpCount,PumpBCInfo)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_TimeDisc_Vars          ,ONLY: time, dt
-USE MOD_Globals                ,ONLY: FILEEXISTS
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)          :: PumpCount
-REAL,INTENT(IN)             :: PumpBCInfo(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                     :: OutputCounter, unit_index, iPump
-CHARACTER(LEN=350)          :: outfile
-LOGICAL                     :: isOpen
-!===================================================================================================================================
-unit_index = 789
-outfile = 'PumpBCInfo.csv'
-OutputCounter = 2
-
-INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-IF (.NOT.isOpen) THEN
-  IF (DoRestart.and.FILEEXISTS(outfile)) THEN
-    OPEN(unit_index,file=TRIM(outfile),action="WRITE",position="APPEND",status="OLD")
-  ELSE
-    OPEN(unit_index,file=TRIM(outfile),action="WRITE",status="REPLACE")
-    WRITE(unit_index,'(A4)',ADVANCE='NO') 'Time'
-    DO iPump = 1, PumpCount
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Measure-', iPump
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPump = 1, PumpCount
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A7,I3.3)',ADVANCE='NO') OutputCounter,'-Alpha-', iPump
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPump = 1, PumpCount
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A11,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPump
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPump = 1, PumpCount
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Control-', iPump
-      OutputCounter = OutputCounter + 1
-    END DO
-    WRITE(unit_index,'(A1)') ' '
-  END IF
-END IF
-WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time+dt
-DO iPump=1, PumpCount
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(2,iPump)
-END DO
-DO iPump=1, PumpCount
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(3,iPump)
-END DO
-DO iPump=1, PumpCount
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(4,iPump)
-END DO
-DO iPump=1, PumpCount
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PumpBCInfo(5,iPump)
-END DO
-WRITE(unit_index,'(A1)') ' '
-
-END SUBROUTINE WritePumpBCInfo
-
-#ifdef MPI
-SUBROUTINE ExchangePumpData() 
-!===================================================================================================================================
-! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
-! structure is similar to particle communication
-! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-! the receiving process adds the new data to his own sides
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies,Species
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm,SampWall,nPumpBCVars
-USE MOD_Particle_MPI_Vars           ,ONLY:PumpSendBuf,PumpRecvBuf,SurfExchange
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID,iSpec,iSF,nVar
-INTEGER                         :: iPos,iProc
-INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
-!===================================================================================================================================
-
-nVar = nPumpBCVars
-nValues = nVar*nSpecies*MAXVAL(Species(:)%nSurfacefluxBCs)
-!
-! open receive buffer
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesRecv(iProc)*nValues
-  CALL MPI_IRECV( PumpRecvBuf(iProc)%content                   &
-                , MessageSize                                  &
-                , MPI_DOUBLE_PRECISION                         &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                , 1009                                         &
-                , SurfCOMM%COMM                                &
-                , SurfExchange%RecvRequest(iProc)              &
-                , IERROR )
-END DO ! iProc
-
-! build message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
-  iPos=0
-  PumpSendBuf(iProc)%content = 0.
-  DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
-    DO iSpec=1,nSpecies
-      DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-        PumpSendBuf(iProc)%content(iPos+1:iPos+nVar)= SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF)
-        iPos=iPos+nVar
-      END DO ! iSF=1,Species(iSpec)%nSurfacefluxBCs
-    END DO ! iSpec=1,nSpecies
-    SampWall(SurfSideID)%PumpBCInfo(:,:,:)=0.
-  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
-END DO
-
-! send message
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
-  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
-  CALL MPI_ISEND( PumpSendBuf(iProc)%content               &
-                , MessageSize                              &
-                , MPI_DOUBLE_PRECISION                     &
-                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
-                , 1009                                     &
-                , SurfCOMM%COMM                            &
-                , SurfExchange%SendRequest(iProc)          &
-                , IERROR )
-END DO ! iProc                                                
-
-! 4) Finish Received number of particles
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-  IF(SurfExchange%nSidesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-          ,' MPI Communication error', IERROR)
-  END IF
-END DO ! iProc
-
-! add data do my list
-DO iProc=1,SurfCOMM%nMPINeighbors
-  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
-  iPos=0
-  DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
-    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
-    DO iSpec=1,nSpecies
-      DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-        SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF)=SampWall(SurfSideID)%PumpBCInfo(1:nVar,iSpec,iSF) &
-                                         +PumpRecvBuf(iProc)%content(iPos+1:iPos+nVar)
-        iPos=iPos+nVar
-      END DO ! iSF=1,Species(iSpec)%nSurfacefluxBCs
-    END DO ! iSpec=1,nSpecies
-  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
-  PumpRecvBuf(iProc)%content = 0.
-END DO ! iProc
-
-END SUBROUTINE ExchangePumpData
-#endif /*MPI*/
-
-SUBROUTINE AveragePumpData(PumpMeanVelo) 
-!===================================================================================================================================
-! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
-! structure is similar to particle communication
-! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-! the receiving process adds the new data to his own sides
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:AdaptiveNbrPumps,Species
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SampWall
-#ifdef MPI
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfCOMM
-USE MOD_Particle_MPI_Vars,           ONLY:PartMPI
-#endif
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES 
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-REAL, ALLOCATABLE, INTENT(OUT)  :: PumpMeanVelo(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iPump, NbrOfPump, iSF, iSurfSide
-!===================================================================================================================================
-
-NbrOfPump = NINT(AdaptiveNbrPumps)
-
-ALLOCATE(PumpMeanVelo(1:5,NbrOfPump))     ! 1-3: velocity vector, 4: total number of impinged particles, 5: number of deleted parts
-PumpMeanVelo = 0.0
-
-iPump = 1
-
-DO iSF=1,Species(1)%nSurfacefluxBCs
-  IF(Species(1)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-    DO iSurfSide = 1,SurfMesh%nSides
-      IF(NINT(SampWall(iSurfSide)%PumpBCInfo(4,1,iSF)).EQ.0) CYCLE
-      PumpMeanVelo(1:5,iPump) = PumpMeanVelo(1:5,iPump) + SampWall(iSurfSide)%PumpBCInfo(1:5,1,iSF)
-    END DO
-    iPump = iPump + 1
-  END IF
-END DO
-
-#ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,PumpMeanVelo,5*NbrOfPump,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
-#endif
-
-DO iPump = 1, NbrOfPump
-  IF(PumpMeanVelo(4,iPump).GT.0.0) PumpMeanVelo(1:3,iPump) = PumpMeanVelo(1:3,iPump) / PumpMeanVelo(4,iPump)
-END DO
-
-END SUBROUTINE AveragePumpData
-
-
 SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !===================================================================================================================================
-! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
-! structure is similar to particle communication
-! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-! the receiving process adds the new data to his own sides
+! 
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars                ,ONLY:BoltzmannConst, Pi
-USE MOD_Particle_Vars               ,ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SampWall
+USE MOD_Particle_Vars               ,ONLY:Species, Adaptive_MacroVal
 USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
 USE MOD_TimeDisc_Vars               ,ONLY:dt, RKdtFrac
 USE MOD_Mesh_Vars                   ,ONLY:SideToElem
@@ -7166,8 +6680,13 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
       VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
-      ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+      IF(veloNormal.GT.0.0) THEN
+        ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
+      ELSE
+        SWRITE(*,*) 'WARNING: Negative/zero velocity at the adaptive boundary, Type 4, no particles inserted! iSF: ', iSF
+        ElemPartDensity = 0
+      END IF
     END IF
     T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
     VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
@@ -7241,16 +6760,9 @@ SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars                ,ONLY:BoltzmannConst, Pi
-USE MOD_Particle_Vars               ,ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SampWall
+USE MOD_Globals_Vars                ,ONLY:BoltzmannConst
+USE MOD_Particle_Vars               ,ONLY:Species
 USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize, TriaSurfaceFlux
-USE MOD_TimeDisc_Vars               ,ONLY:dt, RKdtFrac
-USE MOD_Mesh_Vars                   ,ONLY:SideToElem
-USE MOD_Particle_Mesh_Vars          ,ONLY:PartElemToSide
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,           ONLY:PartMPI
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -62,14 +62,14 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, UseCircularInflow, UseAdaptivePump
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, UseCircularInflow, UseAdaptiveInlet
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,nPorousBC
+USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Mesh_Vars,              ONLY:BC
-! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
@@ -94,7 +94,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
 INTEGER                              :: adsorbindex
-LOGICAL                              :: isSpeciesSwap, PumpReflection
+LOGICAL                              :: isSpeciesSwap, PorousReflection
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -123,7 +123,7 @@ CASE(1) !PartBound%OpenBC)
       IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
     END IF
   END IF
-
+  IF(UseAdaptiveInlet) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -138,9 +138,10 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  !---- Treatment of adaptive boundary conditions (deletion of particles in case of circular inflow or for the pump BC)
-  PumpReflection = .FALSE.
-  IF(UseCircularInflow.OR.UseAdaptivePump) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PumpReflection)
+  !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
+  PorousReflection = .FALSE.
+  IF(UseCircularInflow) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
+  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
 #ifndef IMPA
@@ -155,7 +156,7 @@ CASE(2) !PartBound%ReflectiveBC)
       IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
-        IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PumpReflection) THEN
+        IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PorousReflection) THEN
           ! perfectly reflecting, specular re-emission
           CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
@@ -3022,12 +3023,10 @@ END SELECT
 END SUBROUTINE ParticleCondensationCase
 
 
-SUBROUTINE AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PumpReflection)
+SUBROUTINE AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 !===================================================================================================================================
 ! Treatment of particles impinging on the boundary
 ! Circular Inflow: Particles are deleted if within (allows multiple surface flux inflows defined by a circle on a single boundary)
-! Pump (AdaptInType=4): Velocities and number of particles hitting the pump surface are sampled, decision if particle crossing the
-!                       pump interface is deleted or reflected (based on the removal probability determined in the previous dt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -3045,63 +3044,34 @@ REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)            :: alpha
-LOGICAL,INTENT(INOUT)                :: PumpReflection
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: point(1:2), intersectionPoint(1:3), radius, iRan
+REAL                                 :: point(1:2), intersectionPoint(1:3), radius
 INTEGER                              :: iSpec, iSF, SurfSideID
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
 SurfSideID = SurfMesh%SideIDToSurfID(SideID)
 DO iSF=1,Species(iSpec)%nSurfacefluxBCs
   IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
-    IF (Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-        intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
-        point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
-        point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
-        radius=SQRT( (point(1))**2+(point(2))**2 )
-        IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-          SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
-          SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1.0
-          PumpReflection = .TRUE.
-          ! check particle for leaving the domain
-          CALL RANDOM_NUMBER(iRan)
-          IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
-            PDM%ParticleInside(iPart)=.FALSE.
-            alpha=-1.
-            SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1.0
-          END IF
+    IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
+      point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
+      point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
+      radius=SQRT( (point(1))**2+(point(2))**2 )
+      IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+        PDM%ParticleInside(iPart)=.FALSE.
+        alpha=-1.
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+          Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
         END IF
-      ELSE
-        SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(1:3,iSpec,iSF) + PartState(iPart,4:6)
-        SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF)   = SampWall(SurfSideID)%PumpBCInfo(4,iSpec,iSF) + 1.0
-        PumpReflection = .TRUE.
-        ! check particle for leaving the domain
-        CALL RANDOM_NUMBER(iRan)
-        IF(iRan.LE.Species(iSpec)%Surfaceflux(iSF)%AdaptivePumpAlpha(SurfSideID)) THEN
-          PDM%ParticleInside(iPart)=.FALSE.
-          alpha=-1.
-          SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) = SampWall(SurfSideID)%PumpBCInfo(5,iSpec,iSF) + 1.0
-        END IF
+        IF(CalcPartBalance) THEN
+          nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+          PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+        END IF ! CalcPartBalance
       END IF
     ELSE
-      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-        intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
-        point(1)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(2))-Species(iSpec)%Surfaceflux(iSF)%origin(1)
-        point(2)=intersectionPoint(Species(iSpec)%Surfaceflux(iSF)%dir(3))-Species(iSpec)%Surfaceflux(iSF)%origin(2)
-        radius=SQRT( (point(1))**2+(point(2))**2 )
-        IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-          PDM%ParticleInside(iPart)=.FALSE.
-          alpha=-1.
-          IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.5) THEN
-            Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
-          END IF
-          IF(CalcPartBalance) THEN
-            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
-        END IF
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
       END IF
     END IF
   END IF

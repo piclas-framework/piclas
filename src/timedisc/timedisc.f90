@@ -287,7 +287,7 @@ USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif /* USE_LOADBALANCE && PARTICLES*/
 USE MOD_Part_Emission          ,ONLY: AdaptiveBCAnalyze
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #if (PP_TimeDiscMethod==201)
 USE MOD_Particle_Vars          ,ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
@@ -637,7 +637,7 @@ DO !iter_t=0,MaxIter
 #endif
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
-  IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet) CALL AdaptiveBCAnalyze()
+  IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet.OR.(nPorousBC.GT.0)) CALL AdaptiveBCAnalyze()
 #endif /*PARICLES*/
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
@@ -1386,14 +1386,16 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
-                               , WriteMacroSurfaceValues, UseAdaptivePump
+                               , WriteMacroSurfaceValues
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux, AdaptivePumpBC
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
+USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -1484,8 +1486,8 @@ REAL                  :: tLBStart
       CALL ParticleTracing()
     END IF
   END IF
-  IF (UseAdaptivePump) THEN
-    CALL AdaptivePumpBC
+  IF (nPorousBC.GT.0) THEN
+    CALL PorousBoundaryRemovalProb_Pressure()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)

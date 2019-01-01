@@ -253,7 +253,7 @@ __STAMP__&
       ELSE
         IF(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveInlet) THEN
           SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptInType)
-            CASE(1) ! Pressure inlet (pressure, temperature const)
+            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
               TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
               TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
             CASE(2) ! adaptive Outlet/freestream
@@ -261,10 +261,6 @@ __STAMP__&
               TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
                       / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
               TRot = TVib
-            CASE(3,5) ! Constant mass flow and temperature
-              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
-            CASE(4) ! porous outlet
             CASE DEFAULT
               CALL abort(&
               __STAMP__&

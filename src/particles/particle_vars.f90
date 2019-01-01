@@ -288,13 +288,9 @@ TYPE typeSurfaceflux
   REAL                                   :: AdaptivePressure                 !
   REAL                                   :: totalAreaSF                      !
   REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
-  REAL                                   :: AdaptivePumpingSpeed             ! pumping speed per area of the pumping surface (C=S/A)
-  REAL                                   :: AdaptiveDeltaPumpingSpeedKp      ! linear relaxationfactor for the pumping speed
-  REAL                                   :: AdaptiveDeltaPumpingSpeedKi      ! integral relaxationfactor for the pumping speed
-  REAL, ALLOCATABLE                      :: AdaptivePumpAlpha(:)
   REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)
   REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)
-  INTEGER, ALLOCATABLE                   :: AdaptivePartNumOut
+  INTEGER                                :: AdaptivePartNumOut
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -314,11 +310,6 @@ END TYPE
 
 LOGICAL                                  :: UseCircularInflow                !
 LOGICAL                                  :: UseAdaptiveInlet                 !
-LOGICAL                                  :: UseAdaptivePump                  !
-REAL                                     :: AdaptiveNbrPumps                 !
-REAL, ALLOCATABLE                        :: PumpMacroVal(:,:,:)
-INTEGER                                  :: PumpSampIter
-INTEGER                                  :: PumpOutputIter
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
