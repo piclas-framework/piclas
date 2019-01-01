@@ -335,12 +335,13 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - sin_deviation \n'//&
                                 ' - IMD'&
                               , 'cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
-                                , 'Used velocity distribution.\n'//&
-                                  '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
-                                  '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
-                                  '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn).' &
-                                  , 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption('Part-Species[$]-velocityDistribution'  &
+                           , 'Used velocity distribution.\n'//&
+                             '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
+                             '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
+                             '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn)\n'//&
+                             '   taylorgreenvortex: Gallis et al., Molecular-Level Simulations of Turbulence and Its Decay, (2017).'&
+                           , 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
@@ -2035,8 +2036,9 @@ __STAMP__&
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
         END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
-        IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
+           IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'taylorgreenvortex') )THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
 __STAMP__&
