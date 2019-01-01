@@ -321,7 +321,7 @@ INTEGER                            :: FirstElemInd,LastelemInd,iInit
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
-INTEGER(KIND=IK)                   :: locnPart,offsetnPart
+INTEGER(KIND=IK)                   :: locnPart,offsetnPart,iLoop
 INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
@@ -330,7 +330,7 @@ LOGICAL                            :: InElementCheck,PartIntExists,PartDataExist
 REAL                               :: det(6,2)
 INTEGER                            :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
-INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iLoop, iVar
+INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar
 #ifdef MPI
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -738,13 +738,8 @@ __STAMP__&
       END IF
       ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,PartDataSize_HDF5))
 
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            PartDataSize_HDF5 => INT(PartDataSize_HDF5,IK) ,&
-            offsetnPart       => INT(offsetnPart,IK) )
-        CALL ReadArray('PartData',2,(/locnPart,PartDataSize_HDF5/),offsetnPart,1,RealArray=PartData)!,&
-        !xfer_mode_independent=.TRUE.)
-      END ASSOCIATE
+      CALL ReadArray('PartData',2,(/locnPart,INT(PartDataSize_HDF5,IK)/),offsetnPart,1,RealArray=PartData)!,&
+      !xfer_mode_independent=.TRUE.)
 
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
         CALL DatasetExists(File_ID,'VibQuantData',VibQuantDataExists)
@@ -753,26 +748,21 @@ __STAMP__&
   ,' Restart file does not contain "VibQuantData" in restart file for reading of polyatomic data')
         ALLOCATE(VibQuantData(offsetnPart+1_IK:offsetnPart+locnPart,MaxQuantNum))
 
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              MaxQuantNum => INT(MaxQuantNum,IK) ,&
-              offsetnPart => INT(offsetnPart,IK) )
-          CALL ReadArray('VibQuantData',2,(/locnPart,MaxQuantNum/),offsetnPart,1,IntegerArray_i4=VibQuantData)
-          !+1 is real number of necessary vib quants for the particle
-        END ASSOCIATE
+        CALL ReadArray('VibQuantData',2,(/locnPart,INT(MaxQuantNum,IK)/),offsetnPart,1,IntegerArray_i4=VibQuantData)
+        !+1 is real number of necessary vib quants for the particle
       END IF
 
       iPart=0
-      DO iLoop = 1,INT(locnPart)
-        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
-        iPart = iPart +1
+      DO iLoop = 1_IK,locnPart
+        IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
+        iPart = iPart + 1
         PartState(iPart,1)   = PartData(offsetnPart+iLoop,1)
         PartState(iPart,2)   = PartData(offsetnPart+iLoop,2)
         PartState(iPart,3)   = PartData(offsetnPart+iLoop,3)
         PartState(iPart,4)   = PartData(offsetnPart+iLoop,4)
         PartState(iPart,5)   = PartData(offsetnPart+iLoop,5)
         PartState(iPart,6)   = PartData(offsetnPart+iLoop,6)
-        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7))
+        PartSpecies(iPart)= INT(PartData(offsetnPart+iLoop,7),4)
         IF (useDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
             PartStateIntEn(iPart,1)=PartData(offsetnPart+iLoop,8)
@@ -876,8 +866,8 @@ __STAMP__&
       iPart = 0
       DO iElem=FirstElemInd,LastElemInd
         IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-          DO iLoop = INT(PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK) , INT(PartInt(iElem,ELEM_LastPartInd) -offsetnPart)
-            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7)))) CYCLE
+          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
+            IF(SpecReset(INT(PartData(offsetnPart+iLoop,7),4))) CYCLE
             iPart = iPart +1
             PEM%Element(iPart)  = iElem-offsetElem
             PEM%LastElement(iPart)  = iElem-offsetElem

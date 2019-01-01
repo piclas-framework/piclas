@@ -700,30 +700,24 @@ END DO
 DEALLOCATE(NodeCoords_indx)
 
 
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nElems     => INT(nElems,IK)     ,&
-      NGeo       => INT(NGeo,IK)       ,&
-      offsetElem => INT(offsetElem,IK) )
-  ! get physical coordinates
-  IF(useCurveds)THEN
-    ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-    CALL ReadArray('NodeCoords',2,(/3_IK,nElems*(NGeo+1)**3/),offsetElem*(NGeo+1)**3,2,RealArray=NodeCoords)
-  ELSE
-    ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
-    ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-    CALL ReadArray('NodeCoords',2,(/3_IK,nElems*(NGeo+1)**3/),offsetElem*(NGeo+1)**3,2,RealArray=NodeCoordsTmp)
-    NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
-    NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
-    NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
-    NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
-    NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
-    NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
-    NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
-    NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
-    DEALLOCATE(NodeCoordsTmp)
-  ENDIF
-END ASSOCIATE
+! get physical coordinates
+IF(useCurveds)THEN
+  ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+ELSE
+  ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
+  ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
+  NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
+  NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
+  NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
+  NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
+  NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
+  NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
+  NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
+  NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
+  DEALLOCATE(NodeCoordsTmp)
+ENDIF
 IF(.NOT.useCurveds) NGeo=1
 
 !! IJK SORTING --------------------------------------------
@@ -752,7 +746,7 @@ IF(isMortarMesh)THEN
         nElems     => INT(nElems,IK)     ,&
         offsetElem => INT(offsetElem,IK) )
     xiMinMax=-1.
-    CALL ReadArray('xiMinMax',3,(/3_IK,3_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
+    CALL ReadArray('xiMinMax',3,(/3_IK,2_IK,nElems/),offsetElem,3,RealArray=xiMinMax)
 
     ALLOCATE(ElemToTree(1:nElems))
     ElemToTree=0
