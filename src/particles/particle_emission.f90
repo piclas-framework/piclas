@@ -4495,39 +4495,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-              !--------------------------------- might not be required anymore, initial distribution is sampled if no restart
-              ! Trying to avoid a zero density in the Adaptive_Macroval at the pump
-              IF(Species(iSpec)%Surfaceflux(iSF)%PartDensity.EQ.0.0) THEN
-                IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
-                  Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity
-                ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
-                  IF(nPorousBC.GT.0) THEN
-                    CALL abort(&
-__STAMP__&
-,'ERROR in Porous BC Definition: Currently, only one init domain per species can be combined with porous BC')
-                  END IF
-                ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
-                  Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity
-                END IF
-              ELSE
-                Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
-              END IF
-              ! Trying to avoid a zero pressure in the Adaptive_Macroval at the pump
-              IF(Species(iSpec)%NumberOfInits.EQ.1) THEN
-                Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(1)%PartDensity * BoltzmannConst &
-                                                   * Species(iSpec)%Init(1)%MWTemperatureIC
-              ELSE IF(Species(iSpec)%NumberOfInits.GT.1) THEN
-                IF(nPorousBC.GT.0) THEN
-                  CALL abort(&
-__STAMP__&
-,'ERROR in Porous BC Definition: Currently, only one init domain per species can be combined with porous BC')
-                END IF
-              ELSE IF(TRIM(Species(iSpec)%Init(0)%SpaceIC).EQ.'cell_local') THEN
-                Adaptive_MacroVal(12,ElemID,iSpec) = Species(iSpec)%Init(0)%PartDensity * BoltzmannConst &
-                                                   * Species(iSpec)%Init(0)%MWTemperatureIC
-              ELSE
-                Adaptive_MacroVal(12,ElemID,iSpec) = 0.0
-              END IF
+              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             END IF
           END IF
         END IF
