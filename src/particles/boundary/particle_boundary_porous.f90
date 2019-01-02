@@ -103,8 +103,8 @@ USE MOD_Globals_Vars,                   ONLY: BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Mesh_Vars,                      ONLY: BC,nElems
 USE MOD_Particle_Vars,                  ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars,         ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh
-USE MOD_Particle_Boundary_Vars,         ONLY: MapSideToPorousSide, PorousBCOutputIter, PorousBCSampIter, PorousBCMacroVal
+USE MOD_Particle_Boundary_Vars,         ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh, nPorousBCVars
+USE MOD_Particle_Boundary_Vars,         ONLY: MapSurfSideToPorousSide, PorousBCOutputIter, PorousBCSampIter, PorousBCMacroVal
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -135,8 +135,8 @@ END IF
 ALLOCATE(PorousBC(1:nPorousBC))
 ALLOCATE(MapBCtoPorousBC(1:nPartBound))
 MapBCtoPorousBC = 0
-ALLOCATE(MapSideToPorousSide(1:SurfMesh%nTotalSides))
-MapSideToPorousSide = 0
+ALLOCATE(MapSurfSideToPorousSide(1:SurfMesh%nTotalSides))
+MapSurfSideToPorousSide = 0
 DO iPorousBC = 1, nPorousBC
   WRITE(UNIT=hilf,FMT='(I0)') iPorousBC
   ! Mapping the porous BC to a boundary
@@ -200,9 +200,7 @@ PorousBC(1:nPorousBC)%SideNumber = 0
 ! Counting the sides at the respective porous boundary
 DO iSurfSide=1,SurfMesh%nTotalSides
   PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))
-  IF (PorousBCID.GT.0) THEN
-    PorousBC(PorousBCID)%SideNumber = PorousBC(PorousBCID)%SideNumber + 1
-  END IF
+  IF (PorousBCID.GT.0) PorousBC(PorousBCID)%SideNumber = PorousBC(PorousBCID)%SideNumber + 1
 END DO
 
 ! Allocating the required arrays for each porous boundary condition
@@ -215,7 +213,7 @@ DO iPorousBC = 1, nPorousBC
   PorousBC(iPorousBC)%PumpingSpeedSide(1:PorousBC(iPorousBC)%SideNumber) = PorousBC(iPorousBC)%PumpingSpeed
   ALLOCATE(PorousBC(iPorousBC)%RegionSideType(1:PorousBC(iPorousBC)%SideNumber))
   PorousBC(iPorousBC)%RegionSideType = 0
-  ALLOCATE(PorousBC(iPorousBC)%Sample(1:PorousBC(iPorousBC)%SideNumber,1:2))
+  ALLOCATE(PorousBC(iPorousBC)%Sample(1:PorousBC(iPorousBC)%SideNumber,1:nPorousBCVars))
   PorousBC(iPorousBC)%Sample = 0
 END DO
 
@@ -226,7 +224,7 @@ DO iSurfSide=1,SurfMesh%nTotalSides
   PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(BCSideID)))
   IF (PorousBCID.GT.0) THEN
     PorousBC(PorousBCID)%SideList(SideNumber) = iSurfSide
-    MapSideToPorousSide(iSurfSide) = SideNumber
+    MapSurfSideToPorousSide(iSurfSide) = SideNumber
     ! Determine which cells are inside/outside/partially inside the defined region (0: inside, 1: outside, 2: partially)
     IF(PorousBC(PorousBCID)%UsingRegion) THEN
       SELECT CASE(PorousBC(PorousBCID)%Region)
@@ -259,7 +257,7 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousRefle
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY:PDM, LastPartPos, PartSpecies
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSideToPorousSide
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSurfSideToPorousSide, HaloImpactCounter
 USE MOD_Mesh_Vars,              ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -281,7 +279,12 @@ SurfSideID = SurfMesh%SideIDToSurfID(SideID)
 PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SideID)))
 
 IF(PorousBCID.GT.0) THEN
-  pBCSideID = MapSideToPorousSide(SurfSideID)
+  pBCSideID = MapSurfSideToPorousSide(SurfSideID)
+  IF(pBCSideID.EQ.0) THEN
+    ! Particle will be reflected regurarly
+    HaloImpactCounter = HaloImpactCounter + 1
+    RETURN
+  END IF
   IF(PorousBC(PorousBCID)%UsingRegion) THEN
     IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.0) THEN
       ! Side is completey inside the porous region
@@ -322,7 +325,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, PorousBCOutputIter
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, PorousBCOutputIter, HaloImpactCounter
 USE MOD_Mesh_Vars,              ONLY:SideToElem
 USE MOD_Timedisc_Vars,          ONLY:iter, dt
 #ifdef MPI
@@ -342,6 +345,9 @@ REAL                          :: PumpingSpeedTemp, DeltaPressure, PartWeight
 
 PartWeight = Species(1)%MacroParticleFactor
 
+#ifdef MPI
+CALL ExchangeImpingedPartPorousBC()
+#endif
 
 DO iPBC = 1,nPorousBC
   ! Summing up the number of impinged at the porous boundary
@@ -350,12 +356,17 @@ DO iPBC = 1,nPorousBC
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #endif
   DO iPBCSideID = 1, PorousBC(iPBC)%SideNumber
+    ! Only treat local sides
+    IF(PorousBC(iPBC)%SideList(iPBCSideID).GT.SurfMesh%nSides) CYCLE
     IF(PorousBC(iPBC)%UsingRegion) THEN
       ! Skipping cell which are completely outside specified region
       IF(PorousBC(iPBC)%RegionSideType(iPBCSideID).EQ.1) CYCLE
     END IF
-    ! Get the adjacent element to the side
+    ! Get the adjacent element to the BCSide (<- SurfSide (only reflective) <- PorousBCSide)
     ElemID = SideToElem(1,SurfMesh%SurfIDToSideID(PorousBC(iPBC)%SideList(iPBCSideID)))
+    IF (ElemID.LT.1) THEN !not sure if necessary
+      ElemID = SideToElem(2,SurfMesh%SurfIDToSideID(PorousBC(iPBC)%SideList(iPBCSideID)))
+    END IF
     ! Determining the delta between current gas mixture pressure in adjacent cell and desired pressure
     DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
     ! Integrating the pressure difference
@@ -440,7 +451,128 @@ IF(MOD(iter+1,PorousBCOutputIter).EQ.0) THEN
   END DO
 END IF
 
+!! Exchange removal probability for halo cells
+! #ifdef MPI
+! CALL ExchangeRemovalProbabilityPorousBC()
+! #endif
+
+! DEBUG
+IF(HaloImpactCounter.GT.0) THEN
+  IPWRITE(*,*) 'WARNING: Particles impinging on the halo sides were not treated with the correct removal probability'
+  IPWRITE(*,*) 'WARNING: A total of ', HaloImpactCounter, 'out of', SumPartPorousBC, ' particles were mistreated!'
+  HaloImpactCounter = 0
+END IF
+
 END SUBROUTINE PorousBoundaryRemovalProb_Pressure
+
+
+#ifdef MPI
+SUBROUTINE ExchangeImpingedPartPorousBC()
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfComm, nPorousBC, nPorousBCVars, MapSurfSideToPorousSide, MapBCtoPorousBC
+USE MOD_Particle_Boundary_Vars      ,ONLY:PartBound, SurfMesh, PorousBC
+USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf,SurfExchange
+USE MOD_Mesh_Vars                   ,ONLY:BC
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPos,iProc, MessageSize,nValues,iSurfSide,SurfSideID,nVar, PorousBCID, PorousBCSideID
+INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
+!===================================================================================================================================
+
+nVar = nPorousBCVars
+nValues = nVar*nPorousBC
+!
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesRecv(iProc)*nValues
+  CALL MPI_IRECV( PorousBCRecvBuf(iProc)%content_int           &
+                , MessageSize                                  &
+                , MPI_INTEGER                                  &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1009                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%RecvRequest(iProc)              &
+                , IERROR )
+END DO ! iProc
+
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  iPos=0
+  PorousBCSendBuf(iProc)%content_int = 0
+  DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
+    SurfSideID = SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
+    PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
+    PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID))))
+    IF(PorousBCID.GT.0) THEN
+      PorousBCSendBuf(iProc)%content_int(iPos+1:iPos+nVar) = PorousBC(PorousBCID)%Sample(PorousBCSideID,1:nVar)
+      iPos=iPos+nVar
+      PorousBC(PorousBCID)%Sample(PorousBCSideID,:)=0
+    END IF
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+END DO
+
+! send message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  MessageSize=SurfExchange%nSidesSend(iProc)*nValues
+  CALL MPI_ISEND( PorousBCSendBuf(iProc)%content_int       &
+                , MessageSize                              &
+                , MPI_INTEGER                              &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
+                , 1009                                     &
+                , SurfCOMM%COMM                            &
+                , SurfExchange%SendRequest(iProc)          &
+                , IERROR )
+END DO ! iProc
+
+! 4) Finish Received number of particles
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+  IF(SurfExchange%nSidesRecv(iProc).NE.0) THEN
+    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+END DO ! iProc
+
+! add data do my list
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
+  iPos=0
+  DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
+    SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
+    PorousBCSideID = MapSurfSideToPorousSide(SurfSideID)
+    PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID))))
+    IF(PorousBCID.GT.0) THEN
+      PorousBC(PorousBCID)%Sample(PorousBCSideID,1:nVar) = PorousBC(PorousBCID)%Sample(PorousBCSideID,1:nVar) &
+                                                          + PorousBCRecvBuf(iProc)%content_int(iPos+1:iPos+nVar)
+      iPos=iPos+nVar
+    END IF
+  END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
+  PorousBCRecvBuf(iProc)%content_int = 0.
+END DO ! iProc
+
+END SUBROUTINE ExchangeImpingedPartPorousBC
+#endif /*MPI*/
 
 
 SUBROUTINE WritePorousBCInfo()

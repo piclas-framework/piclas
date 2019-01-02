@@ -108,6 +108,8 @@ END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
 INTEGER                                 :: nPorousBC              ! Number of porous BCs
+INTEGER                                 :: nPorousBCVars = 2      ! 1: Number of particles impinging the porous BC
+                                                                  ! 2: Number of particles deleted at the porous BC
 INTEGER                                 :: PorousBCOutputIter     !
 INTEGER                                 :: PorousBCSampIter       !
 REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
@@ -128,7 +130,7 @@ TYPE tPorousBC
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
   INTEGER                               :: SideNumber             !
   INTEGER, ALLOCATABLE                  :: SideList(:)            !
-  INTEGER, ALLOCATABLE                  :: Sample(:,:)            !
+  INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
                                                                   ! 1: side is completely outside porous region
                                                                   ! 2: side is partially inside porous region
@@ -140,7 +142,8 @@ END TYPE
 TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! 
 
 INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
-INTEGER, ALLOCATABLE                    :: MapSideToPorousSide(:) !
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
+INTEGER                                 :: HaloImpactCounter
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)

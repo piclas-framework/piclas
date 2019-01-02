@@ -545,8 +545,9 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars 
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
 USE MOD_Particle_Vars               ,ONLY:nSpecies,Species
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -931,6 +932,21 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
+
+IF(nPorousBC.GT.0) THEN
+  ALLOCATE(PorousBCSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(PorousBCRecvBuf(SurfCOMM%nMPINeighbors))
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+      ALLOCATE(PorousBCSendBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
+      PorousBCSendBuf(iProc)%content_int=0
+    END IF
+    IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+      ALLOCATE(PorousBCRecvBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
+      PorousBCRecvBuf(iProc)%content_int=0
+    END IF
+  END DO ! iProc
+END IF
 
 DEALLOCATE(recv_status_list)
 
