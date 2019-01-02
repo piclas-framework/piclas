@@ -127,10 +127,10 @@ CALL prms%CreateLogicalOption(  'CalcLaserInteraction'     , 'Compute laser-plas
                                                              'particle energy per species.','.FALSE.')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
                                                                 'Ekin maximum calculation (default is HUGE) '//&
-                                                                'OR if LaserInteractionEkinMaxZPosMin is true')
+                                                                'OR if LaserInteractionEkinMaxZPosMin condition is true')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxZPosMin','minimum z-position of particle to be considered for Ekin '//&
                                                                  'maximum calculation (default is -1.*HUGE) '//&
-                                                                 'OR if LaserInteractionEkinMaxRadius is true')
+                                                                 'OR if LaserInteractionEkinMaxRadius condition is true')
 CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
                                                           ,'1 , 1 , 1 , 1')
@@ -1532,12 +1532,10 @@ INTEGER                         :: i
 REAL(KIND=8)                    :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
-
-Ekin    = 0.!d0
+! default values
+Ekin    =  0.
 EkinMax = -1.        
 ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
-LaserInteractionEkinMaxRadius = 6.0e-6
-LaserInteractionEkinMaxZPosMin   = 13.0e-6
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
