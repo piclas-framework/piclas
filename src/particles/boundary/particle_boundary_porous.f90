@@ -327,7 +327,6 @@ USE MOD_Mesh_Vars,              ONLY:SideToElem
 USE MOD_Timedisc_Vars,          ONLY:iter, dt
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
-USE MOD_Particle_Boundary_Vars, ONLY: SurfCOMM
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -348,7 +347,7 @@ DO iPBC = 1,nPorousBC
   ! Summing up the number of impinged at the porous boundary
   SumPartPorousBC = SUM(PorousBC(iPBC)%Sample(1:PorousBC(iPBC)%SideNumber,1))
 #ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_INTEGER,MPI_SUM,SurfComm%COMM,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #endif
   DO iPBCSideID = 1, PorousBC(iPBC)%SideNumber
     IF(PorousBC(iPBC)%UsingRegion) THEN
