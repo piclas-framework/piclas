@@ -25,8 +25,10 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization:
+LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
+INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
+!                                                                            ! * Ammosov-Delone-Krainov (ADK) model Yu 2018
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles

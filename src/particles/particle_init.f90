@@ -176,8 +176,10 @@ CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defin
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
 
-CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization. Implemented models are:\n'//&                                  
-                                                                ' * Ammosov-Delone-Krainov (ADK) model', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization by quantum tunneling.', '.FALSE.')
+CALL prms%CreateIntOption(      'FieldIonizationModel'        , 'Field Ionization models. Implemented models are:\n'//&                                  
+                                                                ' * Ammosov-Delone-Krainov (ADK) model Bruhwiler 2003\n'//&
+                                                                ' * Ammosov-Delone-Krainov (ADK) model Yu 2018')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -1500,6 +1502,9 @@ PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
 DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
+IF(DoFieldIonization)THEN
+  FieldIonizationModel = GETINT('FieldIonizationModel')
+END IF
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
