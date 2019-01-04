@@ -467,7 +467,7 @@ __STAMP__&
   END IF
 
   ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
-  IF(DoFieldIonization.OR.CollisMode.GT.0)THEN
+  IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
     ALLOCATE(SpecDSMC(nSpecies))
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -491,7 +491,6 @@ __STAMP__&
   ELSE !CollisMode.GT.0
 
 ! reading species data of ini_2
-  ALLOCATE(SpecDSMC(nSpecies))
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
