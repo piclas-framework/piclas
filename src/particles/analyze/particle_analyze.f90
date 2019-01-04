@@ -2705,7 +2705,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       WRITE(tmpStr2,formatStr)&
@@ -2726,7 +2726,7 @@ IF(FILEEXISTS(outfile))THEN
   END DO
   CLOSE(ioUnit) 
 ELSE
-  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking info!"
 END IF
 
 ! printDiff
@@ -2830,7 +2830,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
   WRITE(tmpStr2,formatStr)&
       " ",time, &                           ! time
       delimiter,PartStateAnalytic(1), &     ! PartPosX analytic solution
@@ -2848,7 +2848,7 @@ IF(FILEEXISTS(outfile))THEN
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit) 
 ELSE
-  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking (analytic) info!"
 END IF
 
 END SUBROUTINE WriteParticleTrackingDataAnalytic

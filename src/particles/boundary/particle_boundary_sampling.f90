@@ -376,7 +376,7 @@ END DO ! iSide=1,nTotalSides
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
 #endif /*MPI*/
 
-SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
+SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 

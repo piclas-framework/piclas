@@ -295,9 +295,9 @@ DO iRefState=1,nTmp
     END IF
 
     ! display cut-off freequncy for this mode
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',1,',',0,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,E25.14E3,A)')&
+    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
            ' Hz (chosen mode)'
   CASE(12,121,14,15,16)
@@ -688,8 +688,8 @@ CASE(5) ! Initialization of TE waves in a circular waveguide
   ! 1/c^2 omegaG^2 - kz^2=mu^2/ro^2
   kz=(omegaG*c_inv)**2-SqrtN**2 ! (7.413)
   IF(kz.LT.0)THEN
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
-    SWRITE(UNIT_stdOut,'(A,E25.14E3)')'SqrtN**2          = ',SqrtN**2
+    SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
+    SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'SqrtN**2          = ',SqrtN**2
     SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
     CALL abort(&
         __STAMP__&

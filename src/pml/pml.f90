@@ -404,7 +404,7 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
       PMLDir=iDir
       EXIT ! if one direction is outside, the point must be outside of the region
     END IF
-    SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3,E25.14E3)') xyzPMLzetaShapeOrigin(1),xyzPMLzetaShapeOrigin(2),xyzPMLzetaShapeOrigin(3)
+    SWRITE(UNIT_stdOut,'(ES25.14E3,ES25.14E3,ES25.14E3)') xyzPMLzetaShapeOrigin(1),xyzPMLzetaShapeOrigin(2),xyzPMLzetaShapeOrigin(3)
     CALL abort(&
     __STAMP__&
     ,'The origin reference point "xyzPMLzetaShapeOrigin" cannot lie within the PML region defined by "xyzPMLMinMax"')

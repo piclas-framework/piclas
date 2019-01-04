@@ -235,7 +235,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             SWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+2
             SWRITE(UNIT_stdOut,'(A1)') ' ['
             DO j=1,15
-              SWRITE(UNIT_stdOut,'(A1,E25.14E3)',ADVANCE='NO') " ",tmp_array(j)
+              SWRITE(UNIT_stdOut,'(A1,ES25.14E3)',ADVANCE='NO') " ",tmp_array(j)
             END DO
             SWRITE(UNIT_stdOut,'(A1)') ']'
             CALL abort(&
@@ -992,7 +992,7 @@ CLOSE(ioUnit)
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
 
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
   DO iElem=1,PP_nElems
     WRITE(tmpStr2,formatStr)&
         " ",TTM_Cell_1(iElem),&

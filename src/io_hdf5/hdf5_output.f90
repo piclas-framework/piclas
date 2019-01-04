@@ -175,7 +175,7 @@ CALL CPU_TIME(StartT)
 
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
-  SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
+  SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
   OutputTime_loc   = OutputTimeFixed
   PreviousTime_loc = OutputTimeFixed
 ELSE
@@ -2303,7 +2303,7 @@ IF(.NOT.DoRestart)THEN
     CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
     CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
-    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
+    SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)

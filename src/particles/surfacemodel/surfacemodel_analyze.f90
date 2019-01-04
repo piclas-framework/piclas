@@ -487,12 +487,12 @@ INTEGER                     :: iLoop
 IF(PRESENT(RealArray)) THEN
   DO iLoop = 1, nVal
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealArray(iLoop)
+    WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealArray(iLoop)
   END DO
 END IF
 IF(PRESENT(RealScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealScalar
+  WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealScalar
 END IF
 
 IF(PRESENT(IntegerArray)) THEN
