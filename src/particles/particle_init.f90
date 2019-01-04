@@ -1077,7 +1077,7 @@ CALL InitParticleCommSize()
 
 ! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
 IF(.NOT.DoRestart) THEN
-  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze()
+  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
 END IF
 
 ParticlesInitIsDone=.TRUE.

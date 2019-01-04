@@ -417,8 +417,8 @@ DO iPBC = 1,nPorousBC
     END IF
     ! Reset of the sampled particle numbers at the pump
     PorousBC(iPBC)%Sample(iPBCSideID,1:2) = 0
-  END DO
-END DO
+  END DO  ! iPBCSideID=1, SideNumber
+END DO    ! iPBC=1, nPorousBC
 
 IF(MOD(iter+1,PorousBCOutputIter).EQ.0) THEN
 #ifdef MPI

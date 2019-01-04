@@ -6396,7 +6396,7 @@ __STAMP__&
 END FUNCTION BessK
 
 
-SUBROUTINE AdaptiveBCAnalyze()
+SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 !===================================================================================================================================
 ! Sampling of variables (part-density, velocity and energy) for Adaptive BC elements
 !===================================================================================================================================
@@ -6419,15 +6419,17 @@ USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ElemID, AdaptiveElemID, i, iSpec
-REAL                          :: TVib_TempFac, TTrans_TempFac
-REAL, ALLOCATABLE             :: Source(:,:,:)
+INTEGER                         :: ElemID, AdaptiveElemID, i, iSpec, RelaxationFactor, SamplingIteration
+REAL                            :: TVib_TempFac, TTrans_TempFac
+REAL, ALLOCATABLE               :: Source(:,:,:)
+LOGICAL                         :: initSampling
 #if USE_LOADBALANCE
-REAL                          :: tLBStart
+REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ALLOCATE(Source(1:11,1:nElems,1:nSpecies))
@@ -6464,6 +6466,21 @@ END DO
 CALL LBPauseTime(LB_ADAPTIVE,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+! Optional flag for the utilization of the routine for an initial sampling of the density and pressure distribution before simstart
+IF(PRESENT(initSampling_opt)) THEN
+  initSampling = initSampling_opt
+ELSE
+ initSampling = .FALSE.
+END IF
+
+IF(initSampling) THEN
+  RelaxationFactor = 1
+  SamplingIteration = 1
+ELSE
+  RelaxationFactor = AdaptiveWeightFac
+  SamplingIteration = PorousBCSampIter
+END IF
+
 !DO iElem = 1,nElems
 !IF(.NOT.IsTracingBCElem(iElem))CYCLE
 DO AdaptiveElemID = 1,nElems
@@ -6474,29 +6491,31 @@ CALL LBStartTime(tLBStart)
 DO iSpec = 1,nSpecies
   ! write timesample particle values of bc elements in global macrovalues of bc elements
   IF (Source(11,AdaptiveElemID,iSpec).GT.0.0) THEN
-    ! compute flow velocity
-    Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
-        + AdaptiveWeightFac*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
+    IF(.NOT.initSampling) THEN
+      ! compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
+      Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
+          + RelaxationFactor*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
+    END IF
     ! compute flow Temperature
     IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
-      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
-        + AdaptiveWeightFac &
+      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
+        + RelaxationFactor &
           * (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
           * Species(iSpec)%MassIC/ BoltzmannConst &
           * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
           - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
     ELSE
-      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
+      Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
     END IF
     ! ================================================================
-    IF(PorousBCSampIter.GT.0) THEN
+    IF(SamplingIteration.GT.0) THEN
       ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
       PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
       PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
-      IF(MOD(iter,PorousBCSampIter).EQ.0) THEN
+      IF(MOD(iter,SamplingIteration).EQ.0) THEN
         IF(PorousBCMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
           ! number density
-          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/PorousBCSampIter   &
+          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
                                                       /GEO%Volume(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
           ! instantaneous temperature WITHOUT 1/BoltzmannConst
           PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
@@ -6526,11 +6545,11 @@ DO iSpec = 1,nSpecies
         TTrans_TempFac = 0.0
       END IF
       ! compute density
-      Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+      Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+        + RelaxationFactor*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
       ! Pressure with relaxation factor
-      Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-      +AdaptiveWeightFac*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+      Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
+      +RelaxationFactor*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
     END IF
     ! !==================================================================================================
     IF(useDSMC)THEN
@@ -6539,37 +6558,37 @@ DO iSpec = 1,nSpecies
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
               IF( (Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec)) .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + AdaptiveWeightFac*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + RelaxationFactor*CalcTVibPoly(Source(8,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec),iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               END IF
             ELSE
               TVib_TempFac=Source(8,AdaptiveElemID,iSpec)/ (Source(11,AdaptiveElemID,iSpec) &
                 *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
               IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec)
               ELSE
-                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-                  + AdaptiveWeightFac*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+                  + RelaxationFactor*SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
               END IF
             END IF
           ELSE                                            ! TSHO-model
-            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
-              + AdaptiveWeightFac*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+            Adaptive_MacroVal(8,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(8,AdaptiveElemID,iSpec) &
+              + RelaxationFactor*CalcTVib(SpecDSMC(iSpec)%CharaTVib &
               , Source(8,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),SpecDSMC(iSpec)%MaxVibQuant)
           END IF
-          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
-              + AdaptiveWeightFac*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
+          Adaptive_MacroVal(9,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(9,AdaptiveElemID,iSpec) &
+              + RelaxationFactor*Source(9,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)*BoltzmannConst)
           IF (DSMC%ElectronicModel) THEN
-            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
-              + AdaptiveWeightFac*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
+            Adaptive_MacroVal(10,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(10,AdaptiveElemID,iSpec) &
+              + RelaxationFactor*CalcTelec( Source(10,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec),iSpec)
           END IF
         END IF
       END IF
     END IF
   ELSE
-    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-AdaptiveWeightFac)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
+    Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(1:10,AdaptiveElemID,iSpec)
   END IF
 END DO
 #if USE_LOADBALANCE
