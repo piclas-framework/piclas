@@ -1172,7 +1172,7 @@ ELSE !
   END IF
   IF(FILEEXISTS(outfile))THEN
     OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-    WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
+    WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
     WRITE(tmpStr2,formatStr)&
               " ",time_loc, &
         delimiter,REAL(nProcessors), &

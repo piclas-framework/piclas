@@ -2696,7 +2696,7 @@ IF(CreateFile) THEN
 
   WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
   WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
   CLOSE(ioUnit) 
@@ -2705,7 +2705,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       WRITE(tmpStr2,formatStr)&
@@ -2830,7 +2830,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A15)')'(',nOutputVar,'(A1,ES21.14E3))'
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
   WRITE(tmpStr2,formatStr)&
       " ",time, &                           ! time
       delimiter,PartStateAnalytic(1), &     ! PartPosX analytic solution
