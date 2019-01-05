@@ -101,8 +101,8 @@ SUBROUTINE InitPorousBoundaryCondition()
 USE MOD_Globals
 USE MOD_Globals_Vars,                   ONLY: BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_Mesh_Vars,                      ONLY: BC,nElems
-USE MOD_Particle_Vars,                  ONLY: nSpecies
+USE MOD_Mesh_Vars,                      ONLY: BC,nElems, SideToElem
+USE MOD_Particle_Vars,                  ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars,         ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh, nPorousBCVars
 USE MOD_Particle_Boundary_Vars,         ONLY: MapSurfSideToPorousSide, PorousBCOutputIter, PorousBCSampIter, PorousBCMacroVal
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -217,7 +217,7 @@ DO iPorousBC = 1, nPorousBC
   PorousBC(iPorousBC)%Sample = 0
 END DO
 
-! Mapping of the porous BC sides to the sides
+! Mapping of the porous BC sides to the sides and initialization of the pumping speed
 SideNumber = 1
 DO iSurfSide=1,SurfMesh%nTotalSides
   BCSideID = SurfMesh%SurfIDToSideID(iSurfSide)
@@ -225,6 +225,10 @@ DO iSurfSide=1,SurfMesh%nTotalSides
   IF (PorousBCID.GT.0) THEN
     PorousBC(PorousBCID)%SideList(SideNumber) = iSurfSide
     MapSurfSideToPorousSide(iSurfSide) = SideNumber
+    ! If a pumping speed was read-in during restart, use it
+    IF(Adaptive_MacroVal(11,SideToElem(1,BCSideID),1).GT.0.0) THEN
+        PorousBC(PorousBCID)%PumpingSpeedSide(SideNumber) = Adaptive_MacroVal(11,SideToElem(1,BCSideID),1)
+    END IF
     ! Determine which cells are inside/outside/partially inside the defined region (0: inside, 1: outside, 2: partially)
     IF(PorousBC(PorousBCID)%UsingRegion) THEN
       SELECT CASE(PorousBC(PorousBCID)%Region)

@@ -6424,8 +6424,8 @@ LOGICAL, INTENT(IN), OPTIONAL   :: initSampling_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, AdaptiveElemID, i, iSpec, RelaxationFactor, SamplingIteration
-REAL                            :: TVib_TempFac, TTrans_TempFac
+INTEGER                         :: ElemID, AdaptiveElemID, i, iSpec, SamplingIteration
+REAL                            :: TVib_TempFac, TTrans_TempFac, RelaxationFactor
 REAL, ALLOCATABLE               :: Source(:,:,:)
 LOGICAL                         :: initSampling
 #if USE_LOADBALANCE
