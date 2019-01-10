@@ -261,7 +261,7 @@ SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousRefle
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY:PDM, LastPartPos, PartSpecies
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSurfSideToPorousSide, HaloImpactCounter
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSurfSideToPorousSide
 USE MOD_Mesh_Vars,              ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -285,8 +285,8 @@ PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SideID)))
 IF(PorousBCID.GT.0) THEN
   pBCSideID = MapSurfSideToPorousSide(SurfSideID)
   IF(pBCSideID.EQ.0) THEN
-    ! Particle will be reflected regurarly
-    HaloImpactCounter = HaloImpactCounter + 1
+  ! Particle will be reflected regurarly
+    IPWRITE(*,*) 'DOES THIS HAPPEN?!'
     RETURN
   END IF
   IF(PorousBC(PorousBCID)%UsingRegion) THEN
@@ -329,7 +329,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, PorousBCOutputIter, HaloImpactCounter
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, PorousBCOutputIter
 USE MOD_Mesh_Vars,              ONLY:SideToElem
 USE MOD_Timedisc_Vars,          ONLY:iter, dt
 #ifdef MPI
@@ -455,17 +455,10 @@ IF(MOD(iter+1,PorousBCOutputIter).EQ.0) THEN
   END DO
 END IF
 
-!! Exchange removal probability for halo cells
-! #ifdef MPI
-! CALL ExchangeRemovalProbabilityPorousBC()
-! #endif
-
-! DEBUG
-IF(HaloImpactCounter.GT.0) THEN
-  IPWRITE(*,*) 'WARNING: Particles impinging on the halo sides were not treated with the correct removal probability'
-  IPWRITE(*,*) 'WARNING: A total of ', HaloImpactCounter, 'out of', SumPartPorousBC, ' particles were mistreated!'
-  HaloImpactCounter = 0
-END IF
+! Exchange removal probability for halo cells
+#ifdef MPI
+CALL ExchangeRemovalProbabilityPorousBC()
+#endif
 
 END SUBROUTINE PorousBoundaryRemovalProb_Pressure
 
@@ -576,6 +569,88 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 END SUBROUTINE ExchangeImpingedPartPorousBC
+
+
+SUBROUTINE ExchangeRemovalProbabilityPorousBC
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars      ,ONLY:PartBound, SurfMesh, SurfComm, MapSurfSideToPorousSide, MapBCtoPorousBC, PorousBC
+USE MOD_Particle_MPI_Vars           ,ONLY:SurfExchange
+USE MOD_Mesh_Vars                   ,ONLY:BC
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                                 :: iCommSide, iProc, SurfSideID, pBCSideID, pBCID
+  INTEGER, ALLOCATABLE                    :: ProcCount(:)
+  TYPE tTempArrayProc
+    REAL, ALLOCATABLE                     :: SendMsg(:)
+    REAL, ALLOCATABLE                     :: RecvMsg(:)
+  END TYPE
+  TYPE(tTempArrayProc), ALLOCATABLE       :: TempArrayProc(:)
+!===================================================================================================================================
+
+  ! Communication of the surface temperature to the halo cell of other procs (required for the proper temperature within the
+  ! diffuse reflection in halo cells)
+  ALLOCATE(TempArrayProc(0:SurfCOMM%nMPINeighbors-1))
+  ALLOCATE(ProcCount(0:SurfCOMM%nMPINeighbors-1))
+  ProcCount = 0
+  DO iProc=0, SurfCOMM%nMPINeighbors-1
+    ALLOCATE(TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)))
+    TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)) = 0
+    TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)) = 0
+  END DO
+
+  DO iProc=0, SurfCOMM%nMPINeighbors-1
+    DO iCommSide=1, SurfExchange%nSidesRecv(iProc)
+      SurfSideID = SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide)
+      pBCSideID = MapSurfSideToPorousSide(SurfSideID)
+      pBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID))))
+      IF(pBCID.GT.0) THEN
+        TempArrayProc(iProc)%SendMsg(iCommSide) = PorousBC(pBCID)%RemovalProbability(pBCSideID)
+      END IF
+    END DO
+  END DO
+
+  DO iProc=0, SurfCOMM%nMPINeighbors-1
+    IF (SurfCOMM%MyRank.LT.iProc) THEN
+      IF (SurfExchange%nSidesRecv(iProc).NE.0) &
+        CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,SurfExchange%nSidesRecv(iProc), &
+                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,IERROR)
+      IF (SurfExchange%nSidesSend(iProc).NE.0) &
+        CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,SurfExchange%nSidesSend(iProc), &
+                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
+    ELSE IF (SurfCOMM%MyRank.GT.iProc) THEN
+      IF (SurfExchange%nSidesSend(iProc).NE.0) &
+        CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,SurfExchange%nSidesSend(iProc), &
+                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
+      IF (SurfExchange%nSidesRecv(iProc).NE.0) &
+        CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,SurfExchange%nSidesRecv(iProc), &
+                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,IERROR)
+    END IF
+  END DO
+
+DO iProc=1,SurfCOMM%nMPINeighbors
+  IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
+  DO iCommSide=1,SurfExchange%nSidesSend(iProc)
+    SurfSideID = SurfCOMM%MPINeighbor(iProc)%SendList(iCommSide)
+    pBCSideID = MapSurfSideToPorousSide(SurfSideID)
+    pBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID))))
+    IF(pBCID.GT.0) THEN
+      PorousBC(pBCID)%RemovalProbability(pBCSideID) = TempArrayProc(iProc)%RecvMsg(iCommSide)
+    END IF
+  END DO ! iCommSide=1,nSurfExchange%nSidesSend(iProc)
+END DO
+
+END SUBROUTINE ExchangeRemovalProbabilityPorousBC
 #endif /*MPI*/
 
 

@@ -143,7 +143,6 @@ TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            !
 
 INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
 INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
-INTEGER                                 :: HaloImpactCounter
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)

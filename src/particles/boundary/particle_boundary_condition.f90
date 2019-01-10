@@ -3030,8 +3030,8 @@ SUBROUTINE AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY:PDM, Species, LastPartPos, PartSpecies, PartState
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, SampWall
+USE MOD_Particle_Vars,          ONLY:PDM, Species, LastPartPos, PartSpecies
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
