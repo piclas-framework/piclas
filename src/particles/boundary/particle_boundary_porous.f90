@@ -225,9 +225,11 @@ DO iSurfSide=1,SurfMesh%nTotalSides
   IF (PorousBCID.GT.0) THEN
     PorousBC(PorousBCID)%SideList(SideNumber) = iSurfSide
     MapSurfSideToPorousSide(iSurfSide) = SideNumber
-    ! If a pumping speed was read-in during restart, use it
-    IF(Adaptive_MacroVal(11,SideToElem(1,BCSideID),1).GT.0.0) THEN
-        PorousBC(PorousBCID)%PumpingSpeedSide(SideNumber) = Adaptive_MacroVal(11,SideToElem(1,BCSideID),1)
+    ! If a pumping speed was read-in during restart, use it (only for local elements and not halo sides)
+    IF(iSurfSide.LE.SurfMesh%nSides) THEN
+      IF(Adaptive_MacroVal(11,SideToElem(1,BCSideID),1).GT.0.0) THEN
+          PorousBC(PorousBCID)%PumpingSpeedSide(SideNumber) = Adaptive_MacroVal(11,SideToElem(1,BCSideID),1)
+      END IF
     END IF
     ! Determine which cells are inside/outside/partially inside the defined region (0: inside, 1: outside, 2: partially)
     IF(PorousBC(PorousBCID)%UsingRegion) THEN
@@ -589,7 +591,6 @@ USE MOD_Mesh_Vars                   ,ONLY:BC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                                 :: iCommSide, iProc, SurfSideID, pBCSideID, pBCID
-  INTEGER, ALLOCATABLE                    :: ProcCount(:)
   TYPE tTempArrayProc
     REAL, ALLOCATABLE                     :: SendMsg(:)
     REAL, ALLOCATABLE                     :: RecvMsg(:)
@@ -597,19 +598,19 @@ USE MOD_Mesh_Vars                   ,ONLY:BC
   TYPE(tTempArrayProc), ALLOCATABLE       :: TempArrayProc(:)
 !===================================================================================================================================
 
-  ! Communication of the surface temperature to the halo cell of other procs (required for the proper temperature within the
-  ! diffuse reflection in halo cells)
-  ALLOCATE(TempArrayProc(0:SurfCOMM%nMPINeighbors-1))
-  ALLOCATE(ProcCount(0:SurfCOMM%nMPINeighbors-1))
-  ProcCount = 0
-  DO iProc=0, SurfCOMM%nMPINeighbors-1
+  ! Communication of the removal probability to the halo cell of other procs (since the removal probability requires the locally
+  ! sampled values of the adjacent elems) for the case, when a particle leaves the local domain and hits the porous BC on a haloside
+  ALLOCATE(TempArrayProc(1:SurfCOMM%nMPINeighbors))
+  DO iProc=1, SurfCOMM%nMPINeighbors
     ALLOCATE(TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)))
     ALLOCATE(TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)))
     TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)) = 0
     TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)) = 0
   END DO
 
-  DO iProc=0, SurfCOMM%nMPINeighbors-1
+  ! Building the send message: using the receive list to get the surface sides for which we need to send away the information
+  ! These are the halo sides (from which we usually receive information -> using nSidesRecv and RecvList)
+  DO iProc=1, SurfCOMM%nMPINeighbors
     DO iCommSide=1, SurfExchange%nSidesRecv(iProc)
       SurfSideID = SurfCOMM%MPINeighbor(iProc)%RecvList(iCommSide)
       pBCSideID = MapSurfSideToPorousSide(SurfSideID)
@@ -620,24 +621,26 @@ USE MOD_Mesh_Vars                   ,ONLY:BC
     END DO
   END DO
 
-  DO iProc=0, SurfCOMM%nMPINeighbors-1
-    IF (SurfCOMM%MyRank.LT.iProc) THEN
+  ! Communication
+  DO iProc=1, SurfCOMM%nMPINeighbors
+    IF (SurfCOMM%MyRank.LT.SurfCOMM%MPINeighbor(iProc)%NativeProcID) THEN
       IF (SurfExchange%nSidesRecv(iProc).NE.0) &
         CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,SurfExchange%nSidesRecv(iProc), &
-                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,IERROR)
+                        MPI_DOUBLE_PRECISION,SurfCOMM%MPINeighbor(iProc)%NativeProcID,1101,SurfCOMM%COMM,IERROR)
       IF (SurfExchange%nSidesSend(iProc).NE.0) &
         CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,SurfExchange%nSidesSend(iProc), &
-                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
-    ELSE IF (SurfCOMM%MyRank.GT.iProc) THEN
+                        MPI_DOUBLE_PRECISION,SurfCOMM%MPINeighbor(iProc)%NativeProcID,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
+    ELSE IF (SurfCOMM%MyRank.GT.SurfCOMM%MPINeighbor(iProc)%NativeProcID) THEN
       IF (SurfExchange%nSidesSend(iProc).NE.0) &
         CALL MPI_RECV(TempArrayProc(iProc)%RecvMsg,SurfExchange%nSidesSend(iProc), &
-                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
+                        MPI_DOUBLE_PRECISION,SurfCOMM%MPINeighbor(iProc)%NativeProcID,1101,SurfCOMM%COMM,MPISTATUS,IERROR)
       IF (SurfExchange%nSidesRecv(iProc).NE.0) &
         CALL MPI_SEND(TempArrayProc(iProc)%SendMsg,SurfExchange%nSidesRecv(iProc), &
-                        MPI_DOUBLE_PRECISION,iProc,1101,SurfCOMM%COMM,IERROR)
+                        MPI_DOUBLE_PRECISION,SurfCOMM%MPINeighbor(iProc)%NativeProcID,1101,SurfCOMM%COMM,IERROR)
     END IF
   END DO
 
+! Mapping of the received info on our halo elements (which we usually send away -> using nSidesSend and SendList)
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).EQ.0) CYCLE
   DO iCommSide=1,SurfExchange%nSidesSend(iProc)
