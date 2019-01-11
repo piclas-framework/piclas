@@ -70,7 +70,7 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel, Species
+USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
@@ -92,7 +92,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q,iSide,SurfSideID,SideID,ElemID,LocSideID
-INTEGER                                :: iSample,jSample, iBC, iSpec, iSF
+INTEGER                                :: iSample,jSample, iBC, iSpec
 INTEGER                                :: TriNum, Node1, Node2 
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
@@ -529,7 +529,7 @@ offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
 END SUBROUTINE InitSurfCommunicator
 
 
-SUBROUTINE GetHaloSurfMapping() 
+SUBROUTINE GetHaloSurfMapping()
 !===================================================================================================================================
 ! build all missing stuff for surface-sampling communicator, like
 ! offSetMPI
@@ -549,7 +549,6 @@ USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample, nPorous
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
-USE MOD_Particle_Vars               ,ONLY:nSpecies,Species
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

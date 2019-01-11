@@ -286,11 +286,6 @@ PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SideID)))
 
 IF(PorousBCID.GT.0) THEN
   pBCSideID = MapSurfSideToPorousSide(SurfSideID)
-  IF(pBCSideID.EQ.0) THEN
-  ! Particle will be reflected regurarly
-    IPWRITE(*,*) 'DOES THIS HAPPEN?!'
-    RETURN
-  END IF
   IF(PorousBC(PorousBCID)%UsingRegion) THEN
     IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.0) THEN
       ! Side is completey inside the porous region
