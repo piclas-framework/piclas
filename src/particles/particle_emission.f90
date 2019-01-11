@@ -4038,6 +4038,13 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
       END IF
       Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type')
+      IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on refelctive BC
+        IF ((Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4).AND. &
+            (.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow)) THEN
+          CALL abort(__STAMP__&
+            ,'ERROR in init of adaptive inlet: constant inlet mass flow at reflective BC without circularInflow!')
+        END IF
+      END IF
       SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
