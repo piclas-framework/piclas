@@ -76,7 +76,7 @@ CALL prms%CreateRealOption(     'Part-PorousBC[$]-DeltaPumpingSpeed-Ki' &
                                 , 'Integral factor for the pumping speed controller, Ki=0 -> only proportional part is used' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-PorousBC[$]-Region' &
-                                , 'Posibility to define a region, allowing small geometrical features such as holes w/o meshing. ' //&
+                                , 'Define a region, allowing small geometrical features such as holes w/o meshing. ' //&
                                   'Option: circular, requires the definition of the parameters -normalDir, origin, rmax/rmin' &
                                 , 'none', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-PorousBC[$]-normalDir' &

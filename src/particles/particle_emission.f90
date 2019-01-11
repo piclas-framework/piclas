@@ -150,19 +150,22 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
 
 CALL prms%CreateLogicalOption(  'OutputSurfaceFluxLinked' &
                                 , 'Flag to print the SurfaceFlux-linked Info' , '.FALSE.')
-
+! Parameters for adaptive boundary conditions
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet' &
-                                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                        'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+                                      , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Type' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+                                , 'Define the type of the adaptive boundary condition. Options:\n' //&
+                                  '(1) Const. pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(2) Const. pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(3) Const. massflow inlet after Farbar & Boyd 2014 (Type 2): Number of particles for regular '//&
+                                  'surface flux is calculated with velocity and given mass flow. Requires an open BC.' //&
+                                  '(4) Const. massflow inlet after Lei 2017 (cf_3): N_in = N_mdot + N_out (counting particles, '//&
+                                  'which exist the domain through the adaptive BC).' &
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.)
+                                , 'Pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
+                                , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticleEmission
                                                                                                    
