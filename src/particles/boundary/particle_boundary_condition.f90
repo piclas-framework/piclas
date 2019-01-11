@@ -3047,10 +3047,9 @@ REAL,INTENT(INOUT)            :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: point(1:2), intersectionPoint(1:3), radius
-INTEGER                              :: iSpec, iSF, SurfSideID
+INTEGER                              :: iSpec, iSF
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-SurfSideID = SurfMesh%SideIDToSurfID(SideID)
 DO iSF=1,Species(iSpec)%nSurfacefluxBCs
   IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.PartBound%MapToPartBC(BC(SideID))) THEN
     IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
@@ -3069,10 +3068,8 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
           PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
         END IF ! CalcPartBalance
       END IF
-    ELSE
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
-      END IF
+    ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
     END IF
   END IF
 END DO
