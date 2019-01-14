@@ -3069,6 +3069,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
         END IF ! CalcPartBalance
       END IF
     ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+      ! Case when this routine is used in the open BC case for the constant mass flow type 4 BC (UseAdaptiveInlet=TRUE)
       Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
     END IF
   END IF

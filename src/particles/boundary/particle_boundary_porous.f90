@@ -215,6 +215,7 @@ DO iPorousBC = 1, nPorousBC
   PorousBC(iPorousBC)%RegionSideType = 0
   ALLOCATE(PorousBC(iPorousBC)%Sample(1:PorousBC(iPorousBC)%SideNumber,1:nPorousBCVars))
   PorousBC(iPorousBC)%Sample = 0
+  PorousBC(iPorousBC)%Output = 0.
 END DO
 
 ! Mapping of the porous BC sides to the sides and initialization of the pumping speed
@@ -265,6 +266,8 @@ USE MOD_Globals
 USE MOD_Particle_Vars,          ONLY:PDM, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSurfSideToPorousSide
 USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -312,6 +315,10 @@ IF(PorousBCID.GT.0) THEN
       PDM%ParticleInside(iPart)=.FALSE.
       alpha=-1.
       PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + 1
+      IF(CalcPartBalance) THEN
+        nPartOut(iSpec)=nPartOut(iSpec) + 1
+        PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
+      END IF ! CalcPartBalance
     END IF
   END IF
 END IF
