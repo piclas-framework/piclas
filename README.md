@@ -1,6 +1,7 @@
 # Welcome to PICLas
 
-[![build status](https://gitlab.com:piclas/piclas/badges/master/build.svg)](https://gitlab.com:piclas/piclas/builds/)
+[![build status](https://gitlab.com/piclas/piclas/badges/master.dev/build.svg)](https://gitlab.com/piclas/piclas/pipelines)
+
 
 ## PICLas Documentation (PDF available)
 
