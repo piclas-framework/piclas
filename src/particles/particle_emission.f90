@@ -151,9 +151,9 @@ CALL prms%CreateLogicalOption(  'DoForceFreeSurfaceFlux' &
 CALL prms%CreateLogicalOption(  'OutputSurfaceFluxLinked' &
                                 , 'Flag to print the SurfaceFlux-linked Info' , '.FALSE.')
 ! Parameters for adaptive boundary conditions
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet' &
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
                                       , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Type' &
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
                                 , 'Define the type of the adaptive boundary condition. Options:\n' //&
                                   '(1) Const. pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
                                   '(2) Const. pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
@@ -162,9 +162,9 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Ty
                                   '(4) Const. massflow inlet after Lei 2017 (cf_3): N_in = N_mdot + N_out (counting particles, '//&
                                   'which exist the domain through the adaptive BC).' &
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Pressure' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Pressure' &
                                 , 'Pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-AdaptiveInlet-Massflow' &
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflow' &
                                 , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticleEmission
@@ -3658,7 +3658,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
                                      Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
-USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptiveInlet, UseCircularInflow
+USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, offsetElem
@@ -3790,7 +3790,7 @@ IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 #endif /*CODE_ANALYZE*/ 
 
 UseCircularInflow=.FALSE.
-UseAdaptiveInlet=.FALSE.
+UseAdaptive=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=nDataBC_CollectCharges !sides may be also used for collectcharges of floating potential!!!
 DoSurfaceFlux=.FALSE.
@@ -4029,10 +4029,10 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
     END IF
     ! ================================= ADAPTIVE BC READ IN START =================================================================!
-    Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet','.FALSE.')
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+    Species(iSpec)%Surfaceflux(iSF)%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive','.FALSE.')
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       DoPoissonRounding = .TRUE.
-      UseAdaptiveInlet  = .TRUE.
+      UseAdaptive  = .TRUE.
       ! Total area of surface flux
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Pi*(Species(iSpec)%Surfaceflux(iSF)%rmax &
@@ -4040,25 +4040,25 @@ __STAMP__&
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
       END IF
-      Species(iSpec)%Surfaceflux(iSF)%AdaptInType         = GETINT('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Type')
+      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on refelctive BC
-        IF ((Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4).AND. &
+        IF ((Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4).AND. &
             (.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow)) THEN
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: constant inlet mass flow at reflective BC without circularInflow!')
         END IF
       END IF
-      SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
+      SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
       !              Case 3: Inlet Type 2, constant mass flow and temperature
       ! Lei2017    - Case 4: cf_3, constant mass flow and temperature N through mass flow and particles out
       CASE(1,2)
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Pressure')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure  = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Pressure')
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
       CASE(3,4)
-        Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-AdaptiveInlet-Massflow')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
         IF(Species(iSpec)%Surfaceflux(iSF)%VeloIC.LE.0.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
@@ -4230,7 +4230,7 @@ DEALLOCATE(TmpMapToBC &
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
-IF((nAdaptiveBC.GT.0).OR.UseAdaptiveInlet.OR.(nPorousBC.GT.0))THEN
+IF((nAdaptiveBC.GT.0).OR.UseAdaptive.OR.(nPorousBC.GT.0))THEN
   ALLOCATE(Adaptive_MacroVal(1:13,1:nElems,1:nSpecies))
   Adaptive_MacroVal(:,:,:)=0
   ! If restart is done, check if adptiveinfo exists in state, read it in and write to adaptive_macrovalues
@@ -4272,7 +4272,7 @@ DO iSpec=1,nSpecies
     END IF
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
       ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
       Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
@@ -4307,7 +4307,7 @@ DO iSpec=1,nSpecies
         ELSE !TriaSurfaceFlux
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
-            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+            IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
               IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
                 Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Species(iSpec)%Surfaceflux(iSF)%totalAreaSF &
                                                               + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
@@ -4403,9 +4403,9 @@ DO iSpec=1,nSpecies
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
           IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
         END IF ! CircularInflow: check r-bounds
-        IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
+        IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
             vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
@@ -4473,10 +4473,10 @@ __STAMP__&
             END IF !.NOT.VeloIsNormal
           END IF
         END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
-        IF ((.NOT.noAdaptive).OR.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet)) THEN
+        IF ((.NOT.noAdaptive).OR.(Species(iSpec)%Surfaceflux(iSF)%Adaptive)) THEN
           IF (.NOT.AdaptiveInitDone) THEN
             ! initialize velocity, trans_temperature and density of macrovalues
-            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+            IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
               ! ofc, a file for every macrovalue...dirty fix
               FileID = Species(iSpec)%Init(0)%ElemPartDensityFileID
             ELSE
@@ -4546,7 +4546,7 @@ __STAMP__&
 #endif  /*MPI*/
     END IF !ReduceNoise
 #ifdef MPI
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         totalAreaSF_global = 0.0
         CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
@@ -4768,7 +4768,7 @@ DO iSpec=1,nSpecies
         shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
       CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
@@ -4914,7 +4914,7 @@ __STAMP__&
 !----- 1.: set positions
         !-- compute number of to be inserted particles
         IF (noAdaptive) THEN
-          IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+          IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
             IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
               PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
   !IPWRITE(*,*) PartInsSubSide
@@ -4934,8 +4934,8 @@ __STAMP__&
               PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
                              * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR+RandVal1)
             END IF !DoPoissonRounding
-          ELSE !Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet
-            SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptInType)
+          ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
+            SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
             CASE(1) ! Pressure inlet (pressure, temperature const)
               ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
@@ -4979,7 +4979,7 @@ __STAMP__&
             CASE(4)
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
             CASE DEFAULT
-              SWRITE(*,*) 'Selected adaptive boundary condition type: ', Species(iSpec)%Surfaceflux(iSF)%AdaptInType
+              SWRITE(*,*) 'Selected adaptive boundary condition type: ', Species(iSpec)%Surfaceflux(iSF)%AdaptiveType
               CALL abort(&
   __STAMP__&
   ,'ERROR Adaptive Inlet: Wrong adaptive type for Surfaceflux!')
@@ -5014,7 +5014,7 @@ __STAMP__&
   __STAMP__&
   ,'wrong velo-distri for adaptive Surfaceflux!')
             END SELECT
-            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+            IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
                                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow * dt*RKdtFrac    &
@@ -5391,8 +5391,8 @@ __STAMP__&
 #endif /*USE_LOADBALANCE*/
     END DO ! iSide
 
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
     END IF
 
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
@@ -5668,15 +5668,15 @@ __STAMP__&
   Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
   Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
 ELSE
-  IF(.NOT.Species(FractNbr)%Surfaceflux(iSF)%AdaptiveInlet) THEN
+  IF(.NOT.Species(FractNbr)%Surfaceflux(iSF)%Adaptive) THEN
     VeloIC = Species(FractNbr)%Surfaceflux(iSF)%VeloIC
     T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
     projFak = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
     Velo_t1 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
     Velo_t2 = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
-  ELSE !Species(iSpec)%Surfaceflux(iSF)%AdaptiveInlet
-    SELECT CASE(Species(FractNbr)%Surfaceflux(iSF)%AdaptInType)
+  ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
+    SELECT CASE(Species(FractNbr)%Surfaceflux(iSF)%AdaptiveType)
     CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(2) ! adaptive Outlet/freestream

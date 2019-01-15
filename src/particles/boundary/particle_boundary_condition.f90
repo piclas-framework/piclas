@@ -62,7 +62,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, UseCircularInflow, UseAdaptiveInlet
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles, PartSurfaceModel, UseCircularInflow, UseAdaptive
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,nPorousBC
 USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryTreatment
@@ -123,7 +123,7 @@ CASE(1) !PartBound%OpenBC)
       IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
     END IF
   END IF
-  IF(UseAdaptiveInlet) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
+  IF(UseAdaptive) CALL AdaptiveBoundaryTreatment(iPart,SideID,alpha,PartTrajectory)
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -3060,7 +3060,7 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
         PDM%ParticleInside(iPart)=.FALSE.
         alpha=-1.
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
           Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
         END IF
         IF(CalcPartBalance) THEN
@@ -3068,8 +3068,8 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
           PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
         END IF ! CalcPartBalance
       END IF
-    ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptInType.EQ.4) THEN
-      ! Case when this routine is used in the open BC case for the constant mass flow type 4 BC (UseAdaptiveInlet=TRUE)
+    ELSE IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+      ! Case when this routine is used in the open BC case for the constant mass flow type 4 BC (UseAdaptive=TRUE)
       Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut + 1
     END IF
   END IF

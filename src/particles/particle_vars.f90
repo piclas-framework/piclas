@@ -291,8 +291,8 @@ TYPE typeSurfaceflux
                                                                              ! used for linked list during sampling
   TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
-  LOGICAL                                :: AdaptiveInlet                    !
-  INTEGER                                :: AdaptInType                      !
+  LOGICAL                                :: Adaptive                    !
+  INTEGER                                :: AdaptiveType                      !
   REAL                                   :: AdaptInMassflow                  !
   REAL                                   :: AdaptivePressure                 !
   REAL                                   :: totalAreaSF                      !
@@ -318,7 +318,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 LOGICAL                                  :: UseCircularInflow                !
-LOGICAL                                  :: UseAdaptiveInlet                 !
+LOGICAL                                  :: UseAdaptive                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations

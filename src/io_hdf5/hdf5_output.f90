@@ -129,7 +129,7 @@ USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
-USE MOD_Particle_Vars          ,ONLY: UseAdaptiveInlet
+USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -367,7 +367,7 @@ END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-IF(UseAdaptiveInlet.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)

@@ -1284,8 +1284,8 @@ __STAMP__&
 ,'wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
         END SELECT
       ELSE
-        IF(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveInlet) THEN
-          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptInType)
+        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
             CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
               TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
               TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
