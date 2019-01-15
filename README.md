@@ -2,6 +2,18 @@
 
 [![build status](https://gitlab.com:piclas/piclas/badges/master/build.svg)](https://gitlab.com:piclas/piclas/builds/)
 
+## PICLas Documentation (PDF available)
+
+1. [Introduction](doc/userguide/000_userguide.md)
+1. [Getting Started](doc/userguide/010_gettingstarted.md)
+1. [Code Options](020_codeoptions.md)
+1. [Parameters](021_parameter.md)
+1. [Workflow](030_workflow.md)
+1. [Tools](040_toolsoverview.md)
+1. [Tutorials](050_tutorials.md)
+1. [Unit Tests](070_unittest.md)
+1. [Installation Guide for clusters](080_installationguidelines.md)
+
 ## Installation / Documentation
 
 For installation instruction see [Install.md](INSTALL.md).
