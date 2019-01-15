@@ -110,7 +110,6 @@ TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample
 INTEGER                                 :: nPorousBC              ! Number of porous BCs
 INTEGER                                 :: nPorousBCVars = 2      ! 1: Number of particles impinging the porous BC
                                                                   ! 2: Number of particles deleted at the porous BC
-INTEGER                                 :: PorousBCOutputIter     !
 INTEGER                                 :: PorousBCSampIter       !
 REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
 

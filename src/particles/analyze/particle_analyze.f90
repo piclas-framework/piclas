@@ -154,6 +154,9 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAME
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
                                                              'Flag, if the current calculation is a restart. '&
                                                            , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output of porous BCs such pumping speed, removal '//&
+                                                             'probability and pressure (normalized with the given pressure). '//&
+                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -420,6 +423,10 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
+! Output for porous BC: Pump averaged values
+CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo','.FALSE.')
+IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -470,6 +477,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
+USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -481,7 +489,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -766,6 +774,22 @@ REAL                :: tLBStart
             END DO
           END IF
         END IF
+        IF(CalcPorousBCInfo) THEN
+          DO iPBC = 1, nPorousBC
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Measure',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Control',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-RemovalProbability',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PressureNorm',' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
         IF(DSMC%CalcQualityFactors) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmean',' '
@@ -898,6 +922,16 @@ REAL                :: tLBStart
       MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        CALL MPI_REDUCE(MPI_IN_PLACE,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+        IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
+          ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
+          ! Other variales are averaged over the elements
+          PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
+        END IF
+      END DO
+    END IF
   ELSE ! no Root
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -914,6 +948,11 @@ REAL                :: tLBStart
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
     END IF
 #endif
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+      END DO
+    END IF
   END IF
 #endif /*MPI*/
 #if USE_LOADBALANCE
@@ -1100,6 +1139,22 @@ IF (PartMPI%MPIROOT) THEN
         END DO
       END IF
     END IF
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(2)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(3)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(4)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(5)
+        OutputCounter = OutputCounter + 1
+      END DO
+    END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCollProb
@@ -1128,7 +1183,12 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif    /* MPI */
 
-  !104    FORMAT (e25.14)
+! Reset output variables
+IF(CalcPorousBCInfo) THEN
+  DO iPBC = 1,nPorousBC
+    PorousBC(iPBC)%Output(1:5) = 0.
+  END DO
+END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()

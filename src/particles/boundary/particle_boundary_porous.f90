@@ -56,9 +56,6 @@ CALL prms%CreateIntOption(      'Part-nPorousBC'&
 CALL prms%CreateIntOption(      'Part-PorousBC-IterationMacroVal' &
                                 , 'Number of iterations the pressure and density will be sampled before updating the value. '//&
                                   'Alternative is to constantly update with a relaxation factor', '0')
-CALL prms%CreateIntOption(      'Part-PorousBC-IterationOutput' &
-                                , 'Every number of iterations an output (PorousBCInfo.csv) will be given. '//&
-                                  'Choose larger numbers on HPC/parallel systems to avoid performance decrease', '1')
 CALL prms%CreateIntOption(      'Part-PorousBC[$]-BC' &
                                 , 'PartBound to be a porous boundary', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-PorousBC[$]-Pressure' &
@@ -104,7 +101,7 @@ USE MOD_ReadInTools
 USE MOD_Mesh_Vars,                      ONLY: BC,nElems, SideToElem
 USE MOD_Particle_Vars,                  ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars,         ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh, nPorousBCVars
-USE MOD_Particle_Boundary_Vars,         ONLY: MapSurfSideToPorousSide, PorousBCOutputIter, PorousBCSampIter, PorousBCMacroVal
+USE MOD_Particle_Boundary_Vars,         ONLY: MapSurfSideToPorousSide, PorousBCSampIter, PorousBCMacroVal
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -119,17 +116,11 @@ REAL                  :: rmin, rmax
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
-PorousBCOutputIter = GETINT('Part-PorousBC-IterationOutput', '1')
 PorousBCSampIter = GETINT('Part-PorousBC-IterationMacroVal', '0')
 
 IF(PorousBCSampIter.GT.0) THEN
   ALLOCATE(PorousBCMacroVal(1:7,1:nElems,1:nSpecies))
   PorousBCMacroVal = 0.0
-  IF(PorousBCOutputIter.LT.PorousBCSampIter) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR: IterationForOutput should be larger than or equal to IterationForMacroVal!')
-  END IF
 END IF
 
 ALLOCATE(PorousBC(1:nPorousBC))
@@ -215,6 +206,7 @@ DO iPorousBC = 1, nPorousBC
   PorousBC(iPorousBC)%RegionSideType = 0
   ALLOCATE(PorousBC(iPorousBC)%Sample(1:PorousBC(iPorousBC)%SideNumber,1:nPorousBCVars))
   PorousBC(iPorousBC)%Sample = 0
+  ! Array for output variables in PartAnalyze.csv
   PorousBC(iPorousBC)%Output = 0.
 END DO
 
@@ -333,9 +325,10 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, PorousBCOutputIter
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC
 USE MOD_Mesh_Vars,              ONLY:SideToElem
 USE MOD_Timedisc_Vars,          ONLY:iter, dt
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
 #endif /*MPI*/
@@ -410,54 +403,25 @@ DO iPBC = 1,nPorousBC
     ! Storing the pumping speed for the restart state file
     Adaptive_MacroVal(11,ElemID,1) = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
     ! -------- Sampling for output -------------------------------------------------------------------------------------------------
-    ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
-    PorousBC(iPBC)%Output(2) = PorousBC(iPBC)%Output(2) + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) * PartWeight &
-                                                                / (SUM(Adaptive_MacroVal(7,ElemID,1:nSpecies))*dt)
-    IF(PorousBC(iPBC)%Sample(iPBCSideID,1).GT.0) THEN
-      ! Counting only sides, where a particle hit the pump
-      PorousBC(iPBC)%Output(1) = PorousBC(iPBC)%Output(1) + 1.
-      ! Removal probability
-      PorousBC(iPBC)%Output(3) = PorousBC(iPBC)%Output(3) + PorousBC(iPBC)%RemovalProbability(iPBCSideID)
-      ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
-      PorousBC(iPBC)%Output(4) = PorousBC(iPBC)%Output(4) + SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
-      ! Pumping speed S (m^3/s) used at the pump to calculate the removal probability (-PumpSpeed-Control-)
-      PorousBC(iPBC)%Output(5) = PorousBC(iPBC)%Output(5) + PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
+    IF(CalcPorousBCInfo) THEN
+      ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
+      PorousBC(iPBC)%Output(2) = PorousBC(iPBC)%Output(2) + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) * PartWeight &
+                                                                  / (SUM(Adaptive_MacroVal(7,ElemID,1:nSpecies))*dt)
+      IF(PorousBC(iPBC)%Sample(iPBCSideID,1).GT.0) THEN
+        ! Counting only sides, where a particle hit the pump
+        PorousBC(iPBC)%Output(1) = PorousBC(iPBC)%Output(1) + 1.
+        ! Pumping speed S (m^3/s) used at the pump to calculate the removal probability (-PumpSpeed-Control-)
+        PorousBC(iPBC)%Output(3) = PorousBC(iPBC)%Output(3) + PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
+        ! Removal probability
+        PorousBC(iPBC)%Output(4) = PorousBC(iPBC)%Output(4) + PorousBC(iPBC)%RemovalProbability(iPBCSideID)
+        ! Normalized pressure at the pump (sampled over PumpSampIter number of iterations)
+        PorousBC(iPBC)%Output(5) = PorousBC(iPBC)%Output(5) + SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
+      END IF
     END IF
     ! Reset of the sampled particle numbers at the pump
     PorousBC(iPBC)%Sample(iPBCSideID,1:2) = 0
   END DO  ! iPBCSideID=1, SideNumber
 END DO    ! iPBC=1, nPorousBC
-
-IF(MOD(iter+1,PorousBCOutputIter).EQ.0) THEN
-#ifdef MPI
-  ! Communicating the values and summation at the root
-  DO iPBC = 1, nPorousBC
-    IF(MPIRoot) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    ELSE
-      CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-    END IF
-  END DO
-  IF(MPIRoot) THEN
-#endif
-    ! Averaging of the pump info across the whole pump area
-    DO iPBC = 1,nPorousBC
-      IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
-        ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
-        PorousBC(iPBC)%Output(2) = PorousBC(iPBC)%Output(2) / REAL(PorousBCOutputIter)
-        ! Other variales are averaged over the elements (sum of elements increasing each PorousBCOutputIter)
-        PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
-      END IF
-    END DO
-    CALL WritePorousBCInfo()
-#ifdef MPI
-  END IF
-#endif
-  ! Reset of sampled values after the output
-  DO iPBC = 1,nPorousBC
-    PorousBC(iPBC)%Output(1:5) = 0.
-  END DO
-END IF
 
 ! Exchange removal probability for halo cells
 #ifdef MPI
@@ -657,79 +621,6 @@ END DO
 
 END SUBROUTINE ExchangeRemovalProbabilityPorousBC
 #endif /*MPI*/
-
-
-SUBROUTINE WritePorousBCInfo()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_TimeDisc_Vars          ,ONLY: time, dt
-USE MOD_Globals                ,ONLY: FILEEXISTS
-USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_Particle_Boundary_Vars ,ONLY: nPorousBC, PorousBC
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                     :: OutputCounter, unit_index, iPBC
-CHARACTER(LEN=350)          :: outfile
-LOGICAL                     :: isOpen
-!===================================================================================================================================
-unit_index = 789
-outfile = 'PorousBCInfo.csv'
-OutputCounter = 2
-
-INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-IF (.NOT.isOpen) THEN
-  IF (DoRestart.and.FILEEXISTS(outfile)) THEN
-    OPEN(unit_index,file=TRIM(outfile),action="WRITE",position="APPEND",status="OLD")
-  ELSE
-    OPEN(unit_index,file=TRIM(outfile),action="WRITE",status="REPLACE")
-    WRITE(unit_index,'(A4)',ADVANCE='NO') 'Time'
-    DO iPBC = 1, nPorousBC
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Measure-', iPBC
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPBC = 1, nPorousBC
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A13,I3.3)',ADVANCE='NO') OutputCounter,'-RemovalProb-', iPBC
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPBC = 1, nPorousBC
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A11,I3.3)',ADVANCE='NO') OutputCounter,'-PressNorm-', iPBC
-      OutputCounter = OutputCounter + 1
-    END DO
-    DO iPBC = 1, nPorousBC
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(I3.3,A19,I3.3)',ADVANCE='NO') OutputCounter,'-PumpSpeed-Control-', iPBC
-      OutputCounter = OutputCounter + 1
-    END DO
-    WRITE(unit_index,'(A1)') ' '
-  END IF
-END IF
-WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time+dt
-DO iPBC=1, nPorousBC
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(2)
-END DO
-DO iPBC=1, nPorousBC
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(3)
-END DO
-DO iPBC=1, nPorousBC
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(4)
-END DO
-DO iPBC=1, nPorousBC
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(5)
-END DO
-WRITE(unit_index,'(A1)') ' '
-
-END SUBROUTINE WritePorousBCInfo
 
 
 SUBROUTINE GetRadialDistance2D(BCSideID,dir,origin,rmin,rmax) 
