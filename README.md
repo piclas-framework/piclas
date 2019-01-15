@@ -6,13 +6,13 @@
 
 1. [Introduction](doc/userguide/000_userguide.md)
 1. [Getting Started](doc/userguide/010_gettingstarted.md)
-1. [Code Options](020_codeoptions.md)
-1. [Parameters](021_parameter.md)
-1. [Workflow](030_workflow.md)
-1. [Tools](040_toolsoverview.md)
-1. [Tutorials](050_tutorials.md)
-1. [Unit Tests](070_unittest.md)
-1. [Installation Guide for clusters](080_installationguidelines.md)
+1. [Code Options](doc/userguide/020_codeoptions.md)
+1. [Parameters](doc/userguide/021_parameter.md)
+1. [Workflow](doc/userguide/030_workflow.md)
+1. [Tools](doc/userguide/040_toolsoverview.md)
+1. [Tutorials](doc/userguide/050_tutorials.md)
+1. [Unit Tests](doc/userguide/070_unittest.md)
+1. [Installation Guide for clusters](doc/userguide/080_installationguidelines.md)
 
 ## Installation / Documentation
 
