@@ -504,13 +504,14 @@ SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
-                                     , sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
-                                     ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
-                                      TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot,Beam_t0
-USE MOD_Equation_Vars,           ONLY:TEMode
-USE MOD_TimeDisc_Vars,    ONLY: dt
+USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Equation_Vars ,ONLY: c,c2,eps0,WaveVector,c_inv,WaveBasePoint&
+                             ,sigma_t, E_0_vec,BeamIdir1,BeamIdir2,BeamMainDir,BeamWaveNumber &
+                             ,BeamOmega, E_0,TEScale,TERotation,TEPulse,TEFrequency,TEPolarization,Beam_w0,&
+                             TERadius,sBeam_w0_2,xDipole,tActive,TEModeRoot,Beam_t0,DoExactFlux,ExactFluxDir,&
+                             ExactFluxPosition
+USE MOD_Equation_Vars ,ONLY: TEMode
+USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -878,7 +879,28 @@ CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary
                                           (x(BeamIdir2)-WaveBasePoint(BeamIdir2))**2)*sBeam_w0_2   & ! (x^2+y^2)/(w_0^2)
                                     -((x(BeamMainDir)-WaveBasePoint(BeamMainDir))**2)/((2*sigma_t*c)**2))  , &
                    timeFac       => COS(BeamWaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-BeamOmega*tShift) ) ! COS() function
-          resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
+          ! For setting the correct initial condition when using ExactFlux
+          IF(DoExactFlux)THEN
+            IF(ExactFluxDir.EQ.BeamMainDir)THEN
+              ASSOCIATE( plusminus => WaveVector(BeamMainDir)/ABS(WaveVector(BeamMainDir)) )
+                ! Set the field "in front of" the ExactFlux plane to the IC condition (compatible with the BC)
+                IF( (x(BeamMainDir)*plusminus.GE.ExactFluxPosition*plusminus) .OR.&
+                    (ALMOSTEQUALRELATIVE(x(BeamMainDir),ExactFluxPosition,1.0E-4)) )THEN
+
+                  resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
+                ELSE ! Set the field "behind" the ExactFlux plane to zero
+                  resu(1:3)=0.
+                END IF
+              END ASSOCIATE
+            ELSE
+              CALL abort(&
+                  __STAMP__&
+                  ,'ExactFunction=16 (laser pulse IC+BC) together with ExactFlux can only '//&
+                  'be used with ExactFluxDir=BeamMainDir (in BeamMainDir-direction).')
+            END IF
+          ELSE ! Default: no ExactFlux is used
+            resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
+          END IF
         END ASSOCIATE
       ELSE ! Boundary condition: BC
         ASSOCIATE( spatialWindow  => EXP(-((x(BeamIdir1)-WaveBasePoint(BeamIdir1))**2+&
@@ -1335,8 +1357,8 @@ INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
 INTEGER             :: iElem,iSide,SideID,nExactFluxMasterInterFaces,sumExactFluxMasterInterFaces
 !===================================================================================================================================
 ! get x,y, or z-position of interface
-ExactFluxDir = GETINT('FluxDir','-1') 
-IF(ExactFluxDir.EQ.-1)THEN
+ExactFluxDir = GETINT('FluxDir','-1')  ! old name: remove in 2019
+IF(ExactFluxDir.LE.0)THEN
   ExactFluxDir = GETINT('ExactFluxDir','3')
 END IF
 ExactFluxPosition    = GETREAL('ExactFluxPosition') ! initialize empty to force abort when values is not supplied
