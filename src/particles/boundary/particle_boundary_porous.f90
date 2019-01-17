@@ -325,10 +325,11 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:Species, nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMesh, nPorousBC, PorousBC, SampWall
 USE MOD_Mesh_Vars,              ONLY:SideToElem
-USE MOD_Timedisc_Vars,          ONLY:iter, dt
+USE MOD_Timedisc_Vars,          ONLY:dt
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
+USE MOD_DSMC_Vars,              ONLY:DSMC
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY: PartMPI
 #endif /*MPI*/
@@ -340,7 +341,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPBCSideID, iPBC, ElemID, SumPartPorousBC
+INTEGER                       :: iPBCSideID, iPBC, ElemID, SumPartPorousBC, SurfSideID
 REAL                          :: PumpingSpeedTemp, DeltaPressure, PartWeight
 !===================================================================================================================================
 
@@ -357,16 +358,17 @@ DO iPBC = 1,nPorousBC
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #endif
   DO iPBCSideID = 1, PorousBC(iPBC)%SideNumber
+    SurfSideID = PorousBC(iPBC)%SideList(iPBCSideID)
     ! Only treat local sides
-    IF(PorousBC(iPBC)%SideList(iPBCSideID).GT.SurfMesh%nSides) CYCLE
+    IF(SurfSideID.GT.SurfMesh%nSides) CYCLE
     IF(PorousBC(iPBC)%UsingRegion) THEN
       ! Skipping cell which are completely outside specified region
       IF(PorousBC(iPBC)%RegionSideType(iPBCSideID).EQ.1) CYCLE
     END IF
     ! Get the adjacent element to the BCSide (<- SurfSide (only reflective) <- PorousBCSide)
-    ElemID = SideToElem(1,SurfMesh%SurfIDToSideID(PorousBC(iPBC)%SideList(iPBCSideID)))
+    ElemID = SideToElem(1,SurfMesh%SurfIDToSideID(SurfSideID))
     IF (ElemID.LT.1) THEN !not sure if necessary
-      ElemID = SideToElem(2,SurfMesh%SurfIDToSideID(PorousBC(iPBC)%SideList(iPBCSideID)))
+      ElemID = SideToElem(2,SurfMesh%SurfIDToSideID(SurfSideID))
     END IF
     ! Determining the delta between current gas mixture pressure in adjacent cell and desired pressure
     DeltaPressure = SUM(Adaptive_MacroVal(12,ElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
@@ -402,7 +404,12 @@ DO iPBC = 1,nPorousBC
     END IF
     ! Storing the pumping speed for the restart state file
     Adaptive_MacroVal(11,ElemID,1) = PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID)
-    ! -------- Sampling for output -------------------------------------------------------------------------------------------------
+    ! -------- Sampling for output in DSMCSurfState --------------------------------------------------------------------------------
+    IF(DSMC%CalcSurfaceVal) THEN
+      SampWall(SurfSideID)%PumpCapacity = SampWall(SurfSideID)%PumpCapacity + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) &
+                                                              * PartWeight / (SUM(Adaptive_MacroVal(7,ElemID,1:nSpecies))*dt)
+    END IF
+    ! -------- Sampling for output in PartAnalyze ----------------------------------------------------------------------------------
     IF(CalcPorousBCInfo) THEN
       ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
       PorousBC(iPBC)%Output(2) = PorousBC(iPBC)%Output(2) + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) * PartWeight &
