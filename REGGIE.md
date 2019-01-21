@@ -41,8 +41,10 @@ see [the reggie repository](https://gitlab.iag.uni-stuttgart.de/reggie/reggie/bl
 |   06    |    CHE_PIC_single_particle_PML    |  checkin |    maxwell,PIC,RK4      |  PIC, PML | particle            |        nProcs=1,2,5,8,10                       |    DG_Solution in State          |
 |   07    |    CHE_PIC_IMD_coupling           |  checkin |    maxwell,PIC,RK4      |   mapping from IMP to PICLas    |        nProcs=1                                |    PartPata in Box               |
 | **08**  |    **CHE_DSMC_check**             |**checkin**|   **DSMC**             |                                 |                                                |                                  |
-|   08-1  | BC_surfaceflux_adaptive_constPress|          |                         |SurfaceFlux with AdaptiveType=1/2|        nProcs=4                                |    Integrated mass flux          |
-|   08-2  |       cube                        |          |                         |  Collismode=2,3                 |        nProcs=2                                |                                  |
+|   08-1  | BC_surfaceflux_adaptive_constPressure|       |                         |SurfaceFlux with AdaptiveType=1/2|        nProcs=4                                |    Integrated mass flux          |
+|   08-2  | BC_surfaceflux_adaptive_constMassflow|       |                         |SurfaceFlux with AdaptiveType=3,4|        nProcs=1                                |    Integrated mass flux          |
+|   08-3  | BC_porousBC                       |          |                         |PorousBC as a pump with 2 species|        nProcs=3                                |Total # of removed part through BC|
+|   08-4  |       cube                        |          |                         |  Collismode=2,3                 |        nProcs=2                                |                                  |
 |   09    |    CHE_PIC_maxwell_implicitBC     |  checkin |  maxwell,PIC,ImplicitO4 | Implicit reflective particle BC |        nProcs=1                                |    Particle Position             |
 
 ### Nightly
