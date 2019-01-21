@@ -350,10 +350,10 @@ IF (CalcPartBalance) THEN
   SDEALLOCATE(nPartOut)
   SDEALLOCATE(PartEkinIn)
   SDEALLOCATE(PartEkinOut)
-  ALLOCATE( nPartIn(nSpecies)     &
-          , nPartOut(nSpecies)    &
-          , PartEkinOut(nSpecies) &
-          , PartEkinIn(nSpecies)  )
+  ALLOCATE( nPartIn(nSpecies+1)     &
+          , nPartOut(nSpecies+1)    &
+          , PartEkinOut(nSpecies+1) &
+          , PartEkinIn(nSpecies+1)  )
   nPartIn=0
   nPartOut=0
   PartEkinOut=0.
@@ -594,12 +594,12 @@ REAL                :: tLBStart
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcPartBalance) THEN
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecies+1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecies+1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -668,12 +668,12 @@ REAL                :: tLBStart
           END DO
         END IF
         IF (CalcPartBalance) THEN
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecies+1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecies+1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A9,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinOut-',iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -910,9 +910,13 @@ REAL                :: tLBStart
 #endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
+      nPartOut(nSpecies+1)    = SUM(nPartOut(1:nSpecies))
+      PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
+      PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1003,11 +1007,11 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartCharge(3)
     END IF
     IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecies+1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecies+1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
@@ -1047,11 +1051,11 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
     IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecies+1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartEkinIn(iSpec)
       END DO
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecies+1
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartEkinOut(iSpec)
       END DO
