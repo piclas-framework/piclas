@@ -17,7 +17,53 @@ Provided the mesh file has been set up, its location must be specified in the pa
 
     MeshFile=[path to mesh file.h5]
 
+## Compiler options \label{sec:compileroptions}
+This section describes the main configuration options which can be set when building **PICLas** using CMake. 
+Some options are dependent on others being enabled (or disabled), so the available ones may change. 
+
+The first set of options describe general CMake behaviour:
+
+* ``CMAKE_BUILD_TYPE``:
+
+    This statically specifies what build type (configuration) will be built in this build tree. Possible values are
+    * **Release**
     
+        "Normal" execution.
+    
+    * **Profile**
+    
+        Performance profiling using gprof.
+    
+    * **Debug**
+    
+        Debug compiler for detailed error messages during code development.
+    
+    * **SANI**
+    
+        Sanitizer compiler for even more detailed error messages during code development.
+    
+* ``CMAKE_HOSTNAME``:
+
+    This will display the host name of the machine you are compiling on.
+
+* ``CMAKE_INSTALL_PREFIX``:
+
+    If “make install” is invoked or INSTALL is built, this directory is prepended onto all install directories. This variable defaults to /usr/local on UNIX.
+
+For some external libraries and programs that **PICLas** uses, the following options apply:
+
+* ``CTAGS_PATH``:
+
+    This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
+
+* ``PICLas_BUILD_HDF5``: ON/OFF
+
+    This will be set to ON if no prebuilt HDF5 installation was found on your machine. In this case a HDF5 version will be build and used instead.
+
+* ``HDF5_DIR``:
+
+    If you want to use a prebuilt HDF5 library that has been build using the CMake system, this directory should contain the CMake configuration file for HDF5 (optional).
+
 ## Solver settings
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are
@@ -51,11 +97,11 @@ All other options are set in the parameter file. The most important steps are
         
 * **Choose a Riemann solver**
 
-    The Riemann solver defines how inter-element coupling is accomplished. The available variants are listed in Section \ref{sec:parameterfile}. Use the ``Riemann`` and the ``RiemannBC`` options to specify which Riemann solver is to be used at internal interfaces and at Dirichlet boundary conditions, respectively. The default Riemann solver is "Roe with entropy fix". 
+    The Riemann solver defines how inter-element coupling is accomplished. The available variants are listed in Section \ref{chap:parameterfile}. Use the ``Riemann`` and the ``RiemannBC`` options to specify which Riemann solver is to be used at internal interfaces and at Dirichlet boundary conditions, respectively. The default Riemann solver is "Roe with entropy fix". 
 
 * **Choose a time discretization method** 
 
-    The time discretization method is set using the option ``TimeDiscMethod``. Various explicit Runge-Kutta variants are available and listed in Section \ref{sec:parameterfile}. By default, the low-storage fourth order Runge-Kutta scheme by [@Carpenter1994] is employed.
+    The time discretization method is set using the option ``TimeDiscMethod``. Various explicit Runge-Kutta variants are available and listed in Section \ref{chap:parameterfile}. By default, the low-storage fourth order Runge-Kutta scheme by [@Carpenter1994] is employed.
 
 
 ## Initial and boundary conditions

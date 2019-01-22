@@ -47,8 +47,6 @@ the simulation code's features from a user and a developer point of view.
   code up to running a first simulation and visualizing the simulation results. In addition, it 
   provides an overview of the whole simulation framework and the currently implemented features.
 
-* Chapter \ref{chap:codeoptions} lists the most important compiler and runtime options.
-
 * Chapter \ref{chap:workflow} is meant as a complete user guide with a detailed description how to 
   use and apply the features of **PICLas** from a user's point of view. This includes setting up 
   solver settings, initial and boundary conditions, the mesh interface, parallel execution and the 

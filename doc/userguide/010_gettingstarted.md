@@ -208,7 +208,7 @@ A complete list of all runtime options that can be set in the parameter file can
 piclas --help
 ~~~~~~~
 
-It is also supplied in Section \ref{sec:parameterfile}. The ```--help``` option also works for most other **PICLas** tools.
+It is also supplied in Section \ref{chap:parameterfile}. The ```--help``` option also works for most other **PICLas** tools.
 
 ### posti_visu tool {-}
 
