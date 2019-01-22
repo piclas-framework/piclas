@@ -120,7 +120,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Axial direction of coordinates in polar system', '1', numberedmulti=.TRUE.)
+                                  'Axial direction of coordinates in polar system', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
                                 , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?) coordinates of polar system' , '0.0 , 0.0'&
                                 ,  numberedmulti=.TRUE.)
@@ -3936,7 +3936,7 @@ __STAMP__&
         END IF !Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit
         IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
           UseCircularInflow=.TRUE.
-          Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir','1')
+          Species(iSpec)%Surfaceflux(iSF)%dir(1)       = GETINT('Part-Species'//TRIM(hilf2)//'-axialDir')
           IF (Species(iSpec)%Surfaceflux(iSF)%dir(1).EQ.1) THEN
             Species(iSpec)%Surfaceflux(iSF)%dir(2)=2
             Species(iSpec)%Surfaceflux(iSF)%dir(3)=3
@@ -4040,14 +4040,13 @@ __STAMP__&
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = 0.
       END IF
-      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       IF (PartBound%TargetBoundCond(Species(iSpec)%Surfaceflux(iSF)%BC).EQ.PartBound%ReflectiveBC) THEN ! iSF on refelctive BC
-        IF ((Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4).AND. &
-            (.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow)) THEN
+        IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
           CALL abort(__STAMP__&
-            ,'ERROR in init of adaptive inlet: constant inlet mass flow at reflective BC without circularInflow!')
+            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is not allowed!')
         END IF
       END IF
+      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
       !              Case 2: Outlet Type 1, constant pressure
@@ -6637,7 +6636,7 @@ INTEGER, INTENT(IN)             :: iSpec, iSF
 INTEGER                         :: iSide, BCSideID, ElemID, iLocSide, SideID, currentBC, PartInsSubSum, iSample, jSample
 INTEGER, ALLOCATABLE            :: PartInsSubSidesAdapt(:,:,:)
 REAL                            :: VeloVec(1:3), vec_nIn(1:3), veloNormal, T, ElemPartDensity, VeloIC, VeloVecIC(1:3), projFak
-REAL                            :: v_thermal, a, vSF, nVFR, RandVal1
+REAL                            :: v_thermal, a, vSF, nVFR, RandVal1, area
 !===================================================================================================================================
 
 currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
@@ -6699,18 +6698,23 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
     v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
     a = 0 !dummy for projected speed ratio in constant v-distri
+    IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      area = Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide)
+    ELSE
+      area = SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+    END IF
     !-- compute total volume flow rate through surface
     SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
     CASE('constant')
       vSF = VeloIC * projFak !Velo proj. to inwards normal
-      nVFR = MAX(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+      nVFR = MAX(area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
     CASE('maxwell','maxwell_lpn')
       IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
         v_thermal = 1.
       END IF
       a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
       vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
-      nVFR = Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide) * vSF !VFR projected to inwards normal of sub-side
+      nVFR = area * vSF !VFR projected to inwards normal of sub-side
     CASE DEFAULT
       CALL abort(&
         __STAMP__&
@@ -6732,19 +6736,22 @@ ELSE
   Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(:,:,:) = 0.
 END IF
 
-DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-  BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-  DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-    IF(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide).GT.0.0) THEN
-      Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) = &
-        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) &
-          * SurfMeshSubSideData(iSample,jSample,BCSideID)%area &
-          / Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide)
-    ELSE
-      Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) = 0.0
-    END IF
-  END DO; END DO
-END DO
+IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+  ! Scaling up the number of particles to be inserted on the triaside
+  DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+    BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+    DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+      IF(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide).GT.0.0) THEN
+        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) = &
+          Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) &
+            * SurfMeshSubSideData(iSample,jSample,BCSideID)%area &
+            / Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(iSample,jSample,iSide)
+      ELSE
+        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide) = 0.0
+      END IF
+    END DO; END DO
+  END DO
+END IF
 
 SDEALLOCATE(PartInsSubSidesAdapt)
 
