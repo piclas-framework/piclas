@@ -344,7 +344,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
@@ -354,12 +353,6 @@ REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
 
-IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
-ELSE
-  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
-END IF
-
 ! 1) get number of send particles
 PartMPIExchange%nPartsSend=0
 !ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
@@ -368,8 +361,11 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(.NOT.DoParticle(iPart)) CYCLE
+  IF(PRESENT(DoParticle_IN))THEN
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
   ElemID=PEM%Element(iPart)
   IF(ElemID.GT.PP_nElems) THEN
     PartMPIExchange%nPartsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,ElemID))=             &
@@ -396,8 +392,11 @@ IF(DoExternalParts)THEN
   PartMPIDepoSend=.FALSE.
   nPartShape=0
   DO iPart=1,PDM%ParticleVecLength
-    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-    IF(.NOT.DoParticle(iPart)) CYCLE
+    IF(PRESENT(DoParticle_IN))THEN
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+    ELSE
+      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    END IF
     IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE        ! Don't deposite neutral particles!
     CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
@@ -462,8 +461,11 @@ IF(DoExternalParts)THEN
         ELSE
           IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
             IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
-            IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
-            !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+            IF(PRESENT(DoParticle_IN))THEN
+              IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))
+            ELSE
+              IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+            END IF
             IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
             IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
             IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
@@ -481,8 +483,11 @@ IF(DoExternalParts)THEN
         END IF
       ELSE
         IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
-        IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
-        !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+        IF(PRESENT(DoParticle_IN))THEN
+          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))
+        ELSE
+          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+        END IF
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
@@ -564,17 +569,17 @@ END SUBROUTINE SendNbOfParticles
 SUBROUTINE MPIParticleSend()
 !===================================================================================================================================
 ! this routine sends the particles. Following steps are performed
-! first steps are perforemd in SendNbOfParticles
+! first steps are performed in SendNbOfParticles
 ! 1) Compute number of Send Particles
-! 2) Performe MPI_ISEND with number of particles
+! 2) Perform MPI_ISEND with number of particles
 ! Starting Here:
 ! 3) Build Message 
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are send for deposition, PartTargetProc has the information, if a particle is send
-!          and after the buld and wait for number of particles reused to build array with external parts
-!          informations in PartState,.. can be reusded, because they are not overwritten
+! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is send
+!          and after the build and wait for number of particles reused to build array with external parts
+!          informations in PartState,.. can be reused, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

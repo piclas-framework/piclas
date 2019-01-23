@@ -53,7 +53,6 @@
 #define LOGWRITE(a,b) IF(Logging) WRITE(UNIT_logOut,b)
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
 
-
 #ifdef OPTIMIZED
 #define PP_IJK     i,0,0
 #define PP_ij      i,0
@@ -61,6 +60,13 @@
 #define PP_IJK     i,j,k
 #define PP_ij      i,j
 #endif
+
+#ifdef INTKIND8
+#define MPI_INTEGER_INT_KIND MPI_INTEGER8
+#else
+#define MPI_INTEGER_INT_KIND MPI_INTEGER
+#endif
+
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
 #define XI_PLUS    3

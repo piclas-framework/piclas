@@ -1,18 +1,19 @@
 # Style Guide
 
-* Warum überhaupt ein Styleguide?
-    * Schafft ein einheitliches Erscheinungsbild und damit eine einheitliche Code-Struktur
-    * Macht das Programm verständlicher, da wichtige Informationen sofort ersichtlich sind
-    * Zwingt zu überlegter und aktiver Mitarbeit
-* Generelle Regeln:
-    * Codesprache: Englisch
-    * Maximal 132 Zeichen pro Zeile (incl. Kommentare)
-    * Einrückungen: Generell 2 Leerzeichen (keine Tabs)
-    * Zeilenumbrüche in Kommentaren -> nächste Zeile entsprechend einrücken
-    * Kommentare von Modulen bzw. Input-/Output-Variablen: Doxygen-Style
-    * Kommentare von Präprozessor-Anweisungen im C-StyleA comparison of Rosenbrock and ESDIRK methods
+* Why do we need a style guide?
+    * It creates a unified appearance and coding structure
+    * It makes the code more understandable and therefore important information is understood more
+        easily
+    * It forces the developers to think more actively about their work
+* General rules
+    * Coding language: English
+    * A maximum of 132 characters are allowed per line (incl. Comments)
+    * Indentation: 2 spaces (no tabs!)
+    * Line breaks in comments -> the following line must be indented appropriately
+    * Comments of modules and input-/output variables: Doxygen style
+    * Comments of preprocessor directives in C-Style
 
-## Header von Funktionen und Subroutinen
+## Header of Functions and Subroutines
 
     !==================================================================================================================================
     !> \brief Fills the solution array U with a initial solution.
@@ -46,40 +47,43 @@
     END DO
     END SUBROUTINE FillIni
 
-## Variablen
+## Variables
 
-* Präprozessor-Variablen: ```PP_$var```
+* Proprocessor variables: ```PP_$var```
      ```
      PP_nVar
      ```
      
-* Zählvariablen: Zählindex (klein) + Beschreibung (erster Buchstabe groß)
+* Counters: the counting variable (lower case) + description (the first character is capital case)
     ```
     DO iVar=1,PP_nVar
     ```
     
-* Variablen beginnen generell mit einem Großbuchstaben, zusammengesetzte Wörter beginnen generell groß
+* Variables generally begin with a capital letter (composite words also)
     ```
     ALLOCATE(ActualElem)
     ```
     
-* Bei einzelnen Buchstaben: Klein am Anfang zusammengesetzer Variablennamen, sonst groß. Beides möglich bei Einzelbuchstaben. Ausnahmen möglich, aber nicht erwünscht
+* When using single characters: small at the beginning when using composite words otherwise in
+  capital letters. Both is possible when purely single characters are used. Exceptions are allowed in
+  special cases, but they are not recommened.
     ```
     hTilde, TildeH, (Elem%U)
     ```
 
 
 
-## Funktionen und Kontrollstrukturen
-* FORTRAN intrinsics generell groß
+## Functions and Control Structures
+* FORTRAN intrinsics generally in capital letters
     ```
     ALLOCATE(), DO, MAX(), SQRT(), INT(), etc.
     ```
-* END-Befehl abtrennen
+* END-X is to be separated by a space
     ```
     END DO, END IF, END SUBROUTINE
     ```
-* Besonders bei längeren Schleifen, If-Abfragen, etc.: Kommentare hinzufügen
+* For loops and `IF` statements etc. comments are to be inserted at the end (and inbetween, e.g. when
+`ELSE IF` is used)
 
     ```
       DO iVar=1,PP_nVar
@@ -93,9 +97,9 @@
     ```
 
 ## USE
-* Wichtig, immer USE Statements mit
+* Very important: Always use `USE` statements with `ONLY`
 
     ```USE, ONLY: ...```
-    verwenden
-* gilt für Variablen und für Funktion/Prozedur
-* Aussnahme: Init und Finalize Routinen der entsprechenden Module
+    
+* this accounts for variables and function/subroutines
+* Execption: The initilization and finalization routines do not need the `ONLY` statement

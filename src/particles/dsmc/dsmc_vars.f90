@@ -128,7 +128,8 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
-  INTEGER                           :: NextIonizationSpecies! 
+  INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
+!                                                           ! ionization)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
