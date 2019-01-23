@@ -1406,7 +1406,7 @@ __STAMP__ &
                                  ,TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved,1)
           IF(PartIsDone)THEN
 #ifdef IMPA
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
 #endif /*IMPA*/
             CYCLE
           END IF
