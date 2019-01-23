@@ -341,7 +341,7 @@ PartitionFuncActER = Qtra * Qrot * Qvib * Qelec
 END FUNCTION PartitionFuncActER
 
 
-REAL FUNCTION PartitionFuncActDesorb(iSpec,Temp)
+REAL FUNCTION PartitionFuncActDesorb(iSpec,Temp,SurfDensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (desorption)
 !===================================================================================================================================
@@ -352,13 +352,15 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: Temp
+REAL, INTENT(IN)              :: SurfDensity
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
-Qtra = 1.
+Qtra = QPartTrans(iSpec,Temp,2)/SurfDensity
+!Qtra = 1.
 Qrot = 1.
 Qvib = QPartVib(iSpec,Temp)
 Qelec = QPartElec(iSpec,Temp)
