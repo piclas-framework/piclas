@@ -1234,18 +1234,22 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(7) = 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             TSource(8:9)      =  PartStateIntEn(i,1:2)
           ELSE
             TSource(8:9) = 0.0
           END IF
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              TSource(10)     =  PartStateIntEn(i,3)
+            ELSE
+              TSource(10) = 0.0
+            END IF
+          ELSE
+            TSource(10) = 0.0
+          END IF
         ELSE
           TSource(8:9) = 0.0
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          TSource(10)     =  PartStateIntEn(i,3)
-        ELSE
-          TSource(10) = 0.0
         END IF
       ELSE
         TSource(8:10)=0.
@@ -1383,12 +1387,14 @@ CASE('nearest_gausspoint')
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+            END IF
+          END IF
         END IF
       END IF
       Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0
@@ -1407,12 +1413,14 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+            END IF
+          END IF
         END IF
       END IF
       DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 !simpartnum
@@ -1438,18 +1446,22 @@ CASE('cell_volweight')
     TSource(7) = 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) THEN
+        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
           TSource(8:9)      =  PartStateIntEn(iPart,1:2)
         ELSE
           TSource(8:9) = 0.0
         END IF
+        IF (DSMC%ElectronicModel) THEN
+          IF (SpecDSMC(PartSpecies(iPart))%InterID.NE.4) THEN
+            TSource(10)     =  PartStateIntEn(iPart,3)
+          ELSE
+            TSource(10) = 0.0
+          END IF
+        ELSE
+          TSource(10) = 0.0
+        END IF
       ELSE
-        TSource(8:9) = 0.0
-      END IF
-      IF (DSMC%ElectronicModel) THEN
-        TSource(10)     =  PartStateIntEn(iPart,3)
-      ELSE
-        TSource(10) = 0.0
+        TSource(8:10) = 0.0
       END IF
     ELSE
       TSource(8:10)=0.
@@ -1651,14 +1663,14 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   END IF
                   Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
                   MolecPartNum = MolecPartNum + Macro_PartNum
-                  IF (DSMC%ElectronicModel) THEN
-                    IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                      Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
-                      HeavyPartNum = HeavyPartNum + Macro_PartNum
-                    END IF
-                  END IF
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
+                END IF
+                IF (DSMC%ElectronicModel) THEN
+                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                    Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
+                    HeavyPartNum = HeavyPartNum + Macro_PartNum
+                  END IF
                   Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum
                 END IF
               END IF
@@ -1756,7 +1768,9 @@ ELSE ! all other sampling types
                       , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant)
                 END IF
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
-                IF (DSMC%ElectronicModel) THEN
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
@@ -1812,10 +1826,12 @@ ELSE ! all other sampling types
                   END IF
                   DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                      /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                  IF (DSMC%ElectronicModel) THEN
-                    DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                        /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
-                  END IF
+                END IF
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
             END IF
@@ -1878,14 +1894,14 @@ ELSE ! all other sampling types
                     + DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) / (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst) &
                     * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
                 MolecPartNum = MolecPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                IF (DSMC%ElectronicModel) THEN
-                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                    DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
-                        + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                        /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &
-                        * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                    HeavyPartNum = HeavyPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                  END IF
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
+                      + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                      /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &
+                      * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
+                  HeavyPartNum = HeavyPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
                 END IF
               END IF
             END IF
