@@ -413,6 +413,7 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
 END DO
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+sum_probablities = 0.
 DO ReactNum = 0,Adsorption%ReactNum
   sum_probabilities = sum_probabilities + ProbAds(ReactNum)
 END DO

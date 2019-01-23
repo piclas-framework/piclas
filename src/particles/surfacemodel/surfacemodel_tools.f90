@@ -763,7 +763,7 @@ CASE(3) ! eley-rideal
       ParticleTemp=2*Norm_Ec/Xi_Total/BoltzmannConst
       VarPartitionFuncGas = PartitionFuncGas(SpecID, ParticleTemp)
       VarPartitionFuncSurf = PartitionFuncSurf(SpecID,WallTemp,CharaTemp)
-      VarPartitionFuncAct = PartitionFuncActER(SpecID,ProdSpec1,ProdSpec2,ParticleTemp)
+      VarPartitionFuncAct = PartitionFuncActER(SpecID,ProdSpec1,ProdSpec2,WallTemp)
       a_f = (BoltzmannConst*ParticleTemp/PlanckConst)*(VarPartitionFuncAct/(VarPartitionFuncGas*VarPartitionFuncSurf))
       CalcAdsorbReactProb = a_f*(EXP(-E_activation/(BoltzmannConst*ParticleTemp)))&
           / SQRT((BoltzmannConst*ParticleTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for particletemp
