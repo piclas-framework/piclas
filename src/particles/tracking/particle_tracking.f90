@@ -363,7 +363,7 @@ INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef IMPA
-LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
+LOGICAL                       :: doParticle
 #endif /*IMPA*/
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
@@ -395,11 +395,11 @@ DO iPart=1,PDM%ParticleVecLength
   alphaOld = -1.0
 #ifdef IMPA
   IF(PRESENT(DoParticle_IN))THEN
-    DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In(1:PDM%ParticleVecLength)
+    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
   ELSE
-    DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength)
+    DoParticle=PDM%ParticleInside(iPart)
   END IF
-  IF(DoParticle(iPart))THEN
+  IF(DoParticle)THEN
 #else
   IF (PDM%ParticleInside(iPart)) THEN
 #endif /*IMPA*/
@@ -633,7 +633,7 @@ DO iPart=1,PDM%ParticleVecLength
           PartIsDone=.TRUE.
           PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
-          DoParticle(iPart)=.FALSE.
+          DoParticle=.FALSE.
 #endif /*IMPA*/
           IF(CountNbOfLostParts) nLostParts=nLostParts+1
           EXIT
@@ -674,7 +674,7 @@ DO iPart=1,PDM%ParticleVecLength
             PartIsDone=.TRUE.
             PDM%ParticleInside(iPart)=.FALSE.
 #ifdef IMPA
-            DoParticle(iPart)=.FALSE.
+            DoParticle=.FALSE.
 #endif /*IMPA*/
             IF(CountNbOfLostParts) nLostParts=nLostParts+1
             EXIT
@@ -767,7 +767,7 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
 #ifdef IMPA
         IF(CrossedBC)THEN
-          IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+          IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
         END IF
 #endif /*IMPA*/
       CASE DEFAULT ! two or more hits
@@ -869,7 +869,7 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
 #ifdef IMPA
           IF(CrossedBC)THEN
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
           END IF
 #endif /*IMPA*/
          !! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
@@ -920,7 +920,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
 #ifdef IMPA
-        DoParticle(iPart)=.FALSE.
+        DoParticle=.FALSE.
 #endif /*IMPA*/
         CYCLE !particle is outside cell
       END IF
@@ -973,9 +973,6 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
-#ifdef IMPA
-  IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
-#endif /*IMPA*/
 END DO ! iPart
 
 #ifdef CODE_ANALYZE
@@ -984,9 +981,15 @@ END DO ! iPart
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
 #ifdef IMPA
-    IF(.NOT.DoParticle(iPart)) CYCLE
+  IF(PRESENT(DoParticle_IN))THEN
+    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
+  ELSE
+    DoParticle=PDM%ParticleInside(iPart)
+  END IF
+  IF(DoParticle)THEN
+#else
+  IF (PDM%ParticleInside(iPart)) THEN
 #endif /*IMPA*/
     IF( (PartState(iPart,1).GT.GEO%xmaxglob) &
     .OR.(PartState(iPart,1).LT.GEO%xminglob) &
@@ -995,7 +998,7 @@ DO iPart=1,PDM%ParticleVecLength
     .OR.(PartState(iPart,3).GT.GEO%zmaxglob) &
     .OR.(PartState(iPart,3).LT.GEO%zminglob) ) THEN
 #ifdef IMPA
-      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle(iPart)
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
       IF(PRESENT(nInnerNewton_In))THEN
