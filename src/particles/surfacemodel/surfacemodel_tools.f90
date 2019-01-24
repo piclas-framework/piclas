@@ -561,7 +561,8 @@ REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2, Pa
 REAL    :: SurfPartIntE, Beta, a_f, b_f, c_f, ParticleTemp
 INTEGER :: SpecID, ProdSpec1, ProdSpec2
 INTEGER :: globSide, PartBoundID, DissocNum, AssocNum
-INTEGER :: iQuant, iPolyAtMole,iDof
+INTEGER :: iDof, iPolyAtMole
+!INTEGER :: iQuant
 !REAL    :: RanNum
 REAL    :: VarPartitionFuncAct, VarPartitionFuncGas, VarPartitionFuncSurf
 REAL    :: WallTemp

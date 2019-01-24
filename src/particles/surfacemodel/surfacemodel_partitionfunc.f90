@@ -123,7 +123,7 @@ REAL, INTENT(IN)              :: Temp
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                       :: iPolyatMole, iDOF
+INTEGER                       :: iPolyatMole
 !===================================================================================================================================
 IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -183,7 +183,7 @@ REAL FUNCTION QPartElec(iSpec, Temp)
 !> Calculation of electronic partition function for particle species at given temperature
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
