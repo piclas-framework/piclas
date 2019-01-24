@@ -102,6 +102,7 @@ USE MOD_Mesh_Vars,                      ONLY: BC,nElems, SideToElem
 USE MOD_Particle_Vars,                  ONLY: nSpecies, Adaptive_MacroVal
 USE MOD_Particle_Boundary_Vars,         ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh, nPorousBCVars
 USE MOD_Particle_Boundary_Vars,         ONLY: MapSurfSideToPorousSide, PorousBCSampIter, PorousBCMacroVal
+USE MOD_Particle_Tracking_Vars,         ONLY:DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -118,6 +119,10 @@ REAL                  :: rmin, rmax
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 PorousBCSampIter = GETINT('Part-PorousBC-IterationMacroVal', '0')
 
+IF(DoRefMapping) THEN
+  CALL abort(__STAMP__&
+      ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
+END IF
 IF(PorousBCSampIter.GT.0) THEN
   ALLOCATE(PorousBCMacroVal(1:7,1:nElems,1:nSpecies))
   PorousBCMacroVal = 0.0

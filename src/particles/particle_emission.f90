@@ -3666,7 +3666,7 @@ USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSid
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
-USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
+USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, DoRefMapping
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
@@ -4033,6 +4033,10 @@ __STAMP__&
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       DoPoissonRounding = .TRUE.
       UseAdaptive  = .TRUE.
+      IF(DoRefMapping) THEN
+        CALL abort(__STAMP__&
+            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
+      END IF
       ! Total area of surface flux
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Pi*(Species(iSpec)%Surfaceflux(iSF)%rmax &
