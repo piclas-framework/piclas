@@ -186,7 +186,6 @@ SUBROUTINE AnalyzeSurface(Time)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: BoltzmannConst,ProjectName
 USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
@@ -195,6 +194,7 @@ USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42) 
+USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 #endif /* DSMC*/

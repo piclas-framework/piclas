@@ -413,6 +413,7 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
 END DO
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+sum_probabilities = 0.
 DO ReactNum = 0,Adsorption%ReactNum
   sum_probabilities = sum_probabilities + ProbAds(ReactNum)
 END DO
@@ -1299,7 +1300,7 @@ DO iSubSurf = 1,nSurfSample
     ! calculate partition function of particles bound on surface
     VarPartitionFuncWall1 = PartitionFuncSurf(iSpec, WallTemp,CharaTemp)
     ! estimate partition function of activated complex
-    VarPartitionFuncAct = PartitionFuncActDesorb(iSpec, WallTemp)
+    VarPartitionFuncAct = PartitionFuncActDesorb(iSpec, WallTemp, Adsorption%DensSurfAtoms(iSurf))
     ! transition state theory to estimate pre-exponential factor
     nu_des = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
     E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)

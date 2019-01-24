@@ -757,51 +757,52 @@ SUBROUTINE TimeStepByLSERK()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
-USE MOD_TimeDisc_Vars,           ONLY: dt,iStage,time
-USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
-USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
-USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time
+USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_DG_Vars                ,ONLY: U,Ut
+USE MOD_PML_Vars               ,ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
+USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 #if USE_QDS_DG
-USE MOD_QDS_DG_Vars,             ONLY: UQDS,UQDSt,nQDSElems,DoQDS
-USE MOD_QDS_Equation_vars,       ONLY: QDSnVar
-USE MOD_QDS_DG,                  ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
+USE MOD_QDS_DG_Vars            ,ONLY: UQDS,UQDSt,nQDSElems,DoQDS
+USE MOD_QDS_Equation_vars      ,ONLY: QDSnVar
+USE MOD_QDS_DG                 ,ONLY: QDSTimeDerivative,QDSReCalculateDGValues,QDSCalculateMacroValues
 #endif /*USE_QDS_DG*/
-USE MOD_Filter,                  ONLY: Filter
-USE MOD_Equation,                ONLY: DivCleaningDamping
-USE MOD_Equation,                ONLY: CalcSource
-USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
+USE MOD_Filter                 ,ONLY: Filter
+USE MOD_Equation               ,ONLY: DivCleaningDamping
+USE MOD_Equation               ,ONLY: CalcSource
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 #ifdef PP_POIS
-USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,           ONLY: Phi,Phit,nTotalPhi
+USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_PICDepo,                 ONLY: Deposition!, DepositionMPF
-USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
-                                        doParticleMerge,PartPressureCell
-USE MOD_part_RHS,                ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_part_emission,           ONLY: ParticleInserting
-USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,           ONLY: StartParticleMerge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
-USE MOD_TimeDisc_Vars,           ONLY: iter
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
+                                        doParticleMerge,PartPressureCell,DoFieldIonization
+USE MOD_PICModels              ,ONLY: FieldIonization
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_part_emission          ,ONLY: ParticleInserting
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
+USE MOD_TimeDisc_Vars          ,ONLY: iter
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,       ONLY: DoExternalParts
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -861,6 +862,7 @@ IF (time.GE.DelayTime) THEN
   ! forces on particle
   ! can be used to hide sending of number of particles
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+  IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 END IF
 #if USE_LOADBALANCE
@@ -4579,7 +4581,8 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
-                                     doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux
+                                      doParticleMerge,PartPressureCell,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
+USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -4708,6 +4711,7 @@ IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 
   DO iPart=1,PDM%ParticleVecLength

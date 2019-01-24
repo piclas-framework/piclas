@@ -41,7 +41,7 @@ SUBROUTINE InitSMCR()
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, ManualTimeStep
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
@@ -50,6 +50,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==42)
+USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_TimeDisc_Vars          ,ONLY: tend
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!

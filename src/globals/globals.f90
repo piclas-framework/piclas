@@ -25,27 +25,33 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,PARAMETER ::UNIT_stdOut=6
-INTEGER,PARAMETER ::UNIT_logOut=133
-INTEGER           ::UNIT_errOut=999
-LOGICAL           ::Logging
-CHARACTER(LEN=255)::ErrorFileName='NOT_SET'
-INTEGER           ::iError
-REAL              ::StartTime
-INTEGER           ::myRank,myLocalRank,myLeaderRank,myWorkerRank
-INTEGER           ::nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
-INTEGER           ::MPI_COMM_NODE    ! local node subgroup
-INTEGER           ::MPI_COMM_LEADERS ! all node masters
-INTEGER           ::MPI_COMM_WORKERS ! all non-master nodes
-LOGICAL           ::MPIRoot,MPILocalRoot
+INTEGER,PARAMETER  :: UNIT_stdOut=6
+INTEGER,PARAMETER  :: UNIT_logOut=133
+INTEGER            :: UNIT_errOut=999
+LOGICAL            :: Logging
+CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
+INTEGER            :: iError
+REAL               :: StartTime
+INTEGER            :: myRank,myLocalRank,myLeaderRank,myWorkerRank
+INTEGER            :: nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
+INTEGER            :: MPI_COMM_NODE    ! local node subgroup
+INTEGER            :: MPI_COMM_LEADERS ! all node masters
+INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
+LOGICAL            :: MPIRoot,MPILocalRoot
 #ifdef MPI
-!#include "mpif.h"
-INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
+!#include "mpif.h" 
+INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
-INTEGER,PARAMETER ::MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
+INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
 
-INTEGER           :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
+INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
+
+#ifdef INTKIND8
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+#else
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+#endif
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
