@@ -619,7 +619,7 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER                        :: nPart_glob_min
+INTEGER                        :: locnPart_min
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 !=============================================
 ! Required default values for KIND=IK
@@ -699,11 +699,11 @@ CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIN
 !  END DO
 !END IF
 LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_ALLREDUCE(locnPart, nPart_glob_min, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
+CALL MPI_ALLREDUCE(locnPart, locnPart_min, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
 nPart_glob=locnPart
-nPart_glob_min=locnPart
+locnPart_min=locnPart
 #endif
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
 ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
@@ -992,7 +992,7 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
-  IF(nPart_glob_min.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+  IF(locnPart_min.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='PartData'   , rank=2           , &
@@ -1038,7 +1038,7 @@ ASSOCIATE (&
     END IF
     CALL CloseDataFile()
 #endif /*MPI*/                          
-  END IF !nPart_glob_min.EQ.0
+  END IF !locnPart_min.EQ.0
 
 END ASSOCIATE
 ! reswitch
