@@ -344,6 +344,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                       :: doPartInExists
 INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
@@ -352,6 +353,7 @@ INTEGER                       :: nPartShape
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
+IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 
 ! 1) get number of send particles
 PartMPIExchange%nPartsSend=0
@@ -361,7 +363,7 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  IF(PRESENT(DoParticle_IN))THEN
+  IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
   ELSE
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -392,7 +394,7 @@ IF(DoExternalParts)THEN
   PartMPIDepoSend=.FALSE.
   nPartShape=0
   DO iPart=1,PDM%ParticleVecLength
-    IF(PRESENT(DoParticle_IN))THEN
+    IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -461,7 +463,7 @@ IF(DoExternalParts)THEN
         ELSE
           IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
             IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
-            IF(PRESENT(DoParticle_IN))THEN
+            IF(doPartInExists)THEN
               IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))
             ELSE
               IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
@@ -483,7 +485,7 @@ IF(DoExternalParts)THEN
         END IF
       ELSE
         IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
-        IF(PRESENT(DoParticle_IN))THEN
+        IF(doPartInExists)THEN
           IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))
         ELSE
           IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
@@ -941,7 +943,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
-#ifdef IMPA
+#if IMPA
       DoPartInNewton(iPart)   = .FALSE.
       PartLambdaAccept(iPart) = .TRUE.
       PartIsImplicit(iPart)     = .FALSE.

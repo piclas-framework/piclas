@@ -1214,6 +1214,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration                                                                       
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                          :: doPartInExists
 INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
@@ -1242,6 +1243,7 @@ LOGICAL                          :: DoCycle
 REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !============================================================================================================================
+IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 
 IF(doInnerParts)THEN
   IF(.NOT.DoDeposition) RETURN
@@ -1272,7 +1274,7 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
-      IF(PRESENT(DoParticle_IN))THEN
+      IF(doPartInExists)THEN
         IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1324,7 +1326,7 @@ CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF(PRESENT(DoParticle_IN))THEN
+  IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1414,7 +1416,7 @@ CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
   IF(DoInnerParts)  tempcharge= 0.0
   DO iPart = firstPart, lastPart
-    IF(PRESENT(DoParticle_IN))THEN
+  IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1514,7 +1516,7 @@ CASE('shape_function','shape_function_simple')
   END IF
   IF (usevMPF) THEN
     DO iPart=firstPart,LastPart
-      IF(PRESENT(DoParticle_IN))THEN
+      IF(doPartInExists)THEN
         IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1524,7 +1526,7 @@ CASE('shape_function','shape_function_simple')
     END DO ! iPart
   ELSE
     DO iPart=firstPart,LastPart
-      IF(PRESENT(DoParticle_IN))THEN
+      IF(doPartInExists)THEN
         IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1699,7 +1701,7 @@ CASE('shape_function_1d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    IF(PRESENT(DoParticle_IN))THEN
+    IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -1925,7 +1927,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    IF(PRESENT(DoParticle_IN))THEN
+    IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -2125,7 +2127,7 @@ CASE('delta_distri')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
-      IF(PRESENT(DoParticle_IN))THEN
+      IF(doPartInExists)THEN
         IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -2219,7 +2221,7 @@ CASE('nearest_gausspoint')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
-      IF(PRESENT(DoParticle_IN))THEN
+      IF(doPartInExists)THEN
         IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -2305,7 +2307,7 @@ CASE('cartmesh_volumeweighting')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF(PRESENT(DoParticle_IN))THEN
+    IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -2405,7 +2407,7 @@ CASE('cartmesh_splines')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF(PRESENT(DoParticle_IN))THEN
+    IF(doPartInExists)THEN
       IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
