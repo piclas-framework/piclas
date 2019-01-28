@@ -384,7 +384,7 @@ USE MOD_Globals
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
@@ -403,7 +403,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iSpec,iSurfSide,p,q, iReact
+INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
 REAL                               :: TimeSample, ActualTime
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
@@ -440,17 +440,22 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 CALL ExchangeSurfData()
 #endif
 
-IF (PartSurfaceModel.GT.0) THEN
-  ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
-ELSE
-  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
+! Determine the number of variables
+nVar = 5
+nVarSpec = 1
+IF(PartSurfaceModel.GT.0) THEN
+  nVar = nVar + 1
+  nVarSpec = nVarSpec + 3
 END IF
+IF(nPorousBC.GT.0) THEN
+  nVar = nVar + nPorousBC
+END IF
+! Allocate the output container
+ALLOCATE(MacroSurfaceVal(1:nVar,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+MacroSurfaceVal=0.
+ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+MacroSurfaceSpecVal=0.
+
 IF (CalcSurfCollis%Output) THEN
   ALLOCATE(CounterTotal(1:nSpecies))
   ALLOCATE(SumCounterTotal(1:nSpecies+1))
@@ -461,9 +466,8 @@ END IF
 DO iSurfSide=1,SurfMesh%nSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &
@@ -473,7 +477,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
+        MacroSurfaceVal(nVarCount+1,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
@@ -483,6 +487,11 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q)) &
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      END IF
+      IF(nPorousBC.GT.0) THEN
+        DO iPBC=1, nPorousBC
+          MacroSurfaceVal(nVarCount+iPBC,p,q,iSurfSide) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
+        END DO
       END IF
       DO iSpec=1,nSpecies
         IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
