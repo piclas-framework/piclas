@@ -53,7 +53,7 @@ PUBLIC::ParticleSanityCheck
 CONTAINS
 
 
-#if IMPA
+#ifdef IMPA
 SUBROUTINE ParticleTriaTracking(doParticle_In)
 #else
 SUBROUTINE ParticleTriaTracking()
@@ -78,14 +78,14 @@ USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPa
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 #endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
@@ -108,12 +108,12 @@ REAL, PARAMETER                  :: eps = 0
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-#if IMPA
+#ifdef IMPA
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
 DO i = 1,PDM%ParticleVecLength
-#if IMPA
+#ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(i).AND.DoParticle_In(i)
   ELSE
@@ -307,7 +307,7 @@ END DO
 END SUBROUTINE ParticleTriaTracking
 
 
-#if IMPA
+#ifdef IMPA
 SUBROUTINE ParticleTracing(doParticle_In,nInnerNewton_In)
 #else
 SUBROUTINE ParticleTracing()
@@ -340,7 +340,7 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
 #ifdef CODE_ANALYZE
-#if IMPA
+#ifdef IMPA
 USE MOD_Particle_Vars,               ONLY:PartIsImplicit,PartDtFrac
 USE MOD_Particle_Vars,               ONLY:PartStateN
 #endif /*IMPA*/
@@ -358,7 +358,7 @@ USE MOD_LoadBalance_tools,           ONLY:LBStartTime,LBElemPauseTime,LBElemSpli
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 #endif /*IMPA*/
@@ -366,7 +366,7 @@ INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL                       :: doParticle
 LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
@@ -395,14 +395,14 @@ IF (UseAuxBCs) THEN
     ,locListAll(1:6+nAuxBCs))
 END IF
 
-#if IMPA
+#ifdef IMPA
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
   alphaOld = -1.0
-#if IMPA
+#ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
   ELSE
@@ -427,7 +427,7 @@ DO iPart=1,PDM%ParticleVecLength
         .OR.(LastPartPos(iPart,3).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,3),GEO%zmaxglob) &
         .OR.(LastPartPos(iPart,3).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(iPart,3),GEO%zminglob) ) THEN
         IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
-#if IMPA
+#ifdef IMPA
         IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
         IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
         IF(PRESENT(nInnerNewton_In))THEN
@@ -479,7 +479,7 @@ DO iPart=1,PDM%ParticleVecLength
     CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
     IF(.NOT.isHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' LastPartPos not inside of element! '
-#if IMPA
+#ifdef IMPA
      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%ParticleInside ', PDM%ParticleInside(iPart)
 #endif /*IMPA*/
@@ -494,7 +494,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' ElemBaryNGeo:      ', ElemBaryNGeo(1:3,ElemID)
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' IntersectionPoint: ', IntersectionPoint
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(iPart,1:3)
-#if IMPA
+#ifdef IMPA
      IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' PartStateN:       ', PartStateN(iPart,1:3)
 #endif /*IMPA*/
      IPWRITE(UNIT_stdOut,'(I0,A)')            ' PartPos:           '
@@ -641,7 +641,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
           PartIsDone=.TRUE.
           PDM%ParticleInside(iPart)=.FALSE.
-#if IMPA
+#ifdef IMPA
           DoParticle=.FALSE.
 #endif /*IMPA*/
           IF(CountNbOfLostParts) nLostParts=nLostParts+1
@@ -682,7 +682,7 @@ DO iPart=1,PDM%ParticleVecLength
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
             PartIsDone=.TRUE.
             PDM%ParticleInside(iPart)=.FALSE.
-#if IMPA
+#ifdef IMPA
             DoParticle=.FALSE.
 #endif /*IMPA*/
             IF(CountNbOfLostParts) nLostParts=nLostParts+1
@@ -774,7 +774,7 @@ DO iPart=1,PDM%ParticleVecLength
             alphaOld = -1.0
           END IF
         END IF
-#if IMPA
+#ifdef IMPA
         IF(CrossedBC)THEN
           IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
         END IF
@@ -876,7 +876,7 @@ DO iPart=1,PDM%ParticleVecLength
               alphaOld = -1.0
             END IF
           END IF
-#if IMPA
+#ifdef IMPA
           IF(CrossedBC)THEN
             IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
           END IF
@@ -928,7 +928,7 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
-#if IMPA
+#ifdef IMPA
         DoParticle=.FALSE.
 #endif /*IMPA*/
         CYCLE !particle is outside cell
@@ -990,7 +990,7 @@ END DO ! iPart
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
-#if IMPA
+#ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
   ELSE
@@ -1006,7 +1006,7 @@ DO iPart=1,PDM%ParticleVecLength
     .OR.(PartState(iPart,2).LT.GEO%yminglob) &
     .OR.(PartState(iPart,3).GT.GEO%zmaxglob) &
     .OR.(PartState(iPart,3).LT.GEO%zminglob) ) THEN
-#if IMPA
+#ifdef IMPA
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
@@ -1052,7 +1052,7 @@ DO iPart=1,PDM%ParticleVecLength
 END  DO ! iPart=1,PDM%ParticleVecLength
 #endif
 
-#if IMPA
+#ifdef IMPA
 IF(PRESENT(nInnerNewton_In))THEN
   IF(nInnerNewton_In.EQ.-3)THEN
     IPWRITE(UNIt_stdOut,'(I0,A18,I0)') ' nInnerNewton_In ', nInnerNewton_In
@@ -1063,7 +1063,7 @@ END IF
 END SUBROUTINE ParticleTracing
 
 
-#if IMPA
+#ifdef IMPA
 SUBROUTINE ParticleRefTracking(doParticle_In)
 #else
 SUBROUTINE ParticleRefTracking()
@@ -1102,14 +1102,14 @@ USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if IMPA
+#ifdef IMPA
 LOGICAL                           :: doParticle
 LOGICAL                           :: doPartInExists
 #endif
@@ -1130,12 +1130,12 @@ REAL                              :: lengthPartTrajectory0, epsElement
 REAL                              :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-#if IMPA
+#ifdef IMPA
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
 DO iPart=1,PDM%ParticleVecLength
-#if IMPA
+#ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
   ELSE
@@ -1161,7 +1161,7 @@ DO iPart=1,PDM%ParticleVecLength
       CALL ParticleBCTracking(lengthPartTrajectory0 &
                              ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) THEN
-#if IMPA
+#ifdef IMPA
         IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
 #endif /*IMPA*/
         CYCLE ! particle has left domain by a boundary condition
@@ -1353,7 +1353,7 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' LastPartPos            ', LastPartPos(iPart,1:3)
           Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
           IPWRITE(UNIT_stdOut,'(I0,A,X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-#if IMPA
+#ifdef IMPA
           IPWRITE(UNIT_stdOut,'(I0,A,X,L)') ' Implicit                ', PartIsImplicit(iPart)
 #endif
 #if defined(ROS) || defined(IMPA)
@@ -1421,7 +1421,7 @@ __STAMP__ &
           CALL ParticleBCTracking(lengthPartTrajectory0 &
                                  ,TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved,1)
           IF(PartIsDone)THEN
-#if IMPA
+#ifdef IMPA
             IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
 #endif /*IMPA*/
             CYCLE
@@ -1855,7 +1855,7 @@ USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
 #endif /*MPI*/
-#if IMPA
+#ifdef IMPA
 USE MOD_Particle_Vars,               ONLY: PEM
 #endif /*IMPA*/
 #ifdef ROS
@@ -2650,7 +2650,7 @@ USE MOD_TimeDisc_Vars,          ONLY:iStage
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh,          ONLY:PartInElemCheck
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-#if IMPA
+#ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
 #endif /*IMPA*/
 #ifdef MPI
@@ -2678,7 +2678,7 @@ IF(   (LastPartPos(PartID,1).GT.GEO%xmaxglob) &
   .OR.(LastPartPos(PartID,3).GT.GEO%zmaxglob) &
   .OR.(LastPartPos(PartID,3).LT.GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(PartID)
-#if IMPA
+#ifdef IMPA
   IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(PartID)
   IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(PartID)
 #endif /*IMPA*/
@@ -2698,7 +2698,7 @@ IF(   (PartState(PartID,1).GT.GEO%xmaxglob) &
   .OR.(PartState(PartID,3).GT.GEO%zmaxglob) &
   .OR.(PartState(PartID,3).LT.GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ', PDM%ParticleInside(PartID)
-#if IMPA
+#ifdef IMPA
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                        ' PartIsImplicit ', PartIsImplicit(PartID)
       IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                   ' PartDtFrac ', PartDtFrac(PartID)
 #endif /*IMPA*/

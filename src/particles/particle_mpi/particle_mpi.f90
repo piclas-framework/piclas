@@ -943,7 +943,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
-#if IMPA
+#ifdef IMPA
       DoPartInNewton(iPart)   = .FALSE.
       PartLambdaAccept(iPart) = .TRUE.
       PartIsImplicit(iPart)     = .FALSE.
