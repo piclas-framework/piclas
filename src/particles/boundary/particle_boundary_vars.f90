@@ -87,8 +87,10 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 1:Enthalpie released/annihilated upon
                                                                        ! evaporation/condensation
                                                                        ! 2-nSpecies+1: Evaporation particle numbers for species
-  REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of Adsorption relevant values
-                                                                       ! 1:Enthalpie released/annihilated upon adsorption/desorption
+  REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of energies from adsorption and desorption
+                                                                       ! 1:Enthalpy released/annihilated upon reaction on surface
+                                                                       ! 2:Enthalpy of surface due to reconstruction
+  REAL,ALLOCATABLE                      :: Coverage(:,:,:)             ! Sampling of coverage
                                                                        ! 2-nSpecies+1: Coverages for certain species
   REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
                                                                        ! (nSpecies,p,q)

@@ -779,8 +779,10 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 !===================================================================================================================================
 
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
-  ALLOCATE(SampWall(iSide)%Adsorption(1:(nSpecies+1),1:nSurfSample,1:nSurfSample))
+  ALLOCATE(SampWall(iSide)%Adsorption(1:2,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Adsorption=0.
+  ALLOCATE(SampWall(iSide)%Coverage(1:nSpecies,1:nSurfSample,1:nSurfSample))
+  SampWall(iSide)%Coverage=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Accomodation=0.
   ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%RecombNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
@@ -792,7 +794,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
     SendArraySize = SIZE(SurfSendBuf(iProc)%content,DIM=1,KIND=4)
     SDEALLOCATE(SurfSendBuf(iProc)%content)
-    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
+    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+2+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     !ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
     !                                    *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
@@ -801,7 +803,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
     RecvArraySize = SIZE(SurfRecvBuf(iProc)%content,DIM=1,KIND=4)
     SDEALLOCATE(SurfRecvBuf(iProc)%content)
-    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+1+(Adsorption%RecombNum*nSpecies))&
+    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+2+(Adsorption%RecombNum*nSpecies))&
                                         *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     !ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
     !                                    *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))

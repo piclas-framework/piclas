@@ -1002,7 +1002,7 @@ INTEGER                          :: Coord, Surfnum, Surfpos, UsedSiteMapPos, nSi
 REAL                             :: RanNum
 !===================================================================================================================================
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+  SampWall(SurfSideID)%Adsorption(2,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(2,subsurfxi,subsurfeta) &
       + (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
       / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
       * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
@@ -1070,7 +1070,7 @@ ELSE IF (adsorbates_num.LT.0) THEN
 END IF
 
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(1,subsurfxi,subsurfeta) &
+  SampWall(SurfSideID)%Adsorption(2,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(2,subsurfxi,subsurfeta) &
       - (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
       / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
       * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &

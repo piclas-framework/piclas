@@ -441,7 +441,7 @@ CALL ExchangeSurfData()
 #endif
 
 IF (PartSurfaceModel.GT.0) THEN
-  ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceVal(7,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
   ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
   MacroSurfaceSpecVal=0.
@@ -471,9 +471,12 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(3,p,q) &
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
-                                           -SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                           -SampWall(iSurfSide)%Adsorption(1,p,q)&
+                                           -SampWall(iSurfSide)%Adsorption(2,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        MacroSurfaceVal(7,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(2,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
@@ -499,7 +502,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           ! calculate coverage
-          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(1+iSpec,p,q) * dt / TimeSample
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Coverage(iSpec,p,q) * dt / TimeSample
           ! calculate recombination coefficient
           DO iReact=1,Adsorption%RecombNum
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN

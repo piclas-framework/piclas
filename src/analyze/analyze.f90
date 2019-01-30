@@ -775,6 +775,7 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
       SampWall(iSide)%State=0.
       IF (PartSurfaceModel.GT.0) THEN
         SampWall(iSide)%Adsorption=0.
+        SampWall(iSide)%Coverage=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
       END IF

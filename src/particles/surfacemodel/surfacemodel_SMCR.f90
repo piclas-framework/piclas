@@ -501,17 +501,16 @@ SUBROUTINE SMCR_PartDesorb()
 !===================================================================================================================================
 !> Calculation of number of desorbing particles using surface replication (surfacemodel = 3)
 !> Performing Surface Monte Carlo step (MCS)
-!> 1. diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
-!> 2. Loop over all particles on surfaces and calulate desorption/reaction probabities
-!>   - choose respective process
-!>   - update surface distribution
+!>  Loop over all particles on surfaces and calulate desorption/reaction probabities
+!>  - choose respective process
+!>  - update surface distribution
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
+USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorptionHeat
 USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncActDissSurf
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncActLH, PartitionFuncActExchSurf
@@ -596,6 +595,17 @@ ALLOCATE( P_react_forward(1:Adsorption%nDisPropReactions),&
           Coord_Product(1:2,1:Adsorption%ReactNum+Adsorption%nDisPropReactions),&
           Pos_ReactP(1:Adsorption%ReactNum+1+Adsorption%nDisPropReactions),&
           Pos_Product(1:2,1:Adsorption%ReactNum+Adsorption%nDisPropReactions))
+
+! sample energy of surfaces before desorption treatment
+DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+        + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+  END IF
+END DO ; END DO ; END DO
 
 ! loop over all surfaces and decide if catalytic boundary
 DO iSurf = 1,SurfMesh%nSides
@@ -1798,6 +1808,17 @@ END DO ! nSurfSample
 END DO ! nSurfSample
 END DO ! SurfMesh%nSides
 
+! sample energy of surfaces after desorption treatment
+DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+        - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+  END IF
+END DO ; END DO ; END DO
+
 DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,adsorbates)
 DEALLOCATE(P_actual_react,P_react_forward,P_react_back)
 DEALLOCATE(Coord_ReactP,Pos_ReactP)
@@ -1814,6 +1835,7 @@ END SUBROUTINE SMCR_PartDesorb
 SUBROUTINE SMCR_Diffusion()
 !===================================================================================================================================
 !> Calculation of diffusion on reconstructed surface with assumption of Quasi Chemical Approximation (QCA)
+!> 1. diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
@@ -1843,7 +1865,7 @@ DO jSubSurf = 1,nSurfSample
 DO iSubSurf = 1,nSurfSample
 
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
         + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1919,7 +1941,7 @@ DO iSubSurf = 1,nSurfSample
     DEALLOCATE(free_Neigh_pos)
   END DO
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
         - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
