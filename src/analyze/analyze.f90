@@ -500,7 +500,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
-USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis
+USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
@@ -777,6 +777,9 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWall(iSide)%Adsorption=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
+      END IF
+      IF(nPorousBC.GT.0) THEN
+        SampWall(iSide)%PumpCapacity=0.
       END IF
     END DO
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN

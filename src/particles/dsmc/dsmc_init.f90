@@ -1394,8 +1394,25 @@ __STAMP__&
 ,'wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
         END SELECT
       ELSE
-        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+            CASE(2) ! adaptive Outlet/freestream
+              ElemID = PEM%Element(iPart)
+              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
+              TRot = TVib
+            CASE DEFAULT
+              CALL abort(&
+              __STAMP__&
+              ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+          END SELECT
+        ELSE
+          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        END IF
       END IF
     CASE DEFAULT
       CALL abort(&
