@@ -1243,6 +1243,7 @@ LOGICAL                          :: DoCycle
 REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !============================================================================================================================
+doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 
 IF(doInnerParts)THEN

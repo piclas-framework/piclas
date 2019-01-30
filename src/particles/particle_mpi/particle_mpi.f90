@@ -353,6 +353,7 @@ INTEGER                       :: nPartShape
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
+doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 
 ! 1) get number of send particles

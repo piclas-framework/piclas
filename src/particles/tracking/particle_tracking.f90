@@ -109,6 +109,7 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #ifdef IMPA
+doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
@@ -396,6 +397,7 @@ IF (UseAuxBCs) THEN
 END IF
 
 #ifdef IMPA
+doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
@@ -1131,6 +1133,7 @@ REAL                              :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #ifdef IMPA
+doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
