@@ -271,35 +271,39 @@ TYPE typeSurfaceflux
   REAL                                   :: VFR_total                        ! Total Volumetric flow rate through surface
   REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)            ! -''-, all values for root in ReduceNoise-case
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
+  REAL                                   :: totalAreaSF                      ! Total area of the respective surface flux
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
-  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
-  LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
+  LOGICAL                                :: SimpleRadialVeloFit              ! fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
+  LOGICAL                                :: CircularInflow                   ! Circular region, which can be used to define small
+                                                                             ! geometry features on large boundaries
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
-  LOGICAL                                :: CircularInflow                   !
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   REAL                                   :: PressureFraction
   TYPE(tSurfFluxLink), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
                                                                              ! used for linked list during sampling
   TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
-  LOGICAL                                :: Adaptive                    !
-  INTEGER                                :: AdaptiveType                      !
-  REAL                                   :: AdaptInMassflow                  !
-  REAL                                   :: AdaptivePressure                 !
-  REAL                                   :: totalAreaSF                      !
-  REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
-  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)
-  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)
-  INTEGER                                :: AdaptivePartNumOut
+  LOGICAL                                :: Adaptive                         ! Is the surface flux an adaptive boundary?
+  INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
+  REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
+  REAL                                   :: AdaptivePressure                 ! Static pressure [Pa], which is held constant
+  REAL, ALLOCATABLE                      :: AdaptivePreviousVelocity(:,:)    ! A velocity is stored in case of negative values
+  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)       ! Adaptive, Type 4: Weighting factor for SF-sides to
+                                                                             ! insert the right amount of particles
+  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)     ! Adaptive, Type 4: Area within a triangle, determined
+                                                                             ! through Monte Carlo integration (initially)
+  INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
+                                                                             ! the adaptive boundary condition
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
