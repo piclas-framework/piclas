@@ -6216,7 +6216,7 @@ DO i=1,PDM%ParticleVecLength
     Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2)
         END IF
       END IF

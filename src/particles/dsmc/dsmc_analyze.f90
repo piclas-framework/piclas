@@ -282,7 +282,7 @@ IF (useDSMC) THEN
       SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
                                         + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
-    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+    IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
       !----  Sampling for internal (rotational) energy accommodation at walls
       SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
                                         + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -804,7 +804,7 @@ INTEGER               :: iSpec, iDOF, iPolyatMole
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF (DSMC%PolySingleMode) THEN
@@ -1229,16 +1229,16 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(7) = 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             TSource(8:9)      =  PartStateIntEn(i,1:2)
           ELSE
             TSource(8:9) = 0.0
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
-              TSource(10)     =  PartStateIntEn(i,3)
-            ELSE
+            IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
               TSource(10) = 0.0
+            ELSE
+              TSource(10) = PartStateIntEn(i,3)
             END IF
           ELSE
             TSource(10) = 0.0
@@ -1382,11 +1382,11 @@ CASE('nearest_gausspoint')
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+            IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
               Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
             END IF
           END IF
@@ -1408,11 +1408,11 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+            IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
               DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
             END IF
           END IF
@@ -1441,16 +1441,16 @@ CASE('cell_volweight')
     TSource(7) = 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           TSource(8:9)      =  PartStateIntEn(iPart,1:2)
         ELSE
           TSource(8:9) = 0.0
         END IF
         IF (DSMC%ElectronicModel) THEN
-          IF (SpecDSMC(PartSpecies(iPart))%InterID.NE.4) THEN
-            TSource(10)     =  PartStateIntEn(iPart,3)
+          IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+            TSource(10) = 0.0   
           ELSE
-            TSource(10) = 0.0
+            TSource(10) = PartStateIntEn(iPart,3)
           END IF
         ELSE
           TSource(10) = 0.0
@@ -1662,7 +1662,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
                 IF (DSMC%ElectronicModel) THEN
-                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                     Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                     HeavyPartNum = HeavyPartNum + Macro_PartNum
                   END IF
@@ -1765,7 +1765,7 @@ ELSE ! all other sampling types
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
@@ -1824,7 +1824,7 @@ ELSE ! all other sampling types
                 END IF
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                     /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -1891,7 +1891,7 @@ ELSE ! all other sampling types
                 MolecPartNum = MolecPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
                       + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &

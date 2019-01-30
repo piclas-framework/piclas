@@ -476,9 +476,12 @@ __STAMP__&
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
-      SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS 
+      SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
+      IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+        DSMC%ElectronSpecies = iSpec
+      END IF
       ! reading electronic state informations from HDF5 file
-      CALL SetElectronicModel(iSpec)
+      IF((DSMC%ElectronicModelDatabase.NE.'none').AND.(SpecDSMC(iSpec)%InterID.NE.4)) CALL SetElectronicModel(iSpec)
     END DO
   END IF
 
@@ -595,7 +598,7 @@ __STAMP__&
       DSMC%InstantTransTemp = 0.0
     END IF
     DO iSpec = 1, nSpecies
-      IF(.NOT.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
+      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
         IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
@@ -915,7 +918,7 @@ __STAMP__&
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         print*,SpecDSMC(iSpec)%InterID
-        IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
             WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
             DebugElectronicStateFilename = 'Initial_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
@@ -977,7 +980,7 @@ __STAMP__&
       END IF
       ! Read-in of electronic levels for QK and backward reaction rate -------------------------------------------------------------
       IF (DSMC%ElectronicModelDatabase .EQ.'none') THEN
-        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
           IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
             ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
@@ -1175,11 +1178,10 @@ __STAMP__&
       END IF
 
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
-      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
       ELSE
         SpecDSMC(iSpec)%NextIonizationSpecies = 0
-        DSMC%ElectronSpecies = iSpec
       END IF
     END DO ! iSpec = 1, nSpecies
 
@@ -1197,8 +1199,7 @@ END SUBROUTINE InitDSMC
 
 SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
-! Calculating the heat of formation for ionized species (including higher ionization levels)
-! Requires the completed read-in of species data
+! 
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
@@ -1211,20 +1212,18 @@ INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF((DSMC%ElectronicModelDatabase .NE. 'none').AND.(SpecDSMC(iSpec)%InterID .NE. 4)) THEN
-  IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
-    CALL Abort(&
-        __STAMP__,&
-        "Read-in from electronic database requires the definition of species name! Species:",iSpec)
-  END IF
-  IF(SpecDSMC(iSpec)%FullyIonized)THEN ! if the ion is fully ionized, set dummy ground state with degeneracy=1 and energy=0
-    ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:1, 0:1 ) )
-    SpecDSMC(iSpec)%ElectronicState(1,0) = 1.0
-    SpecDSMC(iSpec)%ElectronicState(1,1) = 0.0
-    SpecDSMC(iSpec)%MaxElecQuant         = 1
-  ELSE
-    CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
-  END IF
+IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
+  CALL Abort(&
+      __STAMP__,&
+      "Read-in from electronic database requires the definition of species name! Species:",iSpec)
+END IF
+IF(SpecDSMC(iSpec)%FullyIonized)THEN ! if the ion is fully ionized, set dummy ground state with degeneracy=1 and energy=0
+  ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:1, 0:1 ) )
+  SpecDSMC(iSpec)%ElectronicState(1,0) = 1.0
+  SpecDSMC(iSpec)%ElectronicState(1,1) = 0.0
+  SpecDSMC(iSpec)%MaxElecQuant         = 1
+ELSE
+  CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
 END IF
 END SUBROUTINE SetElectronicModel
 
@@ -1309,14 +1308,13 @@ INTEGER       :: iSpec
 !===================================================================================================================================
 AutoDetect=.FALSE.
 DO iSpec = 1, nSpecies
-  IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
       SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
       AutoDetect=.TRUE.
     END IF
   ELSE
     SpecDSMC(iSpec)%NextIonizationSpecies = 0
-    DSMC%ElectronSpecies = iSpec
   END IF
 END DO
 IF(AutoDetect)THEN
@@ -1356,7 +1354,6 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   INTEGER                       :: iQuant
   REAL                        :: TVib                       ! vibrational temperature
   REAL                        :: TRot                       ! rotational temperature
-  INTEGER                     :: iInitTemp, init_or_sfTemp
   INTEGER                     :: ElemID
   REAL                        :: pressure
 !===================================================================================================================================
@@ -1425,10 +1422,12 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF ( DSMC%ElectronicModel .and. SpecDSMC(iSpecies)%InterID .ne. 4) THEN
-    iInitTemp = iInit
-    init_or_sfTemp = init_or_sf
-    CALL InitElectronShell(iSpecies,iPart,iInitTemp,init_or_sfTemp)
+  IF (DSMC%ElectronicModel) THEN
+    IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
+      CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+    ELSE
+      PartStateIntEn(iPart, 3) = 0.
+    END IF
   ENDIF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energy for LD

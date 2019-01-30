@@ -1165,7 +1165,7 @@ END IF
   ! Debug Output for initialized electronic state
   IF ( DSMC%ElectronicModel .AND. DSMC%ReservoirSimuRate) THEN
     DO iSpec = 1, nSpecies
-      IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
           WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
           iunit = 485
@@ -2104,17 +2104,22 @@ IntTemp(:,:) = 0.
 ! Sum up internal energies
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
+    iSpec = PartSpecies(iPart)
     IF (usevMPF) THEN
-      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
-      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
-      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
-        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
+      EVib(iSpec) = EVib(iSpec) + PartStateIntEn(iPart,1) * PartMPF(iPart)
+      ERot(iSpec) = ERot(iSpec) + PartStateIntEn(iPart,2) * PartMPF(iPart)
+      IF (DSMC%ElectronicModel) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(iPart,3) * PartMPF(iPart)
+        END IF
       END IF
     ELSE
-      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
-      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
-        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
+      EVib(iSpec) = EVib(iSpec) + PartStateIntEn(iPart,1)
+      ERot(iSpec) = ERot(iSpec) + PartStateIntEn(iPart,2)
+      IF (DSMC%ElectronicModel) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(iPart,3)
+        END IF
       END IF
     END IF
   END IF
@@ -2167,10 +2172,12 @@ IF(PartMPI%MPIRoot)THEN
       IntTemp(iSpec,1) = 0
       IntTemp(iSpec,2) = 0
     END IF
-    IF ( DSMC%ElectronicModel ) THEN
-      IF ((NumSpecTemp.GT.0).AND.(SpecDSMC(iSpec)%InterID.NE.4) ) THEN
-        IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
-        IntEn(iSpec,3) = Eelec(iSpec)
+    IF(DSMC%ElectronicModel) THEN
+      IF(NumSpecTemp.GT.0) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
+          IntEn(iSpec,3) = Eelec(iSpec)
+        END IF
       ELSE
         IntEn(iSpec,3) = 0.0
       END IF
@@ -2402,7 +2409,7 @@ INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
 IF ( DSMC%ElectronicModel ) THEN
 ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
   DO iSpec = 1, nSpecies
-    IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       DO iSpec2 = 1, nSpecies
    ! calculaction of kf for each reaction
 !      MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
@@ -2427,7 +2434,7 @@ IF ( DSMC%ElectronicModel ) THEN
   CALL WriteEletronicTransition( Time )
   ! nullyfy
   DO iSpec = 1, nSpecies
-    IF(SpecDSMC(iSpec)%InterID.ne.4)THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       SpecDSMC(iSpec)%ElectronicTransition = 0
     END IF
   END DO
@@ -2461,7 +2468,7 @@ bExist = .false.
 IF ( DSMC%ElectronicModel ) THEN
 ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
   DO iSpec = 1, nSpecies
-    IF (SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
 !        MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
       MaxElecQua = 2
       ! output to transition file
