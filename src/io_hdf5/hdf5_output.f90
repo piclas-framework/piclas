@@ -621,7 +621,7 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER                        :: locnPart_min
+INTEGER(KIND=IK)               :: locnPart_max
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 !=============================================
 ! Required default values for KIND=IK
@@ -701,11 +701,11 @@ CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIN
 !  END DO
 !END IF
 LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_ALLREDUCE(locnPart, locnPart_min, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
+CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
 nPart_glob=locnPart
-locnPart_min=locnPart
+locnPart_max=locnPart
 #endif
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
 ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
@@ -994,8 +994,8 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
-  IF(locnPart_min.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
-    IF(MPIRoot)THEN
+  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+    IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='PartData'   , rank=2           , &
                             nValGlobal=(/nPart_glob  , PartDataSize/)   , &
@@ -1003,44 +1003,43 @@ ASSOCIATE (&
                             offset=    (/offsetnPart , 0_IK  /)         , &
                             collective=.FALSE.       , RealArray=PartData)
       CALL CloseDataFile()
-    END IF
-  ELSE ! at least one particle present on one rank
+    END IF !MPIRoot
+  END IF !locnPart_max.EQ.0
 #ifdef MPI
-    CALL DistributedWriteArray(FileName                     , &
-                               DataSetName  = 'PartData'    , rank = 2          , &
-                               nValGlobal   = (/nPart_glob  , PartDataSize/)    , &
-                               nVal         = (/locnPart    , PartDataSize/)    , &
-                               offset       = (/offsetnPart , 0_IK/)            , &
-                               collective   = .FALSE.       , offSetDim = 1     , &
-                               communicator = PartMPI%COMM  , RealArray = PartData)
-    IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-      CALL DistributedWriteArray(FileName , &
-                                 DataSetName ='VibQuantData', rank=2            , &
-                                 nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
-                                 nVal        =(/locnPart    , MaxQuantNum  /)   , &
-                                 offset      =(/offsetnPart , 0_IK  /)          , &
-                                 collective  =.FALSE.       , offSetDim=1       , &
-                                 communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
-      DEALLOCATE(VibQuantData)
-    END IF
+  CALL DistributedWriteArray(FileName                     , &
+                             DataSetName  = 'PartData'    , rank = 2          , &
+                             nValGlobal   = (/nPart_glob  , PartDataSize/)    , &
+                             nVal         = (/locnPart    , PartDataSize/)    , &
+                             offset       = (/offsetnPart , 0_IK/)            , &
+                             collective   = .FALSE.       , offSetDim = 1     , &
+                             communicator = PartMPI%COMM  , RealArray = PartData)
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    CALL DistributedWriteArray(FileName , &
+                               DataSetName ='VibQuantData', rank=2            , &
+                               nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
+                               nVal        =(/locnPart    , MaxQuantNum  /)   , &
+                               offset      =(/offsetnPart , 0_IK  /)          , &
+                               collective  =.FALSE.       , offSetDim=1       , &
+                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
+    DEALLOCATE(VibQuantData)
+  END IF
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteArrayToHDF5(DataSetName = 'PartData'    , rank = 2                , &
-                          nValGlobal  = (/nPart_glob  , PartDataSize/)          , &
-                          nVal        = (/locnPart    , PartDataSize/)          , &
-                          offset      = (/offsetnPart , 0_IK  /)                , &
-                          collective  = .TRUE.        , RealArray = PartData)
-    IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-      CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
-                            nValGlobal  = (/nPart_glob   , MaxQuantNum/)        , &
-                            nVal        = (/locnPart     , MaxQuantNum  /)      , &
-                            offset      = (/offsetnPart  , 0_IK /)              , &
-                            collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
-      DEALLOCATE(VibQuantData)
-    END IF
-    CALL CloseDataFile()
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'    , rank = 2                , &
+                        nValGlobal  = (/nPart_glob  , PartDataSize/)          , &
+                        nVal        = (/locnPart    , PartDataSize/)          , &
+                        offset      = (/offsetnPart , 0_IK  /)                , &
+                        collective  = .TRUE.        , RealArray = PartData)
+  IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
+                          nValGlobal  = (/nPart_glob   , MaxQuantNum/)        , &
+                          nVal        = (/locnPart     , MaxQuantNum  /)      , &
+                          offset      = (/offsetnPart  , 0_IK /)              , &
+                          collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
+    DEALLOCATE(VibQuantData)
+  END IF
+  CALL CloseDataFile()
 #endif /*MPI*/                          
-  END IF !locnPart_min.EQ.0
 
 END ASSOCIATE
 ! reswitch
