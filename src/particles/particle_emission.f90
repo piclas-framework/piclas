@@ -4068,7 +4068,7 @@ __STAMP__&
         END IF
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
         Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -5022,7 +5022,7 @@ __STAMP__&
               PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
                                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow * dt*RKdtFrac    &
                                           / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
-                                          + Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut) +RandVal1)
+                                          + REAL(Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut)) +RandVal1)
             ELSE
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
@@ -5395,7 +5395,7 @@ __STAMP__&
     END DO ! iSide
 
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
     END IF
 
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&

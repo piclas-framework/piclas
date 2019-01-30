@@ -545,7 +545,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       iPos=iPos+nVar
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
-  PorousBCRecvBuf(iProc)%content_int = 0.
+  PorousBCRecvBuf(iProc)%content_int = 0
 END DO ! iProc
 
 END SUBROUTINE ExchangeImpingedPartPorousBC
@@ -582,8 +582,8 @@ USE MOD_Mesh_Vars                   ,ONLY:BC
   DO iProc=1, SurfCOMM%nMPINeighbors
     ALLOCATE(TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)))
     ALLOCATE(TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)))
-    TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)) = 0
-    TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)) = 0
+    TempArrayProc(iProc)%SendMsg(1:SurfExchange%nSidesRecv(iProc)) = 0.
+    TempArrayProc(iProc)%RecvMsg(1:SurfExchange%nSidesSend(iProc)) = 0.
   END DO
 
   ! Building the send message: using the receive list to get the surface sides for which we need to send away the information
