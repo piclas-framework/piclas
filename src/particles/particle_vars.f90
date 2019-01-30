@@ -338,9 +338,9 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
                                                                              !  8:  TVIB
                                                                              !  9:  TROT
                                                                              ! 10:  TELEC
-                                                                             ! 11:  pumping speed per are of the pumping surface (C=S/A)
-                                                                             ! 12:  pressure for pump
-                                                                             ! 13:  integral pressure difference
+                                                                             ! 11:  Pumping capacity [m3/s]
+                                                                             ! 12:  Static pressure [Pa]
+                                                                             ! 13:  Integral pressure difference [Pa]
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species

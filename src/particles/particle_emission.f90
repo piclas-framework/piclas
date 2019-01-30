@@ -4257,8 +4257,11 @@ IF((nAdaptiveBC.GT.0).OR.UseAdaptive.OR.(nPorousBC.GT.0))THEN
         Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
         Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
         Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
-        Adaptive_MacroVal(4:6,iElem,:)          = ElemData_HDF5(4:6,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
         Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(7,:,iElem)
+        ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
         Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
