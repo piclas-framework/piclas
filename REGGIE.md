@@ -14,10 +14,12 @@ PICLas utilizes the Reggie2.0 toolbox for regression testing. A detailed documen
 |   05    | CHE_PIC_gyrotron_variable_Bz |    maxwell,PIC,RK4     |        PIC, variable Bz         |   nProcs=1,2   | Database.csv, relative |
 |   06    | CHE_PIC_single_particle_PML  |    maxwell,PIC,RK4     |            PIC, PML             |    particle    |   nProcs=1,2,5,8,10    |
 |   07    |     CHE_PIC_IMD_coupling     |    maxwell,PIC,RK4     |   mapping from IMP to PICLas    |    nProcs=1    |    PartPata in Box     |
-|   08    |        CHE_DSMC_check        |          DSMC          |                                 |                |                        |
+|   08    |      [CHE_DSMC_check](#che_dsmc)        |          DSMC          |                                 |                |                        |
 |   09    |  CHE_PIC_maxwell_implicitBC  | maxwell,PIC,ImplicitO4 | Implicit reflective particle BC |    nProcs=1    |   Particle Position    |
 
-### CHE_DSMC_check
+#### CHE_DSMC
+
+Small test cases to check DSMC features: [Link to build](regressioncheck/checks/CHE_DSMC/builds.ini).
 
 | **No.** |              **Example**              | **CMAKE-CONFIG** |            **Feature**            | **Execution** |           **Comparing**            | **Readme** |
 | :-----: | :-----------------------------------: | :--------------: | :-------------------------------: | :-----------: | :--------------------------------: | :--------: |
@@ -41,20 +43,20 @@ Overview of the test cases performed during the nightly regression testing
 |   16    |   feature_TWT_recordpoints   |       maxwell,RK4       |          RPs, ExactFlux          |     nProcs=1,4, RPs, interior TE-Inflow     |       RP_State, RP_Daata       |            |
 |   17    | feature_PIC_HDG_plasma_wave  |     poisson,RK4,CN      |  Poisson-PIC,Shape-Function-1D   |            nProcs=2, Imex for CN            | W_el LineIntegration over 2Per |            |
 
-### NIG_Reservoir
+#### NIG_Reservoir
 
-Reservoir (heat bath) simulations *Link to build*
+Reservoir (heat bath) simulations: [Link to build](regressioncheck/checks/NIG_Reservoir/builds.ini).
 
 | **No.** |            **Example**            | **CMAKE-CONFIG** |        **Feature**         | **Execution** | **Comparing** | **Readme** |
 | :-----: | :-------------------------------: | :--------------: | :------------------------: | :-----------: | :-----------: | :--------: |
-|  10-1   |    CHEM_dissocication_rate_CH4    |                  |   Dissociation reactions   |   nProcs=1    |               |            |
-|  10-2   |      CHEM_exchange_rate_CH3       |                  |     Exchange reactions     |   nProcs=1    |               |            |
-|  10-3   |      CHEM_multi_ionization_N      |                  | Electron-impact ionization |   nProcs=1    |               |            |
-|  10-4   | CHEM_recombination_rate_CH3_and_H |                  |       Recombination        |   nProcs=1    |               |            |
+|  10-1   |    CHEM_dissocication_rate_CH4    |                  |   Dissociation   |   nProcs=1    |               |     [Link](regressioncheck/checks/NIG_Reservoir/CHEM_dissocication_rate_CH4/readme.md)       |
+|  10-2   |      CHEM_exchange_rate_CH3       |                  |     Exchange reactions     |   nProcs=1    |               |     [Link](regressioncheck/checks/NIG_Reservoir/CHEM_exchange_rate_CH3/readme.md)       |
+|  10-3   |      CHEM_multi_ionization_N      |                  | Electron-impact ionization |   nProcs=1    |               |     [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_N/readme.md)       |
+|  10-4   | CHEM_recombination_rate_CH3_and_H |                  |       Recombination        |   nProcs=1    |               |     [Link](regressioncheck/checks/NIG_Reservoir/CHEM_recombination_rate_CH3_and_H/readme.md)      |
 
-### NIG_tracking_DSMC
+#### NIG_tracking_DSMC
 
-Testing of different tracking routines *Link to build*
+Testing of different tracking routines: [Link to build](regressioncheck/checks/NIG_tracking_DSMC/builds.ini).
 
 | **No.** |    **Example**    | **CMAKE-CONFIG** |          **Feature**          |                 **Execution**                 |          **Comparing**           | **Readme** |
 | :-----: | :---------------: | :--------------: | :---------------------------: | :-------------------------------------------: | :------------------------------: | :--------: |
