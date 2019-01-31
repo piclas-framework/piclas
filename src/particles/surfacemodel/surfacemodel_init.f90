@@ -779,10 +779,10 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 
 SurfMesh%CatalyticSampSize=(2+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
-  ALLOCATE(SampWall(iSide)%Adsorption(1:2,1:nSurfSample,1:nSurfSample))
+  ALLOCATE(SampWall(iSide)%Adsorption(1:2+nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Adsorption=0.
-  ALLOCATE(SampWall(iSide)%Coverage(1:nSpecies,1:nSurfSample,1:nSurfSample))
-  SampWall(iSide)%Coverage=0.
+  !ALLOCATE(SampWall(iSide)%Coverage(1:nSpecies,1:nSurfSample,1:nSurfSample))
+  !SampWall(iSide)%Coverage=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Accomodation=0.
   ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%RecombNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
