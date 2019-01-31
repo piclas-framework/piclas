@@ -186,6 +186,7 @@ __STAMP__&
             ELSE
               ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
               ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
+              ChemReac%QKProcedure(iReacDiss+iReac2-1)           = ChemReac%QKProcedure(iReac)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,:)      = ChemReac%DefinedReact(iReac,1,:)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,2,:)      = ChemReac%DefinedReact(iReac,2,:)
