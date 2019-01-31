@@ -972,7 +972,7 @@ nLiquidValues=0
 IF(LiquidSimFlag) nLiquidValues = SurfMesh%LiquidSampSize*nSurfSample**2
 
 nValues=nValues+nCatalyticValues+nLiquidValues
-!
+
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
@@ -1001,8 +1001,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         IF (PartSurfaceModel.GT.0) THEN
           SurfSendBuf(iProc)%content(iPos+1:iPos+2+nSpecies)= SampWall(SurfSideID)%Adsorption(:,p,q)
           iPos=iPos+2+nSpecies
-          !SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Coverage(:,p,q)
-          !iPos=iPos+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
           DO iReact=1,Adsorption%RecombNum
@@ -1019,7 +1017,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SampWall(SurfSideID)%State(:,:,:)=0.
     IF (PartSurfaceModel.GT.0) THEN
       SampWall(SurfSideID)%Adsorption(:,:,:)=0.
-      !SampWall(SurfSideID)%Coverage(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
     END IF
@@ -1074,9 +1071,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
                                                 +SurfRecvBuf(iProc)%content(iPos+1:iPos+2+nSpecies)
           iPos=iPos+2+nSpecies
-          !SampWall(SurfSideID)%Coverage(:,p,q)=SampWall(SurfSideID)%Coverage(:,p,q) &
-          !                                      +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          !iPos=iPos+nSpecies
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies

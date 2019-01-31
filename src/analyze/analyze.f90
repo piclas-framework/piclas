@@ -771,11 +771,10 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
     CALL CalcSurfaceValues
-    DO iSide=1,SurfMesh%nTotalSides 
+    DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
       IF (PartSurfaceModel.GT.0) THEN
         SampWall(iSide)%Adsorption=0.
-        !SampWall(iSide)%Coverage=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
       END IF
