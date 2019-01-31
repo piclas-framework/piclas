@@ -65,6 +65,8 @@ TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
 TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
+  INTEGER                               :: CatalyticSampSize
+  INTEGER                               :: LiquidSampSize
   LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides

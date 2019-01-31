@@ -919,11 +919,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
@@ -957,16 +957,21 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: MessageSize,iSurfSide,SurfSideID
+INTEGER                         :: nValues, nCatalyticValues, nLiquidValues
 INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
 nValues = SurfMesh%SampSize*nSurfSample**2
 ! additional array entries for Coverage, Accomodation and recombination coefficient
-IF(PartSurfaceModel.GT.0) nValues = nValues + (2+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
+nCatalyticValues=0
+IF(PartSurfaceModel.GT.0) nCatalyticValues = SurfMesh%CatalyticSampSize*(nSurfSample)**2
 ! additional array entries for liquid surfaces
-IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
+nLiquidValues=0
+IF(LiquidSimFlag) nLiquidValues = SurfMesh%LiquidSampSize*nSurfSample**2
+
+nValues=nValues+nCatalyticValues+nLiquidValues
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors

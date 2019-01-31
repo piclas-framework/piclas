@@ -511,6 +511,7 @@ Liquid%SumCondensPart(:,:,:,:) = 0
 Liquid%SumEvapPart(:,:,:,:) = 0
 
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
+  SurfMesh%LiquidSampSize=nSpecies+1
   DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
     ALLOCATE(SampWall(iSide)%Evaporation(1:nSpecies+1,1:nSurfSample,1:nSurfSample))
     SampWall(iSide)%Evaporation=0.
@@ -524,13 +525,11 @@ IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
     SDEALLOCATE(SurfSendBuf(iProc)%content)
     SDEALLOCATE(SurfRecvBuf(iProc)%content)
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-      ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(nSpecies+1)&
-                                          *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+      ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+SurfMesh%LiquidSampSize*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
       SurfSendBuf(iProc)%content=0.
     END IF
     IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-      ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(nSpecies+1)&
-                                          *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+      ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+SurfMesh%LiquidSampSize*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
       SurfRecvBuf(iProc)%content=0.
     END IF
   END DO ! iProc
@@ -778,6 +777,7 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
 
+SurfMesh%CatalyticSampSize=(2+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%Adsorption(1:2,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Adsorption=0.
@@ -794,8 +794,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
     SendArraySize = SIZE(SurfSendBuf(iProc)%content,DIM=1,KIND=4)
     SDEALLOCATE(SurfSendBuf(iProc)%content)
-    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+(2*nSpecies+2+(Adsorption%RecombNum*nSpecies))&
-                                        *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content(SendArraySize+SurfMesh%CatalyticSampSize*(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     !ALLOCATE(SurfSendBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
     !                                    *(nSurfSample**2)*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
@@ -803,8 +802,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
     RecvArraySize = SIZE(SurfRecvBuf(iProc)%content,DIM=1,KIND=4)
     SDEALLOCATE(SurfRecvBuf(iProc)%content)
-    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+(2*nSpecies+2+(Adsorption%RecombNum*nSpecies))&
-                                        *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content(RecvArraySize+SurfMesh%CatalyticSampSize*(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     !ALLOCATE(SurfRecvBuf(iProc)%content((2*nSpecies+1+SurfMesh%SampSize+(Adsorption%RecombNum*nSpecies))&
     !                                    *(nSurfSample**2)*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
