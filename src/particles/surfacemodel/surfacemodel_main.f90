@@ -213,8 +213,6 @@ IF (PartSurfaceModel.GT.0) THEN
                 .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
               SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) &
                                                           + Adsorption%Coverage(p,q,iSurfSide,iSpec)
-              !SampWall(iSurfSide)%Coverage(iSpec,p,q) = SampWall(iSurfSide)%Coverage(iSpec,p,q) &
-              !                                            + Adsorption%Coverage(p,q,iSurfSide,iSpec)
             END IF
           END DO
         END DO
