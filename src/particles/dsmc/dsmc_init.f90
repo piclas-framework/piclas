@@ -1308,7 +1308,8 @@ INTEGER       :: iSpec
 !===================================================================================================================================
 AutoDetect=.FALSE.
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  ! loop all species, except electrons (also loop over fully ionized species!)
+  IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
     IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
       SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
       AutoDetect=.TRUE.
