@@ -1,6 +1,6 @@
 # Chemistry
-* Only test the forward ionization of atomic nitrogen: N^x+ + e- <-> N^x+1+ + 2e
-* Number Of Reactions: 8
+* Only test the theoretical recombination rate: CH4 + M -> CH3 + H + M
+* Number Of Reactions: 1
 * Initial composition: N and e-
 * Settings
   * BackwardReacRate       = false
