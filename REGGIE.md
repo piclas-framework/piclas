@@ -1,32 +1,6 @@
-## PICLas Regressioncheck 
+# PICLas Regression Testing
 
-## How to execute
-
-## Which examples?
-
-## Reggie2.0 (new reggie)
-
-| **No.** |     **Check**     | **When** |  **CMAKE-CONFIG**   |    **Examples**    | **Feature**  | **Execution** | **Comparing** |
-| :-----: | :---------------: | :------: | :-----------------: | :----------------: | :----------: | :-----------: | :-----------: |
-|    1    | run_basic (flexi) | checkin  |       default       |   freestream_2D    | DG-Operator  |    MPI=1,2    |      L2       |
-|         |                   |          |                     |   freestream_3D    | DG-Operator  |    MPI=1,2    |      L2       |
-|    2    | convtest (flexi)  | nighlty  |     FLEXI_2D=ON     |        h_2D        | h-convergece |    single     |      L2       |
-|         |                   |          |                     |        h_3D        | h-convergece |    single     |      L2       |
-|         |                   |          |     FLEXI_FV=ON     |      h_3D_FV       | h-convergece |    single     |      L2       |
-|         |                   |          |                     |    h_3D_mortar     | h-convergece |    single     |      L2       |
-|         |                   |          | FLEXI_PARABOLIC=OFF | h_3D_parabolic_off | h-convergece |    single     |      L2       |
-|         |                   |          |     FLEXI_2D=ON     |        p_2D        | p-convergece |    single     |      L2       |
-|         |                   |          |                     |        p_3D        | p-convergece |    single     |      L2       |
-|         |                   |          |                     |    p_3D_mortar     | p-convergece |    single     |      L2       |
-|         |                   |          | FLEXI_PARABOLIC=OFF | p_3D_parabolic_off | p-convergece |    single     |      L2       |
-|         |                   |          |                     |                    |              |               |               |
-|         |                   |          |                     |                    |              |               |               |
-|         |                   |          |                     |                    |              |               |               |
-
-
-## Analyze routines
-
-see [the reggie repository](https://gitlab.iag.uni-stuttgart.de/reggie/reggie/blob/master/README.md)
+PICLas utilizes the Reggie2.0 toolbox for regression testing. A detailed documentation on how to use it is available [at this repository](https://gitlab.com/reggie2.0/reggie2.0/blob/master/README.md). A list of examples detailing the test cases and which features are tested is given below.
 
 # List of Examples
 
@@ -58,8 +32,8 @@ Overview of the test cases performed during the nightly regression testing
 
 | **No.** |         **Example**          |    **CMAKE-CONFIG**     |           **Feature**            |                **Execution**                |         **Comparing**          | **Readme** |
 | :-----: | :--------------------------: | :---------------------: | :------------------------------: | :-----------------------------------------: | :----------------------------: | :--------: |
-|   10    |        [NIG_Reservoir](https://gitlab.com/piclas/piclas/blob/update.ionization.routines/REGGIE.md#nig_reservoir)         |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                             |                                |            |
-|   11    |      [NIG_tracking_DSMC](https://gitlab.com/piclas/piclas/blob/update.ionization.routines/REGGIE.md#nig_tracking_dsmc)       |      maxwell, DSMC      |             Tracking             |                                             |                                |            |
+|   10    |        [NIG_Reservoir](#nig_reservoir)         |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                             |                                |            |
+|   11    |      [NIG_tracking_DSMC](#nig_tracking_dsmc)       |      maxwell, DSMC      |             Tracking             |                                             |                                |            |
 |   12    |   NIG_PIC_maxwell_bgfield    |     maxwell,PIC,RK4     |   External Background-field,h5   |                  nProcs=2                   |          DG_Solution           |            |
 |   13    | feature_poisson_powerdensity | Poisson, Crank-Nicolson |      Implicit, CalcTimeAvg       |         DoRefMapping=T/F, nProcs=2          |     Final TimeAvg, h5diff      |            |
 |   14    | feature_poisson_powerdensity |       poisson,CN        |           CalcTimeAvg            |   DoRefMapping=1,2, nProcs=2, CN implicit   |            TimeAvg             |            |
