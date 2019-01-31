@@ -2222,6 +2222,8 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset      , collective=.FALSE. , RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal                  , nVal , &
                                                    offset          , collective=.FALSE. , IntegerArray =IntegerArray)
+      IF(PRESENT(IntegerArray_i4))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal                  , nVal , &
+                                                   offset          , collective=.FALSE. , IntegerArray_i4 =IntegerArray_i4)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal          , nVal , &
                                                    offset      , collective=.FALSE. , StrArray =StrArray)
       CALL CloseDataFile()
@@ -2231,6 +2233,8 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset      , collective , RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
                                                    offset          , collective , IntegerArray =IntegerArray)
+      IF(PRESENT(IntegerArray_i4)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                                   offset          , collective , IntegerArray_i4 =IntegerArray_i4)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                    offset      , collective , StrArray =StrArray)
       CALL CloseDataFile()
@@ -2248,6 +2252,8 @@ ELSE
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
                                                offset         , collective , IntegerArray =IntegerArray)
+  IF(PRESENT(IntegerArray_i4)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                               offset         , collective , IntegerArray_i4 =IntegerArray_i4)
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
