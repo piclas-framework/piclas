@@ -211,8 +211,10 @@ IF (PartSurfaceModel.GT.0) THEN
 ! 3. sample adsorption coverage
             IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
                 .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-              SampWall(iSurfSide)%Coverage(iSpec,p,q) = SampWall(iSurfSide)%Coverage(iSpec,p,q) &
+              SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) &
                                                           + Adsorption%Coverage(p,q,iSurfSide,iSpec)
+              !SampWall(iSurfSide)%Coverage(iSpec,p,q) = SampWall(iSurfSide)%Coverage(iSpec,p,q) &
+              !                                            + Adsorption%Coverage(p,q,iSurfSide,iSpec)
             END IF
           END DO
         END DO

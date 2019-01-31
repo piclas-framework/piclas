@@ -502,7 +502,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           ! calculate coverage
-          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Coverage(iSpec,p,q) * dt / TimeSample
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) * dt / TimeSample
           ! calculate recombination coefficient
           DO iReact=1,Adsorption%RecombNum
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN

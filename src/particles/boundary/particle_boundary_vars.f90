@@ -65,6 +65,8 @@ TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
 TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
+  INTEGER                               :: CatalyticSampSize
+  INTEGER                               :: LiquidSampSize
   LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
@@ -90,8 +92,8 @@ TYPE tSampWall             ! DSMC sample for Wall
   REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of energies from adsorption and desorption
                                                                        ! 1:Enthalpy released/annihilated upon reaction on surface
                                                                        ! 2:Enthalpy of surface due to reconstruction
-  REAL,ALLOCATABLE                      :: Coverage(:,:,:)             ! Sampling of coverage
-                                                                       ! 2-nSpecies+1: Coverages for certain species
+!  REAL,ALLOCATABLE                      :: Coverage(:,:,:)             ! SVampling of coverage
+                                                                       ! 3-nSpecies+2: Coverages for certain species
   REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
                                                                        ! (nSpecies,p,q)
   REAL,ALLOCATABLE                      :: Reaction(:,:,:,:)           ! 1-nReact,1-nSpecies: E-R + LHrecombination coefficient

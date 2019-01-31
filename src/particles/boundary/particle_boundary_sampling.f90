@@ -919,11 +919,11 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   SDEALLOCATE(SurfSendBuf(iProc)%content)
   SDEALLOCATE(SurfRecvBuf(iProc)%content)
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-    ALLOCATE(SurfSendBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesSend(iProc)))
+    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
     SurfSendBuf(iProc)%content=0.
   END IF
   IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-    ALLOCATE(SurfRecvBuf(iProc)%content((SurfMesh%SampSize)*nDOF*SurfExchange%nSidesRecv(iProc)))
+    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
@@ -957,17 +957,22 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
+INTEGER                         :: MessageSize,iSurfSide,SurfSideID
+INTEGER                         :: nValues, nCatalyticValues, nLiquidValues
 INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
 nValues = SurfMesh%SampSize*nSurfSample**2
 ! additional array entries for Coverage, Accomodation and recombination coefficient
-IF(PartSurfaceModel.GT.0) nValues = nValues + (2+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))*(nSurfSample)**2
+nCatalyticValues=0
+IF(PartSurfaceModel.GT.0) nCatalyticValues = SurfMesh%CatalyticSampSize*(nSurfSample)**2
 ! additional array entries for liquid surfaces
-IF(LiquidSimFlag) nValues = nValues + (nSpecies+1)*nSurfSample**2
-!
+nLiquidValues=0
+IF(LiquidSimFlag) nLiquidValues = SurfMesh%LiquidSampSize*nSurfSample**2
+
+nValues=nValues+nCatalyticValues+nLiquidValues
+
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesRecv(iProc).EQ.0) CYCLE
@@ -994,10 +999,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
         IF (PartSurfaceModel.GT.0) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+2)= SampWall(SurfSideID)%Adsorption(:,p,q)
-          iPos=iPos+2
-          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Coverage(:,p,q)
-          iPos=iPos+nSpecies
+          SurfSendBuf(iProc)%content(iPos+1:iPos+2+nSpecies)= SampWall(SurfSideID)%Adsorption(:,p,q)
+          iPos=iPos+2+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
           DO iReact=1,Adsorption%RecombNum
@@ -1014,7 +1017,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SampWall(SurfSideID)%State(:,:,:)=0.
     IF (PartSurfaceModel.GT.0) THEN
       SampWall(SurfSideID)%Adsorption(:,:,:)=0.
-      SampWall(SurfSideID)%Coverage(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
       SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
     END IF
@@ -1067,11 +1069,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+SurfMesh%SampSize
         IF (PartSurfaceModel.GT.0) THEN
           SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
-                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+2)
-          iPos=iPos+2
-          SampWall(SurfSideID)%Coverage(:,p,q)=SampWall(SurfSideID)%Coverage(:,p,q) &
-                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
-          iPos=iPos+nSpecies
+                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+2+nSpecies)
+          iPos=iPos+2+nSpecies
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
