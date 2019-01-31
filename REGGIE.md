@@ -58,8 +58,8 @@ Overview of the test cases performed during the nightly regression testing
 
 | **No.** |         **Example**          |    **CMAKE-CONFIG**     |           **Feature**            |                **Execution**                |         **Comparing**          | **Readme** |
 | :-----: | :--------------------------: | :---------------------: | :------------------------------: | :-----------------------------------------: | :----------------------------: | :--------: |
-|   10    |        NIG_Reservoir         |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                             |                                |            |
-|   11    |      NIG_tracking_DSMC       |      maxwell, DSMC      |             Tracking             |                                             |                                |            |
+|   10    |        [NIG_Reservoir](https://gitlab.com/piclas/piclas/blob/update.ionization.routines/REGGIE.md#nig_reservoir)         |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                             |                                |            |
+|   11    |      [NIG_tracking_DSMC](https://gitlab.com/piclas/piclas/blob/update.ionization.routines/REGGIE.md#nig_tracking_dsmc)       |      maxwell, DSMC      |             Tracking             |                                             |                                |            |
 |   12    |   NIG_PIC_maxwell_bgfield    |     maxwell,PIC,RK4     |   External Background-field,h5   |                  nProcs=2                   |          DG_Solution           |            |
 |   13    | feature_poisson_powerdensity | Poisson, Crank-Nicolson |      Implicit, CalcTimeAvg       |         DoRefMapping=T/F, nProcs=2          |     Final TimeAvg, h5diff      |            |
 |   14    | feature_poisson_powerdensity |       poisson,CN        |           CalcTimeAvg            |   DoRefMapping=1,2, nProcs=2, CN implicit   |            TimeAvg             |            |
