@@ -1493,7 +1493,6 @@ SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
 DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
   SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
-  SDEALLOCATE(SampWall(iSurfSide)%Coverage)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
   SDEALLOCATE(SampWall(iSurfSide)%Reaction)
 END DO
