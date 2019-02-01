@@ -3925,6 +3925,7 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal','.FALSE.')
       IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
         Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=.FALSE.
+        Species(iSpec)%Surfaceflux(iSF)%CircularInflow=.FALSE.
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%VeloVecIC          =GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'1. , 0. , 0.')
         Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
