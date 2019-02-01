@@ -576,6 +576,11 @@ INTEGER :: iSampleReact
 !,"CalcAdsorbReactProb can't be calculated for Eley-Rideal without Partnerspecies")
 !END IF
 SpecID = PartSpecies(PartID)
+#if (PP_TimeDiscMethod==42)
+a_f = 0.
+b_f = 0.
+c_f = 0.
+#endif
 
 ! set DOF
 ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
