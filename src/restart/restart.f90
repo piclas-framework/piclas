@@ -318,7 +318,7 @@ REAL                               :: StartT,EndT
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
-INTEGER                            :: FirstElemInd,LastelemInd,iInit
+INTEGER                            :: FirstElemInd,LastelemInd,iInit,j,k
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
@@ -327,7 +327,7 @@ INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
-LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
+LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
 REAL                               :: det(6,2)
 INTEGER                            :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
@@ -344,6 +344,7 @@ INTEGER                            :: locnSurfPart,offsetnSurfPart
 INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
 REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
 INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
