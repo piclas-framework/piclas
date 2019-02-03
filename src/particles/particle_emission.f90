@@ -6839,6 +6839,7 @@ SDEALLOCATE(PartInsSubSidesAdapt)
 
 END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 
+
 SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 !===================================================================================================================================
 ! exchange the surface data
@@ -6918,6 +6919,6 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
 END DO; END DO
 
 END SUBROUTINE CircularInflow_Area
->>>>>>> 325f30b5f13e17b2d34fe83e29f2d7f7fcf1413f
+
 
 END MODULE MOD_part_emission
