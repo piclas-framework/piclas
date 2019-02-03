@@ -106,113 +106,121 @@ CALL WriteHDF5Header(Statedummy,File_ID)
 
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 
-CALL WriteArrayToHDF5(DataSetName='DSMC_velx', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(1))
 
-CALL WriteArrayToHDF5(DataSetName='DSMC_vely', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(2))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_velz', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(3))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_vel', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(4))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_velx2', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(1))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_vely2', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(2))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_velz2', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(3))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_tempx', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(1))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_tempy', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(2))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_tempz', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(3))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_temp', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(4))
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_dens', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%NumDens)
-
-CALL WriteArrayToHDF5(DataSetName='DSMC_partnum', rank=2,&
-                      nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                      nVal=      (/PP_nElems,    nSpecies+1/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
-
-IF (DSMC%CalcQualityFactors) THEN
-  CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
-                      nValGlobal=(/nGlobalElems, 3/),&
-                      nVal=      (/PP_nElems,    3/),&
-                      offset=    (/offsetElem, 0  /),&
-                      collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
-END IF
-
-IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-  CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Tvib)
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_trot', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
-END IF
-
-IF (DSMC%ElectronicModel) THEN
-  CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
-                        offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Telec)
-END IF
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+        nGlobalElems   => INT(nGlobalElems,IK) ,&
+        nSpeciesP1     => INT(nSpecies+1,IK)   ,&
+        PP_nElems      => INT(PP_nElems,IK)    ,&
+        offsetElem     => INT(offsetElem,IK) )
+  CALL WriteArrayToHDF5(DataSetName='DSMC_velx', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(1))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_vely', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(2))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_velz', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(3))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_vel', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(4))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_velx2', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(1))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_vely2', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(2))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_velz2', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(3))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_tempx', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(1))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_tempy', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(2))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_tempz', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(3))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_temp', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(4))
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_dens', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%NumDens)
+  
+  CALL WriteArrayToHDF5(DataSetName='DSMC_partnum', rank=2,&
+                        nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                        nVal=      (/PP_nElems,    nSpeciesP1/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
+  
+  IF (DSMC%CalcQualityFactors) THEN
+    CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
+                        nValGlobal=(/nGlobalElems, 3_IK/),&
+                        nVal=      (/PP_nElems,    3_IK/),&
+                        offset=    (/offsetElem, 0_IK  /),&
+                        collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
+  END IF
+  
+  IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+    CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
+                          nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                          nVal=      (/PP_nElems,    nSpeciesP1/),&
+                          offset=    (/offsetElem, 0_IK  /),&
+                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Tvib)
+  
+    CALL WriteArrayToHDF5(DataSetName='DSMC_trot', rank=2,&
+                          nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                          nVal=      (/PP_nElems,    nSpeciesP1/),&
+                          offset=    (/offsetElem, 0_IK  /),&
+                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
+  END IF
+  
+  IF (DSMC%ElectronicModel) THEN
+    CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
+                          nValGlobal=(/nGlobalElems, nSpeciesP1/),&
+                          nVal=      (/PP_nElems,    nSpeciesP1/),&
+                          offset=    (/offsetElem, 0_IK  /),&
+                          collective=.TRUE., RealArray=MacroDSMC(:,:)%Telec)
+  END IF
+END ASSOCIATE
 
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
@@ -376,7 +384,7 @@ USE MOD_Globals
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal, DSMC ,MacroSurfaceSpecVal
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
@@ -395,7 +403,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iSpec,iSurfSide,p,q, iReact
+INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
 REAL                               :: TimeSample, ActualTime
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
@@ -432,17 +440,22 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 CALL ExchangeSurfData()
 #endif
 
-IF (PartSurfaceModel.GT.0) THEN
-  ALLOCATE(MacroSurfaceVal(6,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
-ELSE
-  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
+! Determine the number of variables
+nVar = 5
+nVarSpec = 1
+IF(PartSurfaceModel.GT.0) THEN
+  nVar = nVar + 1
+  nVarSpec = nVarSpec + 3
 END IF
+IF(nPorousBC.GT.0) THEN
+  nVar = nVar + nPorousBC
+END IF
+! Allocate the output container
+ALLOCATE(MacroSurfaceVal(1:nVar,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+MacroSurfaceVal=0.
+ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+MacroSurfaceSpecVal=0.
+
 IF (CalcSurfCollis%Output) THEN
   ALLOCATE(CounterTotal(1:nSpecies))
   ALLOCATE(SumCounterTotal(1:nSpecies+1))
@@ -453,9 +466,8 @@ END IF
 DO iSurfSide=1,SurfMesh%nSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &
@@ -465,7 +477,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
+        MacroSurfaceVal(nVarCount+1,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
@@ -475,6 +487,11 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q)) &
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      END IF
+      IF(nPorousBC.GT.0) THEN
+        DO iPBC=1, nPorousBC
+          MacroSurfaceVal(nVarCount+iPBC,p,q,iSurfSide) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
+        END DO
       END IF
       DO iSpec=1,nSpecies
         IF (CalcSurfCollis%Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iSurfSide)%State(12+iSpec,p,q))
@@ -1217,18 +1234,22 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(7) = 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             TSource(8:9)      =  PartStateIntEn(i,1:2)
           ELSE
             TSource(8:9) = 0.0
           END IF
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              TSource(10)     =  PartStateIntEn(i,3)
+            ELSE
+              TSource(10) = 0.0
+            END IF
+          ELSE
+            TSource(10) = 0.0
+          END IF
         ELSE
           TSource(8:9) = 0.0
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          TSource(10)     =  PartStateIntEn(i,3)
-        ELSE
-          TSource(10) = 0.0
         END IF
       ELSE
         TSource(8:10)=0.
@@ -1366,12 +1387,14 @@ CASE('nearest_gausspoint')
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+            END IF
+          END IF
         END IF
       END IF
       Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0
@@ -1390,12 +1413,14 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
-        END IF
-        IF (DSMC%ElectronicModel) THEN
-          DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+          IF (DSMC%ElectronicModel) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+              DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+            END IF
+          END IF
         END IF
       END IF
       DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(11,kk,ll,mm,iElem, iSpec) + 1.0 !simpartnum
@@ -1421,18 +1446,22 @@ CASE('cell_volweight')
     TSource(7) = 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) THEN
+        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
           TSource(8:9)      =  PartStateIntEn(iPart,1:2)
         ELSE
           TSource(8:9) = 0.0
         END IF
+        IF (DSMC%ElectronicModel) THEN
+          IF (SpecDSMC(PartSpecies(iPart))%InterID.NE.4) THEN
+            TSource(10)     =  PartStateIntEn(iPart,3)
+          ELSE
+            TSource(10) = 0.0
+          END IF
+        ELSE
+          TSource(10) = 0.0
+        END IF
       ELSE
-        TSource(8:9) = 0.0
-      END IF
-      IF (DSMC%ElectronicModel) THEN
-        TSource(10)     =  PartStateIntEn(iPart,3)
-      ELSE
-        TSource(10) = 0.0
+        TSource(8:10) = 0.0
       END IF
     ELSE
       TSource(8:10)=0.
@@ -1634,14 +1663,14 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   END IF
                   Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
                   MolecPartNum = MolecPartNum + Macro_PartNum
-                  IF (DSMC%ElectronicModel) THEN
-                    IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                      Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
-                      HeavyPartNum = HeavyPartNum + Macro_PartNum
-                    END IF
-                  END IF
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
+                END IF
+                IF (DSMC%ElectronicModel) THEN
+                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                    Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
+                    HeavyPartNum = HeavyPartNum + Macro_PartNum
+                  END IF
                   Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum
                 END IF
               END IF
@@ -1739,7 +1768,9 @@ ELSE ! all other sampling types
                       , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant)
                 END IF
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
-                IF (DSMC%ElectronicModel) THEN
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
@@ -1795,10 +1826,12 @@ ELSE ! all other sampling types
                   END IF
                   DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                      /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                  IF (DSMC%ElectronicModel) THEN
-                    DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                        /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
-                  END IF
+                END IF
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
             END IF
@@ -1861,14 +1894,14 @@ ELSE ! all other sampling types
                     + DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) / (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst) &
                     * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
                 MolecPartNum = MolecPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                IF (DSMC%ElectronicModel) THEN
-                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
-                    DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
-                        + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                        /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &
-                        * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                    HeavyPartNum = HeavyPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
-                  END IF
+              END IF
+              IF (DSMC%ElectronicModel) THEN
+                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
+                      + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                      /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &
+                      * DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
+                  HeavyPartNum = HeavyPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
                 END IF
               END IF
             END IF
@@ -2015,19 +2048,28 @@ __STAMP__&
 END IF
 CALL DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 
-IF (HODSMC%SampleType.EQ.'cell_mean') THEN
-  CALL WriteArrayToHDF5(DataSetName='ElemData', rank=2,&
-                    nValGlobal=(/nVar+nVar_quality,nGlobalElems/),&
-                    nVal=      (/nVar+nVar_quality,PP_nElems/),&
-                    offset=    (/0,     offsetElem/),&
-                    collective=.false.,  RealArray=DSMC_MacroVal(:,1,1,1,:))
-ELSE
-  CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                    nValGlobal=(/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
-                    nVal=      (/nVar+nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,PP_nElems/),&
-                    offset=    (/0,      0,     0,     0,     offsetElem/),&
-                    collective=.false.,  RealArray=DSMC_MacroVal)
-END IF
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  nVarX        => INT(nVar+nVar_quality,IK)    ,&
+  PP_nElems    => INT(PP_nElems,IK)            ,&
+  offsetElem   => INT(offsetElem,IK)           ,&
+  nOutputDSMCP1=> INT(HODSMC%nOutputDSMC+1,IK) ,&
+  nGlobalElems => INT(nGlobalElems,IK)         )
+  IF (HODSMC%SampleType.EQ.'cell_mean') THEN
+    CALL WriteArrayToHDF5(DataSetName='ElemData' , rank=2         , &
+                          nValGlobal =(/nVarX    , nGlobalElems/) , &
+                          nVal       =(/nVarX    , PP_nElems/)    , &
+                          offset     =(/0_IK     , offsetElem/)   , &
+                          collective =.false.,  RealArray=DSMC_MacroVal(:,1,1,1,:))
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName='DG_Solution' , rank=5        , &
+                          nValGlobal =(/nVarX       , nOutputDSMCP1 , nOutputDSMCP1 , nOutputDSMCP1 , nGlobalElems/) , &
+                          nVal       =(/nVarX       , nOutputDSMCP1 , nOutputDSMCP1 , nOutputDSMCP1 , PP_nElems/)    , &
+                          offset     =(/0_IK        , 0_IK          , 0_IK          , 0_IK          , offsetElem/)   , &
+                          collective =.false.,  RealArray=DSMC_MacroVal)
+  END IF
+END ASSOCIATE
 !IF (DSMC%CalcQualityFactors) THEN
 !  CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
 !                    nValGlobal=(/nVar_quality,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
@@ -3217,19 +3259,27 @@ DO iSpec=1,nSpecies
     PartData(offsetnPart(iSpec)+iPart,10)=REAL(AnalyzeSurfCollis%BCid(SpeciesPositions(iSpec,iPart)))
   END DO
   WRITE(H5_Name,'(A,I3.3)') 'SurfCollisData_Spec',iSpec
-  IF(minnParts(iSpec).EQ.0)THEN
-    CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
-                          nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
-                          nVal=      (/locnPart(iSpec),PartDataSize  /),&
-                          offset=    (/offsetnPart(iSpec) , 0  /),&
-                          collective=.FALSE., RealArray=PartData)
-  ELSE
-    CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name), rank=2,&
-                          nValGlobal=(/nPart_glob(iSpec),PartDataSize/),&
-                          nVal=      (/locnPart(iSpec),PartDataSize  /),&
-                          offset=    (/offsetnPart(iSpec) , 0  /),&
-                          collective=.TRUE., RealArray=PartData)
-  END IF
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nPart_glob   => INT(nPart_glob(iSpec),IK)  ,&
+        PartDataSize => INT(PartDataSize,IK)       ,&
+        locnPart     => INT(locnPart(iSpec),IK)           ,&
+        offsetnPart  => INT(offsetnPart(iSpec),IK) )
+    IF(minnParts(iSpec).EQ.0)THEN
+      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name) , rank=2              , &
+                            nValGlobal =(/nPart_glob  , PartDataSize/)      , &
+                            nVal       =(/locnPart    , PartDataSize  /)    , &
+                            offset     =(/offsetnPart , 0_IK  /)            , &
+                            collective =.FALSE.       , RealArray=PartData)
+    ELSE
+      CALL WriteArrayToHDF5(DataSetName=TRIM(H5_Name) , rank=2              , &
+                            nValGlobal =(/nPart_glob  , PartDataSize/)      , &
+                            nVal       =(/locnPart    , PartDataSize  /)    , &
+                            offset     =(/offsetnPart , 0_IK  /)            , &
+                            collective =.TRUE.        , RealArray=PartData)
+    END IF
+  END ASSOCIATE
   DEALLOCATE(PartData)
 END DO !iSpec
 

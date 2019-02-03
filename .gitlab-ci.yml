@@ -571,6 +571,14 @@ gnu_code_analyze:
     - withmodules
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+
+gnu_integer_kind8:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -792,6 +800,9 @@ gnu_DSMC/:
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "github": truncate old history and push to github
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 github:
   stage: deploy
   tags:

@@ -282,6 +282,7 @@ TYPE typeSurfaceflux
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
+  LOGICAL                                :: CircularInflow                   !
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
@@ -290,6 +291,15 @@ TYPE typeSurfaceflux
                                                                              ! used for linked list during sampling
   TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
+  LOGICAL                                :: Adaptive                    !
+  INTEGER                                :: AdaptiveType                      !
+  REAL                                   :: AdaptInMassflow                  !
+  REAL                                   :: AdaptivePressure                 !
+  REAL                                   :: totalAreaSF                      !
+  REAL, ALLOCATABLE                      :: AdaptInPreviousVelocity(:,:)     !
+  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)
+  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)
+  INTEGER                                :: AdaptivePartNumOut
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -307,11 +317,26 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+LOGICAL                                  :: UseCircularInflow                !
+LOGICAL                                  :: UseAdaptive                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
-                                                                             ! saved for daptive surfaceflux
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
+                                                                             ! (1:14,1:nElems,1:nSpecies)
+                                                                             !  1:  VELOX
+                                                                             !  2:  VELOY
+                                                                             !  3:  VELOZ
+                                                                             !  4:  TEMPX
+                                                                             !  5:  TEMPY
+                                                                             !  6:  TEMPZ
+                                                                             !  7:  NUMBER DENSITY
+                                                                             !  8:  TVIB
+                                                                             !  9:  TROT
+                                                                             ! 10:  TELEC
+                                                                             ! 11:  pumping speed per are of the pumping surface (C=S/A)
+                                                                             ! 12:  pressure for pump
+                                                                             ! 13:  integral pressure difference
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
