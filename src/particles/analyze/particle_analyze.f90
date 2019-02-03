@@ -3160,7 +3160,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,ElemID,RegionID
+INTEGER              :: iPart,iElem,RegionID
 REAL                 :: charge
 !===================================================================================================================================
 
@@ -3173,32 +3173,41 @@ ElectronDensityCell=0.
 ! loop over all particles and count the number of electrons per cell
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-    ElemID = PEM%Element(iPart)
-    IF(PARTISELECTRON(iPart))THEN ! electrons
-      IF(usevMPF) THEN
-        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID)+PartMPF(iPart)
-      ELSE
-        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID) &
-            +Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive of negative)
-      IF(usevMPF) THEN
-        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + PartMPF(iPart)
-        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*PartMPF(iPart)
-      ELSE
-        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + Species(PartSpecies(iPart))%MacroParticleFactor
-        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    ELSE ! neutrals
-      IF(usevMPF) THEN
-        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + PartMPF(iPart)
-      ELSE
-        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    END IF
-  END IF ! ParticleInside
+  ASSOCIATE ( &
+    vMPF    => PartMPF(iPart)                                  ,& ! Variable MPF
+     MPF    => Species(PartSpecies(iPart))%MacroParticleFactor ,& ! Fixed MPF
+    ElemID  => PEM%Element(iPart)                              )  ! Element ID
+    ASSOCIATE ( &
+      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
+      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
+      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
+      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
+      IF(PDM%ParticleInside(iPart))THEN
+        charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
+        IF(PARTISELECTRON(iPart))THEN ! electrons
+          IF(usevMPF) THEN
+            n_e = n_e + vMPF
+          ELSE
+            n_e = n_e + MPF
+          END IF
+        ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
+          IF(usevMPF) THEN
+            n_i = n_i + vMPF
+            Z   = Z   + charge*vMPF
+          ELSE
+            n_i = n_i + MPF
+            Z   = Z   + charge*MPF
+          END IF
+        ELSE ! neutrals
+          IF(usevMPF) THEN
+            n_n  = n_n + vMPF
+          ELSE
+            n_n  = n_n + MPF
+          END IF
+        END IF
+      END IF ! ParticleInside
+    END ASSOCIATE
+  END ASSOCIATE
 END DO ! iPart
 IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
   DO iElem=1,PP_nElems
@@ -3462,6 +3471,7 @@ SUBROUTINE CalculateIonizationCell()
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3472,31 +3482,45 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iElem
 !===================================================================================================================================
-! nullify
+! Nullify
 IonizationCell      = 0.
 QuasiNeutralityCell = 0.
 
-! loop over all elements
+! Loop over all elements
 DO iElem=1,PP_nElems
-  IF(ABS(IonDensityCell(iElem) + NeutralDensityCell(iElem)).LE.0.0)THEN ! no particles in cell
-    IonizationCell(iElem)      = 0.0
-    QuasiNeutralityCell(iElem) = 0.0
-  ELSE
-    ! set degree of ionization
-    IonizationCell(iElem)      = IonDensityCell(iElem) / (IonDensityCell(iElem) + NeutralDensityCell(iElem))
+  ASSOCIATE(&
+    Q   => QuasiNeutralityCell(iElem) ,& ! Quasi neutral condition approximation
+    n_e => ElectronDensityCell(iElem) ,& ! Electron number density (cell average)
+    X   => IonizationCell(iElem)      ,& ! Ionization degree (cell average)
+    n_i => IonDensityCell(iElem)      ,& ! Ion number density (cell average)
+    n_n => NeutralDensityCell(iElem)   ) ! Neutral number density (cell average)
 
-    ! set quasi neutrality between zero and unity depending on which density is larger
-    QuasiNeutralityCell(iElem) = IonDensityCell(iElem) * ChargeNumberCell(iElem)
-    IF(QuasiNeutralityCell(iElem).GT.ElectronDensityCell(iElem))THEN
-      QuasiNeutralityCell(iElem) = ElectronDensityCell(iElem) / QuasiNeutralityCell(iElem)
+    IF(ABS(n_i + n_n).LE.0.0)THEN ! no particles in cell
+      X = 0.0
+      Q = 0.0
     ELSE
-      IF(ABS(ElectronDensityCell(iElem)).GT.0.0)THEN
-        QuasiNeutralityCell(iElem) = QuasiNeutralityCell(iElem) / ElectronDensityCell(iElem)
-      ELSE
-        QuasiNeutralityCell(iElem) = -1.0
+      ! 0.  Set degree of ionization: X = n_i / (n_i + n_n)
+      X  = n_i / (n_i + n_n)
+
+      ! Set quasi neutrality between zero and unity depending on which density is larger
+      ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
+      ! 1.  Calculate Z_i*n_i (Charge density cell average)
+      Q = ChargeNumberCell(iElem) / GEO%Volume(iElem)
+
+      ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
+      IF(Q.GT.n_e)THEN
+        ! 2.1  if Z_i*n_i > n_e -> calculate n_e/Z_i*n_i 
+        Q = n_e / Q
+      ELSE 
+        ! 2.2  if Z_i*n_i < n_e -> calculate Z_i*n_i/n_e
+        IF(ABS(n_e).GT.0.0)THEN
+          Q = Q / n_e
+        ELSE
+          Q = 0.0
+        END IF
       END IF
     END IF
-  END IF
+  END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateIonizationCell
