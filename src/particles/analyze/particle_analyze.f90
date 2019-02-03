@@ -125,6 +125,12 @@ CALL prms%CreateLogicalOption(  'CalcVelos'               , 'TODO-DEFINE-PARAMET
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcLaserInteraction'     , 'Compute laser-plasma interaction properties such as maximum '//&
                                                              'particle energy per species.','.FALSE.')
+CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
+                                                                'Ekin maximum calculation (default is HUGE) '//&
+                                                                'OR if LaserInteractionEkinMaxZPosMin condition is true')
+CALL prms%CreateRealOption(     'LaserInteractionEkinMaxZPosMin','minimum z-position of particle to be considered for Ekin '//&
+                                                                 'maximum calculation (default is -1.*HUGE) '//&
+                                                                 'OR if LaserInteractionEkinMaxRadius condition is true')
 CALL prms%CreateIntArrayOption( 'VelocityDirections'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'x,y,z,abs -> 0/1 = T/F. (please note: CalcVelos)'&
                                                           ,'1 , 1 , 1 , 1')
@@ -183,8 +189,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: dir, VeloDirs_hilf(4),iElem
-REAL      :: DOF,VolumeShapeFunction
+INTEGER       :: dir, VeloDirs_hilf(4),iElem
+REAL          :: DOF,VolumeShapeFunction
+CHARACTER(32) :: hilf
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -331,7 +338,14 @@ END IF
 CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
 ! Laser-plasma interaction analysis
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
-IF(CalcLaserInteraction)CalcEkin=.TRUE.
+IF(CalcLaserInteraction)THEN
+  ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) 1.0E200!HUGE(1.0) -> HUGE produces IEEE overflow
+  LaserInteractionEkinMaxRadius  = GETREAL('LaserInteractionEkinMaxRadius',TRIM(hilf))
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) -1.0E200!-1.*HUGE(1.0) -> HUGE produces IEEE overflow
+  LaserInteractionEkinMaxZPosMin = GETREAL('LaserInteractionEkinMaxZPosMin',TRIM(hilf))
+  CalcEkin=.TRUE.
+END IF
 
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
@@ -1217,7 +1231,7 @@ END IF
   ! Debug Output for initialized electronic state
   IF ( DSMC%ElectronicModel .AND. DSMC%ReservoirSimuRate) THEN
     DO iSpec = 1, nSpecies
-      IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
         IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
           WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
           iunit = 485
@@ -1563,7 +1577,7 @@ USE MOD_Preproc
 USE MOD_Equation_Vars         ,ONLY: c2, c2_inv
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
 USE MOD_PARTICLE_Vars         ,ONLY: PartMPF, usevMPF
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 #ifndef PP_HDG
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/ 
@@ -1582,14 +1596,12 @@ REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 ! LOCAL VARIABLES
 INTEGER                         :: i
 REAL(KIND=8)                    :: partV2, GammaFac
-REAL                            :: EkinMax_zPos,EkinMax_radius,Ekin_loc
+REAL                            :: Ekin_loc
 !===================================================================================================================================
-
-Ekin    = 0.!d0
+! default values
+Ekin    =  0.
 EkinMax = -1.        
 ! set boundaries in order to exclude particles near the boundary (nonphysical velocities)
-EkinMax_radius = 6.0e-6
-EkinMax_zPos   = 13.0e-6
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
@@ -1627,7 +1639,8 @@ IF (nSpecAnalyze.GT.1) THEN
         END IF !=usevMPF
       END IF ! partV2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! (PDM%ParticleInside(i))
@@ -1666,7 +1679,8 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 
       END IF ! par2
       ! Determine energy of the most energetic particle in [eV]
-      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.EkinMax_radius).OR.(PartState(i,3).GE.EkinMax_zPos))THEN
+      IF((SQRT(PartState(i,1)**2 + PartState(i,2)**2).LE.LaserInteractionEkinMaxRadius).OR.&
+                                      (PartState(i,3).GE.LaserInteractionEkinMaxZPosMin))THEN
         EkinMax(PartSpecies(i)) = MAX(EkinMax(PartSpecies(i)),Ekin_loc*6.241509e18) ! 6.241509e18 is [J] -> [eV]
       END IF
     END IF ! particle inside
@@ -2156,17 +2170,22 @@ IntTemp(:,:) = 0.
 ! Sum up internal energies
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
+    iSpec = PartSpecies(iPart)
     IF (usevMPF) THEN
-      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1) * PartMPF(iPart)
-      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
-      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
-        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
+      EVib(iSpec) = EVib(iSpec) + PartStateIntEn(iPart,1) * PartMPF(iPart)
+      ERot(iSpec) = ERot(iSpec) + PartStateIntEn(iPart,2) * PartMPF(iPart)
+      IF (DSMC%ElectronicModel) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(iPart,3) * PartMPF(iPart)
+        END IF
       END IF
     ELSE
-      EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
-      ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-      IF ( DSMC%ElectronicModel .AND. SpecDSMC(PartSpecies(iPart))%InterID .NE. 4) THEN
-        Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
+      EVib(iSpec) = EVib(iSpec) + PartStateIntEn(iPart,1)
+      ERot(iSpec) = ERot(iSpec) + PartStateIntEn(iPart,2)
+      IF (DSMC%ElectronicModel) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(iPart,3)
+        END IF
       END IF
     END IF
   END IF
@@ -2219,10 +2238,12 @@ IF(PartMPI%MPIRoot)THEN
       IntTemp(iSpec,1) = 0
       IntTemp(iSpec,2) = 0
     END IF
-    IF ( DSMC%ElectronicModel ) THEN
-      IF ((NumSpecTemp.GT.0).AND.(SpecDSMC(iSpec)%InterID.NE.4) ) THEN
-        IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
-        IntEn(iSpec,3) = Eelec(iSpec)
+    IF(DSMC%ElectronicModel) THEN
+      IF(NumSpecTemp.GT.0) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
+          IntEn(iSpec,3) = Eelec(iSpec)
+        END IF
       ELSE
         IntEn(iSpec,3) = 0.0
       END IF
@@ -2454,7 +2475,7 @@ INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
 IF ( DSMC%ElectronicModel ) THEN
 ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
   DO iSpec = 1, nSpecies
-    IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       DO iSpec2 = 1, nSpecies
    ! calculaction of kf for each reaction
 !      MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
@@ -2479,7 +2500,7 @@ IF ( DSMC%ElectronicModel ) THEN
   CALL WriteEletronicTransition( Time )
   ! nullyfy
   DO iSpec = 1, nSpecies
-    IF(SpecDSMC(iSpec)%InterID.ne.4)THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
       SpecDSMC(iSpec)%ElectronicTransition = 0
     END IF
   END DO
@@ -2513,7 +2534,7 @@ bExist = .false.
 IF ( DSMC%ElectronicModel ) THEN
 ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
   DO iSpec = 1, nSpecies
-    IF (SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
 !        MaxElecQua = SpecDSMC(iSpec)%MaxElecQuant
       MaxElecQua = 2
       ! output to transition file
@@ -2748,7 +2769,7 @@ IF(CreateFile) THEN
 
   WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
   WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-  tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
   CLOSE(ioUnit) 
@@ -2757,7 +2778,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       WRITE(tmpStr2,formatStr)&
@@ -2778,7 +2799,7 @@ IF(FILEEXISTS(outfile))THEN
   END DO
   CLOSE(ioUnit) 
 ELSE
-  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking info!"
 END IF
 
 ! printDiff
@@ -2882,7 +2903,7 @@ END IF
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,'(A1,E21.14E3))'
+  WRITE(formatStr,'(A2,I2,A14)')'(',nOutputVar,CSVFORMAT
   WRITE(tmpStr2,formatStr)&
       " ",time, &                           ! time
       delimiter,PartStateAnalytic(1), &     ! PartPosX analytic solution
@@ -2900,7 +2921,7 @@ IF(FILEEXISTS(outfile))THEN
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit) 
 ELSE
-  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+  SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking (analytic) info!"
 END IF
 
 END SUBROUTINE WriteParticleTrackingDataAnalytic
@@ -3139,7 +3160,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iPart,iElem,ElemID,RegionID
+INTEGER              :: iPart,iElem,RegionID
 REAL                 :: charge
 !===================================================================================================================================
 
@@ -3152,32 +3173,41 @@ ElectronDensityCell=0.
 ! loop over all particles and count the number of electrons per cell
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-    ElemID = PEM%Element(iPart)
-    IF(PARTISELECTRON(iPart))THEN ! electrons
-      IF(usevMPF) THEN
-        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID)+PartMPF(iPart)
-      ELSE
-        ElectronDensityCell(ElemID) = ElectronDensityCell(ElemID) &
-            +Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive of negative)
-      IF(usevMPF) THEN
-        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + PartMPF(iPart)
-        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*PartMPF(iPart)
-      ELSE
-        IonDensityCell(ElemID)      = IonDensityCell(ElemID)   + Species(PartSpecies(iPart))%MacroParticleFactor
-        ChargeNumberCell(ElemID)    = ChargeNumberCell(ElemID) + charge*Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    ELSE ! neutrals
-      IF(usevMPF) THEN
-        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + PartMPF(iPart)
-      ELSE
-        NeutralDensityCell(ElemID)  = NeutralDensityCell(ElemID) + Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-    END IF
-  END IF ! ParticleInside
+  ASSOCIATE ( &
+    vMPF    => PartMPF(iPart)                                  ,& ! Variable MPF
+     MPF    => Species(PartSpecies(iPart))%MacroParticleFactor ,& ! Fixed MPF
+    ElemID  => PEM%Element(iPart)                              )  ! Element ID
+    ASSOCIATE ( &
+      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
+      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
+      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
+      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
+      IF(PDM%ParticleInside(iPart))THEN
+        charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
+        IF(PARTISELECTRON(iPart))THEN ! electrons
+          IF(usevMPF) THEN
+            n_e = n_e + vMPF
+          ELSE
+            n_e = n_e + MPF
+          END IF
+        ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
+          IF(usevMPF) THEN
+            n_i = n_i + vMPF
+            Z   = Z   + charge*vMPF
+          ELSE
+            n_i = n_i + MPF
+            Z   = Z   + charge*MPF
+          END IF
+        ELSE ! neutrals
+          IF(usevMPF) THEN
+            n_n  = n_n + vMPF
+          ELSE
+            n_n  = n_n + MPF
+          END IF
+        END IF
+      END IF ! ParticleInside
+    END ASSOCIATE
+  END ASSOCIATE
 END DO ! iPart
 IF (NbrOfRegions .GT. 0) THEN !check for BR electrons
   DO iElem=1,PP_nElems
@@ -3441,6 +3471,7 @@ SUBROUTINE CalculateIonizationCell()
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3451,31 +3482,45 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iElem
 !===================================================================================================================================
-! nullify
+! Nullify
 IonizationCell      = 0.
 QuasiNeutralityCell = 0.
 
-! loop over all elements
+! Loop over all elements
 DO iElem=1,PP_nElems
-  IF(ABS(IonDensityCell(iElem) + NeutralDensityCell(iElem)).LE.0.0)THEN ! no particles in cell
-    IonizationCell(iElem)      = 0.0
-    QuasiNeutralityCell(iElem) = 0.0
-  ELSE
-    ! set degree of ionization
-    IonizationCell(iElem)      = IonDensityCell(iElem) / (IonDensityCell(iElem) + NeutralDensityCell(iElem))
+  ASSOCIATE(&
+    Q   => QuasiNeutralityCell(iElem) ,& ! Quasi neutral condition approximation
+    n_e => ElectronDensityCell(iElem) ,& ! Electron number density (cell average)
+    X   => IonizationCell(iElem)      ,& ! Ionization degree (cell average)
+    n_i => IonDensityCell(iElem)      ,& ! Ion number density (cell average)
+    n_n => NeutralDensityCell(iElem)   ) ! Neutral number density (cell average)
 
-    ! set quasi neutrality between zero and unity depending on which density is larger
-    QuasiNeutralityCell(iElem) = IonDensityCell(iElem) * ChargeNumberCell(iElem)
-    IF(QuasiNeutralityCell(iElem).GT.ElectronDensityCell(iElem))THEN
-      QuasiNeutralityCell(iElem) = ElectronDensityCell(iElem) / QuasiNeutralityCell(iElem)
+    IF(ABS(n_i + n_n).LE.0.0)THEN ! no particles in cell
+      X = 0.0
+      Q = 0.0
     ELSE
-      IF(ABS(ElectronDensityCell(iElem)).GT.0.0)THEN
-        QuasiNeutralityCell(iElem) = QuasiNeutralityCell(iElem) / ElectronDensityCell(iElem)
-      ELSE
-        QuasiNeutralityCell(iElem) = -1.0
+      ! 0.  Set degree of ionization: X = n_i / (n_i + n_n)
+      X  = n_i / (n_i + n_n)
+
+      ! Set quasi neutrality between zero and unity depending on which density is larger
+      ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
+      ! 1.  Calculate Z_i*n_i (Charge density cell average)
+      Q = ChargeNumberCell(iElem) / GEO%Volume(iElem)
+
+      ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
+      IF(Q.GT.n_e)THEN
+        ! 2.1  if Z_i*n_i > n_e -> calculate n_e/Z_i*n_i 
+        Q = n_e / Q
+      ELSE 
+        ! 2.2  if Z_i*n_i < n_e -> calculate Z_i*n_i/n_e
+        IF(ABS(n_e).GT.0.0)THEN
+          Q = Q / n_e
+        ELSE
+          Q = 0.0
+        END IF
       END IF
     END IF
-  END IF
+  END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateIonizationCell

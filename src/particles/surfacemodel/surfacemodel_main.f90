@@ -62,10 +62,10 @@ END SUBROUTINE SurfaceModel_main
 
 SUBROUTINE UpdateSurfModelVars()
 !===================================================================================================================================
-!> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogenous reactions)
+!> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
 !> Only procs with surface enter function, all other exit routine
 !> 1. Communicate number of particles that were adsorbed on halo-sides of neighbour procs, 
-!>    so that own proc has number of total adsorbtion particles for each species on own surfaces
+!>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
 !> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
@@ -73,7 +73,7 @@ SUBROUTINE UpdateSurfModelVars()
 !> 3. Sample macroscopic surface coverage values
 !> 4. Reinitialized surface reaction counters
 !> 5. Calculated global adsorption probabilities for surfacemodel=1,2
-!> 6. Send Coverages and Distribuition info of own sides to halo sides of other procs (other procs have own sides as halo sides 
+!> 6. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
 !>    and need coverage info for adsorption calculation
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -126,7 +126,7 @@ IF (PartSurfaceModel.GT.0) THEN
       DO iSurfSide = 1,SurfMesh%nSides
         SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+        IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)

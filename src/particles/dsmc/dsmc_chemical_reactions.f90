@@ -199,14 +199,14 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   !---------------------------------------------------------------------------------------------------------------------------------
   IF (DSMC%ElectronicModel ) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React1Inx,3) + PartStateIntEn(React2Inx,3)
-    IF(SpecDSMC(EductReac(1))%InterID.NE.4) THEN 
+    IF((SpecDSMC(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) THEN 
       IF(PartStateIntEn(React1Inx,3).GT.0.0)THEN
         Telec=CalcTelec( PartStateIntEn(React1Inx,3) , EductReac(1))
         Xi_elec1=2.*PartStateIntEn(React1Inx,3)/(BoltzmannConst*Telec)
       END IF
     END IF
   !---------------------------------------------------------------------------------------------------------------------------------
-    IF(SpecDSMC(EductReac(2))%InterID.NE.4) THEN 
+    IF((SpecDSMC(EductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(2))%FullyIonized)) THEN 
       IF(PartStateIntEn(React2Inx,3).GT.0.0)THEN
         Telec=CalcTelec( PartStateIntEn(React2Inx,3) , EductReac(2))
         Xi_elec2=2.*PartStateIntEn(React2Inx,3)/(BoltzmannConst*Telec)
@@ -215,7 +215,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   !---------------------------------------------------------------------------------------------------------------------------------
     IF(EductReac(3).NE.0) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart_p3,3)
-      IF(SpecDSMC(EductReac(3))%InterID.NE.4) THEN 
+      IF((SpecDSMC(EductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(3))%FullyIonized)) THEN 
         IF(PartStateIntEn(iPart_p3,3).GT.0.0)THEN
           Telec=CalcTelec( PartStateIntEn(iPart_p3,3) , EductReac(3))
           Xi_elec3=2.*PartStateIntEn(iPart_p3,3)/(BoltzmannConst*Telec)
@@ -576,7 +576,7 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   IF (DSMC%ElectronicModel) THEN
     FakXi = FakXi + 0.5*(Xi_elec(1)+Xi_elec(2))
     IF(ProductReac(3).NE.0) THEN
-      IF(SpecDSMC(ProductReac(3))%InterID.EQ.4) THEN
+      IF((SpecDSMC(ProductReac(3))%InterID.EQ.4).OR.SpecDSMC(ProductReac(3))%FullyIonized) THEN
         PartStateIntEn(React3Inx,3) = 0.0
       ELSE
         CALL ElectronicEnergyExchange(iPair,React3Inx,FakXi)
@@ -584,14 +584,14 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
       END IF
     END IF
     FakXi = FakXi - 0.5*Xi_elec(2)
-    IF(SpecDSMC(ProductReac(2))%InterID.EQ.4) THEN
+    IF((SpecDSMC(ProductReac(2))%InterID.EQ.4).OR.SpecDSMC(ProductReac(2))%FullyIonized) THEN
       PartStateIntEn(React2Inx,3) = 0.0
     ELSE
       CALL ElectronicEnergyExchange(iPair,React2Inx,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React2Inx,3)
     END IF
     FakXi = FakXi - 0.5*Xi_elec(1)
-    IF(SpecDSMC(ProductReac(1))%InterID.EQ.4) THEN
+    IF((SpecDSMC(ProductReac(1))%InterID.EQ.4).OR.SpecDSMC(ProductReac(1))%FullyIonized) THEN
       PartStateIntEn(React1Inx,3) = 0.0
     ELSE
       CALL ElectronicEnergyExchange(iPair,React1Inx,FakXi)
@@ -980,13 +980,13 @@ USE MOD_Particle_Vars,      ONLY: Species
     Qrot = 1.
     Qvib = 1.
   END IF
-  IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+    Qelec = 1.
+  ELSE
     Qelec = 0.
     DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1 
       Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp)
     END DO
-  ELSE
-    Qelec = 1.
   END IF 
 
 END SUBROUTINE CalcPartitionFunction

@@ -487,12 +487,12 @@ INTEGER                     :: iLoop
 IF(PRESENT(RealArray)) THEN
   DO iLoop = 1, nVal
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealArray(iLoop)
+    WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealArray(iLoop)
   END DO
 END IF
 IF(PRESENT(RealScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealScalar
+  WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealScalar
 END IF
 
 IF(PRESENT(IntegerArray)) THEN
@@ -585,7 +585,7 @@ IF(SurfMesh%SurfOnProc)THEN
   DO iSurfSide=1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)

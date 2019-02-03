@@ -128,6 +128,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
 END TYPE tSpeciesDSMC

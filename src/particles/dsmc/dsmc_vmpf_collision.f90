@@ -609,7 +609,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 
   IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
-    IF ( SpecDSMC(PartSpec1)%InterID .ne. 4 ) THEN
+    IF ((SpecDSMC(PartSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpec1)%FullyIonized)) THEN
       CALL RANDOM_NUMBER(iRan)
       IF ( SpecDSMC(PartSpec1)%ElecRelaxProb .GT. iRAN ) THEN
         DoElec1 = .TRUE.
@@ -628,7 +628,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
   END IF
   IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
-    IF ( SpecDSMC(PartSpec2)%InterID .ne. 4 ) THEN
+    IF ((SpecDSMC(PartSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(PartSpec2)%FullyIonized)) THEN
       IF ( SpecDSMC(PartSpec2)%ElecRelaxProb .GT. iRAN ) THEN
         DoElec2 = .TRUE.
       END IF

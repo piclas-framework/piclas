@@ -171,12 +171,12 @@ __STAMP__&
       ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
 
-      ! Filling up ChemReac-Array for the given non-reactive dissociation partners
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+      ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
+      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
         IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
           IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
             CALL abort(__STAMP__,&
-            'Dissociation - Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+            'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
           END IF
           DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
             IF(iReac2.EQ.1) THEN
@@ -184,8 +184,9 @@ __STAMP__&
               ChemReac%DefinedReact(iReac,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
               ChemReac%DefinedReact(iReac,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
             ELSE
-              ! The following species are added after the number of originally read-in reactions (counter: iReacDiss)
-              ChemReac%ReactType(iReacDiss+iReac2-1)             = 'D'
+              ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
+              ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
+              ChemReac%QKProcedure(iReacDiss+iReac2-1)           = ChemReac%QKProcedure(iReac)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,:)      = ChemReac%DefinedReact(iReac,1,:)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,2,:)      = ChemReac%DefinedReact(iReac,2,:)

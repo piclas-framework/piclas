@@ -25,8 +25,10 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization:
+LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
+INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
+!                                                                            ! * Ammosov-Delone-Krainov (ADK) model Yu 2018
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
@@ -38,6 +40,10 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              ! 2 Recombination coefficient (Laux model)
                                                                              ! 3 adsorption/desorption + chemical interaction 
                                                                              !   (SMCR with UBI-QEP, TST and TCE)
+                                                                             ! 4 TODO
+                                                                             ! 5 SEE (secondary e- emission) by Levko2015
+                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016 
+                                                                             !   (orignally from Harrower1956)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a

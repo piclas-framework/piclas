@@ -274,6 +274,7 @@ velosq = v1s+v2s+v3s
 IF(velosq.GT.c2) THEN
  IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
  IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
+ IPWRITE(*,*) ' x=',PartState(PartID,1),' y=',PartState(PartID,2),' z=',PartState(PartID,3)
  CALL abort(&
   __STAMP__&
   ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)

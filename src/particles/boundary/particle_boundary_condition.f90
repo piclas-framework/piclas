@@ -161,7 +161,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
-      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PorousReflection) THEN
@@ -172,11 +172,11 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
             IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
         END IF
-      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)            
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC&
+        CALL ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,opt_Reflected=crossedBC&
                                               ,TriNum=TriNum)
         ! assign right treatment
         SELECT CASE (adsorbindex)
@@ -386,7 +386,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ! Decide if liquid or solid
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC(SideID)))) THEN
       BCSideID=PartBCSideList(SideID)
-      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      IF ((PartSurfaceModel.EQ.0) .OR. (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
         CALL RANDOM_NUMBER(RanNum)
         IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
@@ -397,11 +397,11 @@ CASE(2) !PartBound%ReflectiveBC)
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         END IF
-      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(SideID))))) THEN 
+      ELSE IF ((PartSurfaceModel.GT.0) .AND. (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SideID))))) THEN 
       ! chemical surface interaction (adsorption)
         adsorbindex = 0
         ! Decide which interaction (reflection, reaction, adsorption)
-        CALL CatalyticTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex&
+        CALL ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         ! assign right treatment
         SELECT CASE (adsorbindex)
@@ -2086,7 +2086,7 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE CatalyticTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum)
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID,Opt_Reflected,TriNum)
 !===================================================================================================================================
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
@@ -2105,6 +2105,7 @@ USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
+USE MOD_SEE                    ,ONLY: SEE_PartDesorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2253,16 +2254,47 @@ CASE (2)
 CASE (3)
   Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+CASE (4)
+  ! TODO
+CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
+           ! 5: SEE by Levko2015
+           ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+  ! Get electron emission probability
+  CALL SEE_PartDesorb(PartSurfaceModel,PartID,Adsorption_prob,adsorption_case,outSpec)
+  !Adsorption_prob = 1. !Adsorption%ProbAds(p,q,SurfSideID,SpecID)
+  ! CALL RANDOM_NUMBER(RanNum)
+  ! IF(Adsorption_prob.GE.RanNum)THEN
+  !    !  .AND. &
+  !    !(Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
+  !   outSpec(1) = SpecID
+  !   outSpec(2) = 4!SpecID ! electron
+  !   adsorption_case = -2 ! perfect elastic scattering + particle creation
+  !   WRITE (*,*) "SpecID,outSpec(1),outSpec(2),adsorption_case =", SpecID,outSpec(1),outSpec(2),adsorption_case
+  ! END IF
 END SELECT
 
 SELECT CASE(adsorption_case)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(-1) ! perfect elastic scattering
+CASE(-4) ! Remove bombarding particle
+!-----------------------------------------------------------------------------------------------------------------------------------
+  adsindex = 2
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(-3) ! Remove bombarding particle + electron creation
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  adsindex = 2
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(-2) ! Perfect elastic scattering + electron creation
+!-----------------------------------------------------------------------------------------------------------------------------------
+  Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  adsindex = -1
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(-1) ! Perfect elastic scattering
 !-----------------------------------------------------------------------------------------------------------------------------------
   adsindex = -1
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1) ! molecular adsorption
+CASE(1) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
   Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
   adsindex = 1
@@ -2271,7 +2303,7 @@ CASE(1) ! molecular adsorption
 #endif
   IF ((KeepWallparticles).OR.&
       (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-!     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
+!     ! Allocate particle belonging adsorbing side-index and side-subsurface-indexes
 !     IF (KeepWallParticles) THEN
 !       PDM%PartAdsorbSideIndx(1,PartID) = GlobSideID
 !       PDM%PartAdsorbSideIndx(2,PartID) = p
@@ -2787,7 +2819,7 @@ CASE DEFAULT ! diffuse reflection
   adsindex = 0
 END SELECT
 
-END SUBROUTINE CatalyticTreatment
+END SUBROUTINE ReactiveSurfaceTreatment
 
 SUBROUTINE ParticleCondensationCase(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,condensindex,BCSideID,TriNum)
 !===================================================================================================================================
