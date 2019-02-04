@@ -589,7 +589,6 @@ SUBROUTINE WriteDataToVTK3DElems(nVal,ValueCells,FileString,VarNameVisu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh,          ONLY:InitParticleGeometry
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Mesh_Vars,              ONLY:nElems,nNodes
 ! IMPLICIT VARIABLE HANDLING
