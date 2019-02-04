@@ -406,9 +406,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------
   DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
   DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
-#if (PP_TimeDiscMethod==42)
-  DSMC%CalcQualityFactors = .TRUE.
-#endif
   IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
     CALL abort(&
 __STAMP__&
