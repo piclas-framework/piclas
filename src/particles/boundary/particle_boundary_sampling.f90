@@ -1189,6 +1189,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+3) ='ForceZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
+  nVarCount = nVarCount + 5
   IF (PartSurfaceModel.GT.0) THEN
     Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_LH'
     Str2DVarNames(nVarCount+2) ='HeatFlux_Portion_SurfDiss'
