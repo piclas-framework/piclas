@@ -2176,8 +2176,7 @@ CASE(1) ! molecular adsorption
 
     !----  Sampling of energies
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
-        ,locBCID)
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2188,9 +2187,8 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
-  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1)  &
-                                                     + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor &
-                                                     / BoltzmannConst
+  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) &
+     + AdsorptionEnthalpie/BoltzmannConst
 #endif
   IF ((KeepWallparticles).OR.&
       (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -2248,8 +2246,9 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 
     !----  Sampling of energies
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
-        ,locBCID)
+      SampWall(SurfSideID)%Adsorption(4,p,q) = SampWall(SurfSideID)%Adsorption(4,p,q) &
+                                             + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2261,9 +2260,8 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
   Adsorption%AdsorpInfo(outSpec(2))%NumOfDes = Adsorption%AdsorpInfo(outSpec(2))%NumOfDes + 1
-  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1)  &
-                                                      + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor &
-                                                      / BoltzmannConst
+  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) &
+     + AdsorptionEnthalpie/BoltzmannConst
 #endif
   ! Sample recombination coefficient
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -2338,7 +2336,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 
   !----  sampling of energies
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,0.0,locBCID)
+    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
   END IF
 
   PartSpecies(PartID) = OutSpec(2)
@@ -2535,7 +2533,9 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   AdsorptionEnthalpie = AdsorptionEnthalpie * Adsorption%RecombAccomodation(locBCID,SpecID)
   !----  sampling of energies
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie,locBCID)
+    SampWall(SurfSideID)%Adsorption(3,p,q) = SampWall(SurfSideID)%Adsorption(3,p,q) &
+                                           + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
@@ -2558,7 +2558,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Liquid
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -2774,8 +2774,9 @@ CASE(1) ! molecular condensation
     
     !----  Sampling of energies
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,EvaporationEnthalpie&
-        ,locBCID)
+      SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
+                                             + EvaporationEnthalpie * Species(SpecID)%MacroParticleFactor
+      CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------

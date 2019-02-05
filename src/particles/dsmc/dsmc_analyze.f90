@@ -232,7 +232,7 @@ CALL CloseDataFile()
 END SUBROUTINE WriteDSMCToHDF5
 
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,AdsorptionEnthalpie&
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap&
                           ,locBCID,emission_opt)
 !===================================================================================================================================
 !> Sample Wall values from Particle collisions
@@ -252,7 +252,6 @@ REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
 REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
 LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
-REAL,INTENT(IN)                    :: AdsorptionEnthalpie
 LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -278,10 +277,6 @@ SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
 
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
-    IF (PartSurfaceModel.GT.0) THEN
-      SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
-                                        + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
-    END IF
     IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
       !----  Sampling for internal (rotational) energy accommodation at walls
       SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
@@ -510,7 +505,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           ! calculate coverage
-          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(2+iSpec,p,q) * dt / TimeSample
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(5+iSpec,p,q) * dt / TimeSample
           ! calculate recombination coefficient
           DO iReact=1,Adsorption%RecombNum
             IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN

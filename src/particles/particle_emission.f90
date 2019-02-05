@@ -5348,7 +5348,7 @@ __STAMP__&
                 END IF
                 ! sample values
                 CALL CalcWallSample(PartID,SurfSideID,p,q,TransArray,IntArray, &
-                    (/0.,0.,0./),0.,.False.,0.,currentBC,emission_opt=.TRUE.)
+                    (/0.,0.,0./),0.,.False.,currentBC,emission_opt=.TRUE.)
                 currentSurfFluxPart => currentSurfFluxPart%next
 #if USE_LOADBALANCE
                 CALL LBElemSplitTime(PEM%Element(PartID),tLBStart)
