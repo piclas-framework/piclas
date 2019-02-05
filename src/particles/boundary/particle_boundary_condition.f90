@@ -2188,6 +2188,9 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
+  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1)  &
+                                                     + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor &
+                                                     / BoltzmannConst
 #endif
   IF ((KeepWallparticles).OR.&
       (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -2258,6 +2261,9 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
   Adsorption%AdsorpInfo(outSpec(2))%NumOfDes = Adsorption%AdsorpInfo(outSpec(2))%NumOfDes + 1
+  Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1)  &
+                                                      + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor &
+                                                      / BoltzmannConst
 #endif
   ! Sample recombination coefficient
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN

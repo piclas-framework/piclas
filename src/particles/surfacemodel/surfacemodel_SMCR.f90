@@ -487,6 +487,8 @@ IF (sum_probabilities .GT. RanNum) THEN
         Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iSampleReact) + loc_Adsnu(iSampleReact)
     Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iSampleReact) = &
         Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iSampleReact) + 1
+    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iSampleReact) = &
+        Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iSampleReact) + 1.
   END IF
 #endif
 END IF
@@ -1421,6 +1423,20 @@ DO iSubSurf = 1,nSurfSample
           !    NumDesorbLH(Adsorption%AssocReact(2,iReact,iSpec),iReact) + 1
           NumDesorbLH(iSpec,iReact) = NumDesorbLH(iSpec,iReact) + 1
         END IF
+#if (PP_TimeDiscMethod==42)
+        D_AB = Adsorption%EDissBond(Adsorption%DissNum+iReact,iSpec)
+        AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
+                        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+                        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+                        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor
+        Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2) = Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2)  &
+                                                              + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor &
+                                                              / BoltzmannConst
+        Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iSampleReact) = &
+            Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iSampleReact) &
+                        + (1. / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+                        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8))
+#endif
         ! remove adsorbate and update map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,iSpec,.TRUE.,relaxation=.TRUE.)
         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
@@ -1474,6 +1490,20 @@ DO iSubSurf = 1,nSurfSample
           SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
         END IF
+#if (PP_TimeDiscMethod==42)
+        D_A = Adsorption%EDissBond(DissocNum,iSpec)
+        AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
+                        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+                        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+                        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor
+        Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2) = Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2)  &
+                                                                + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor &
+                                                                / BoltzmannConst
+        Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iSampleReact) = &
+            Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iSampleReact) &
+                        + (1. / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+                        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8))
+#endif
         ! remove adsorbate and update map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,SurfPos,iSpec,.TRUE.,relaxation=.TRUE.)
         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &

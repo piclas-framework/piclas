@@ -49,6 +49,10 @@ TYPE tProperInfo
   INTEGER  , ALLOCATABLE                 :: SurfReactCount(:)       ! Number of reactive desorption probability caluclations
   INTEGER  , ALLOCATABLE                 :: ProperAdsReactCount(:)  ! Number of reactive adsorptions
   INTEGER  , ALLOCATABLE                 :: ProperSurfReactCount(:) ! Number of reactive desorptions
+  REAL     , ALLOCATABLE                 :: HeatFlux(:)             ! heatflux on surface due to species reacting on surface
+                                                                    ! 1: adsorption process ; 2: desorption process
+  REAL     , ALLOCATABLE                 :: HeatFluxDesCount(:)     ! heatflux on surface due to species reacting on surface
+  REAL     , ALLOCATABLE                 :: HeatFluxAdsCount(:)     ! heatflux on surface due to species reacting on adsorption
 END TYPE
 #endif
 

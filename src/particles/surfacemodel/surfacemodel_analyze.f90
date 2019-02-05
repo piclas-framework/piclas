@@ -93,6 +93,9 @@ CALL prms%CreateLogicalOption(  'Surf-CalcSurfnu'         , 'TODO-DEFINE-PARAMET
 CALL prms%CreateLogicalOption(  'Surf-CalcSurfE'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the surface reaction rate per reaction'//&
                                                             ' (k_r)','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcHeatFlux'       , 'TODO-DEFINE-PARAMETER\n'//&
+                                                            'Calculate the surface reaction rate per reaction'//&
+                                                            ' (k_r)','.FALSE.')
 
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
@@ -159,12 +162,14 @@ ELSE
   CalcSurfE     = GETLOGICAL('Surf-CalcSurfE')
   IF (CalcSurfProb.OR.CalcSurfnu.OR.CalcSurfE) CalcSurfRates=.TRUE.
 END IF
+CalcHeatflux = GETLOGICAL('Surf-CalcHeatFlux')
 IF (    CalcSurfNumSpec &
    .OR. CalcSurfRates &
    .OR. CalcSurfCoverage &
    .OR. CalcAccomodation &
    .OR. Adsorption%TPD &
-   .OR. CalcAdsorbRates) &
+   .OR. CalcAdsorbRates &
+   .OR. CalcHeatFlux) &
   DoSurfModelAnalyze = .TRUE.
 IF (Adsorption%TPD.AND.((.NOT.CalcSurfRates))) CalcSurfRates = .TRUE.
 #else
@@ -223,6 +228,7 @@ INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionN
 REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:)
 REAL,ALLOCATABLE    :: AdsorptionActE(:), ProperAdsorptionActE(:), Adsorptionnu(:), ProperAdsorptionnu(:)
 REAL,ALLOCATABLE    :: SurfaceActE(:), ProperSurfaceActE(:), Surfacenu(:), ProperSurfacenu(:)
+REAL,ALLOCATABLE    :: HeatFlux(:,:), AdsReactCount(:), DesReactCount(:)
 #endif
 #if (PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod ==4)
 INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
@@ -242,9 +248,8 @@ REAL                :: WallCoverage(nSpecies)
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
-    ! of the second species is added to the filename
-      IF (Adsorption%TPD) THEN
+    ! if only the reaction rate is desired (resevoir) the projectname is added to the filename
+      IF (Adsorption%TPD.OR.CalcHeatFlux) THEN
         outfile = 'SurfaceAnalyze_'//TRIM(ProjectName)//'.csv'
       ELSE
         outfile = 'SurfaceAnalyze.csv'
@@ -471,6 +476,45 @@ REAL                :: WallCoverage(nSpecies)
               CALL WriteDataHeaderInfo(unit_index,'Proper-E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
             END IF
           END IF
+          IF (CalcHeatFlux) THEN
+            CALL WriteDataHeaderInfo(unit_index,'Adsorption-HeatFlux-Spec',OutputCounter,nSpecies)
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-AdsCount-Spec-', iSpec,' '
+              OutputCounter = OutputCounter + 1
+              DO iCase = 1,Adsorption%DissNum
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                OutputCounter = OutputCounter + 1
+              END DO
+              DO iCase = 1,Adsorption%RecombNum
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                    OutputCounter,'-Count-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                OutputCounter = OutputCounter + 1
+              END DO
+            END DO
+            CALL WriteDataHeaderInfo(unit_index,'Desorption-HeatFlux-Spec',OutputCounter,nSpecies)
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-DesCount-Spec-', iSpec,' '
+              OutputCounter = OutputCounter + 1
+              DO iCase = 1,Adsorption%DissNum
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                OutputCounter = OutputCounter + 1
+              END DO
+              DO iCase = 1,Adsorption%RecombNum
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
+                    OutputCounter,'-Count-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                OutputCounter = OutputCounter + 1
+              END DO
+            END DO
+            CALL WriteDataHeaderInfo(unit_index,'Count-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
+          END IF
           IF (Adsorption%TPD) THEN
             CALL WriteDataHeaderInfo(unit_index,'WallTemp',OutputCounter,1)
           END IF
@@ -527,6 +571,15 @@ IF (PartSurfaceModel.EQ.3) THEN
     ALLOCATE(Surfacenu(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
     ALLOCATE(ProperSurfacenu(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
     CALL GetSurfRates(Desorptionrate,DesorptionNum,SurfReactRate,SurfaceActE,ProperSurfaceActE,Surfacenu,ProperSurfacenu)
+  END IF
+  IF (CalcHeatFlux) THEN
+    SDEALLOCATE(HeatFlux)
+    SDEALLOCATE(AdsReactCount)
+    SDEALLOCATE(DesReactCount)
+    ALLOCATE(HeatFlux(1:2,1:nSpecies))
+    ALLOCATE(AdsReactCount(1:nSpecies*(Adsorption%ReactNum+1)))
+    ALLOCATE(DesReactCount(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact))
+    CALL GetSurfHeatFluxes(HeatFlux,AdsReactCount,DesReactCount)
   END IF
 #endif
 END IF
@@ -585,6 +638,12 @@ IF (PartMPI%MPIROOT) THEN
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=SurfaceActE(:))
           CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=ProperSurfaceActE(:))
         END IF
+      END IF
+      IF (CalcHeatFlux) THEN
+        CALL WriteDataInfo(unit_index,nSpecies,RealArray=HeatFlux(1,:))
+        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1) ,RealArray=AdsReactCount(:))
+        CALL WriteDataInfo(unit_index,nSpecies,RealArray=HeatFlux(2,:))
+        CALL WriteDataInfo(unit_index,nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact ,RealArray=DesReactCount(:))
       END IF
       IF (Adsorption%TPD) THEN
         CALL WriteDataInfo(unit_index,1,RealScalar=Adsorption%TPD_Temp)
@@ -1275,6 +1334,101 @@ IF(SurfMesh%SurfOnProc)THEN
 END IF
 
 END SUBROUTINE GetSurfRates
+
+
+SUBROUTINE GetSurfHeatFluxes(HeatFlux,AdsReactCount,DesReactCount)
+!===================================================================================================================================
+!> Calculate heat fluxes on surface resulting from enthalpie of reaction for all species
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL   , INTENT(OUT)            :: HeatFlux(1:2,1:nSpecies)
+REAL   , INTENT(OUT)            :: AdsReactCount(1:nSpecies*(Adsorption%ReactNum+1))
+REAL   , INTENT(OUT)            :: DesReactCount(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSpec, iCase, iReact
+#ifdef MPI
+INTEGER                         :: commSize1, commSize2
+REAL                            :: HE(1:2,1:nSpecies)
+REAL                            :: RA(1:nSpecies*(Adsorption%ReactNum+1))
+REAL                            :: RD(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
+#endif /*MPI*/
+!===================================================================================================================================
+
+IF(SurfMesh%SurfOnProc)THEN
+  IF (PartSurfaceModel.EQ.3) THEN
+    ! analyze heatflux to surface for each species
+    DO iSpec = 1,nSpecies
+      HeatFlux(1,iSpec) = -Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(1)
+      HeatFlux(2,iSpec) = -Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2)
+    END DO
+    ! analyze number of reactions for each species and each reaction
+    iCase = 1
+    DO iSpec = 1,nSpecies
+      DO iReact = 1,Adsorption%ReactNum+1
+        AdsReactCount(iCase) = Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iReact)
+        iCase = iCase + 1
+      END DO
+    END DO
+    iCase = 1
+    DO iSpec = 1,nSpecies
+      DO iReact = 1,Adsorption%ReactNum+1
+        DesReactCount(iCase) = Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iReact)
+        iCase = iCase + 1
+      END DO
+    END DO
+  END IF
+ELSE
+  HeatFlux(:,:) = 0.
+  AdsReactCount(:) = 0.
+  DesReactCount(:) = 0.
+END IF
+
+!print*,'heat: ',HeatFlux(1,:),HeatFlux(2,:)
+!print*,'ads: ',AdsReactCount(:)
+!print*,'des: ',DesReactCount(:)
+
+#ifdef MPI
+commSize1 = nSpecies*(Adsorption%ReactNum+1)
+commSize2 = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(1,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(2,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsReactCount,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesReactCount,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(HeatFlux(1,:),HE(1,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(HeatFlux(2,:),HE(2,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsReactCount,RA          ,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(DesReactCount,RD          ,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*MPI*/
+
+IF(SurfMesh%SurfOnProc)THEN
+  DO iSpec = 1,nSpecies
+    Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(:) = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(:) = 0.
+    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(:) = 0.
+  END DO
+END IF
+
+END SUBROUTINE GetSurfHeatFluxes
 
 
 SUBROUTINE GetEvaporationRate(EvaporationRate)
