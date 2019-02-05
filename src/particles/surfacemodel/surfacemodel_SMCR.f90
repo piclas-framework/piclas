@@ -443,31 +443,45 @@ IF (sum_probabilities .GT. RanNum) THEN
         DissocReactID = ReactNum
         outSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
         outSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
-        ! calculate adsorption Enthalpie
-        !Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.)
-        !Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(2),-1,.TRUE.)
-        Heat_A = 0.
-        Heat_B = 0.
-        Heat_AB = 0.
-        D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-        D_A = 0.
-        D_B = 0.
-        AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+            .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+          ! calculate adsorption Enthalpie
+          !Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.)
+          !Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(2),-1,.TRUE.)
+          Heat_A = 0.
+          Heat_B = 0.
+          Heat_AB = 0.
+          D_AB = Adsorption%EDissBond(ReactNum,iSpec)
+          D_A = 0.
+          D_B = 0.
+          AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+          !----  Sampling of energies
+          SampWall(SurfID)%Adsorption(4,SubSurfxi,SubSurfeta) = SampWall(SurfID)%Adsorption(4,SubSurfxi,SubSurfeta) &
+                                                                + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+AdsorptionEnthalpie = 0.
+        END IF
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.GT.Adsorption%DissNum) THEN
         ! if ER-reaction set output parameters
         adsorption_case = 3
         AssocReactID = ReactNum - Adsorption%DissNum
         outSpec(1) = Adsorption%AssocReact(1,AssocReactID,iSpec)
         outSpec(2) = Adsorption%AssocReact(2,AssocReactID,iSpec)
-        ! calculate adsorption Enthalpie
-        !Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.)
-        Heat_A = 0.
-        Heat_B = 0.
-        Heat_AB = 0.
-        D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-        D_A = 0.
-        D_B = 0.
-        AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+            .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+          ! calculate adsorption Enthalpie
+          !Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,outSpec(1),-1,.TRUE.)
+          Heat_A = 0.
+          Heat_B = 0.
+          Heat_AB = 0.
+          D_AB = Adsorption%EDissBond(ReactNum,iSpec)
+          D_A = 0.
+          D_B = 0.
+          AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+          !----  Sampling of energies
+          SampWall(SurfID)%Adsorption(3,SubSurfxi,SubSurfeta) = SampWall(SurfID)%Adsorption(3,SubSurfxi,SubSurfeta) &
+                                                                + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
+AdsorptionEnthalpie = 0.
+        END IF
       END IF
       EXIT
     END IF
@@ -492,6 +506,7 @@ IF (sum_probabilities .GT. RanNum) THEN
   END IF
 #endif
 END IF
+AdsorptionEnthalpie = 0.
 
 IF (DSMC%ReservoirSurfaceRate) adsorption_case = 0
 
@@ -601,7 +616,7 @@ ALLOCATE( P_react_forward(1:Adsorption%nDisPropReactions),&
 ! sample energy of surfaces before desorption treatment
 DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
         + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1487,7 +1502,7 @@ DO iSubSurf = 1,nSurfSample
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor
           !----  Sampling of energies
-          SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(iSpec)%MacroParticleFactor
         END IF
 #if (PP_TimeDiscMethod==42)
@@ -1841,7 +1856,7 @@ END DO ! SurfMesh%nSides
 ! sample energy of surfaces after desorption treatment
 DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
         - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1895,7 +1910,7 @@ DO jSubSurf = 1,nSurfSample
 DO iSubSurf = 1,nSurfSample
 
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
         + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1971,7 +1986,7 @@ DO iSubSurf = 1,nSurfSample
     DEALLOCATE(free_Neigh_pos)
   END DO
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
         - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &

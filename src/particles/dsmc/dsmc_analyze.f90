@@ -403,7 +403,8 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: iSpec,iSurfSide,p,q, iReact
+INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, nVarCount
+INTEGER                            :: nAdsSamples, iAdsSampl
 REAL                               :: TimeSample, ActualTime
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
@@ -440,17 +441,21 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 CALL ExchangeSurfData()
 #endif
 
-IF (PartSurfaceModel.GT.0) THEN
-  ALLOCATE(MacroSurfaceVal(7,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(4,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
-ELSE
-  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
-  MacroSurfaceVal=0.
-  ALLOCATE(MacroSurfaceSpecVal(1,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
-  MacroSurfaceSpecVal=0.
+! Determine the number of variables
+nVar = 5
+nVarSpec = 1
+IF(PartSurfaceModel.GT.0) THEN
+  nAdsSamples = 5
+  nVar = nVar + nAdsSamples
+  nVarSpec = nVarSpec + 3
 END IF
+
+! Allocate the output container
+ALLOCATE(MacroSurfaceVal(1:nVar,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+MacroSurfaceVal=0.
+ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec,1:nSurfSample,1:nSurfSample,SurfMesh%nSides,nSpecies))
+MacroSurfaceSpecVal=0.
+
 IF (CalcSurfCollis%Output) THEN
   ALLOCATE(CounterTotal(1:nSpecies))
   ALLOCATE(SumCounterTotal(1:nSpecies+1))
@@ -461,9 +466,8 @@ END IF
 DO iSurfSide=1,SurfMesh%nSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-      MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &
@@ -472,12 +476,16 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q)&
-                                           -SampWall(iSurfSide)%Adsorption(2,p,q))&
+                                           -SampWall(iSurfSide)%Adsorption(2,p,q)&
+                                           -SampWall(iSurfSide)%Adsorption(3,p,q)&
+                                           -SampWall(iSurfSide)%Adsorption(4,p,q)&
+                                           -SampWall(iSurfSide)%Adsorption(5,p,q))&
                                            /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(6,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
-        MacroSurfaceVal(7,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(2,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        DO iAdsSampl=1, nAdsSamples
+          MacroSurfaceVal(nVarCount+iAdsSampl,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(iAdssampl,p,q))&
+                                             /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+        END DO
+        nVarCount = nVarCount + nAdsSamples
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &

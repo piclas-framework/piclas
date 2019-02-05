@@ -999,8 +999,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
         IF (PartSurfaceModel.GT.0) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+2+nSpecies)= SampWall(SurfSideID)%Adsorption(:,p,q)
-          iPos=iPos+2+nSpecies
+          SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies)= SampWall(SurfSideID)%Adsorption(:,p,q)
+          iPos=iPos+5+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
           DO iReact=1,Adsorption%RecombNum
@@ -1069,8 +1069,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         iPos=iPos+SurfMesh%SampSize
         IF (PartSurfaceModel.GT.0) THEN
           SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
-                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+2+nSpecies)
-          iPos=iPos+2+nSpecies
+                                                +SurfRecvBuf(iProc)%content(iPos+1:iPos+5+nSpecies)
+          iPos=iPos+5+nSpecies
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
@@ -1143,7 +1143,7 @@ FileString=TRIM(FileName)//'.h5'
 
 ! Create dataset attribute "SurfVarNames"
 IF (PartSurfaceModel.GT.0) THEN
-  nVar2D = 7
+  nVar2D = 10
   nVar2D_Spec=4
 ELSE
   nVar2D = 5
@@ -1190,8 +1190,12 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
   IF (PartSurfaceModel.GT.0) THEN
-    Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_SurfReact'
-    Str2DVarNames(nVarCount+7) ='HeatFlux_Portion_SurfReconstruct'
+    Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_LH'
+    Str2DVarNames(nVarCount+2) ='HeatFlux_Portion_SurfDiss'
+    Str2DVarNames(nVarCount+3) ='HeatFlux_Portion_ER'
+    Str2DVarNames(nVarCount+4) ='HeatFlux_Portion_AdsDiss'
+    Str2DVarNames(nVarCount+5) ='HeatFlux_Portion_SurfReconstruct'
+    nVarCount = nVarCount + 5
   END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
