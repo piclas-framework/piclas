@@ -498,24 +498,22 @@ DO iArgs = iArgsStart,nArgs
   
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
-    ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
-    IF(.NOT.DGSolutionExists) THEN
-      ! DSMC/FV Solution
-      CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
-      CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-      CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
-      CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-      ! Read in parameters from mesh file
-      CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-      CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
-      CALL CloseDataFile()
-      CALL readMesh(MeshFile)
-    END IF
+    ! DSMC/FV Solution
+    CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
+    CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+    CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+    CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 
     ! Allocate and fill GEO% coordinates only for the first .h5 file
     IF(iArgs.EQ.iArgsStart) THEN
+      ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
+      IF(.NOT.DGSolutionExists) THEN
+        CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+        CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+        CALL CloseDataFile()
+        CALL readMesh(MeshFile)
+      END IF
       ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
-  
       GEO%ElemToNodeID(:,:)=0
       GEO%NodeCoords(:,:)=0.
       iNode=0
@@ -569,49 +567,45 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
-    CALL GetDataProps('SurfaceData',        nVar_State,   N_State,  nElems_State,     NodeType_State)
-    nVarSurf_HDF5   = nVar_State
-    N_HDF5 = N_State
-    nSurfSides_HDF5 = nElems_State
-    NodeType_HDF5 = NodeType_State
-    ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
-    IF((.NOT.DGSolutionExists).AND.(.NOT.ElemDataExists)) THEN
-      ! DSMC/FV Solution
-      CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
-      CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
-      CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
-      CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-      ! Read in parameters from mesh file
-      CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-      CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
-      CALL CloseDataFile()
-      CALL readMesh(MeshFile)
+    ! DSMC/FV Solution
+    CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
+    CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+    CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+    CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+    CALL GetDataProps('SurfaceData',nVarSurf_HDF5,N_State,nElems_State,NodeType_State)
+    IF(iArgs.EQ.iArgsStart) THEN
+      ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
+      IF((.NOT.DGSolutionExists).AND.(.NOT.ElemDataExists)) THEN
+        ! Read in parameters from mesh file
+        CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+        CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+        CALL CloseDataFile()
+        CALL readMesh(MeshFile)
+      END IF
+      ! Required for the connectivity
+      ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
+      GEO%ElemToNodeID(:,:)=0
+      GEO%NodeCoords(:,:)=0.
+      iNode=0
+      DO iElem=1,nElems
+        DO jNode=1,8
+          Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
+        END DO
+      END DO
+      DO iElem=1,nElems
+        !--- Save corners of sides
+        DO jNode=1,8
+          IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
+            iNode=iNode+1
+            Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
+            GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
+          END IF
+          GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
+        END DO
+      END DO
+      ! Build surface mesh
+      CALL InitSurfMesh()
     END IF
-
-    ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
-
-    GEO%ElemToNodeID(:,:)=0
-    GEO%NodeCoords(:,:)=0.
-    iNode=0
-    DO iElem=1,nElems
-      DO jNode=1,8
-        Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
-      END DO
-    END DO
-    DO iElem=1,nElems
-      !--- Save corners of sides
-      DO jNode=1,8
-        IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
-          iNode=iNode+1
-          Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
-          GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
-        END IF
-        GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
-      END DO
-    END DO
-    
-    ! Build surface mesh
-    CALL InitSurfMesh()
     ! Read in solution
     CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
@@ -620,6 +614,7 @@ DO iArgs = iArgsStart,nArgs
     nSurfBC_HDF5 = INT(HSize(1),4)
 
     SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
+    SDEALLOCATE(SurfBCName_HDF5)
     ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
     CALL ReadAttribute(File_ID,'BC_Surf',nSurfBC_HDF5,StrArray=SurfBCName_HDF5)
     DO iName = 1,nSurfBC_HDF5
@@ -633,17 +628,19 @@ DO iArgs = iArgsStart,nArgs
         'DSMCSurfState files with DSMC_nSurfSample greater 1 not supported yet!')
     END IF
 
+    SDEALLOCATE(VarNamesSurf_HDF5)
     ALLOCATE(VarNamesSurf_HDF5(nVarSurf_HDF5))
     CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf_HDF5,StrArray=VarNamesSurf_HDF5(1:nVarSurf_HDF5))
 
     IF((nVarSurf_HDF5.GT.0).AND.(SurfMeshPosti%nSurfaceBCSides.GT.0))THEN
+      SDEALLOCATE(SurfData_HDF5)
       ALLOCATE(SurfData_HDF5(1:nVarSurf_HDF5,nSurfSample,nSurfSample,1:SurfMeshPosti%nSurfaceBCSides))
       SurfData_HDF5=0.
       CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5, nSurfSample, nSurfSample, SurfMeshPosti%nSurfaceBCSides/), &
                       0,4,RealArray=SurfData_HDF5(:,nSurfSample,nSurfSample,:))
     END IF
 
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime))//'.vtu'
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_SurfaceOutput',OutputTime))//'.vtu'
 
     CALL WriteDataToVTK2D(nVarSurf_HDF5,SurfData_HDF5,FileString,VarNamesSurf_HDF5,nSurfSample)
     CALL CloseDataFile()
