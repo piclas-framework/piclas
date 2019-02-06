@@ -764,7 +764,7 @@ SUBROUTINE Init_SurfChemistrySampling()
 !> Initializion of additional surface sampling if PartWallModel>0
 !===================================================================================================================================
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
 #ifdef MPI
@@ -781,8 +781,6 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
 
-!IF (PartSurfaceModel.EQ.2) nAdsHeatfluxes = 1
-!IF (PartSurfaceModel.EQ.3) nAdsHeatfluxes = 5
 SurfMesh%CatalyticSampSize=(5+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%Adsorption(1:5+nSpecies,1:nSurfSample,1:nSurfSample))

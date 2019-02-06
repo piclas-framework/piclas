@@ -36,15 +36,15 @@ SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorpti
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface replication (SMCR) (surfacemodel = 3)
 !===================================================================================================================================
-USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst, PI
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies, Species, WriteMacroSurfaceValues
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst!, PI
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies, Species!, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SampWall, SurfMesh
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh !, SampWall
+!USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #endif
@@ -67,12 +67,13 @@ REAL , ALLOCATABLE               :: ProbAds(:)
 INTEGER                          :: Surfpos, ReactNum
 INTEGER                          :: jSpec, kSpec, jCoord, kCoord
 REAL                             :: sum_probabilities
-INTEGER , ALLOCATABLE            :: NeighbourID(:,:), NeighSpec(:)
-INTEGER                          :: SiteSpec, nNeigh_trap, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
+INTEGER , ALLOCATABLE            :: NeighbourID(:,:)!, NeighSpec(:)
+INTEGER                          :: SiteSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k
 INTEGER                          :: n_empty_Neigh(3), n_Neigh(3), adsorbates(nSpecies)
 REAL                             :: E_a
 REAL                             :: Heat_A, Heat_B, Heat_AB, D_AB, D_A, D_B
-REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob
+!REAL                             :: vel_norm, vel_coll, potential_pot, a_const, mu, surfmass, trapping_prob
+!INTEGER                          :: nNeigh_trap
 LOGICAL                          :: Cell_Occupied
 REAL                             :: CharaTemp
 INTEGER                          :: DissocReactID, AssocReactID
@@ -126,59 +127,59 @@ Coord = Adsorption%Coordination(PartBoundID,iSpec)
 AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%nSites(Coord)*RanNum)
 Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
 SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfpos)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! if site is empty nearest neighbour site can be occupied and this influences the collision cube mass
-IF (SiteSpec.EQ.0) THEN
-  ALLOCATE(NeighSpec(1:SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nNeighbours))
-  NeighSpec = 0
-  nNeigh_trap = 0
-  DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nNeighbours
-    IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%IsNearestNeigh(Surfpos,i)) CYCLE
-    IF ((Coord.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighSite(Surfpos,i).EQ.1)) CYCLE
-    DO Coord2 = 1,3
-      IF (Coord2.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighSite(Surfpos,i)) THEN
-        IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord2)%Species( &
-              SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
-              .NE.0) ) THEN
-              Cell_Occupied = .TRUE.
-              nNeigh_trap = nNeigh_trap + 1
-              NeighSpec(nNeigh_trap) = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord2)%Species( &
-              SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighPos(Surfpos,i))
-        END IF
-      END IF
-    END DO
-  END DO
-END IF
-potential_pot = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,iSpec,Surfpos,.TRUE.)*BoltzmannConst
-vel_norm = - (( 2*(potential_pot)/Species(iSpec)%MassIC)**(0.5) + Norm_Velo)
-a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
-IF (SiteSpec.EQ.0) THEN
-  IF (nNeigh_trap.EQ.0) THEN
-    surfmass = PartBound%SolidMassIC(PartBoundID) !Adsorption%SurfMassIC(SurfID)
-  ELSE
-    surfmass = 0.
-    DO i = 1,nNeigh_trap
-      surfmass = surfmass + Species(NeighSpec(i))%MassIC
-    END DO
-    surfmass = surfmass / nNeigh_trap
-  END IF
-  SDEALLOCATE(NeighSpec)
-  mu = Species(iSpec)%MassIC / surfmass
-ELSE
-  mu = Species(iSpec)%MassIC / (Species(SiteSpec)%MassIC)
-END IF
-vel_coll = 0.5 * ( (1+mu)*(2*(potential_pot/Species(iSpec)%MassIC))**(0.5) + (1-mu)*vel_norm )
-trapping_prob = abs(0.5 + 0.5*ERF(a_const*vel_coll) + ( EXP(-(a_const**2)*(vel_coll**2)) / (2*a_const*(vel_norm*PI**0.5)) ))
-IF (trapping_prob.GT.1.) trapping_prob = 1.
-#if (PP_TimeDiscMethod==42)
-Adsorption%AdsorpInfo(iSpec)%Accomodation = Adsorption%AdsorpInfo(iSpec)%Accomodation + trapping_prob
-#endif
-IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
-                                                                + trapping_prob
-END IF
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! if site is empty nearest neighbour site can be occupied and this influences the collision cube mass
+!IF (SiteSpec.EQ.0) THEN
+!  ALLOCATE(NeighSpec(1:SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nNeighbours))
+!  NeighSpec = 0
+!  nNeigh_trap = 0
+!  DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nNeighbours
+!    IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%IsNearestNeigh(Surfpos,i)) CYCLE
+!    IF ((Coord.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighSite(Surfpos,i).EQ.1)) CYCLE
+!    DO Coord2 = 1,3
+!      IF (Coord2.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighSite(Surfpos,i)) THEN
+!        IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord2)%Species( &
+!              SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
+!              .NE.0) ) THEN
+!              Cell_Occupied = .TRUE.
+!              nNeigh_trap = nNeigh_trap + 1
+!              NeighSpec(nNeigh_trap) = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord2)%Species( &
+!              SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighPos(Surfpos,i))
+!        END IF
+!      END IF
+!    END DO
+!  END DO
+!END IF
+!potential_pot = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,iSpec,Surfpos,.TRUE.)*BoltzmannConst
+!vel_norm = - (( 2*(potential_pot)/Species(iSpec)%MassIC)**(0.5) + Norm_Velo)
+!a_const = (Species(iSpec)%MassIC/(2*BoltzmannConst*WallTemp))**(0.5)
+!IF (SiteSpec.EQ.0) THEN
+!  IF (nNeigh_trap.EQ.0) THEN
+!    surfmass = PartBound%SolidMassIC(PartBoundID) !Adsorption%SurfMassIC(SurfID)
+!  ELSE
+!    surfmass = 0.
+!    DO i = 1,nNeigh_trap
+!      surfmass = surfmass + Species(NeighSpec(i))%MassIC
+!    END DO
+!    surfmass = surfmass / nNeigh_trap
+!  END IF
+!  SDEALLOCATE(NeighSpec)
+!  mu = Species(iSpec)%MassIC / surfmass
+!ELSE
+!  mu = Species(iSpec)%MassIC / (Species(SiteSpec)%MassIC)
+!END IF
+!vel_coll = 0.5 * ( (1+mu)*(2*(potential_pot/Species(iSpec)%MassIC))**(0.5) + (1-mu)*vel_norm )
+!trapping_prob = abs(0.5 + 0.5*ERF(a_const*vel_coll) + ( EXP(-(a_const**2)*(vel_coll**2)) / (2*a_const*(vel_norm*PI**0.5)) ))
+!IF (trapping_prob.GT.1.) trapping_prob = 1.
+!#if (PP_TimeDiscMethod==42)
+!Adsorption%AdsorpInfo(iSpec)%Accomodation = Adsorption%AdsorpInfo(iSpec)%Accomodation + trapping_prob
+!#endif
+!IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+!  SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
+!                                                                + trapping_prob
+!END IF
 ! adaptive accomodation
 !IF (Adaptive_ACC_FLAG) THEN
   CALL RANDOM_NUMBER(RanNum)
@@ -204,6 +205,8 @@ END IF
 ! calculate probability for molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ReactNum = 0
+! check for occupation with neirest Neighbours of both cells
+IF ( SpaceOccupied(SurfID,subsurfxi,subsurfeta,Coord,SurfPos) )  Cell_Occupied = .TRUE.
 IF ( (SiteSpec.EQ.0) .AND. (.NOT.Cell_Occupied) &
     .AND. (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(iSpec)).LE.0) ) THEN
   ! calculation of molecular adsorption probability
