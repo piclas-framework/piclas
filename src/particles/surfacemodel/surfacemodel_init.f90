@@ -108,8 +108,8 @@ CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-DiCoordination'&
     '2: weak, erect\n'//&
     '3: intermediate (strong+weak)/2 \n'//&
     '4: parallel, bridge span, acceptor \n'//&
-    '5: parallel, across bridge, donor \n'//&
-    '6: on top, parallel to one surface atom \n'//&
+    '5: on top, parallel to one surface atom \n'//&
+    '6: parallel, across bridge, donor \n'//&
     '7: chelating, similar to 4 for poly \n'//&
     '[surfacemodel=3]','1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K'&
@@ -375,7 +375,7 @@ __STAMP__,&
     END DO
   END IF
 END DO
-! initialize temperature programmed desorption specific variables
+! initialize specific variables for analyze functionality like TPD and rate analysis
 #if (PP_TimeDiscMethod==42)
   Adsorption%LateralInactive = GETLOGICAL('Surface-Adsorption-LateralInactive','.FALSE.')
   Adsorption%CoverageReduction = GETLOGICAL('Surface-Adsorption-CoverageReduction','.FALSE.')
@@ -384,9 +384,11 @@ END DO
   Adsorption%TPD_Temp = 0.
 #endif
 ! allocate and initialize adsorption variables
+IF (PartSurfaceModel.EQ.1 .OR. PartSurfaceModel.EQ.2) THEN
+  ALLOCATE( Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+            Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies))
+END IF
 ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
@@ -423,8 +425,10 @@ END DO
 CALL InitSurfCoverage()
 
 IF (SurfMesh%SurfOnProc) THEN
-  Adsorption%ProbAds(:,:,:,:) = 0.
-  Adsorption%ProbDes(:,:,:,:) = 0.
+  IF (PartSurfaceModel.EQ.1 .OR. PartSurfaceModel.EQ.2) THEN
+    Adsorption%ProbAds(:,:,:,:) = 0.
+    Adsorption%ProbDes(:,:,:,:) = 0.
+  END IF
   Adsorption%SumDesorbPart(:,:,:,:) = 0
   Adsorption%SumAdsorbPart(:,:,:,:) = 0
   Adsorption%SumReactPart(:,:,:,:) = 0
