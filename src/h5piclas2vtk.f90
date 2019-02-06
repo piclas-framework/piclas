@@ -56,6 +56,7 @@ USE MOD_Analyze_Vars,        ONLY: NAnalyze
 USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
 USE MOD_PreProc,             ONLY: PP_N
 USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -100,9 +101,14 @@ LOGICAL                        :: CalcDiffError                     ! Use first 
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
 LOGICAL                        :: CalcAverage                       ! Calculate and write arithmetic mean of alle StateFile
-LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionExists, ElemDataExists
+LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionExists, ElemDataExists, SurfaceDataExists
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart, iNode, jNode
+! Surface
+INTEGER                        :: nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5, nSurfBC_HDF5, iName, nSurfSample
+CHARACTER(LEN=255),ALLOCATABLE :: SurfBCName_HDF5(:), VarNamesSurf_HDF5(:)
+CHARACTER(LEN=255)             :: NodeType_HDF5
+REAL, ALLOCATABLE              :: SurfData_HDF5(:,:,:,:)
 !==================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
@@ -128,6 +134,7 @@ CALL DefineParametersIO()
 NVisuDefault = .FALSE.
 DGSolutionExists = .FALSE.
 ElemDataExists = .FALSE.
+SurfaceDataExists = .FALSE.
 
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
@@ -280,7 +287,9 @@ DO iArgs = iArgsStart,nArgs
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+  CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
 
+  ! === DG_Solution ================================================================================================================
   ! Read in parameters from the State file
   IF(DGSolutionExists) THEN
     CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
@@ -487,6 +496,7 @@ DO iArgs = iArgsStart,nArgs
     NodeType_State_old = NodeType_State
   END IF
   
+  ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
     IF(.NOT.DGSolutionExists) THEN
@@ -557,6 +567,87 @@ DO iArgs = iArgsStart,nArgs
     END IF
     CALL CloseDataFile()
   END IF
+  ! === SurfaceData ================================================================================================================
+  IF(SurfaceDataExists) THEN
+    CALL GetDataProps('SurfaceData',        nVar_State,   N_State,  nElems_State,     NodeType_State)
+    nVarSurf_HDF5   = nVar_State
+    N_HDF5 = N_State
+    nSurfSides_HDF5 = nElems_State
+    NodeType_HDF5 = NodeType_State
+    ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
+    IF((.NOT.DGSolutionExists).AND.(.NOT.ElemDataExists)) THEN
+      ! DSMC/FV Solution
+      CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
+      CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+      CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+      CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+      ! Read in parameters from mesh file
+      CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+      CALL CloseDataFile()
+      CALL readMesh(MeshFile)
+    END IF
+
+    ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
+
+    GEO%ElemToNodeID(:,:)=0
+    GEO%NodeCoords(:,:)=0.
+    iNode=0
+    DO iElem=1,nElems
+      DO jNode=1,8
+        Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
+      END DO
+    END DO
+    DO iElem=1,nElems
+      !--- Save corners of sides
+      DO jNode=1,8
+        IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
+          iNode=iNode+1
+          Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
+          GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
+        END IF
+        GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
+      END DO
+    END DO
+    
+    ! Build surface mesh
+    CALL InitSurfMesh()
+    ! Read in solution
+    CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+    SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BCSIDES IN HDF5 FILE... '
+    CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.true.)
+    nSurfBC_HDF5 = INT(HSize(1),4)
+
+    SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
+    ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
+    CALL ReadAttribute(File_ID,'BC_Surf',nSurfBC_HDF5,StrArray=SurfBCName_HDF5)
+    DO iName = 1,nSurfBC_HDF5
+      SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
+    END DO
+    SWRITE(UNIT_stdOut,'(A)')' DONE!'
+
+    CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
+    IF(nSurfSample.GT.1) THEN
+      CALL abort(__STAMP__,&
+        'DSMCSurfState files with DSMC_nSurfSample greater 1 not supported yet!')
+    END IF
+
+    ALLOCATE(VarNamesSurf_HDF5(nVarSurf_HDF5))
+    CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf_HDF5,StrArray=VarNamesSurf_HDF5(1:nVarSurf_HDF5))
+
+    IF((nVarSurf_HDF5.GT.0).AND.(SurfMeshPosti%nSurfaceBCSides.GT.0))THEN
+      ALLOCATE(SurfData_HDF5(1:nVarSurf_HDF5,nSurfSample,nSurfSample,1:SurfMeshPosti%nSurfaceBCSides))
+      SurfData_HDF5=0.
+      CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5, nSurfSample, nSurfSample, SurfMeshPosti%nSurfaceBCSides/), &
+                      0,4,RealArray=SurfData_HDF5(:,nSurfSample,nSurfSample,:))
+    END IF
+
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime))//'.vtu'
+
+    CALL WriteDataToVTK2D(nVarSurf_HDF5,SurfData_HDF5,FileString,VarNamesSurf_HDF5,nSurfSample)
+    CALL CloseDataFile()
+  END IF
 END DO ! iArgs = 2, nArgs
 
 ! Finalize
@@ -605,7 +696,7 @@ CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVal)              ! Ou
 INTEGER            :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode
 INTEGER            :: int_size
 INTEGER            :: Vertex(8,nElems)
-INTEGER            :: NodeID,NodeIDElem,ElemType
+INTEGER            :: ElemType
 CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200) :: Buffer
 CHARACTER(LEN=1)   :: lf
@@ -690,8 +781,6 @@ nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
 WRITE(ivtk) REAL(GEO%NodeCoords(1:3,1:nNodes),4)
 ! Connectivity
-NodeID=0
-NodeIDElem=0
 DO iElem=1,nElems
   DO iNode=1,8
     Vertex(iNode,iElem)= GEO%ElemToNodeID(iNode,iElem)-1
@@ -714,3 +803,270 @@ Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
 END SUBROUTINE WriteDataToVTK3DElems
+
+
+SUBROUTINE WriteDataToVTK2D(nVal,Value,FileString,VarNameVisu,nSurfSample)
+!===================================================================================================================================
+! Subroutine to write 2D point data to VTK format
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: nVal,nSurfSample                 ! Number of nodal output variables
+REAL,INTENT(IN)               :: Value(nVal,nSurfSample,nSurfSample,SurfMeshPosti%nSurfaceBCSides) ! Statevector 
+CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVal)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iElem,iVal,Offset,nBytes,nVTKElems,nVTKCells,ivtk=45,iVar,iNode
+INTEGER            :: int_size
+INTEGER            :: Vertex(4,SurfMeshPosti%nSurfaceBCSides)
+INTEGER            :: ElemType
+CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
+CHARACTER(LEN=200) :: Buffer
+CHARACTER(LEN=1)   :: lf
+REAL(KIND=4)       :: Float
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 2D DATA TO VTK XML BINARY (VTU) FILE..."
+
+! Line feed character
+lf = char(10)
+
+! Write file
+OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
+! Write header
+Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify file type
+nVTKElems=SurfMeshPosti%nSurfaceNode
+nVTKCells=SurfMeshPosti%nSurfaceBCSides
+
+Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+WRITE(TempStr1,'(I16)')nVTKElems
+WRITE(TempStr2,'(I16)')nVTKCells
+Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
+'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify point data
+Buffer='      <PointData> </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify cell data
+Buffer='      <CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=0
+WRITE(StrOffset,'(I16)')Offset
+DO iVar=1,nVal
+    Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
+    '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+      Offset=Offset+SIZEOF(int_size)+nVTKCells*SIZEOF(Float)
+    WRITE(StrOffset,'(I16)')Offset
+END DO
+Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify coordinate data
+Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+   Offset=Offset+SIZEOF(int_size)+3*nVTKElems*SIZEOF(Float)
+WRITE(StrOffset,'(I16)')Offset
+Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Specify necessary cell data
+Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Connectivity
+Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=Offset+SIZEOF(int_size)+4*nVTKCells*SIZEOF(int_size)
+WRITE(StrOffset,'(I16)')Offset
+! Offsets
+Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Offset=Offset+SIZEOF(int_size)+nVTKCells*SIZEOF(int_size)
+WRITE(StrOffset,'(I16)')Offset
+! Elem types
+Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
+       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
+! Prepare append section
+Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
+! Write leading data underscore
+Buffer='_';WRITE(ivtk) TRIM(Buffer)
+
+! Write binary raw data into append section
+! Point data
+nBytes = nVTKCells*SIZEOF(Float)
+DO iVal=1,nVal
+  WRITE(ivtk) nBytes,REAL(Value(iVal,1:nSurfSample,1:nSurfSample,1:SurfMeshPosti%nSurfaceBCSides),4)
+END DO
+! Points
+nBytes = 3*nVTKElems*SIZEOF(Float)
+WRITE(ivtk) nBytes
+DO iNode=1, SurfMeshPosti%nSurfaceNode
+  WRITE(ivtk) REAL(GEO%NodeCoords(1:3, SurfMeshPosti%BCSurfNodes(iNode)),4)
+END DO
+! Connectivity
+DO iElem=1,SurfMeshPosti%nSurfaceBCSides
+  DO iNode=1,4
+    Vertex(iNode,iElem) = SurfMeshPosti%SideSurfNodeMap(iNode,iElem) - 1
+  END DO
+END DO
+nBytes = 4*nVTKCells*SIZEOF(int_size)
+WRITE(ivtk) nBytes
+WRITE(ivtk) Vertex(:,:)
+! Offset
+nBytes = nVTKCells*SIZEOF(int_size)
+WRITE(ivtk) nBytes
+WRITE(ivtk) (Offset,Offset=4,4*nVTKCells,4)
+! Elem type
+ElemType = 9 ! VTK_QUAD
+WRITE(ivtk) nBytes
+WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
+! Write footer
+Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
+Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
+CLOSE(ivtk)
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+END SUBROUTINE WriteDataToVTK2D
+
+
+SUBROUTINE InitSurfMesh()
+!===================================================================================================================================
+! Allocate and generate surface mesh on CL_NGeo points
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+!--------------------------------------------------------------------------------------------------!
+! perform Mapping for Surface Output
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE 
+! LOCAL VARIABLES
+INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, nStart
+INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
+LOGICAL                 :: IsSortedSurfNode
+INTEGER                 :: NodeMap(4,6)
+! LOCAL VARIABLES
+TYPE(tElem),POINTER :: aElem
+TYPE(tSide),POINTER :: aSide
+INTEGER             :: LocSideID,nSides_flip(0:4)
+!===================================================================================================================================
+ALLOCATE(ElemToSide(2,6,nElems))
+ALLOCATE(SideToElem(5,nSides))
+ALLOCATE(BC(1:nSides))
+ElemToSide  = 0
+SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
+BC          = 0
+! ELement to Side mapping
+nSides_flip=0
+DO iElem=1,nElems
+  aElem=>Elems(iElem+offsetElem)%ep
+  DO LocSideID=1,6
+    aSide=>aElem%Side(LocSideID)%sp
+    ElemToSide(E2S_SIDE_ID,LocSideID,iElem)=aSide%Ind
+    ElemToSide(E2S_FLIP,LocSideID,iElem)   =aSide%Flip
+    nSides_flip(aSide%flip)=nSides_flip(aSide%flip)+1
+  END DO ! LocSideID
+END DO ! iElem
+
+! Side to Element mapping, sorted by SideID
+DO iElem=1,nElems
+  aElem=>Elems(iElem+offsetElem)%ep
+  DO LocSideID=1,6
+    aSide=>aElem%Side(LocSideID)%sp
+    IF(aSide%Flip.EQ.0)THEN !root side
+      SideToElem(S2E_ELEM_ID,aSide%Ind)         = iElem !root Element
+      SideToElem(S2E_LOC_SIDE_ID,aSide%Ind)     = LocSideID
+    ELSE
+      SideToElem(S2E_NB_ELEM_ID,aSide%Ind)      = iElem ! element with flipped side
+      SideToElem(S2E_NB_LOC_SIDE_ID,aSide%Ind)  = LocSideID
+      SideToElem(S2E_FLIP,aSide%Ind)            = aSide%Flip
+    END IF
+    IF(aSide%Ind .LE. nBCSides)THEN
+      BC(aSide%Ind)=aSide%BCIndex
+    ELSE
+      ! mark periodic BCs
+      IF(aSide%BCindex.NE.0)THEN !side is BC or periodic side
+        IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1) BC(aSide%Ind)=aSide%BCindex
+      END IF
+#ifdef PARTICLES
+      ! mark analyze-sides or inner-BCs for particles
+      IF(aSide%BCindex.NE.0)THEN ! side is inner-BC or analyze side
+        IF(BoundaryType(aSide%BCindex,BC_TYPE).NE.1) BC(aSide%Ind)=aSide%BCindex
+      END IF
+#endif /*PARTICLES*/
+    END IF
+  END DO ! LocSideID
+END DO ! iElem
+
+! CALL SplitSidesToBCs()
+
+ALLOCATE(TempBCSurfNodes(4*nSides))
+ALLOCATE(TempSideSurfNodeMap(1:4,1:nSides))
+ALLOCATE(SurfMeshPosti%GlobSideToSurfSideMap(nSides))
+ALLOCATE(GEO%ElemSideNodeID(1:4,1:6,1:nElems))
+!ALLOCATE(TempSurfaceArea(nBCSides))
+SurfMeshPosti%nSurfaceNode=0
+SurfMeshPosti%nSurfaceBCSides=0
+SurfMeshPosti%GlobSideToSurfSideMap(1:nSides)=0
+GEO%ElemSideNodeID(:,:,:)=0
+
+NodeMap(:,1)=(/1,4,3,2/)
+NodeMap(:,2)=(/1,2,6,5/)
+NodeMap(:,3)=(/2,3,7,6/)
+NodeMap(:,4)=(/3,4,8,7/)
+NodeMap(:,5)=(/1,5,8,4/)
+NodeMap(:,6)=(/5,6,7,8/)
+
+DO iElem=1,nElems
+  DO iLocSide=1,6
+    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
+    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%ind,&
+                                            Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%ind,&
+                                            Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%ind,&
+                                            Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%ind/)
+  END DO
+END DO
+
+DO iSide=1, nSides
+  IF(BC(iSide).EQ.0) CYCLE
+  IF (BoundaryType(BC(iSide),BC_TYPE).EQ.4) THEN                      ! only reflective boundaries
+    SurfMeshPosti%nSurfaceBCSides = SurfMeshPosti%nSurfaceBCSides + 1
+    SurfMeshPosti%GlobSideToSurfSideMap(iSide) = SurfMeshPosti%nSurfaceBCSides
+    iElem = SideToElem(1,iSide)
+    IF (iElem.LT.1) THEN
+      iElem = SideToElem(2,iSide)
+      iLocSide = SideToElem(4,iSide)
+    ELSE
+      iLocSide = SideToElem(3,iSide)
+    END IF
+    DO iNode2 = 1, 4
+    IsSortedSurfNode = .false.
+      DO iNode = 1, SurfMeshPosti%nSurfaceNode 
+        IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
+        TempSideSurfNodeMap(iNode2,SurfMeshPosti%nSurfaceBCSides) = iNode
+        IsSortedSurfNode = .true.
+        EXIT
+        END IF
+      END DO
+      IF(.NOT.IsSortedSurfNode) THEN
+        SurfMeshPosti%nSurfaceNode = SurfMeshPosti%nSurfaceNode + 1
+        TempBCSurfNodes(SurfMeshPosti%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
+        TempSideSurfNodeMap(iNode2,SurfMeshPosti%nSurfaceBCSides) = SurfMeshPosti%nSurfaceNode
+      END IF
+    END DO  
+  END IF
+END DO
+
+ALLOCATE(SurfMeshPosti%BCSurfNodes(1:SurfMeshPosti%nSurfaceNode))
+SurfMeshPosti%BCSurfNodes(1:SurfMeshPosti%nSurfaceNode) = TempBCSurfNodes(1:SurfMeshPosti%nSurfaceNode)
+ALLOCATE(SurfMeshPosti%SideSurfNodeMap(1:4,1:SurfMeshPosti%nSurfaceBCSides))
+SurfMeshPosti%SideSurfNodeMap(1:4,1:SurfMeshPosti%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfMeshPosti%nSurfaceBCSides)
+DEALLOCATE(TempBCSurfNodes)
+DEALLOCATE(TempSideSurfNodeMap)
+
+END SUBROUTINE InitSurfMesh
