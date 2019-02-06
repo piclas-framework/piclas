@@ -113,7 +113,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
                                          , 'Only TD=Reservoir (42).\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
-                                          ' [FALSE] summing reaction probabilities.' , '.FALSE.')
+                                          ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
                                           , 'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle adsorption and desorption and keep surface coverage '//&
