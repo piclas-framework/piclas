@@ -464,9 +464,6 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBSplitTime, LBPauseTime
-#endif /*USE_LOADBALANCE*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
@@ -516,17 +513,11 @@ REAL                :: NumSpecTmp(nSpecAnalyze)
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
-#if USE_LOADBALANCE
-REAL                :: tLBStart
-#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
   END IF
   IF (.NOT.DoPartAnalyze) RETURN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (useDSMC) THEN
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
@@ -905,9 +896,6 @@ REAL                :: tLBStart
 !===================================================================================================================================
 #ifdef MPI
   IF (PartMPI%MPIRoot) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -939,9 +927,6 @@ REAL                :: tLBStart
       END DO
     END IF
   ELSE ! no Root
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -961,9 +946,6 @@ REAL                :: tLBStart
     END IF
   END IF
 #endif /*MPI*/
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1199,10 +1181,6 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
 #if ( PP_TimeDiscMethod ==42 )
 ! hard coded
 ! array not allocated
