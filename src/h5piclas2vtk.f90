@@ -895,11 +895,6 @@ USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_Particle_Mesh,          ONLY:InitParticleGeometry
-! USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
-! #ifdef MPI
-! USE MOD_Prepare_Mesh,           ONLY:exchangeFlip
-! #endif
 !--------------------------------------------------------------------------------------------------!
 ! perform Mapping for Surface Output
 !--------------------------------------------------------------------------------------------------!
