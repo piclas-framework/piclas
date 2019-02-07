@@ -905,7 +905,7 @@ USE MOD_Particle_Mesh,          ONLY:InitParticleGeometry
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE 
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iBCSide, iInnerSide
+INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iBCSide, iInnerSide, nStart, jNode
 INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
 LOGICAL                 :: IsSortedSurfNode
 INTEGER                 :: NodeMap(4,6)
@@ -947,7 +947,7 @@ DO iElem=1,nElems
     END IF !sideID NE -1
   END DO ! iLocSide=1,6
 END DO !iElem
-IF(iSide.NE.(nInnerSides+nBCSides)) STOP 'not all SideIDs are set!'
+IF(iSide.NE.(nInnerSides+nBCSides)) CALL abort(__STAMP__,'not all SideIDs are set!')
 
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(SideToElem)
@@ -987,10 +987,53 @@ DO iElem=1,nElems
   END DO ! LocSideID
 END DO ! iElem
 
-CALL InitParticleGeometry()
+! Building element to node id and node coords arrays (copied from the first part of the InitParticleGeometry)
 
-! BCMap would be required for tecplot output
-! CALL SplitSidesToBCs()
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+NodeMap(:,1)=(/1,4,3,2/)
+NodeMap(:,2)=(/1,2,6,5/)
+NodeMap(:,3)=(/2,3,7,6/)
+NodeMap(:,4)=(/3,4,8,7/)
+NodeMap(:,5)=(/1,5,8,4/)
+NodeMap(:,6)=(/5,6,7,8/)
+SDEALLOCATE(GEO%ElemToNodeID)
+SDEALLOCATE(GEO%ElemSideNodeID)
+SDEALLOCATE(GEO%NodeCoords)
+ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%ElemSideNodeID(1:4,1:6,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
+GEO%ElemToNodeID(:,:)=0
+GEO%ElemSideNodeID(:,:,:)=0
+GEO%NodeCoords(:,:)=0.
+iNode=0
+DO iElem=1,nElems
+  DO jNode=1,8
+    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
+  END DO
+END DO
+DO iElem=1,nElems
+  !--- Save corners of sides
+  DO jNode=1,8
+    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
+      iNode=iNode+1
+      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
+      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
+    END IF
+    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
+    !GEO%ElemToNodeIDGlobal(jNode,iElem) = Elems(iElem+offsetElem)%ep%node(jNode)%np%ind
+  END DO
+END DO
+
+DO iElem=1,nElems
+  DO iLocSide=1,6
+    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
+    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
+                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
+  END DO
+END DO
+
+! Build connectivity for the surface mesh
 
 SDEALLOCATE(TempBCSurfNodes)
 SDEALLOCATE(TempSideSurfNodeMap)
@@ -1001,13 +1044,6 @@ ALLOCATE(SurfMeshPosti%GlobSideToSurfSideMap(nSides))
 SurfMeshPosti%nSurfaceNode=0
 SurfMeshPosti%nSurfaceBCSides=0
 SurfMeshPosti%GlobSideToSurfSideMap(1:nSides)=0
-
-NodeMap(:,1)=(/1,4,3,2/)
-NodeMap(:,2)=(/1,2,6,5/)
-NodeMap(:,3)=(/2,3,7,6/)
-NodeMap(:,4)=(/3,4,8,7/)
-NodeMap(:,5)=(/1,5,8,4/)
-NodeMap(:,6)=(/5,6,7,8/)
 
 DO iSide=1, nSides
   IF(BC(iSide).EQ.0) CYCLE
