@@ -440,8 +440,6 @@ LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
-INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
-REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs

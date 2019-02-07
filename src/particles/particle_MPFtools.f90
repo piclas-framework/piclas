@@ -102,9 +102,10 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,        ONLY : Abort
-  USE MOD_Particle_Vars,  ONLY : PDM, PartState, RandomVec, NumRanVec, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic  
+  USE MOD_Particle_Vars,  ONLY : PDM, PartState, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic  
   USE MOD_DSMC_Vars,      ONLY : useDSMC, CollisMode, PartStateIntEn    
   USE MOD_Equation_Vars,  ONLY : c2                                                   
+  USE MOD_part_tools,     ONLY : DiceUnitVector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
@@ -117,9 +118,10 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                         :: PositionNbr, iVec
-  REAL                            :: beta, iRan, VeloSQ, Gamma
+  INTEGER                         :: PositionNbr
+  REAL                            :: beta, VeloSQ, Gamma
   REAL                            :: v_old(3), oldEner, old_mom(1:3), new_mom(1:3)
+  REAL                            :: RanVec(3)
 !===================================================================================================================================
 
   v_old(1:3) = PartState(iPart,4:6)
@@ -150,26 +152,24 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 
 !calulating beta = sqrt(deltaE/MPF_old)
   IF (vMPF_relativistic) THEN
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
+    RanVec(1:3) = DiceUnitVector()
     VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
     Gamma = VeloSq/c2      
     Gamma = 1./SQRT(1.-Gamma) 
     oldEner = Species(PartSpecies(iPart))%MassIC * 2.0*PartMPF(iPart)* (Gamma-1.)*c2  
     old_mom(1:3) = Species(PartSpecies(iPart))%MassIC *2.0* PartMPF(iPart)* v_old(1:3)*Gamma 
-    !beta = CalcRelaBeta(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
-    beta = CalcRelaBeta2(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+    !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+    beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
     
-    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RandomVec(iVec, 1:3)
+    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
     PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RandomVec(iVec, 1:3)
+    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
     PartState(PositionNbr,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
   ELSE  
     beta = SQRT(2*deltaE/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC))
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
-    PartState(iPart,4:6) = v_old(1:3) - beta * RandomVec(iVec, 1:3)
-    PartState(PositionNbr,4:6) = v_old(1:3) + beta * RandomVec(iVec, 1:3)
+    RanVec(1:3) = DiceUnitVector()
+    PartState(iPart,4:6) = v_old(1:3) - beta * RanVec(1:3)
+    PartState(PositionNbr,4:6) = v_old(1:3) + beta * RanVec(1:3)
   END IF
 
   VeloSQ = PartState(iPart,4) * PartState(iPart,4) &
@@ -193,8 +193,9 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 !===================================================================================================================================
 ! Split Particles
 !===================================================================================================================================
-  USE MOD_Particle_Vars, ONLY : PartState, RandomVec, NumRanVec, PartSpecies, PartMPF, Species, vMPF_relativistic  
+  USE MOD_Particle_Vars, ONLY : PartState, PartSpecies, PartMPF, Species, vMPF_relativistic  
   USE MOD_Equation_Vars,          ONLY : c2
+  USE MOD_part_tools,     ONLY : DiceUnitVector
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -207,13 +208,12 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 ! OUTPUT VARIABLES  
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                         ::  iVec
-  REAL                            :: beta, iRan, VeloSQ, VeloSQ2, Gamma
+  REAL                            :: beta, VeloSQ, VeloSQ2, Gamma
   REAL                            :: v_mom(3), v_mom2, enerpart, v_old(1:3), oldEner, old_mom(1:3), new_mom(1:3)
+  REAL                            :: RanVec(3)
 !===================================================================================================================================
   IF (vMPF_relativistic) THEN
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
+    RanVec(1:3) = DiceUnitVector()
     v_old(1:3) = PartState(iPart,4:6)
     VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
     Gamma = VeloSq/c2      
@@ -227,12 +227,12 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
     Gamma = 1./SQRT(1.-Gamma) 
     oldEner = oldEner + Species(PartSpecies(iPart))%MassIC *PartMPF(iPart)* (Gamma-1.)*c2  
     old_mom(1:3) = old_mom(1:3) + Species(PartSpecies(iPart))%MassIC * PartMPF(iPart)* v_old(1:3)*Gamma  
-    !beta = CalcRelaBeta(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
-    beta = CalcRelaBeta2(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+    !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+    beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
 
-    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RandomVec(iVec, 1:3)
+    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
     PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RandomVec(iVec, 1:3)
+    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
     PartState(iPart2,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart2), PartMPF(iPart2))
   ELSE
     v_mom(1:3) = (PartState(iPart,4:6)*PartMPF(iPart) + PartState(iPart2,4:6)*PartMPF(iPart2))*Species(PartSpecies(iPart))%MassIC
@@ -245,10 +245,9 @@ SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
     !calulating beta = sqrt(deltaE/MPF_old)
     beta = SQRT((enerpart+deltaE)*PartMPF(iPart2)*Species(PartSpecies(iPart))%MassIC-v_mom2/4.0)
     !set new velocity v1
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
-    PartState(iPart,4:6) = (v_mom(1:3)/2.0 + beta * RandomVec(iVec, 1:3))/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC)
-    PartState(iPart2,4:6) = (v_mom(1:3)/2.0 - beta * RandomVec(iVec, 1:3))/(PartMPF(iPart2)*Species(PartSpecies(iPart2))%MassIC)
+    RanVec(1:3) = DiceUnitVector()
+    PartState(iPart,4:6) = (v_mom(1:3)/2.0 + beta * RanVec(1:3))/(PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC)
+    PartState(iPart2,4:6) = (v_mom(1:3)/2.0 - beta * RanVec(1:3))/(PartMPF(iPart2)*Species(PartSpecies(iPart2))%MassIC)
   END IF
 
   VeloSQ = PartState(iPart,4) * PartState(iPart,4) &
@@ -2609,10 +2608,11 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 !===================================================================================================================================
 ! Split Particles
 !===================================================================================================================================
-  USE MOD_Particle_Vars, ONLY : PDM, PartState, RandomVec, NumRanVec, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic  
+  USE MOD_Particle_Vars, ONLY : PDM, PartState, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic  
   USE MOD_DSMC_Vars, ONLY : useDSMC, CollisMode, PartStateIntEn       
   USE MOD_Equation_Vars,          ONLY : c2     
   USE MOD_FPFlow_Vars,  ONLY : FPInnerVelos, vMPF_oldEngSumRot,vMPF_oldEngSumVib, vMPF_oldMomSumVib, vMPF_oldMomSumRot
+  USE MOD_part_tools,     ONLY : DiceUnitVector
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
@@ -2625,17 +2625,16 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 ! OUTPUT VARIABLES  
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                         ::  iVec
-  REAL                            :: beta, iRan, VeloSQ, VeloSQ2, Gamma
+  REAL                            :: beta, VeloSQ, VeloSQ2, Gamma
   REAL                            :: v_mom(2), v_mom2, enerpart, v_old(1:2), oldEner, old_mom(1:2), new_mom(1:2)
+  REAL                            :: RanVec(3)
 !===================================================================================================================================
   IF (vMPF_relativistic) THEN
   
 
     STOP
 !  
-!    CALL RANDOM_NUMBER(iRan)
-!    iVec = INT(NumRanVec*iRan + 1)
+!    RanVec(1:3) = DiceUnitVector()
 !    v_old(1:3) = PartState(iPart,4:6)
 !    VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
 !    Gamma = VeloSq/c2      
@@ -2649,12 +2648,12 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 !    Gamma = 1./SQRT(1.-Gamma) 
 !    oldEner = oldEner + Species(PartSpecies(iPart))%MassIC *PartMPF(iPart)* (Gamma-1.)*c2  
 !    old_mom(1:3) = old_mom(1:3) + Species(PartSpecies(iPart))%MassIC * PartMPF(iPart)* v_old(1:3)*Gamma  
-!    !beta = CalcRelaBeta(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
-!    beta = CalcRelaBeta2(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaEVib, old_mom(1:3))
+!    !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+!    beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaEVib, old_mom(1:3))
 
-!    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RandomVec(iVec, 1:3)
+!    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(iVec, 1:3)
 !    PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-!    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RandomVec(iVec, 1:3)
+!    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(iVec, 1:3)
 !    PartState(iPart2,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart2), PartMPF(iPart2))
   ELSE
     v_mom(1:2) = (FPInnerVelos(iPart)%FP_VibVelo(1:2)*PartMPF(iPart) + FPInnerVelos(iPart2)%FP_VibVelo(1:2)*PartMPF(iPart2))
@@ -2668,10 +2667,9 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 
     beta = SQRT((enerpart+deltaEVib)*PartMPF(iPart2)-v_mom2/4.0)
     !set new velocity v1
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
-    FPInnerVelos(iPart)%FP_VibVelo(1:2) = (v_mom(1:2)/2.0 + beta * RandomVec(iVec, 1:2))/(PartMPF(iPart))
-    FPInnerVelos(iPart2)%FP_VibVelo(1:2) = (v_mom(1:2)/2.0 - beta * RandomVec(iVec, 1:2))/(PartMPF(iPart2))
+    RanVec(1:3) = DiceUnitVector()
+    FPInnerVelos(iPart)%FP_VibVelo(1:2) = (v_mom(1:2)/2.0 + beta * RanVec(1:2))/(PartMPF(iPart))
+    FPInnerVelos(iPart2)%FP_VibVelo(1:2) = (v_mom(1:2)/2.0 - beta * RanVec(1:2))/(PartMPF(iPart2))
   END IF
 
 !  VeloSQ = FPInnerVelos(iPart)%FP_VibVelo(1) * FPInnerVelos(iPart)%FP_VibVelo(1) &
@@ -2690,8 +2688,7 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 
     STOP
   
-!    CALL RANDOM_NUMBER(iRan)
-!    iVec = INT(NumRanVec*iRan + 1)
+!    RanVec(1:3) = DiceUnitVector()
 !    v_old(1:3) = PartState(iPart,4:6)
 !    VeloSQ = v_old(1)*v_old(1)+v_old(2)*v_old(2)+v_old(3)*v_old(3)
 !    Gamma = VeloSq/c2      
@@ -2705,12 +2702,12 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 !    Gamma = 1./SQRT(1.-Gamma) 
 !    oldEner = oldEner + Species(PartSpecies(iPart))%MassIC *PartMPF(iPart)* (Gamma-1.)*c2  
 !    old_mom(1:3) = old_mom(1:3) + Species(PartSpecies(iPart))%MassIC * PartMPF(iPart)* v_old(1:3)*Gamma  
-!    !beta = CalcRelaBeta(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
-!    beta = CalcRelaBeta2(oldEner,RandomVec(iVec, 1:3), PartMPF(iPart), PartSpecies(iPart), deltaERot, old_mom(1:3))
+!    !beta = CalcRelaBeta(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaE, old_mom(1:3))
+!    beta = CalcRelaBeta2(oldEner,RanVec(1:3), PartMPF(iPart), PartSpecies(iPart), deltaERot, old_mom(1:3))
 
-!    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RandomVec(iVec, 1:3)
+!    new_mom(1:3) = old_mom(1:3)/2.0 + beta*RanVec(1:3)
 !    PartState(iPart,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart), PartMPF(iPart))
-!    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RandomVec(iVec, 1:3)
+!    new_mom(1:3) = old_mom(1:3)/2.0 - beta*RanVec(1:3)
 !    PartState(iPart2,4:6) = RelVeloFromMom(new_mom(1:3), PartSpecies(iPart2), PartMPF(iPart2))
   ELSE
     v_mom(1:2) = (FPInnerVelos(iPart)%FP_RotVelo(1:2)*PartMPF(iPart) + FPInnerVelos(iPart2)%FP_RotVelo(1:2)*PartMPF(iPart2))
@@ -2724,10 +2721,9 @@ SUBROUTINE DoEnergyConservationFPInner(iPart,iPart2, deltaEVib, deltaERot,CSquar
 
     beta = SQRT((enerpart+deltaERot)*PartMPF(iPart2)-v_mom2/4.0)
     !set new velocity v1
-    CALL RANDOM_NUMBER(iRan)
-    iVec = INT(NumRanVec*iRan + 1)
-    FPInnerVelos(iPart)%FP_RotVelo(1:2) = (v_mom(1:2)/2.0 + beta * RandomVec(iVec, 1:2))/(PartMPF(iPart))
-    FPInnerVelos(iPart2)%FP_RotVelo(1:2) = (v_mom(1:2)/2.0 - beta * RandomVec(iVec, 1:2))/(PartMPF(iPart2))
+    RanVec(1:3) = DiceUnitVector()
+    FPInnerVelos(iPart)%FP_RotVelo(1:2) = (v_mom(1:2)/2.0 + beta * RanVec(1:2))/(PartMPF(iPart))
+    FPInnerVelos(iPart2)%FP_RotVelo(1:2) = (v_mom(1:2)/2.0 - beta * RanVec(1:2))/(PartMPF(iPart2))
   END IF
 
 !  VeloSQ = FPInnerVelos(iPart)%FP_RotVelo(1) * FPInnerVelos(iPart)%FP_RotVelo(1) &
