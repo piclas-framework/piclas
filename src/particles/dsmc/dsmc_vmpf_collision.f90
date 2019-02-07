@@ -272,10 +272,11 @@ SUBROUTINE AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
   USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-  USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
+  USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM
+  USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, Species
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
+  USE MOD_part_tools,             ONLY : DiceUnitVector
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE                                                                                      !
 !--------------------------------------------------------------------------------------------------!
@@ -284,13 +285,13 @@ IMPLICIT NONE                                                                   
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
-  INTEGER                       :: iVec
   REAL                          :: FakXi, Xi, iRan
   INTEGER                       :: iQuaMax, iQua, React1Inx, React2Inx, NonReacPart, NonReacPart2
   REAL                          :: MaxColQua, Phi
   REAL                          :: ReacMPF, PartStateIntEnTemp, DeltaPartStateIntEn
   REAL                          :: MPartStateVibEnOrg, MPartStateElecEnOrg ! inner energy of M molec before Reaction
   REAL                          :: DSMC_RHS_M_Temp(3)
+  REAL                          :: RanVec(3)
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration
   INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
@@ -510,11 +511,10 @@ IMPLICIT NONE                                                                   
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/ &
             CollInf%MassRed(CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(iPart_p3)))
-  CALL RANDOM_NUMBER(iRan)
-  iVec = INT(NumRanVec * iRan + 1)
-  RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RandomVec(iVec,1)
-  RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RandomVec(iVec,2)
-  RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RandomVec(iVec,3)
+  RanVec(1:3) = DiceUnitVector()
+  RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
+  RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
+  RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
 
   ! deltaV particle 1
   DSMC_RHS(React1Inx,1) = DSMC_RHS(React1Inx,1) + VeloMx + FracMassCent2*RanVelox - PartState(React1Inx, 4)
@@ -557,11 +557,11 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, PartState, &
-                                         PartMPF
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState, PartMPF
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
+  USE MOD_part_tools,             ONLY : DiceUnitVector
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -572,13 +572,14 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   REAL                          :: CollisionEnergy
-  INTEGER                       :: iVec, PartSpec1, PartSpec2, iCase
+  INTEGER                       :: PartSpec1, PartSpec2, iCase
   REAL                          :: iRan
   LOGICAL                       :: DoRot2, DoVib2, DoElec1, DoElec2  ! Check whether rot or vib relax is performed
   REAL                          :: Xi_rel, Xi, FakXi                ! Factors of DOF
   INTEGER                       :: iQuaMax, iQua                    ! Quantum Numbers
   REAL                          :: MaxColQua                        ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
+  REAL                          :: RanVec(3)
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
   INTEGER, INTENT(IN)           :: iPair, Part_1, Part_2
@@ -736,11 +737,10 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 
   ! Calculate random vec and new squared velocities
   CRela2 = 2 * CollisionEnergy/CollInf%MassRed(iCase)
-  CALL RANDOM_NUMBER(iRan)
-  iVec = INT(NumRanVec * iRan + 1)
-  RanVelox = SQRT(CRela2) * RandomVec(iVec,1)
-  RanVeloy = SQRT(CRela2) * RandomVec(iVec,2)
-  RanVeloz = SQRT(CRela2) * RandomVec(iVec,3)
+  RanVec(1:3) = DiceUnitVector()
+  RanVelox = SQRT(CRela2) * RanVec(1)
+  RanVeloy = SQRT(CRela2) * RanVec(2)
+  RanVeloz = SQRT(CRela2) * RanVec(3)
 
   ! deltaV particle 1
   DSMC_RHS(Part_1,1) = VeloMx + FracMassCent2*RanVelox &
