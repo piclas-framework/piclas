@@ -27,10 +27,12 @@ INTEGER                                 :: NSurfSample                   ! polyn
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
+INTEGER                                 :: OffSetInnerSurfSide           ! offset of local inner surf side
 INTEGER                                 :: nSurfBC                       ! number of surface side BCs
 CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names of belonging surface BC
 #ifdef MPI
-INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling            
+INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling
+INTEGER,ALLOCATABLE                     :: OffSetInnerSurfSideMPI(:)     ! integer offset for particle boundary sampling (innerBC)
 #endif /*MPI*/
 
 #ifdef MPI
@@ -67,11 +69,13 @@ TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
   LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
+  INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
   INTEGER,ALLOCATABLE                   :: SurfSideToGlobSideMap(:)      ! map of surfside ID to global Side ID
+  INTEGER,ALLOCATABLE                   :: innerBCSideToHaloMap(:)       ! map of inner BC ID on slave side to corresp. HaloSide
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh

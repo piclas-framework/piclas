@@ -763,20 +763,7 @@ DO iElem=1,nElems
       SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
-    IF(aSide%sideID .LE. nBCSides)THEN
-      BC(aSide%sideID)=aSide%BCIndex
-    ELSE
-      ! mark periodic BCs
-      IF(aSide%BCindex.NE.0)THEN !side is BC or periodic side
-        IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1) BC(aSide%SideID)=aSide%BCindex
-      END IF
-#ifdef PARTICLES
-      ! mark analyze-sides or inner-BCs for particles
-      IF(aSide%BCindex.NE.0)THEN ! side is inner-BC or analyze side
-        IF(BoundaryType(aSide%BCindex,BC_TYPE).NE.1) BC(aSide%SideID)=aSide%BCindex
-      END IF
-#endif /*PARTICLES*/
-    END IF
+    BC(aSide%sideID)=aSide%BCIndex
   END DO ! LocSideID
 END DO ! iElem
 

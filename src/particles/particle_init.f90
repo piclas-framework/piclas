@@ -228,6 +228,7 @@ CALL prms%SetSection("Particle Sampling")
 CALL prms%CreateLogicalOption(  'Part-WriteMacroValues'&
   , 'Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled every [Part-IterationForMacroVal] iterat'//&
   'ions from particles. Sampling starts from simulation start. Can not be enabled together with Part-TimeFracForSampling.\n'//&
+  'If Part-WriteMacroValues is true, WriteMacroVolumeValues and WriteMacroSurfaceValues are forced to be true.\n'//&
   '(HALOWIKI:)Write macro values (e.g. rotational Temperature).'&
   , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-WriteMacroVolumeValues'&
@@ -1433,13 +1434,20 @@ END IF
            
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
-WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
-WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
 IF(WriteMacroValues)THEN
-  WriteMacroVolumeValues = .TRUE.
-  WriteMacroSurfaceValues = .TRUE.
-ELSE IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
-  WriteMacroValues = .TRUE.
+  WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.TRUE.')
+  WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.TRUE.')
+  IF(.NOT.(WriteMacroVolumeValues.AND.WriteMacroSurfaceValues))THEN
+     CALL abort(&
+__STAMP__&
+    ,'ERROR in particle_init.f90: Part-WriteMacroValues=T => WriteMacroVolumeValues and WriteMacroSurfaceValues must be T!')
+  END IF
+ELSE
+  WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
+  WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
+  IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
+    WriteMacroValues = .TRUE.
+  END IF
 END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
