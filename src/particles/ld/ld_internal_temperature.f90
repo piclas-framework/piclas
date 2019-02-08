@@ -131,10 +131,11 @@ SUBROUTINE CalcInternalTemp_LD_second(iElem)
 
 USE MOD_LD_Vars
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-USE MOD_Particle_Vars,          ONLY : PEM, Species, PartSpecies, PDM, NumRanVec, RandomVec
+USE MOD_Particle_Vars,          ONLY : PEM, Species, PartSpecies, PDM
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
+USE MOD_part_tools,             ONLY : DiceUnitVector
 
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                  !
@@ -165,13 +166,13 @@ TYPE(tLDPairData), ALLOCATABLE    :: LD_Coll_pData(:)            ! LD Data of co
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
-  INTEGER                       :: iVec
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
   REAL                          :: Xi_rel, Xi, FakXi                ! Factors of DOF
   INTEGER                       :: iQuaMax, iQua                    ! Quantum Numbers
   REAL                          :: MaxColQua                        ! Max. Quantum Number
 
   INTEGER, INTENT(IN)           :: iElem
+  REAL                          :: RanVec(3)
 
 !--------------------------------------------------------------------------------------------------!
 
@@ -458,12 +459,11 @@ ALLOCATE(TempPartVelo(PDM%maxParticleNumber,3))
 
       !calculate random vec and new squared velocities
       LD_Coll_pData(iPair)%CRela2 = 2 * LD_Coll_pData(iPair)%Ec/CollInf%MassRed(LD_Coll_pData(iPair)%PairType)
-      CALL RANDOM_NUMBER(iRan)
-      iVec = INT(NumRanVec * iRan + 1)
+      RanVec(1:3) = DiceUnitVector()
 
-      RanVelox = SQRT(LD_Coll_pData(iPair)%CRela2) * RandomVec(iVec,1)
-      RanVeloy = SQRT(LD_Coll_pData(iPair)%CRela2) * RandomVec(iVec,2)
-      RanVeloz = SQRT(LD_Coll_pData(iPair)%CRela2) * RandomVec(iVec,3)
+      RanVelox = SQRT(LD_Coll_pData(iPair)%CRela2) * RanVec(1)
+      RanVeloy = SQRT(LD_Coll_pData(iPair)%CRela2) * RanVec(2)
+      RanVeloz = SQRT(LD_Coll_pData(iPair)%CRela2) * RanVec(3)
 
       ! deltaV particle 1
       LD_Coll_pData(iPair)%TempPairVelo1(1) = VeloMx + FracMassCent2*RanVelox 

@@ -1433,8 +1433,11 @@ DO iElem = 1,nElems
   AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
   AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
   AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4:6,:,iElem) = Adaptive_MacroVal(4:6,iElem,:)
+  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_TEMPX,iElem,:)
+  AdaptiveData(5,:,iElem) = Adaptive_MacroVal(DSMC_TEMPY,iElem,:)
+  AdaptiveData(6,:,iElem) = Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)
   AdaptiveData(7,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+  ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
   AdaptiveData(8:10,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
 END DO
 
@@ -2222,6 +2225,8 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset      , collective=.FALSE. , RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal                  , nVal , &
                                                    offset          , collective=.FALSE. , IntegerArray =IntegerArray)
+      IF(PRESENT(IntegerArray_i4))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal                  , nVal , &
+                                                   offset          , collective=.FALSE. , IntegerArray_i4 =IntegerArray_i4)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal          , nVal , &
                                                    offset      , collective=.FALSE. , StrArray =StrArray)
       CALL CloseDataFile()
@@ -2231,6 +2236,8 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset      , collective , RealArray=RealArray)
       IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
                                                    offset          , collective , IntegerArray =IntegerArray)
+      IF(PRESENT(IntegerArray_i4)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                                   offset          , collective , IntegerArray_i4 =IntegerArray_i4)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                    offset      , collective , StrArray =StrArray)
       CALL CloseDataFile()
@@ -2248,6 +2255,8 @@ ELSE
                                                offset      , collective , RealArray=RealArray)
   IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
                                                offset         , collective , IntegerArray =IntegerArray)
+  IF(PRESENT(IntegerArray_i4)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal                  , nVal , &
+                                               offset         , collective , IntegerArray_i4 =IntegerArray_i4)
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()

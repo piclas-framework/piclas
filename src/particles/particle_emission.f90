@@ -101,8 +101,19 @@ CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-VeloVecIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Normalized velocity vector' , '0.0 , 0.0 , 0.0', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-CircularInflow' &
-                                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+                                , 'Enables the utilization of a circular region as a surface flux on the selected boundary. '//&
+                                  'Only possible on surfaces, which are in xy, xz, and yz-planes.' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' &
+                                , 'TODO-DEFINE-PARAMETER\n'//&
+                                  'Axial direction of coordinates in polar system', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
+                                , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?) coordinates of polar system' , '0.0 , 0.0'&
+                                ,  numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
+                                , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
+                                , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-SimpleRadialVeloFit' &
                                       , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Fit of veloR/veloTot=-r*(A*exp(B*r)+C)', '.FALSE.', numberedmulti=.TRUE.)
@@ -118,16 +129,6 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-shiftFac' &
                                       , 'TODO-DEFINE-PARAMETER\n'//&
                                   'C , see SimpleRadialVeloFit' &
                                 , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Axial direction of coordinates in polar system', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin' &
-                                , 'TODO-DEFINE-PARAMETER Origin in orth(ogonal?) coordinates of polar system' , '0.0 , 0.0'&
-                                ,  numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax' &
-                                , 'TODO-DEFINE-PARAMETER Max radius of to-be inserted particles', '1e21', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin' &
-                                , 'TODO-DEFINE-PARAMETER Min radius of to-be inserted particles', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-MWTemperatureIC' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Temperature for Maxwell Distribution', '0.', numberedmulti=.TRUE.)
@@ -155,15 +156,15 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
                                       , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-Adaptive-Type' &
                                 , 'Define the type of the adaptive boundary condition. Options:\n' //&
-                                  '(1) Const. pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
-                                  '(2) Const. pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(1) Const. static pressure inlet after Farbar & Boyd 2014 (Type 1)\n' //&
+                                  '(2) Const. static pressure outlet after Farbar & Boyd 2014 (Type 1)\n' //&
                                   '(3) Const. massflow inlet after Farbar & Boyd 2014 (Type 2): Number of particles for regular '//&
                                   'surface flux is calculated with velocity and given mass flow. Requires an open BC.' //&
                                   '(4) Const. massflow inlet after Lei 2017 (cf_3): N_in = N_mdot + N_out (counting particles, '//&
                                   'which exist the domain through the adaptive BC).' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Pressure' &
-                                , 'Pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
+                                , 'Static pressure in [Pa] for the adaptive boundary conditions of type 1 and 2.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflow' &
                                 , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
 
@@ -3924,6 +3925,7 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal','.FALSE.')
       IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
         Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=.FALSE.
+        Species(iSpec)%Surfaceflux(iSF)%CircularInflow=.FALSE.
       ELSE
         Species(iSpec)%Surfaceflux(iSF)%VeloVecIC          =GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'1. , 0. , 0.')
         Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit=GETLOGICAL('Part-Species'//TRIM(hilf2)//'-SimpleRadialVeloFit','.FALSE.')
@@ -4061,14 +4063,14 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%PartDensity       = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure &
                                                             / (BoltzmannConst * Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC)
       CASE(3,4)
-        Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
+        Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow     = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
         IF(Species(iSpec)%Surfaceflux(iSF)%VeloIC.LE.0.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR in init of adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(1:nElems,1:3))
-        Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity = 0.0
-        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(1:nElems,1:3))
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
+        Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
@@ -4256,8 +4258,11 @@ IF((nAdaptiveBC.GT.0).OR.UseAdaptive.OR.(nPorousBC.GT.0))THEN
         Adaptive_MacroVal(DSMC_VELOX,iElem,:)   = ElemData_HDF5(1,:,iElem)
         Adaptive_MacroVal(DSMC_VELOY,iElem,:)   = ElemData_HDF5(2,:,iElem)
         Adaptive_MacroVal(DSMC_VELOZ,iElem,:)   = ElemData_HDF5(3,:,iElem)
-        Adaptive_MacroVal(4:6,iElem,:)          = ElemData_HDF5(4:6,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
+        Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
         Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(7,:,iElem)
+        ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
         Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
       END DO
       SDEALLOCATE(ElemData_HDF5)
@@ -4959,21 +4964,21 @@ __STAMP__&
               vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
               veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
               IF(veloNormal.GT.0.0) THEN
-                ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+                ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                                   / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-                Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1:3) = VeloVec(1:3)
+                Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1:3) = VeloVec(1:3)
               ELSE
                 ! Using the old velocity vector, overwriting the sampled value with the old one
-                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1)
-                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
-                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
+                Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1)
+                Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,2)
+                Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,3)
                 VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
                 VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
                 VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
                 vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
                 veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
                 IF(veloNormal.GT.0.0) THEN
-                  ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+                  ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                     / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
                 ELSE
                   SWRITE(*,*) 'WARNING: No particles inserted!'
@@ -5024,9 +5029,9 @@ __STAMP__&
             IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)     &
-                                      * (Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow * dt*RKdtFrac    &
+                                      * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dt*RKdtFrac    &
                                           / (Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor)  &
-                                          + Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut) +RandVal1)
+                                          + REAL(Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut)) +RandVal1)
             ELSE
               CALL RANDOM_NUMBER(RandVal1)
               PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
@@ -5433,7 +5438,7 @@ __STAMP__&
     END DO ! iSide
 
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0.
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
     END IF
 
     IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
@@ -6749,21 +6754,21 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
     IF(veloNormal.GT.0.0) THEN
-      ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+      ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
-      Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1:3) = VeloVec(1:3)
+      Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1:3) = VeloVec(1:3)
     ELSE
       ! Using the old velocity vector, overwriting the sampled value with the old one
-      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,1)
-      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,2)
-      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptInPreviousVelocity(ElemID,3)
+      Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,1)
+      Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,2)
+      Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity(ElemID,3)
       VeloVec(1) = Adaptive_MacroVal(DSMC_VELOX,ElemID,iSpec)
       VeloVec(2) = Adaptive_MacroVal(DSMC_VELOY,ElemID,iSpec)
       VeloVec(3) = Adaptive_MacroVal(DSMC_VELOZ,ElemID,iSpec)
       vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
       veloNormal = VeloVec(1)*vec_nIn(1) + VeloVec(2)*vec_nIn(2) + VeloVec(3)*vec_nIn(3)
       IF(veloNormal.GT.0.0) THEN
-        ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptInMassflow &
+        ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow &
                         / (veloNormal * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF * Species(iSpec)%MassIC)
       ELSE
         SWRITE(*,*) 'WARNING: Negative/zero velocity at the adaptive boundary, Type 4, no particles inserted! iSF: ', iSF
