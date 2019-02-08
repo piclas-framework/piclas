@@ -286,7 +286,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   
   SWRITE(UNIT_stdOut,'(132("="))')
-  SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-1,' of ',nArgs-1,'...'
+  SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
   DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.
