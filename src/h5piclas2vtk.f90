@@ -41,7 +41,7 @@ USE MOD_HDF5_Input,          ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadA
 USE MOD_HDF5_Input,          ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
 USE MOD_Mesh_ReadIn,         ONLY: readMesh
 USE MOD_Mesh,                ONLY: FinalizeMesh
-USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
+USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem,nNodes
 USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
@@ -56,6 +56,7 @@ USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
 USE MOD_PreProc,             ONLY: PP_N
 USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
 USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -88,9 +89,9 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL                           :: OutputTime
 INTEGER                        :: iDG
 CHARACTER(LEN=255)             :: FileString_multiblock
-INTEGER                        :: nDims,nVarAdd_HDF5
-CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAdd_HDF5(:)
-REAL,ALLOCATABLE               :: ElemData_HDF5(:,:)
+INTEGER                        :: nDims,nVarAdd
+CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAdd(:)
+REAL,ALLOCATABLE               :: ElemData(:,:)
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
@@ -104,15 +105,16 @@ LOGICAL                        :: VisuSource, DGSourceExists, skip, DGSolutionEx
 CHARACTER(LEN=40)              :: DefStr
 INTEGER                        :: iArgsStart
 ! Surface
-INTEGER                        :: nVarSurf_HDF5, nSurfBC_HDF5, iName, nSurfSample
+INTEGER                        :: nVarSurf, nSurfBC_HDF5, iName, nSurfSample, iNode
 CHARACTER(LEN=255),ALLOCATABLE :: SurfBCName_HDF5(:), VarNamesSurf_HDF5(:)
-REAL, ALLOCATABLE              :: SurfData_HDF5(:,:,:,:)
+REAL, ALLOCATABLE              :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
 LOGICAL                        :: MeshInitFinished, ReadMeshFinished
 ! PartData
 LOGICAL                        :: VisuParticles, PartDataExists
-INTEGER                        :: nParts, nPartsVar
+INTEGER                        :: nParts, nPartsVar, iPart
+INTEGER,ALLOCATABLE            :: ConnectInfo(:,:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesParticle(:), tmpArray(:)
-REAL, ALLOCATABLE              :: PartData(:,:)
+REAL, ALLOCATABLE              :: PartData(:,:), tmpPartData(:,:)
 !==================================================================================================================================
 CALL InitMPI()
 CALL ParseCommandlineArguments()
@@ -529,20 +531,20 @@ DO iArgs = iArgsStart,nArgs
     CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
     CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
-    nVarAdd_HDF5=INT(HSize(1),4)
-    IF (nVarAdd_HDF5.GT.0) THEN
-      SDEALLOCATE(VarNamesAdd_HDF5)
-      ALLOCATE(VarNamesAdd_HDF5(nVarAdd_HDF5))
-      CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd_HDF5,StrArray=VarNamesAdd_HDF5)
-      SDEALLOCATE(ElemData_HDF5)
-      ALLOCATE(ElemData_HDF5(1:nVarAdd_HDF5, nElems))
+    nVarAdd=INT(HSize(1),4)
+    IF (nVarAdd.GT.0) THEN
+      SDEALLOCATE(VarNamesAdd)
+      ALLOCATE(VarNamesAdd(nVarAdd))
+      CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd)
+      SDEALLOCATE(ElemData)
+      ALLOCATE(ElemData(1:nVarAdd, nElems))
 
       ! Associate construct for integer KIND=8 possibility
       ASSOCIATE (&
-            nVarAdd_HDF5 => INT(nVarAdd_HDF5,IK) ,&
+            nVarAdd => INT(nVarAdd,IK) ,&
             offsetElem => INT(offsetElem,IK),&
             nElems     => INT(nElems,IK)    )
-        CALL ReadArray('ElemData',2,(/nVarAdd_HDF5, nElems/),offsetElem,2,RealArray=ElemData_HDF5)
+        CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData)
       END ASSOCIATE
       SELECT CASE(TRIM(File_Type))
         CASE('State')
@@ -550,7 +552,8 @@ DO iArgs = iArgsStart,nArgs
         CASE('DSMCHOState')
           FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
       END SELECT
-      CALL WriteDataToVTK3DElems(nVarAdd_HDF5,ElemData_HDF5,FileString,VarNamesAdd_HDF5)
+      CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nNodes,GEO%NodeCoords(1:3,1:nNodes),nElems,&
+                                  ElemData(1:nVarAdd,1:nElems),GEO%ElemToNodeID(1:8,1:nElems))
     END IF
   END IF
   ! === SurfaceData ================================================================================================================
@@ -560,7 +563,7 @@ DO iArgs = iArgsStart,nArgs
     CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
     CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
     CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-    CALL GetDataProps('SurfaceData',nVarSurf_HDF5,N_State,nElems_State,NodeType_State)
+    CALL GetDataProps('SurfaceData',nVarSurf,N_State,nElems_State,NodeType_State)
     CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
     IF(nSurfSample.EQ.1) THEN
       ! Read-in of mesh information (if not already done for DG solution -> DSMCState case)
@@ -600,20 +603,31 @@ DO iArgs = iArgsStart,nArgs
     SWRITE(UNIT_stdOut,'(A)')' DONE!'
 
     SDEALLOCATE(VarNamesSurf_HDF5)
-    ALLOCATE(VarNamesSurf_HDF5(nVarSurf_HDF5))
-    CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf_HDF5,StrArray=VarNamesSurf_HDF5(1:nVarSurf_HDF5))
+    ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
+    CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 
-    IF((nVarSurf_HDF5.GT.0).AND.(SurfMeshPosti%nSurfaceBCSides.GT.0))THEN
-      SDEALLOCATE(SurfData_HDF5)
-      ALLOCATE(SurfData_HDF5(1:nVarSurf_HDF5,nSurfSample,nSurfSample,1:SurfMeshPosti%nSurfaceBCSides))
-      SurfData_HDF5=0.
-      CALL ReadArray('SurfaceData',4,(/nVarSurf_HDF5, nSurfSample, nSurfSample, SurfMeshPosti%nSurfaceBCSides/), &
-                      0,4,RealArray=SurfData_HDF5(:,nSurfSample,nSurfSample,:))
+    IF((nVarSurf.GT.0).AND.(SurfMeshPosti%nSurfaceBCSides.GT.0))THEN
+      SDEALLOCATE(SurfData)
+      SDEALLOCATE(tempSurfData)
+      ALLOCATE(SurfData(1:nVarSurf,1:SurfMeshPosti%nSurfaceBCSides))
+      ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:SurfMeshPosti%nSurfaceBCSides))
+      SurfData=0.
+      tempSurfData = 0.
+      CALL ReadArray('SurfaceData',4,(/nVarSurf, 1, 1, SurfMeshPosti%nSurfaceBCSides/), &
+                      0,4,RealArray=tempSurfData(:,:,:,:))
+      SurfData(1:nVarSurf,1:SurfMeshPosti%nSurfaceBCSides) = tempSurfData(1:nVarSurf,1,1,1:SurfMeshPosti%nSurfaceBCSides)
+      SDEALLOCATE(Coords)
+      ALLOCATE(Coords(1:3,SurfMeshPosti%nSurfaceNode))
+      Coords = 0.
     END IF
 
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    DO iNode=1, SurfMeshPosti%nSurfaceNode
+      Coords(1:3,iNode) = GEO%NodeCoords(1:3, SurfMeshPosti%BCSurfNodes(iNode))
+    END DO
 
-    CALL WriteDataToVTK2D(nVarSurf_HDF5,SurfData_HDF5,FileString,VarNamesSurf_HDF5,nSurfSample)
+    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfMeshPosti%nSurfaceNode,Coords(1:3,:),& 
+        SurfMeshPosti%nSurfaceBCSides,SurfData,SurfMeshPosti%SideSurfNodeMap(1:4,1:SurfMeshPosti%nSurfaceBCSides))
   END IF
   ! === PartData ===================================================================================================================
   IF(VisuParticles) THEN
@@ -635,13 +649,25 @@ DO iArgs = iArgsStart,nArgs
 
       IF(nParts.GT.0) THEN
         SDEALLOCATE(PartData)
-        ALLOCATE(PartData(1:nParts,1:nPartsVar+3))
+        SDEALLOCATE(tmpPartData)
+        ALLOCATE(PartData(1:nPartsVar+3,1:nParts),tmpPartData(1:nParts,1:nPartsVar+3))
+        PartData = 0.
+        tmpPartData = 0.
+        SDEALLOCATE(ConnectInfo)
+        ALLOCATE(ConnectInfo(1,1:nParts))
+        ConnectInfo = 0.
       END IF
 
-      CALL ReadArray('PartData',2,(/nParts, nPartsVar+3/),0,1,RealArray=PartData)
+      CALL ReadArray('PartData',2,(/nParts, nPartsVar+3/),0,1,RealArray=tmpPartData)
+
+      DO iPart=1,nParts
+        PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
+        ConnectInfo(1,iPart)=iPart-1
+      END DO
 
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuPart',OutputTime))//'.vtu'
-      CALL WriteDataToVTKPart(nPartsVar,PartData(:,4:nPartsVar+3),FileString,VarNamesParticle,nParts,PartData(:,1:3))
+      CALL WriteDataToVTK_PICLas(1,FileString,nPartsVar,VarNamesParticle,nParts,PartData(1:3,1:nParts),nParts,&
+                                  PartData(4:nPartsVar+3,1:nParts),ConnectInfo(1,1:nParts))
     END IF
   END IF
   CALL CloseDataFile()
@@ -657,11 +683,15 @@ SDEALLOCATE(NodeCoords)
 ! ElemData/visuDSMC
 
 ! visuSurf
-SDEALLOCATE(SurfData_HDF5)
+SDEALLOCATE(Coords)
+SDEALLOCATE(SurfData)
+SDEALLOCATE(tempSurfData)
+SDEALLOCATE(Coords)
 ! visuPart
 SDEALLOCATE(VarNamesParticle)
 SDEALLOCATE(tmpArray)
 SDEALLOCATE(PartData)
+SDEALLOCATE(tmpPartData)
 CALL FinalizeMesh()
 
 ! Measure processing duration
@@ -679,34 +709,35 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM H5PICLAS2VTK
 
-SUBROUTINE WriteDataToVTK3DElems(nVal,ValueCells,FileString,VarNameVisu)
+SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Value,ConnectInfo)
 !===================================================================================================================================
 ! Subroutine to write 3D point data to VTK format
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_Mesh_Vars,              ONLY:nElems,nNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: nVal                                       ! Number of nodal output variables
-REAL,INTENT(IN)               :: ValueCells(nVal,nElems)                    ! Statevector 
-CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVal)              ! Output file name
+INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
+REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
+CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode
-INTEGER            :: int_size
-INTEGER            :: Vertex(8,nElems)
-INTEGER            :: ElemType
+INTEGER            :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
+INTEGER            :: Vertex(data_size,nElems)
 CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200) :: Buffer
 CHARACTER(LEN=1)   :: lf
 REAL(KIND=4)       :: float
 !===================================================================================================================================
+
+nVTKElems=nNodes
+nVTKCells=nElems
+
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE..."
 IF(nElems.LT.1)THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
@@ -721,9 +752,6 @@ OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
 ! Write header
 Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify file type
-nVTKElems=nNodes
-nVTKCells=nElems
 
 Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
 WRITE(TempStr1,'(I16)')nVTKElems
@@ -736,8 +764,8 @@ Buffer='      <PointData> </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='      <CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Offset=0
 WRITE(StrOffset,'(I16)')Offset
-IF (nVal .GT.0)THEN
-  DO iVar=1,nVal
+IF (nVar .GT.0)THEN
+  DO iVar=1,nVar
       Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
       '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
       Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(float),4)
@@ -757,7 +785,7 @@ Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Connectivity
 Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
        ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+8*nVTKCells*INT(SIZEOF(int_size),4)
+Offset=Offset+INT(SIZEOF(int_size),4)+data_size*nVTKCells*INT(SIZEOF(int_size),4)
 WRITE(StrOffset,'(I16)')Offset
 ! Offsets
 Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
@@ -778,28 +806,38 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 ! Write binary raw data into append section
 ! cell data
 nBytes = nVTKCells*INT(SIZEOF(FLOAT),4)
-DO iVal=1,nVal
-    WRITE(ivtk) nBytes,REAL(ValueCells(iVal,1:nElems),4)
+DO iVal=1,nVar
+  WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
 END DO
 ! Points
 nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) REAL(GEO%NodeCoords(1:3,1:nNodes),4)
+WRITE(ivtk) REAL(Coords(1:3,1:nVTKElems),4)
 ! Connectivity
-DO iElem=1,nElems
-  DO iNode=1,8
-    Vertex(iNode,iElem)= GEO%ElemToNodeID(iNode,iElem)-1
+DO iElem=1,nVTKCells
+  DO iNode=1,data_size
+    Vertex(iNode,iElem) = ConnectInfo(iNode,iElem)-1
   END DO
 END DO
-nBytes = 8*nVTKCells*INT(SIZEOF(int_size),4)
+nBytes = data_size*nVTKCells*INT(SIZEOF(int_size),4)
 WRITE(ivtk) nBytes
 WRITE(ivtk) Vertex(:,:)
 ! Offset
 nBytes = nVTKCells*INT(SIZEOF(int_size),4)
 WRITE(ivtk) nBytes
-WRITE(ivtk) (Offset,Offset=8,8*nVTKCells,8)
+WRITE(ivtk) (Offset,Offset=data_size,data_size*nVTKCells,data_size)
 ! Elem type
-ElemType = 12 ! VTK_HEXAHEDRON
+SELECT CASE(data_size)
+CASE(8)
+  ElemType = 12 ! VTK_HEXAHEDRON
+CASE(4)
+  ElemType = 9  ! VTK_QUAD
+CASE(1)
+  ElemType = 2  ! VTK_VERTEX
+CASE DEFAULT
+  CALL abort(__STAMP__,&
+      'Wrong data size given to WritaDataToVTK_PICLas routine!')
+END SELECT
 WRITE(ivtk) nBytes
 WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
 ! Write footer
@@ -807,134 +845,7 @@ Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-END SUBROUTINE WriteDataToVTK3DElems
-
-
-SUBROUTINE WriteDataToVTK2D(nVal,Value,FileString,VarNameVisu,nSurfSample)
-!===================================================================================================================================
-! Subroutine to write 2D point data to VTK format
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_Particle_Boundary_Vars, ONLY:SurfMeshPosti
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: nVal,nSurfSample                 ! Number of nodal output variables
-REAL,INTENT(IN)               :: Value(nVal,nSurfSample,nSurfSample,SurfMeshPosti%nSurfaceBCSides) ! Statevector 
-CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVal)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: iElem,iVal,Offset,nBytes,nVTKElems,nVTKCells,ivtk=45,iVar,iNode
-INTEGER            :: int_size
-INTEGER            :: Vertex(4,SurfMeshPosti%nSurfaceBCSides)
-INTEGER            :: ElemType
-CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
-CHARACTER(LEN=200) :: Buffer
-CHARACTER(LEN=1)   :: lf
-REAL(KIND=4)       :: Float
-!===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 2D DATA TO VTK XML BINARY (VTU) FILE..."
-
-! Line feed character
-lf = char(10)
-
-! Write file
-OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
-! Write header
-Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify file type
-nVTKElems=SurfMeshPosti%nSurfaceNode
-nVTKCells=SurfMeshPosti%nSurfaceBCSides
-
-Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-WRITE(TempStr1,'(I16)')nVTKElems
-WRITE(TempStr2,'(I16)')nVTKCells
-Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
-'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify point data
-Buffer='      <PointData> </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify cell data
-Buffer='      <CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=0
-WRITE(StrOffset,'(I16)')Offset
-DO iVar=1,nVal
-    Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
-    '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-      Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(Float),4)
-    WRITE(StrOffset,'(I16)')Offset
-END DO
-Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify coordinate data
-Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-   Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKElems*INT(SIZEOF(Float),4)
-WRITE(StrOffset,'(I16)')Offset
-Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify necessary cell data
-Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Connectivity
-Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+4*nVTKCells*INT(SIZEOF(int_size),4)
-WRITE(StrOffset,'(I16)')Offset
-! Offsets
-Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(int_size),4)
-WRITE(StrOffset,'(I16)')Offset
-! Elem types
-Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Prepare append section
-Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Write leading data underscore
-Buffer='_';WRITE(ivtk) TRIM(Buffer)
-
-! Write binary raw data into append section
-! Point data
-nBytes = nVTKCells*INT(SIZEOF(Float),4)
-DO iVal=1,nVal
-  WRITE(ivtk) nBytes,REAL(Value(iVal,1:nSurfSample,1:nSurfSample,1:SurfMeshPosti%nSurfaceBCSides),4)
-END DO
-! Points
-nBytes = 3*nVTKElems*INT(SIZEOF(Float),4)
-WRITE(ivtk) nBytes
-DO iNode=1, SurfMeshPosti%nSurfaceNode
-  WRITE(ivtk) REAL(GEO%NodeCoords(1:3, SurfMeshPosti%BCSurfNodes(iNode)),4)
-END DO
-! Connectivity
-DO iElem=1,SurfMeshPosti%nSurfaceBCSides
-  DO iNode=1,4
-    Vertex(iNode,iElem) = SurfMeshPosti%SideSurfNodeMap(iNode,iElem) - 1
-  END DO
-END DO
-nBytes = 4*nVTKCells*INT(SIZEOF(int_size),4)
-WRITE(ivtk) nBytes
-WRITE(ivtk) Vertex(:,:)
-! Offset
-nBytes = nVTKCells*INT(SIZEOF(int_size),4)
-WRITE(ivtk) nBytes
-WRITE(ivtk) (Offset,Offset=4,4*nVTKCells,4)
-! Elem type
-ElemType = 9 ! VTK_QUAD
-WRITE(ivtk) nBytes
-WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
-! Write footer
-Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
-CLOSE(ivtk)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-END SUBROUTINE WriteDataToVTK2D
+END SUBROUTINE WriteDataToVTK_PICLas
 
 
 SUBROUTINE InitMesh_Connected()
@@ -1131,133 +1042,3 @@ DEALLOCATE(TempBCSurfNodes)
 DEALLOCATE(TempSideSurfNodeMap)
 
 END SUBROUTINE InitMesh_Connected
-
-SUBROUTINE WriteDataToVTKPart(nVal,Value,FileString,VarNameVisu,nParts,Coord)
-!===================================================================================================================================
-! Subroutine to write unstructured 3D point data to VTK format
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: nVal                    ! Number of nodal output variables
-INTEGER,INTENT(IN)            :: nParts                  ! Number of output Particle
-REAL,INTENT(IN)               :: Coord(1:nParts,1:3)         ! CoordsVector 
-REAL,INTENT(IN)               :: Value(1:nParts,1:nVal)      ! Statevector 
-CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVal)
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: iVal,iPart,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar
-INTEGER            :: int_size
-INTEGER            :: Vertex(nParts)
-INTEGER            :: ElemType
-CHARACTER(LEN=35)  :: StrOffset,TempStr1,TempStr2
-CHARACTER(LEN=200) :: Buffer
-CHARACTER(LEN=1)   :: lf
-REAL(KIND=4)       :: Float
-!===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE PART DATA TO VTX XML BINARY (VTU) FILE..."
-IF(nParts.LT.1)THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-  RETURN
-END IF
-
-! Line feed character
-lf = char(10)
-
-! Write file
-OPEN(UNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
-! Write header
-Buffer='<?xml version="1.0"?>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'//lf;WRITE(ivtk) TRIM(Buffer)
-nVTKElems=nParts
-nVTKCells=nParts
-
-Buffer='  <UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-WRITE(TempStr1,'(I16)')nVTKElems
-WRITE(TempStr2,'(I16)')nVTKCells
-Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//&
-'" NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify point data
-Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=0
-WRITE(StrOffset,'(I16)')Offset
-IF (nVal .GT.0)THEN
-  DO iVar=1,nVal
-    Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
-    '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-    Offset=Offset+INT(SIZEOF(int_size),4)+nVTKElems*INT(SIZEOF(FLOAT),4)
-    WRITE(StrOffset,'(I16)')Offset
-  END DO
-END IF
-Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify cell data
-Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify coordinate data
-Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+3*nVTKElems*INT(SIZEOF(FLOAT),4)
-WRITE(StrOffset,'(I16)')Offset
-Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify necessary cell data
-Buffer='      <Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Connectivity
-Buffer='        <DataArray type="Int32" Name="connectivity" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+nParts*INT(SIZEOF(int_size),4)
-WRITE(StrOffset,'(I16)')Offset
-! Offsets
-Buffer='        <DataArray type="Int32" Name="offsets" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=Offset+INT(SIZEOF(int_size),4)+nVTKElems*INT(SIZEOF(int_size),4)
-WRITE(StrOffset,'(I16)')Offset
-! Elem types
-Buffer='        <DataArray type="Int32" Name="types" format="appended"'// &
-       ' offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='      </Cells>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='    </Piece>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='  </UnstructuredGrid>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Prepare append section
-Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
-! Write leading data underscore
-Buffer='_';WRITE(ivtk) TRIM(Buffer)
-
-! Write binary raw data into append section
-! Point data
-nBytes = nVTKElems*INT(SIZEOF(FLOAT),4)
-DO iVal=1,nVal
-  WRITE(ivtk) nBytes,REAL(Value(1:nParts,iVal),4)
-END DO
-! Points
-nBytes = nBytes * 3
-WRITE(ivtk) nBytes
-DO iPart=1,nParts
-  WRITE(ivtk) REAL(Coord(iPart,1:3),4)
-END DO
-! Connectivity
-DO iPart=1,nParts
-  Vertex(iPart)=iPart-1
-END DO
-nBytes = nVTKElems*INT(SIZEOF(int_size),4)
-WRITE(ivtk) nBytes
-WRITE(ivtk) Vertex(:)
-! Offset
-nBytes = nVTKElems*INT(SIZEOF(int_size),4)
-WRITE(ivtk) nBytes
-WRITE(ivtk) (Offset,Offset=1,nVTKElems,1)
-! Elem type
-ElemType = 2  ! VTK_VERTEX (POINT)
-WRITE(ivtk) nBytes
-WRITE(ivtk) (ElemType,iPart=1,nVTKElems)
-! Write footer
-Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
-Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
-CLOSE(ivtk)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
-END SUBROUTINE WriteDataToVTKPart
