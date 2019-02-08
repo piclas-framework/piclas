@@ -170,8 +170,6 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
 CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
-                                                                 , '100000')
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
@@ -1350,23 +1348,6 @@ IF(DoRefMapping)THEN
   __STAMP__&
   ,' Cannot allocate partposref!')
   PartPosRef=-888.
-END IF
-
-! predefine random vectors
-NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
-IF ((usevMPF).OR.(useDSMC)) THEN
-  ALLOCATE(RandomVec(NumRanVec, 3))
-  RandomVec = 0
-  DO iVec = 1, NumRanVec  ! calculation of NumRanVec different Vectors
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = 1 - 2*iRan
-    aVec              = SQRT(1 - bVec**2)
-    RandomVec(iVec,1) = bVec
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = Pi *2 * iRan
-    RandomVec(iVec,2) = aVec * COS(bVec)
-    RandomVec(iVec,3) = aVec * SIN(bVec)
-  END DO
 END IF
 
 ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
@@ -3240,7 +3221,6 @@ SDEALLOCATE(PartIsImplicit)
 #endif /*defined(IMPA)*/
 !SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
-SDEALLOCATE(RandomVec)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartSpecies)
