@@ -967,9 +967,6 @@ IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
 
 ! write volume data for DSMC macroscopic values 
 IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
@@ -1103,9 +1100,6 @@ IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
