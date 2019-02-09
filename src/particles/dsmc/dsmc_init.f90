@@ -375,6 +375,9 @@ IMPLICIT NONE
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
+
+  ! Initialize counter (Count the number of ReactionProb>1)
+  ReactionProbGTUnityCounter = 0
   
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')

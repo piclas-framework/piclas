@@ -58,7 +58,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   USE MOD_Globals
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
   USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
@@ -342,8 +342,12 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 #if (PP_TimeDiscMethod==42)
     IF(DSMC%ReservoirRateStatistic) THEN
 #endif
-      IF(ReactionProb.GT.1) THEN
-        IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac
+      IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.1000)) THEN
+        ReactionProbGTUnityCounter=ReactionProbGTUnityCounter+1
+        IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac,'    ReactionProb:',ReactionProb
+        IF(ReactionProbGTUnityCounter.EQ.1000)THEN
+          IPWRITE(*,*) ' Counted 1000 ReactionProb greater than unity. Turning this warning off.'
+        END IF
       END IF
 #if (PP_TimeDiscMethod==42)
     END IF
