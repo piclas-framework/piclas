@@ -77,19 +77,6 @@ END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
 
-TYPE tSurfaceMeshPosti
-  INTEGER                         :: nSurfaceNode                 ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              ! Number of Sides on Surface (reflective)
-  INTEGER                         :: nHaloSurfaceBCSides          ! Number of Halo Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: HaloSideIDToSurfSideMap(:)   ! Mapping from glob Side ID to Surface Side ID
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)               ! Nodes on Surface (reflective) (nSurfaceNode)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-  INTEGER, ALLOCATABLE            :: GlobSideToSurfSideMap(:)     ! Mapping from glob Side ID to Surface Side ID
-  REAL, ALLOCATABLE               :: SurfaceArea(:)               ! Area of Surface 
-END TYPE
-
-TYPE (tSurfaceMeshPosti)               :: SurfMeshPosti
-
 TYPE tSampWall             ! DSMC sample for Wall                                             
   ! easier to communicate
   REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
