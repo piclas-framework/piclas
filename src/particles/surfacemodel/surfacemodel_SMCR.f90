@@ -1698,12 +1698,6 @@ DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,adsorbates)
 DEALLOCATE(ProbDes,P_react_forward,P_react_back)
 DEALLOCATE(Coord_ReactP,Pos_ReactP)
 
-DO iReact = 1,Adsorption%ReactNum+1
-  IF (Adsorption%AdsorpReactInfo(1)%SurfReactCount(iReact).GT.0) THEN
-    print*, iReact,Adsorption%AdsorpReactInfo(1)%MeanSurfActE(iReact) / REAL(Adsorption%AdsorpReactInfo(1)%SurfReactCount(iReact))
-  END IF
-END DO
-
 ! 6. communicate surface state to halo sides of neighbours
 #ifdef MPI
   ! communicate distribution to halo-sides of neighbour procs
@@ -1767,7 +1761,6 @@ DO iSubSurf = 1,nSurfSample
       ! find free Neighbour positions of the same site-coordination
       DO i = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours
         IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
-!          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i).EQ.57) print*,SurfPos,i,Coord
           IF ( (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species( &
               SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
             ! check for occupation with neirest Neighbours of position
