@@ -514,11 +514,11 @@ USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorp
 USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncActDissSurf
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncSurf, PartitionFuncActLH, PartitionFuncActExchSurf
-USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurfRates
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 #if (PP_TimeDiscMethod==42)
+USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurfRates
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #endif
 #if USE_LOADBALANCE
