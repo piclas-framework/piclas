@@ -400,8 +400,8 @@ END IF
 !         neighSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(NeighPos)
 !         IF ( (neighSpec.NE.0) ) THEN
 !           DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-!             IF ( neighSpec.EQ.Adsorption%AssocReact(1,ReactNum,Species) .AND. &
-!                  (Adsorption%AssocReact(2,ReactNum,Species).NE.0)) THEN
+!             IF ( neighSpec.EQ.Adsorption%RecombReact(1,ReactNum,Species) .AND. &
+!                  (Adsorption%RecombReact(2,ReactNum,Species).NE.0)) THEN
 !               D_AL(l) = Adsorption%EDissBond((Adsorption%DissNum+ReactNum),Species)
 !               nNeigh_interactions = nNeigh_interactions + 1
 !               CYCLE
@@ -415,8 +415,8 @@ END IF
 !                       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%NeighPos(NeighPos,k))
 !               IF ( (neighSpec2.NE.0) ) THEN
 !                 DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-!                   IF ( (neighSpec2.EQ.Adsorption%AssocReact(1,ReactNum,neighSpec)) .AND. &
-!                        (Adsorption%AssocReact(2,ReactNum,neighSpec).NE.0)) THEN
+!                   IF ( (neighSpec2.EQ.Adsorption%RecombReact(1,ReactNum,neighSpec)) .AND. &
+!                        (Adsorption%RecombReact(2,ReactNum,neighSpec).NE.0)) THEN
 !                     Neigh_bondorder(l) = Neigh_bondorder(l) + 1
 !                     CYCLE
 !                   END IF
@@ -750,8 +750,8 @@ CASE(3) ! eley-rideal
   IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
     PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
     Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    ProdSpec1 = Adsorption%AssocReact(1,AssocNum,SpecID)
-    ProdSpec2 = Adsorption%AssocReact(2,AssocNum,SpecID)
+    ProdSpec1 = Adsorption%RecombReact(1,AssocNum,SpecID)
+    ProdSpec2 = Adsorption%RecombReact(2,AssocNum,SpecID)
     ! set zero point vibrational energy of product particle
     EZeroPoint_Product = 0.
     IF(SpecDSMC(ProdSpec2)%InterID.EQ.2) THEN

@@ -30,6 +30,10 @@ INTERFACE AnalyzeSurface
   MODULE PROCEDURE AnalyzeSurface
 END INTERFACE
 
+INTERFACE AnalyzeSurfRates
+  MODULE PROCEDURE AnalyzeSurfRates
+END INTERFACE
+
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 INTERFACE WriteDataHeaderInfo
   MODULE PROCEDURE WriteDataHeaderInfo
@@ -42,6 +46,7 @@ END INTERFACE
 
 PUBLIC:: InitSurfModelAnalyze
 PUBLIC:: AnalyzeSurface
+PUBLIC:: AnalyzeSurfRates
 PUBLIC:: DefineParametersSurfModelAnalyze
 !===================================================================================================================================
 CONTAINS
@@ -1479,6 +1484,69 @@ Liquid%Info(:)%NumOfDes = 0
 #endif /*MPI*/
 
 END SUBROUTINE GetEvaporationRate
+
+
+SUBROUTINE AnalyzeSurfRates(AnalyzeCase,SpecID,ReactionID,EAct,nuReact,Probability)
+!===================================================================================================================================
+!> Routine analyzing reaction rates at surfaces for SMCR
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars         ,ONLY: DSMC
+USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)            :: AnalyzeCase      !1: meansurfrate, 2: propersurfrate
+INTEGER, INTENT(IN)            :: SpecID
+INTEGER, INTENT(IN)            :: ReactionID
+REAL, INTENT(IN)               :: EAct
+REAL, INTENT(IN)               :: nuReact
+REAL, INTENT(IN)               :: Probability
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSampleReact
+!===================================================================================================================================
+iSampleReact = ReactionID + 1
+
+SELECT CASE(AnalyzeCase)
+CASE(1)
+  IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  !  IF (rate*dt.GT.1) THEN
+  !    Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
+  !        Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + 1.
+  !     Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes = Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes + 1.
+  !  ELSE
+      Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
+          Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + Probability
+  !     Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes = Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes + Probability
+  !  END IF
+  END IF
+  Adsorption%AdsorpReactInfo(SpecID)%MeanSurfActE(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%MeanSurfActE(iSampleReact) + EAct
+  Adsorption%AdsorpReactInfo(SpecID)%MeanSurfnu(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%MeanSurfnu(iSampleReact) + nuReact
+  Adsorption%AdsorpReactInfo(SpecID)%SurfReactCount(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%SurfReactCount(iSampleReact) + 1
+CASE(2)
+  IF (DSMC%ReservoirRateStatistic) THEN
+    Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
+        Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + 1
+  END IF
+  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfActE(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfActE(iSampleReact) + EAct
+  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfnu(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfnu(iSampleReact) + nuReact
+  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfReactCount(iSampleReact) = &
+      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfReactCount(iSampleReact) + 1
+CASE DEFAULT
+  CALL abort(&
+__STAMP__,&
+'ERROR: analyze case in AnalyzeSurfRates not defined!',AnalyzeCase)
+END SELECT
+
+END SUBROUTINE AnalyzeSurfRates
 #endif /*(PP_TimeDiscMethod==42)*/
 #endif /*(PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)*/
 

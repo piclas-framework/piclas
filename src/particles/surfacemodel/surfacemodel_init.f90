@@ -146,9 +146,9 @@ CALL prms%CreateIntOption(      'Surface-Nbr-ExchangeReactions'&
 
 
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Powerfactor'&
-                                          , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                          , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-Prefactor'&
-                                          , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                          , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBond'&
                                           , 'TODO-DEFINE-PARAMETER\n'//&
                                              'Bond dissociation energy (K) for diss into resulting'//&
@@ -161,9 +161,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBondPoly2'&
 CALL prms%CreateIntArrayOption( 'Part-Species[$]-SurfDiss[$]-Products'&
                                           , 'TODO-DEFINE-PARAMETER','0 , 0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Powerfactor'&
-                                         , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                         , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Prefactor'&
-                                         , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                         , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-EDissBond'&
                                          , 'TODO-DEFINE-PARAMETER\n'//&
                                              'Bond dissociation energy (K) for diss into resulting'//&
@@ -883,7 +883,7 @@ SDEALLOCATE(Adsorption%ER_Powerfactor)
 SDEALLOCATE(Adsorption%ER_Prefactor)
 SDEALLOCATE(Adsorption%EDissBond)
 SDEALLOCATE(Adsorption%EDissBondAdsorbPoly)
-SDEALLOCATE(Adsorption%AssocReact)
+SDEALLOCATE(Adsorption%RecombReact)
 SDEALLOCATE(Adsorption%ChemReactant)
 SDEALLOCATE(Adsorption%ChemProduct)
 SDEALLOCATE(Adsorption%Reactant_DissBond_K)

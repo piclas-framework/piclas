@@ -115,20 +115,19 @@ TYPE tAdsorption
                                                                     ! (ReactNum,nspecies)
   REAL    , ALLOCATABLE                  :: EDissBondAdsorbPoly(:,:)! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (ReactNum,nspecies)
-  INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
+  INTEGER , ALLOCATABLE                  :: RecombReact(:,:,:)      ! Partner/Result species for associative reaction (2,ReactNum,nSpecies)
   INTEGER , ALLOCATABLE                  :: ChemReactant(:,:)
   INTEGER , ALLOCATABLE                  :: ChemProduct(:,:)
   REAL    , ALLOCATABLE                  :: Reactant_DissBond_K(:,:)
   REAL    , ALLOCATABLE                  :: Product_DissBond_K(:,:)
   INTEGER                                :: nDissocReactions
-  INTEGER                                :: nAssocReactions
-  INTEGER                                :: nDisPropReactions
+  INTEGER                                :: nExchReactions
   INTEGER , ALLOCATABLE                  :: Coordination(:,:)       ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   INTEGER , ALLOCATABLE                  :: DiCoord(:,:)            ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
   INTEGER                                :: NumOfDissocReact
-  INTEGER                                :: NumOfAssocReact
+  INTEGER                                :: NumOfRecombReact
   INTEGER                                :: NumOfExchReact
   ! TST Factor calculation variables
   LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)

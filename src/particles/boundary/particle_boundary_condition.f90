@@ -2273,7 +2273,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
       END DO
     ELSE IF ( PartSurfaceModel.EQ.3) THEN
       DO iReact = 1,Adsorption%RecombNum
-        IF (Adsorption%AssocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+        IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.outSpec(2))THEN
           SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
         END IF
       END DO
