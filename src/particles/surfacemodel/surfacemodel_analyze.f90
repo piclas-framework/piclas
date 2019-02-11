@@ -30,9 +30,6 @@ INTERFACE AnalyzeSurface
   MODULE PROCEDURE AnalyzeSurface
 END INTERFACE
 
-INTERFACE AnalyzeSurfRates
-  MODULE PROCEDURE AnalyzeSurfRates
-END INTERFACE
 
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 INTERFACE WriteDataHeaderInfo
@@ -44,9 +41,15 @@ INTERFACE WriteDataInfo
 END INTERFACE
 #endif /* DSMC*/
 
+#if (PP_TimeDiscMethod==42)
+INTERFACE AnalyzeSurfRates
+  MODULE PROCEDURE AnalyzeSurfRates
+END INTERFACE
+PUBLIC:: AnalyzeSurfRates
+#endif /*RESERVOIR*/
+
 PUBLIC:: InitSurfModelAnalyze
 PUBLIC:: AnalyzeSurface
-PUBLIC:: AnalyzeSurfRates
 PUBLIC:: DefineParametersSurfModelAnalyze
 !===================================================================================================================================
 CONTAINS
