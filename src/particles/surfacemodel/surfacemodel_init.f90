@@ -708,7 +708,7 @@ __STAMP__&
 ,'Error in surface coverage init: number of surface sides in HDF5-file does not match!')
     ! number comes from boundary sampling, if surfacemodel is used then nVar2d_Spec=4
     IF (Version_HDF5.GT.0.1)THEN
-      nVar2D = 6
+      nVar2D = 10
     ELSE
       nVar2D = 5
     END IF
