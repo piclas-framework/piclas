@@ -588,7 +588,7 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
     ! Check whether calculation of instantaneous translational temperature is required
-    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2)) THEN
+    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2).OR.DSMC%CalcQualityFactors) THEN
       ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
       DSMC%InstantTransTemp = 0.0
     END IF

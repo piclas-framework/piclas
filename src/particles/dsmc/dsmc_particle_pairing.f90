@@ -100,7 +100,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     END IF
   END DO
 
-  IF((CollisMode.GT.1).AND.(SelectionProc.EQ.2).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate)) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
     CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
@@ -278,7 +278,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     iPart = PEM%pNext(iPart)    
   END DO
 
-  IF((CollisMode.GT.1).AND.(SelectionProc.EQ.2).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate)) THEN
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
     CALL CalcInstantTransTemp(iPartIndx,nPart)
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
