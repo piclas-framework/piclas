@@ -69,10 +69,9 @@ TYPE tSurfaceMesh
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
-  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
+  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
-  INTEGER,ALLOCATABLE                   :: SurfSideToGlobSideMap(:)      ! map of surfside ID to global Side ID
-  INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)         ! map of surface side ID to the BC side ID
+  INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)             ! Mapping of surface side ID (reflective) to side ID
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
