@@ -686,14 +686,12 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE 
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iBCSide, iInnerSide, nStart, jNode
-INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
-LOGICAL                 :: IsSortedSurfNode
+INTEGER                 :: iElem, iLocSide, iSide, iNode, iBCSide, iInnerSide, nStart, jNode
 INTEGER                 :: NodeMap(4,6)
 ! LOCAL VARIABLES
-TYPE(tElem),POINTER :: aElem
-TYPE(tSide),POINTER :: aSide
-INTEGER             :: LocSideID,nSides_flip(0:4)
+TYPE(tElem),POINTER     :: aElem
+TYPE(tSide),POINTER     :: aSide
+INTEGER                 :: LocSideID,nSides_flip(0:4)
 !===================================================================================================================================
 
 ! set side ID, so that BC Sides come first, then InnerSides
@@ -764,7 +762,7 @@ DO iElem=1,nElems
       SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
-    IF(aSide%sideID .LE. nBCSides) BC(aSide%sideID)=aSide%BCIndex
+    BC(aSide%sideID)=aSide%BCIndex
   END DO ! LocSideID
 END DO ! iElem
 
@@ -811,53 +809,6 @@ DO iElem=1,nElems
                                              Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
   END DO
 END DO
-
-! Build connectivity for the surface mesh
-
-SDEALLOCATE(TempBCSurfNodes)
-SDEALLOCATE(TempSideSurfNodeMap)
-ALLOCATE(TempBCSurfNodes(4*nSides))
-ALLOCATE(TempSideSurfNodeMap(1:4,1:nSides))
-SurfConnect%nSurfaceNode=0
-SurfConnect%nSurfaceBCSides=0
-
-DO iSide=1, nSides
-  IF(BC(iSide).EQ.0) CYCLE
-  IF (BoundaryType(BC(iSide),BC_TYPE).EQ.4) THEN                      ! only reflective boundaries
-    SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
-    iElem = SideToElem(1,iSide)
-    IF (iElem.LT.1) THEN
-      iElem = SideToElem(2,iSide)
-      iLocSide = SideToElem(4,iSide)
-    ELSE
-      iLocSide = SideToElem(3,iSide)
-    END IF
-    DO iNode2 = 1, 4
-    IsSortedSurfNode = .false.
-      DO iNode = 1, SurfConnect%nSurfaceNode 
-        IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
-        TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
-        IsSortedSurfNode = .true.
-        EXIT
-        END IF
-      END DO
-      IF(.NOT.IsSortedSurfNode) THEN
-        SurfConnect%nSurfaceNode = SurfConnect%nSurfaceNode + 1
-        TempBCSurfNodes(SurfConnect%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
-        TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = SurfConnect%nSurfaceNode
-      END IF
-    END DO  
-  END IF
-END DO
-
-SDEALLOCATE(SurfConnect%BCSurfNodes)
-ALLOCATE(SurfConnect%BCSurfNodes(1:SurfConnect%nSurfaceNode))
-SurfConnect%BCSurfNodes(1:SurfConnect%nSurfaceNode) = TempBCSurfNodes(1:SurfConnect%nSurfaceNode)
-SDEALLOCATE(SurfConnect%SideSurfNodeMap)
-ALLOCATE(SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
-SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides)
-DEALLOCATE(TempBCSurfNodes)
-DEALLOCATE(TempSideSurfNodeMap)
 
 END SUBROUTINE InitMesh_Connected
 
@@ -1039,7 +990,6 @@ REAL                            :: OutputTime
 INTEGER                         :: nDims, nVarSurf, nSurfSample, iNode
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
-
 !===================================================================================================================================
 
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
@@ -1062,6 +1012,8 @@ IF(nSurfSample.EQ.1) THEN
   END IF
   ! Read in solution
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+  CALL BuildSurfMeshConnectivity()
 
   CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
   nVarSurf = INT(HSize(1),4)
@@ -1101,3 +1053,104 @@ SDEALLOCATE(tempSurfData)
 SDEALLOCATE(Coords)
 
 END SUBROUTINE ConvertSurfaceData
+
+
+SUBROUTINE BuildSurfMeshConnectivity()
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_IO_HDF5,                ONLY: HSize
+USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
+USE MOD_Mesh_ReadIn,            ONLY: readMesh
+USE MOD_Mesh_Vars,              ONLY: SurfConnect, nSides, SideToElem, BC, BoundaryName
+USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: nDims, iNode, nSurfBC_HDF5, iName
+CHARACTER(LEN=255),ALLOCATABLE  :: SurfBCName_HDF5(:)
+INTEGER                         :: iElem, iLocSide, iSide, iNode2, iBC, nSurfSides
+INTEGER, ALLOCATABLE            :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:), SideToSurfSide(:)
+LOGICAL                         :: IsSortedSurfNode
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BCSIDES IN HDF5 FILE... '
+CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.true.)
+nSurfBC_HDF5 = INT(HSize(1),4)
+
+SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
+ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
+CALL ReadAttribute(File_ID,'BC_Surf',nSurfBC_HDF5,StrArray=SurfBCName_HDF5)
+DO iName = 1,nSurfBC_HDF5
+  SWRITE(UNIT_stdOut,'(A3,A38,I2.1,A5,A3,A33,A13)')' | ','BC',iName,'Name',' | ',TRIM(SurfBCName_HDF5(iName)),' | HDF5    | '
+END DO
+
+! create sideid to surfaceid map for all surface-sides contained in statefile
+ALLOCATE(SideToSurfSide(1:nSides))
+SideToSurfSide(1:nSides) = -1
+! if side is surface (BC_reflective defined in State file) then map respective surface side number
+nSurfSides = 0
+DO iSide = 1,nSides
+  IF(BC(iSide).EQ.0) CYCLE
+  DO iBC=1,nSurfBC_HDF5
+    IF((TRIM(BoundaryName(BC(iSide))) .EQ. TRIM(SurfBCName_HDF5(iBC)))) THEN
+      nSurfSides = nSurfSides + 1
+      SideToSurfSide(iSide) = nSurfSides
+    END IF
+  END DO
+END DO
+
+! Build connectivity for the surface mesh
+ALLOCATE(TempBCSurfNodes(4*nSides))
+ALLOCATE(TempSideSurfNodeMap(1:4,1:nSides))
+SurfConnect%nSurfaceNode=0
+SurfConnect%nSurfaceBCSides=0
+
+DO iSide=1, nSides
+  IF(BC(iSide).EQ.0) CYCLE
+  IF (SideToSurfSide(iSide).NE.-1) THEN
+    SurfConnect%nSurfaceBCSides = SurfConnect%nSurfaceBCSides + 1
+    iElem = SideToElem(1,iSide)
+    IF (iElem.LT.1) THEN
+      iElem = SideToElem(2,iSide)
+      iLocSide = SideToElem(4,iSide)
+    ELSE
+      iLocSide = SideToElem(3,iSide)
+    END IF
+    DO iNode2 = 1, 4
+    IsSortedSurfNode = .false.
+      DO iNode = 1, SurfConnect%nSurfaceNode
+        IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
+          TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = iNode
+          IsSortedSurfNode = .true.
+          EXIT
+        END IF
+      END DO
+      IF(.NOT.IsSortedSurfNode) THEN
+        SurfConnect%nSurfaceNode = SurfConnect%nSurfaceNode + 1
+        TempBCSurfNodes(SurfConnect%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
+        TempSideSurfNodeMap(iNode2,SurfConnect%nSurfaceBCSides) = SurfConnect%nSurfaceNode
+      END IF
+    END DO
+  END IF
+END DO
+
+SDEALLOCATE(SurfConnect%BCSurfNodes)
+ALLOCATE(SurfConnect%BCSurfNodes(1:SurfConnect%nSurfaceNode))
+SurfConnect%BCSurfNodes(1:SurfConnect%nSurfaceNode) = TempBCSurfNodes(1:SurfConnect%nSurfaceNode)
+SDEALLOCATE(SurfConnect%SideSurfNodeMap)
+ALLOCATE(SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
+SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides)
+SDEALLOCATE(TempBCSurfNodes)
+SDEALLOCATE(TempSideSurfNodeMap)
+SDEALLOCATE(SurfBCName_HDF5)
+SDEALLOCATE(SideToSurfSide)
+
+END SUBROUTINE BuildSurfMeshConnectivity
