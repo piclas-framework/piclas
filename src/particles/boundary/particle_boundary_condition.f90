@@ -1936,6 +1936,7 @@ SUBROUTINE CatalyticTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,P
 ! Routine for Selection of Surface interaction
 !===================================================================================================================================
 USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR
+USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, PartSurfaceModel
@@ -1946,10 +1947,10 @@ USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
-USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModelERSpecular
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1986,7 +1987,7 @@ INTEGER                          :: locBCID, VibQuant!, VibQuantWall
 REAL                             :: VeloReal, EtraOld
 REAL                             :: EtraWall, EtraNew
 REAL                             :: WallVelo(1:3), WallTemp
-!   REAL                             :: TransACC, VibACC, RotACC
+REAL                             :: TransACC, VibACC, RotACC
 REAL                             :: ErotNew, ErotWall, EVibNew, EVibWall
 ! Polyatomic Molecules
 !REAL, ALLOCATABLE                :: RanNumPoly(:)
@@ -1996,6 +1997,9 @@ INTEGER                          :: iPolyatMole, iDOF
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
 INTEGER                          :: iReact
 REAL                             :: NormProb
+REAL                             :: VeloCrad, Fak_D, NewVelo(3)
+REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                             :: POI_fak, TildTrajectory(3)
 !===================================================================================================================================
 
 IF(PRESENT(BCSideID))THEN
@@ -2346,41 +2350,47 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   VelXOld = 0.
   VelYOld = 0.
   VelZOld = 0.
-  ! perfect velocity reflection
-  PartState(PartID,4:6) = PartState(PartID,4:6) - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc
-  ! mass changes, therefore velocity is scaled because impuls remains the same
-  PartState(PartID,4:6) = PartState(PartID,4:6) * (outSpec(2)/SpecID)
-  ! intersection point with surface
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-  ! change trajetory and new partstate
-  PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
-
-!  ! diffuse reflection
-!  CALL RANDOM_NUMBER(RanNum)
-!  VeloCrad    = SQRT(-LOG(RanNum))
-!  CALL RANDOM_NUMBER(RanNum)
-!  VeloCz      = SQRT(-LOG(RanNum))
-!  Fak_D       = VeloCrad**2 + VeloCz**2
-!  EtraWall    = BoltzmannConst * WallTemp * Fak_D
-!  EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-!  Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
-!  CALL RANDOM_NUMBER(RanNum)
-!  Phi     = 2.0 * PI * RanNum
-!  VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
-!  VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
-!  VeloCz  = Cmr * VeloCz
-!  NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
-!  ! intersection point with surface
-!  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-!  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-!  TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
-!  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-!  ! travel rest of particle vector
-!  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-!  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
-!  !----  saving new particle velocity
-!  PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+  
+  IF (SurfModelERSpecular) THEN
+    ! perfect velocity reflection
+    PartState(PartID,4:6) = PartState(PartID,4:6) - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc
+    ! mass changes, therefore velocity is scaled because impuls remains the same
+    PartState(PartID,4:6) = PartState(PartID,4:6) * (outSpec(2)/SpecID)
+    ! intersection point with surface
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+    ! change trajetory and new partstate
+    PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
+  ELSE
+    ! diffuse reflection
+    TransACC   = PartBound%TransACC(locBCID)
+    VibACC     = PartBound%VibACC(locBCID)
+    RotACC     = PartBound%RotACC(locBCID)
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCrad    = SQRT(-LOG(RanNum))
+    CALL RANDOM_NUMBER(RanNum)
+    VeloCz      = SQRT(-LOG(RanNum))
+    Fak_D       = VeloCrad**2 + VeloCz**2
+    EtraWall    = BoltzmannConst * WallTemp * Fak_D
+    EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
+    Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
+    CALL RANDOM_NUMBER(RanNum)
+    Phi     = 2.0 * PI * RanNum
+    VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
+    VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
+    VeloCz  = Cmr * VeloCz
+    NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
+    ! intersection point with surface
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+    ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+    TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
+    POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+    ! travel rest of particle vector
+    IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+    !----  saving new particle velocity
+    PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+  END IF
 
   ! sample
   TransArray(1) = EtraOld

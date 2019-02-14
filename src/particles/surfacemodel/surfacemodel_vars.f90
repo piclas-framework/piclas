@@ -22,6 +22,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                                  :: SurfModelERSpecular     ! Flag defining case for ER reflection (diffuse, specular)
 #if (PP_TimeDiscMethod==42)
 ! defintion of Adsorbation variables
 TYPE tMeanInfo

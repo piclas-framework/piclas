@@ -45,6 +45,8 @@ CALL prms%SetSection("SurfaceModel")
 
 !CALL prms%CreateLogicalOption(  'Particles-KeepWallParticles'&
 !  , 'Flag to track adsorbed Particles on surface if they are adsorbed. Currently only [FALSE] implemented','.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-SurfModelERSpecular'&
+  , 'Flag for specular reflection for ER-reaction particles [FALSE] diffuse reflection','.FALSE.')
 #if (PP_TimeDiscMethod==42)
 CALL prms%CreateLogicalOption(  'Surface-Adsorption-LateralInactive'&
   , 'Flag for disabling lateral innteractions. Only for TD=42 (RESERVOIR)','.FALSE.')
@@ -207,7 +209,7 @@ USE MOD_Particle_Mesh_Vars         ,ONLY: nTotalSides
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, SurfModelERSpecular
 USE MOD_SurfaceModel_Tools         ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SMCR_Init                  ,ONLY: InitSMCR, InitSMCR_Chem
 #ifdef MPI
@@ -241,6 +243,7 @@ END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 ! initialize surface chemistry
 !KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
+SurfModelERSpecular = GETLOGICAL('Particles-SurfModelERSpecular')
 KeepWallParticles = .FALSE.
 IF (KeepWallParticles) THEN
   IF(SurfMesh%SurfOnProc) THEN
