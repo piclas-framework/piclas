@@ -23,12 +23,13 @@ Overview of the test cases performed after a commit.
 
 Small test cases to check DSMC features: [Link to build](regressioncheck/checks/CHE_DSMC/builds.ini).
 
-| **No.** |               **Case**                | **CMAKE-CONFIG** |            **Feature**            | **Execution** |           **Comparing**            | **Readme** |
-| :-----: | :-----------------------------------: | :--------------: | :-------------------------------: | :-----------: | :--------------------------------: | :--------: |
-|  08-1   | BC_surfaceflux_adaptive_constPressure |                  | SurfaceFlux with AdaptiveType=1/2 |   nProcs=4    |        Integrated mass flux        |            |
-|  08-2   | BC_surfaceflux_adaptive_constMassflow |                  | SurfaceFlux with AdaptiveType=3,4 |   nProcs=1    |        Integrated mass flux        |            |
-|  08-3   |              BC_porousBC              |                  | PorousBC as a pump with 2 species |   nProcs=3    | Total # of removed part through BC |            |
-|  08-4   |                 cube                  |                  |          Collismode=2,3           |   nProcs=2    |                                    |            |
+| **No.** |               **Case**                | **CMAKE-CONFIG** |                **Feature**                | **Execution** |           **Comparing**            |                                     **Readme**                                     |
+| :-----: | :-----------------------------------: | :--------------: | :---------------------------------------: | :-----------: | :--------------------------------: | :--------------------------------------------------------------------------------: |
+|  08-1   | BC_surfaceflux_adaptive_constPressure |                  |     SurfaceFlux with AdaptiveType=1/2     |   nProcs=4    |        Integrated mass flux        |                                                                                    |
+|  08-2   | BC_surfaceflux_adaptive_constMassflow |                  |     SurfaceFlux with AdaptiveType=3,4     |   nProcs=1    |        Integrated mass flux        |                                                                                    |
+|  08-3   |              BC_porousBC              |                  |     PorousBC as a pump with 2 species     |   nProcs=3    | Total # of removed part through BC |                                                                                    |
+|  08-4   |                 cube                  |                  |              Collismode=2,3               |   nProcs=2    |                                    |                                                                                    |
+|  08-5   |         BC_BC_InnerReflective         |                  | Inner reflective BC (dielectric surfaces) |   nProcs=1    |       h5diff: DSMCSurfState        | [Link](regressioncheck/checks/NIG_Reservoir/CHEM_dissocication_rate_CH4/readme.md) |
 
 ## Nightly
 
