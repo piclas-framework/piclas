@@ -1,0 +1,30 @@
+#%Module1.0#####################################################################
+##
+## modules hdf5/WHICHCOMPILER/COMPILERVERSION/single
+##
+## modulefiles/hdf5/WHICHCOMPILER/COMPILERVERSION/single
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "hdf5/WHICHCOMPILER-COMPILERVERSION - sets the Environment for HDF5-WHICHCOMPILER-COMPILERVERSION libraries in single"
+}
+
+module-whatis   "Sets the environment for using WHICHCOMPILER-COMPILERVERSION hdf5 libraries in single"
+
+conflict hdf5
+conflict openmpi
+conflict mpich
+
+prereq WHICHCOMPILER/COMPILERVERSION
+
+# for Tcl script use only
+set     topdir          /opt/hdf5/hdf5version/WHICHCOMPILER/COMPILERVERSION/single
+set     version         hdf5version
+set     sys             linux64
+
+prepend-path    HDF5_DIR        $topdir
+prepend-path    HDF5_ROOT       $topdir
+prepend-path    PATH            $topdir/include/
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib
