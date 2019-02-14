@@ -12,12 +12,15 @@
 
 ### Field
 
+#### Dielectric
+
 ### Particle
+
+#### Specular/Reflective Wall
 
 #### Porous Wall
 
-The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected of the boundary.
-
+The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary.
 
 ## Particle Emission
 
@@ -25,14 +28,16 @@ The porous boundary condition uses a removal probability to determine whether a 
 
 #### Adaptive Boundaries
 
-Multiple adaptive particle emission/boundary conditions can be defined. Sources...
+Multiple adaptive particle emission conditions can be defined.
 
 ## Particle in Cell
 
 ## Direct Simulation Monte Carlo
 
+### Species Definition
+
 ### Relaxation
 
-### Chemistry
+### Chemistry & Ionization
 
 ### Surface Chemistry

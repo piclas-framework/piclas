@@ -1,6 +1,6 @@
-\hypertarget{installationguidelines}{}
+\hypertarget{install_guide}{}
 
-# Installation guidelines \label{chap:installationguidelines}
+# Installation guidelines \label{chap:install_guide}
 
 This chapter contains guidelines to install the code from Github on specific systems.
 
