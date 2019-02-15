@@ -39,7 +39,7 @@ SUBROUTINE InitSMCR()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT
+USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT, GETINTARRAY
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, BlockingNeigh
@@ -58,6 +58,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+CHARACTER(32)                    :: hilf
 CHARACTER(64)                    :: particle_mpf
 REAL                             :: surface_mpf
 INTEGER                          :: Max_Surfsites_num
@@ -235,13 +236,13 @@ END DO
 BlockingNeigh(:,:) = .FALSE.
 DO Coord=1,3
   WRITE(UNIT=hilf,FMT='(I0)') Coord
-  BlockedNeightmp(3) = GETINTARRAY('Surface-Coordination'//TRIM(hilf)//'-BlockingNeigh',3,'0,0,0')
-  IF (ANY(BlockedNeightmp(:)).GT.3 .OR. ANY(BlockedNeightmp(:)).LT.0 ) THEN
-    CALL abort(&
+  BlockedNeightmp(1:3) = GETINTARRAY('Surface-Coordination'//TRIM(hilf)//'-BlockingNeigh',3,'0,0,0')
+  DO i=1,3
+    IF (BlockedNeightmp(i).GT.3 .OR. BlockedNeightmp(i).LT.0 ) THEN
+      CALL abort(&
 __STAMP__&
 ,'ERROR: BlockingNeigh has to be 0 =< n =< 3 for Coordination:',Coord)
-  END IF
-  DO i=1,3
+    END IF
     IF (BlockedNeightmp(i).GT.0) THEN
       BlockingNeigh(Coord,BlockedNeightmp(i)) = .TRUE.
     END IF
