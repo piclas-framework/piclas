@@ -1616,52 +1616,6 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      !IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
-      !  SampleParts = Adsorption%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec) &
-      !              - Adsorption%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec)
-      !  IF (SampleParts.GT.0) THEN
-      !    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      !      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      !      ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      !      CALL RANDOM_NUMBER(RanNumPoly)
-      !      VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      !      DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
-      !        CALL RANDOM_NUMBER(RanNumPoly)
-      !        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      !      END DO
-      !    END IF
-      !    EvibNew = 0. ! later added in particle emission when particle is emitted
-      !    DO iPart = 1,SampleParts
-      !      EvibOld = 0.
-      !      EvibWall = 0.
-      !      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      !        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      !          EvibOld = EvibOld + (VibQuantWallPoly(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-      !                    * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
-      !          EvibWall = EvibWall + VibQuantWallPoly(iDOF) * BoltzmannConst &
-      !                    * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
-      !        END DO
-      !      ELSE
-      !        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
-      !        DO WHILE (VibQuantWall.GE.SpecDSMC(iSpec)%MaxVibQuant)
-      !          CALL RANDOM_NUMBER(RanNum)
-      !          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
-      !        END DO
-      !        EvibOld = (VibQuantWall + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-      !        EvibWall = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-      !      END IF
-      !      !----  Sampling for internal (vibrational) energy accommodation at walls for desorbed simulation gas particles
-      !      SampWall(iSurf)%State(7,iSubSurf,jSubSurf) = SampWall(iSurf)%State(7,iSubSurf,jSubSurf) &
-      !                                        + EvibOld * Species(iSpec)%MacroParticleFactor
-      !      SampWall(iSurf)%State(8,iSubSurf,jSubSurf) = SampWall(iSurf)%State(8,iSubSurf,jSubSurf) &
-      !                                        + EvibWall * Species(iSpec)%MacroParticleFactor
-      !      SampWall(iSurf)%State(9,iSubSurf,jSubSurf) = SampWall(iSurf)%State(9,iSubSurf,jSubSurf) &
-      !                                        + EvibNew * Species(iSpec)%MacroParticleFactor
-      !    END DO
-      !  END IF
-      !  SDEALLOCATE(RanNumPoly)
-      !  SDEALLOCATE(VibQuantWallPoly)
-      !END IF
       DO iReact = 1,Adsorption%RecombNum
         IF (NumDesorbLH(iSpec,iReact).GT.0) THEN
           SampWall(iSurf)%Reaction(iReact,iSpec,iSubSurf,jSubSurf) = &
