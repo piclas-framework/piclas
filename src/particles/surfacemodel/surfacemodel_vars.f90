@@ -23,6 +23,8 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                  :: ModelERSpecular         ! Flag defining case for ER reflection (diffuse, specular)
+LOGICAL                                  :: BlockingNeigh(3,3)      ! defines which of neighbour sites can block current site
+                                                                    ! (nCurrentCoords,nNeighCoords) relevant for SMCR
 #if (PP_TimeDiscMethod==42)
 ! defintion of Adsorbation variables
 TYPE tMeanInfo

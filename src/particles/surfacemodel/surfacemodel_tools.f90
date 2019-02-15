@@ -830,9 +830,10 @@ END FUNCTION CalcAdsorbReactProb
 LOGICAL FUNCTION SpaceOccupied(SurfID,subsurfxi,subsurfeta,Coordination,SurfPos)
 !===================================================================================================================================
 !> Check if particle has enough space on given SurfPos
+!>  cycle through all neighbours and check if nearest (valid) neighbour is occupied and blocks considered current position
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars ,ONLY: SurfDistInfo
+USE MOD_SurfaceModel_Vars ,ONLY: SurfDistInfo, BlockingNeigh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -842,23 +843,20 @@ INTEGER, INTENT(IN) :: SurfID, SubSurfxi, SubSurfeta, Coordination, SurfPos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iNeigh, iCoord
+INTEGER :: iNeigh, NeighCoord
 !===================================================================================================================================
 SpaceOccupied = .FALSE.
-DO iNeigh = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%nNeighbours
-  IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%IsNearestNeigh(SurfPos,iNeigh)) CYCLE
-  !IF ((Coordination.EQ.1) .AND. (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh).EQ.1)) &
-  !    CYCLE
-  DO iCoord = 1,3
-    IF (iCoord.EQ.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh)) THEN
-      IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(iCoord)%Species( &
-            SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighPos(SurfPos,iNeigh)) &
-            .NE.0) ) THEN
-            SpaceOccupied = .TRUE.
-      END IF
-    END IF
+IF ( ANY(BlockingNeigh(Coordination,1:3)) ) THEN
+  DO iNeigh = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%nNeighbours
+    IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%IsNearestNeigh(SurfPos,iNeigh)) CYCLE
+    NeighCoord = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh)
+    IF ( .NOT.BlockingNeigh(Coordination,NeighCoord) ) CYCLE
+    ASSOCIATE (NeighSpec => SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(NeighCoord)%Species( &
+                            SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighPos(SurfPos,iNeigh))
+      IF ( (NeighSpec.NE.0) ) SpaceOccupied = .TRUE.
+    END ASSOCIATE
   END DO
-END DO
+END IF
 
 END FUNCTION SpaceOccupied
 
@@ -980,10 +978,10 @@ END FUNCTION SampleAdsorptionHeat
 
 SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID)
 !===================================================================================================================================
-!> Routine for adjusting the number of Adsorbates of adsorbates background distribution (wallmodel 3)
-!> if adsorption took place in SMCR_PartAdsorb and Coverage changed sufficiently (depending on particle weighting)
+!> Routine for adjusting the number of Adsorbates for the adsorbate background distribution (wallmodel 3)
+!> in case adsorption took place in SMCR_PartAdsorb and Coverage changed sufficiently (depending on particle weighting)
 !> if more particles are adsorbed than space left on surface then adsoprtion number is adjusted
-!> same for case if too many particles are removed from surface
+!> same for the case where particles are removed from surface
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

@@ -42,7 +42,7 @@ USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, BlockingNeigh
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
@@ -71,6 +71,7 @@ REAL                             :: RanNum
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 INTEGER                          :: DistSquareNum
 LOGICAL                          :: DistNumCase
+INTEGER                          :: BlockedNeightmp(3), i
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -136,12 +137,12 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(2) = INT( surfsquare*(3*(surfsquare+1)-1) )
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3) = INT((surfsquare+1)**2)
         END SELECT
-        !IF (surfsquare.LT.4)THEN
-        !  CALL abort(&
-        !    __STAMP__&
-        !    ,'not enough surface spaces for distribution. Surface-MacroParticleFactor too high or DistSquareNumber too low'&
-        !    ,surfsquare)
-        !END IF
+        IF (surfsquare.LT.9)THEN
+          CALL abort(&
+            __STAMP__&
+            ,'not enough surface spaces for distribution. Surface-MacroParticleFactor too high or DistSquareNumber too low'&
+            ,surfsquare)
+        END IF
 
         Max_Surfsites_num = Max_Surfsites_num + SUM(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(:))
         IF (iSurfSide.LE.SurfMesh%nSides) THEN
@@ -227,6 +228,23 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
         END DO
       END IF
     END DO
+  END DO
+END DO
+
+! which coordinations of nearest neighbour sites block current coordination sites
+BlockingNeigh(:,:) = .FALSE.
+DO Coord=1,3
+  WRITE(UNIT=hilf,FMT='(I0)') Coord
+  BlockedNeightmp(3) = GETINTARRAY('Surface-Coordination'//TRIM(hilf)//'-BlockingNeigh',3,'0,0,0')
+  IF (ANY(BlockedNeightmp(:)).GT.3 .OR. ANY(BlockedNeightmp(:)).LT.0 ) THEN
+    CALL abort(&
+__STAMP__&
+,'ERROR: BlockingNeigh has to be 0 =< n =< 3 for Coordination:',Coord)
+  END IF
+  DO i=1,3
+    IF (BlockedNeightmp(i).GT.0) THEN
+      BlockingNeigh(Coord,BlockedNeightmp(i)) = .TRUE.
+    END IF
   END DO
 END DO
 
