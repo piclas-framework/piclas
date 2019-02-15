@@ -852,7 +852,7 @@ IF ( ANY(BlockingNeigh(Coordination,1:3)) ) THEN
     NeighCoord = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh)
     IF ( .NOT.BlockingNeigh(Coordination,NeighCoord) ) CYCLE
     ASSOCIATE (NeighSpec => SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(NeighCoord)%Species( &
-                            SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighPos(SurfPos,iNeigh))
+                            SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighPos(SurfPos,iNeigh)))
       IF ( (NeighSpec.NE.0) ) SpaceOccupied = .TRUE.
     END ASSOCIATE
   END DO
