@@ -1950,7 +1950,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, Sam
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModelERSpecular
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2351,7 +2351,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   VelYOld = 0.
   VelZOld = 0.
   
-  IF (SurfModelERSpecular) THEN
+  IF (ModelERSpecular) THEN
     ! perfect velocity reflection
     PartState(PartID,4:6) = PartState(PartID,4:6) - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc
     ! mass changes, therefore velocity is scaled because impuls remains the same
