@@ -854,7 +854,6 @@ INTEGER             :: dir
   IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
-      CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
       ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
       IF(CollisMode.EQ.3) THEN
         totalChemEnergySum = 0.
@@ -977,7 +976,7 @@ INTEGER             :: dir
           NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
         END IF
       END IF
-      CALL ReacRates(RRate, NumSpecTmp)
+      CALL ReacRates(RRate, NumSpecTmp, iter)
     END IF
   END IF
 #endif
@@ -2268,17 +2267,18 @@ INTEGER           :: iCase
   DSMC%NumColl = 0
 END SUBROUTINE CollRates
 
-SUBROUTINE ReacRates(RRate, NumSpec)
+SUBROUTINE ReacRates(RRate, NumSpec,iter)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars          ,ONLY: ChemReac, DSMC
-USE MOD_TimeDisc_Vars      ,ONLY: dt
-USE MOD_Particle_Vars      ,ONLY: Species, nSpecies
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
+USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2287,6 +2287,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RRate(:)
 REAL,INTENT(IN)                 :: NumSpec(:) ! is the global number of real particles
+INTEGER(KIND=8),INTENT(IN)      :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iReac
@@ -2424,6 +2425,20 @@ IF(PartMPI%MPIRoot)THEN
   END DO
 END IF
 ChemReac%NumReac = 0.
+
+! Consider Part-AnalyzeStep
+IF(PartAnalyzeStep.GT.1)THEN
+  IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+    DO iReac=1, ChemReac%NumOfReact
+      RRate(iReac) = RRate(iReac) / iter
+    END DO ! iReac=1, ChemReac%NumOfReact
+  ELSE
+    DO iReac=1, ChemReac%NumOfReact
+      RRate(iReac) = RRate(iReac) / PartAnalyzeStep 
+    END DO ! iReac=1, ChemReac%NumOfReact
+  END IF
+END IF
+
 
 END SUBROUTINE ReacRates
 #endif 

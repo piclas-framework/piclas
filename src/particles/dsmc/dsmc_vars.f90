@@ -428,6 +428,8 @@ INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Co
 REAL, ALLOCATABLE                 :: QLocal(:)                  ! Intermediate Criterion (per cell)
 LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection 
                                                                 ! for Sampling Start is used (only  if UseQCrit=FALSE)
+INTEGER                           :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
+!                                                               ! reaching 1000 outputs of said warning
 
 TYPE tSampler ! DSMC sampling for Steady-State Detection
   REAL                            :: Energy(3)                  ! Energy in Cell (Translation)

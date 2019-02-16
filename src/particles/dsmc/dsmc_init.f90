@@ -113,7 +113,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
                                          , 'Only TD=Reservoir (42).\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
-                                          ' [FALSE] summing reaction probabilities.' , '.FALSE.')
+                                          ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
                                           , 'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle adsorption and desorption and keep surface coverage '//&
@@ -375,6 +375,9 @@ IMPLICIT NONE
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
+
+  ! Initialize counter (Count the number of ReactionProb>1)
+  ReactionProbGTUnityCounter = 0
   
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
@@ -406,9 +409,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------
   DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
   DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
-#if (PP_TimeDiscMethod==42)
-  DSMC%CalcQualityFactors = .TRUE.
-#endif
   IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
     CALL abort(&
 __STAMP__&
