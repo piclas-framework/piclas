@@ -3154,7 +3154,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iPart,iElem,RegionID
-REAL                 :: charge
+REAL                 :: charge, MPF
 !===================================================================================================================================
 
 ! nullify
@@ -3166,39 +3166,28 @@ ElectronDensityCell=0.
 ! loop over all particles and count the number of electrons per cell
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(usevMPF) THEN
+    MPF = PartMPF(iPart)
+  ELSE
+    MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF
   ASSOCIATE ( &
-    vMPF    => PartMPF(iPart)                                  ,& ! Variable MPF
-     MPF    => Species(PartSpecies(iPart))%MacroParticleFactor ,& ! Fixed MPF
     ElemID  => PEM%Element(iPart)                              )  ! Element ID
     ASSOCIATE ( &
       n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
       n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
       n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
       Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
-      IF(PDM%ParticleInside(iPart))THEN
-        charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-        IF(PARTISELECTRON(iPart))THEN ! electrons
-          IF(usevMPF) THEN
-            n_e = n_e + vMPF
-          ELSE
-            n_e = n_e + MPF
-          END IF
-        ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
-          IF(usevMPF) THEN
-            n_i = n_i + vMPF
-            Z   = Z   + charge*vMPF
-          ELSE
-            n_i = n_i + MPF
-            Z   = Z   + charge*MPF
-          END IF
-        ELSE ! neutrals
-          IF(usevMPF) THEN
-            n_n  = n_n + vMPF
-          ELSE
-            n_n  = n_n + MPF
-          END IF
-        END IF
-      END IF ! ParticleInside
+      charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
+      IF(PARTISELECTRON(iPart))THEN ! electrons
+        n_e = n_e + MPF
+      ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
+        n_i = n_i + MPF
+        Z   = Z   + charge*MPF
+      ELSE ! neutrals
+        n_n  = n_n + MPF
+      END IF
     END ASSOCIATE
   END ASSOCIATE
 END DO ! iPart
