@@ -2425,7 +2425,9 @@ IF(PartMPI%MPIRoot)THEN
   END DO
 END IF
 ChemReac%NumReac = 0.
-
+ChemReac%ReacCount = 0
+ChemReac%ReacCollMean = 0.0
+ChemReac%ReacCollMeanCount = 0
 ! Consider Part-AnalyzeStep
 IF(PartAnalyzeStep.GT.1)THEN
   IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
