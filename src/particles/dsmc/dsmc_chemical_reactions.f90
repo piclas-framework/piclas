@@ -98,8 +98,9 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
      ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
   END IF
 
-  IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+  IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
     ! The third-collision partner during a recombination is chosen randomly, but DefinedReact(iReac) might differ
+    ! (This might not be required anymore, the correct DefinedReact based on the third partner are chosen in CollisMode)
     EductReac(3) = PartSpecies(iPart_p3)
     ProductReac(2) = PartSpecies(iPart_p3)
   END IF
@@ -1046,9 +1047,15 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
         END IF
       END DO
     END DO
-    BackwardRate = ChemReac%Arrhenius_Prefactor(iReac)  &
-                * (LocalTemp)**ChemReac%Arrhenius_Powerfactor(iReac) &
-                * (PartFuncProduct(1)/PartFuncProduct(2))
+    IF (ChemReac%QKProcedure(iReac)) THEN
+      CALL abort(&
+      __STAMP__&
+        ,'Temperature limit for the backward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
+    ELSE
+      BackwardRate = ChemReac%Arrhenius_Prefactor(iReac)  &
+              * (LocalTemp)**ChemReac%Arrhenius_Powerfactor(iReac) &
+              * (PartFuncProduct(1)/PartFuncProduct(2))
+    END IF
   ELSE
   ! Interpolation between tabulated lower and upper values
     PartFuncProduct(1:2) = 1.
