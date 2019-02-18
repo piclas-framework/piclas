@@ -1585,7 +1585,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_NUMDENS,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID

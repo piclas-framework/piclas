@@ -259,7 +259,7 @@ __STAMP__&
             CASE(2) ! adaptive Outlet/freestream
               ElemID = PEM%Element(iPart)
               TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
+                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
               TRot = TVib
             CASE DEFAULT
               CALL abort(&
