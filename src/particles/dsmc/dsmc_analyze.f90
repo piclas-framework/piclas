@@ -570,7 +570,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
 INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1 
 REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search 
-REAl(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
 !===================================================================================================================================
 
@@ -631,7 +631,7 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: ii
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAL(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAL(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
 !===================================================================================================================================
 
@@ -690,7 +690,7 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iDOF,iPolyatMole
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=1.0E-5   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne    ! both summs
 !===================================================================================================================================
 
