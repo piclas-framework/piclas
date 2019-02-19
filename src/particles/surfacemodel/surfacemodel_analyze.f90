@@ -203,12 +203,12 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 #ifdef MPI
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42) 
 USE MOD_Globals_Vars              ,ONLY: ProjectName
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 #endif /* DSMC*/
 #if ( PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod==4)
@@ -243,6 +243,8 @@ INTEGER(KIND=8)     :: WallNumSpec(nSpecies), WallNumSpec_SurfDist(nSpecies)
 REAL                :: WallCoverage(nSpecies)
 #endif
 !===================================================================================================================================
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
+IF (SurfMesh%nSides.EQ.0) RETURN
   isRestart = .FALSE.
   IF ( DoRestart ) THEN
     isRestart = .TRUE.
@@ -251,7 +253,7 @@ REAL                :: WallCoverage(nSpecies)
   OutputCounter = 2
   unit_index = 636
 #ifdef MPI
-  IF (PartMPI%MPIRoot) THEN
+  IF (SurfCOMM%MPIOutputRoot) THEN
 #endif /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
@@ -561,11 +563,9 @@ IF (PartSurfaceModel.EQ.3) THEN
     CALL GetAdsRates(Adsorptionrate,SurfCollNum,AdsorptionNum,AdsorptionReactRate,AdsorptionActE,ProperAdsorptionActE &
         ,Adsorptionnu,ProperAdsorptionnu)
   ELSE
-    IF(SurfMesh%SurfOnProc)THEN
-      DO iSpec = 1,nSpecies
-        Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-      END DO
-    END IF
+    DO iSpec = 1,nSpecies
+      Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+    END DO
   END IF
   IF (CalcSurfRates) THEN
     SDEALLOCATE(SurfReactRate)
@@ -599,7 +599,7 @@ IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 ! Output Analyzed variables
 !===================================================================================================================================
 #ifdef MPI
-IF (PartMPI%MPIROOT) THEN
+IF (SurfCOMM%MPIOutputRoot) THEN
 #endif    /* MPI */
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
@@ -790,7 +790,6 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -821,68 +820,66 @@ WallCoverage(:) = 0.
 WallNumSpec_tmp = 0.
 SubWallNumSpec = 0.
 
-IF(SurfMesh%SurfOnProc)THEN
-  DO iSpec=1,nSpecies
-  DO iSurfSide=1,SurfMesh%nSides
-    SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
-    PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
-    DO q = 1,nSurfSample
-      DO p = 1,nSurfSample
-        Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
-        IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
-          SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+DO iSpec=1,nSpecies
+DO iSurfSide=1,SurfMesh%nSides
+  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  PartboundID = PartBound%MapToPartBC(BC(SideID))
+  IF (PartBound%SolidCatalytic(PartboundID)) THEN
+  DO q = 1,nSurfSample
+    DO p = 1,nSurfSample
+      Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)
+      IF ((.NOT.KeepWallParticles) .AND. CalcSurfNumSpec) THEN
+        SurfPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
 !          WallNumSpec(iSpec) = WallNumSpec(iSpec) + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
 !              * SurfPart/Species(iSpec)%MacroParticleFactor)
-          ! calculate number of adsorbates for each species
-          adsorbates = 0
-          DO Coord = 1,3
-          DO AdsorbID = 1,SurfDistInfo(p,q,iSurfSide)%nSites(Coord)-SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)
-            Surfpos = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%UsedSiteMap(SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)+AdsorbID)
-            SpecID = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%Species(Surfpos)
-            adsorbates(SpecID) = adsorbates(SpecID) + 1
-          END DO
-          END DO
-          ! discret simulated particles on surface distribution
-          WallNumSpec_SurfDist(iSpec) = WallNumSpec_SurfDist(iSpec) + adsorbates(iSpec)
-          ! simulated (gas) particles from discret surface distribution
-          SubWallNumSpec(iSpec) = SubWallNumSpec(iSpec) + REAL(adsorbates(iSpec)) / REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))&
-              * SurfPart/Species(iSpec)%MacroParticleFactor
-          ! simulated gas particles safed in temporary arrays
-          WallNumSpec_tmp(iSpec) = WallNumSpec_tmp(iSpec) + &
-              ( SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) / SurfDistInfo(p,q,iSurfSide)%nSites(3) &
-              * SurfPart / Species(iSpec)%MacroParticleFactor )
-          WallNumSpec_tmp(iSpec+nSpecies) = WallNumSpec_tmp(iSpec+nSpecies) + SurfDistInfo(p,q,iSurfSide)%desorbnum_tmp(iSpec)&
-              - SurfDistInfo(p,q,iSurfSide)%reactnum_tmp(iSpec)
-        END IF
-      END DO
+        ! calculate number of adsorbates for each species
+        adsorbates = 0
+        DO Coord = 1,3
+        DO AdsorbID = 1,SurfDistInfo(p,q,iSurfSide)%nSites(Coord)-SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)
+          Surfpos = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%UsedSiteMap(SurfDistInfo(p,q,iSurfSide)%SitesRemain(Coord)+AdsorbID)
+          SpecID = SurfDistInfo(p,q,iSurfSide)%AdsMap(Coord)%Species(Surfpos)
+          adsorbates(SpecID) = adsorbates(SpecID) + 1
+        END DO
+        END DO
+        ! discret simulated particles on surface distribution
+        WallNumSpec_SurfDist(iSpec) = WallNumSpec_SurfDist(iSpec) + adsorbates(iSpec)
+        ! simulated (gas) particles from discret surface distribution
+        SubWallNumSpec(iSpec) = SubWallNumSpec(iSpec) + REAL(adsorbates(iSpec)) / REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))&
+            * SurfPart/Species(iSpec)%MacroParticleFactor
+        ! simulated gas particles safed in temporary arrays
+        WallNumSpec_tmp(iSpec) = WallNumSpec_tmp(iSpec) + &
+            ( SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) / SurfDistInfo(p,q,iSurfSide)%nSites(3) &
+            * SurfPart / Species(iSpec)%MacroParticleFactor )
+        WallNumSpec_tmp(iSpec+nSpecies) = WallNumSpec_tmp(iSpec+nSpecies) + SurfDistInfo(p,q,iSurfSide)%desorbnum_tmp(iSpec)&
+            - SurfDistInfo(p,q,iSurfSide)%reactnum_tmp(iSpec)
+      END IF
     END DO
-    END IF
   END DO
-  END DO
-  IF (CalcSurfCoverage .AND. SurfMesh%nSides.GT.0) THEN
-    WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   END IF
+END DO
+END DO
+IF (CalcSurfCoverage .AND. SurfMesh%nSides.GT.0) THEN
+  WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
 END IF
 
 #ifdef MPI
-  IF (PartMPI%MPIRoot) THEN
+  IF (SurfCOMM%MPIOutputRoot) THEN
     IF (CalcSurfNumSpec)  THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,SubWallNumSpec      ,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_SurfDist,nSpecies  ,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_tmp     ,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,SubWallNumSpec      ,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_SurfDist,nSpecies  ,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_tmp     ,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
     END IF
     IF (CalcSurfCoverage) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      WallCoverage = WallCoverage / REAL(SurfCOMM%nProcs)
+      CALL MPI_REDUCE(MPI_IN_PLACE,WallCoverage,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+      WallCoverage = WallCoverage / REAL(SurfCOMM%nOutputProcs)
     END IF
   ELSE
     IF (CalcSurfNumSpec) THEN
-      CALL MPI_REDUCE(SubWallNumSpec      ,ID1,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(WallNumSpec_SurfDist,ID2,nSpecies  ,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(WallNumSpec_tmp     ,ID3,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(SubWallNumSpec      ,ID1,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+      CALL MPI_REDUCE(WallNumSpec_SurfDist,ID2,nSpecies  ,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+      CALL MPI_REDUCE(WallNumSpec_tmp     ,ID3,nSpecies*2,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
     END IF
-    IF (CalcSurfCoverage) CALL MPI_REDUCE(WallCoverage,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    IF (CalcSurfCoverage) CALL MPI_REDUCE(WallCoverage,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
 #endif /*MPI*/
 
@@ -893,10 +890,10 @@ END IF
       END IF
     END DO
 #ifdef MPI
-  IF (PartMPI%MPIRoot) THEN
-    IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF (SurfCOMM%MPIOutputRoot) THEN
+    IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   ELSE
-    IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_LONG,MPI_SUM,0,PartMPI%COMM,IERROR)
+    IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
 #endif /*MPI*/
   ELSE
@@ -919,7 +916,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -937,40 +933,36 @@ REAL                            :: AC(nSpecies)
 !===================================================================================================================================
 
 Accomodation(:) = 0.
-IF(SurfMesh%SurfOnProc)THEN
-  IF (DSMC%ReservoirRateStatistic) THEN
-    DO iSpec = 1,nSpecies
-      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-      ELSE
-        Accomodation(iSpec) = 0.
-      END IF
-    END DO
-  ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    DO iSpec = 1,nSpecies
-      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-      ELSE
-        Accomodation(iSpec) = 0.
-      END IF
-    END DO
-  END IF
+IF (DSMC%ReservoirRateStatistic) THEN
+  DO iSpec = 1,nSpecies
+    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    ELSE
+      Accomodation(iSpec) = 0.
+    END IF
+  END DO
+ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  DO iSpec = 1,nSpecies
+    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    ELSE
+      Accomodation(iSpec) = 0.
+    END IF
+  END DO
 END IF
 
 #ifdef MPI
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,Accomodation,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  Accomodation= Accomodation/ REAL(SurfCOMM%nProcs)
+IF (SurfCOMM%MPIOutputRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,Accomodation,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  Accomodation= Accomodation/ REAL(SurfCOMM%nOutputProcs)
 ELSE
-  CALL MPI_REDUCE(Accomodation,AC          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(Accomodation,AC          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*MPI*/
 
-IF(SurfMesh%SurfOnProc)THEN
-  DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
-  END DO
-END IF
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
+END DO
 
 END SUBROUTINE GetAccCoeff
 
@@ -988,7 +980,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1012,121 +1003,105 @@ INTEGER                         :: ADN(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
-IF(SurfMesh%SurfOnProc)THEN
-  IF (DSMC%ReservoirRateStatistic) THEN
-    DO iSpec = 1,nSpecies
-      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        AdsorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-      ELSE
-        AdsorbRate(iSpec) = 0.
+IF (DSMC%ReservoirRateStatistic) THEN
+  DO iSpec = 1,nSpecies
+    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+      AdsorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    ELSE
+      AdsorbRate(iSpec) = 0.
+    END IF
+  END DO
+ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  DO iSpec = 1,nSpecies
+    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+      IF (PartSurfaceModel.EQ.1) THEN
+        AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+      ELSE IF (PartSurfaceModel.EQ.3) THEN
+        AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
       END IF
-    END DO
-  ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    DO iSpec = 1,nSpecies
-      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-        IF (PartSurfaceModel.EQ.1) THEN
-          AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-        ELSE IF (PartSurfaceModel.EQ.3) THEN
-          AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-        END IF
-      ELSE
-        AdsorbRate(iSpec)= 0.
-      END IF
-    END DO
-  END IF
+    ELSE
+      AdsorbRate(iSpec)= 0.
+    END IF
+  END DO
+END IF
 
+iCase = 1
+DO iSpec = 1, nSpecies
+  DO iReact = 1, Adsorption%ReactNum+1
+    IF (Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
+      ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iReact) &
+          / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact)) !* REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    ELSE
+      ReactRate(iCase) = 0.
+    END IF
+    iCase = iCase + 1
+  END DO
+END DO
+
+DO iSpec = 1,nSpecies
+  SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
+  AdsorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds
+END DO
+
+IF (PartSurfaceModel.EQ.3) THEN
   iCase = 1
-  DO iSpec = 1, nSpecies
-    DO iReact = 1, Adsorption%ReactNum+1
+  DO iSpec = 1,nSpecies
+    DO iReact = 1,Adsorption%ReactNum+1
       IF (Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
-        ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact)) !* REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+        AdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
+        Adsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
       ELSE
-        ReactRate(iCase) = 0.
+        AdsorbActE(iCase) = 0.
+        Adsorbnu(iCase)   = 0.
+      END IF
+      IF (Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact).GT.0) THEN
+        ProperAdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
+        ProperAdsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
+      ELSE
+        ProperAdsorbActE(iCase) = 0.
+        ProperAdsorbnu(iCase) = 0.
       END IF
       iCase = iCase + 1
     END DO
   END DO
-
-  DO iSpec = 1,nSpecies
-    SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
-    AdsorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds
-  END DO
-ELSE
-  SurfCollNum(:) = 0
-  AdsorbRate(:) = 0.
-  AdsorbNum(:) = 0
-  ReactRate(:) = 0.
-END IF
-
-IF(SurfMesh%SurfOnProc)THEN
-  IF (PartSurfaceModel.EQ.3) THEN
-    iCase = 1
-    DO iSpec = 1,nSpecies
-      DO iReact = 1,Adsorption%ReactNum+1
-        IF (Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
-          AdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
-          Adsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
-        ELSE
-          AdsorbActE(iCase) = 0.
-          Adsorbnu(iCase)   = 0.
-        END IF
-        IF (Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact).GT.0) THEN
-          ProperAdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
-          ProperAdsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
-        ELSE
-          ProperAdsorbActE(iCase) = 0.
-          ProperAdsorbnu(iCase) = 0.
-        END IF
-        iCase = iCase + 1
-      END DO
-    END DO
-  END IF
-ELSE
-  AdsorbActE(:) = 0.
-  Adsorbnu(:)   = 0.
-  ProperAdsorbActE(:)= 0.
-  ProperAdsorbnu(:)= 0.
 END IF
 
 #ifdef MPI
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbRate  ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate   ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbActE  ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  AdsorbRate = AdsorbRate  / REAL(SurfCOMM%nProcs)
-  SurfCollNum= INT( REAL(SurfCollNum) / REAL(SurfCOMM%nProcs) )
-  AdsorbNum  = INT( REAL(AdsorbNum)   / REAL(SurfCOMM%nProcs) )
-  ReactRate  = ReactRate   / REAL(SurfCOMM%nProcs)
-  AdsorbActE = AdsorbActE  / REAL(SurfCOMM%nProcs)
+IF (SurfCOMM%MPIOutputRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbRate  ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,ReactRate,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbActE  ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  AdsorbRate = AdsorbRate  / REAL(SurfCOMM%nOutputProcs)
+  SurfCollNum= INT( REAL(SurfCollNum) / REAL(SurfCOMM%nOutputProcs) )
+  AdsorbNum  = INT( REAL(AdsorbNum)   / REAL(SurfCOMM%nOutputProcs) )
+  ReactRate  = ReactRate   / REAL(SurfCOMM%nOutputProcs)
+  AdsorbActE = AdsorbActE  / REAL(SurfCOMM%nOutputProcs)
 ELSE
-  CALL MPI_REDUCE(AdsorbRate  ,AD          ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(SurfCollNum ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(ReactRate   ,RR          ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(AdsorbActE  ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(AdsorbRate  ,AD          ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(SurfCollNum ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(AdsorbNum   ,ADN         ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(ReactRate   ,RR       ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(AdsorbActE  ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*MPI*/
 
-IF(SurfMesh%SurfOnProc)THEN
-  DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-    Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
-    Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
-    Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(:) = 0.
-  END DO
-END IF
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+  Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
+  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
+  Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(:) = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(:) = 0.
+END DO
 
 END SUBROUTINE GetAdsRates
 
@@ -1144,7 +1119,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1170,176 +1144,148 @@ INTEGER                         :: DEN(nSpecies)
 #endif /*MPI*/
 !===================================================================================================================================
 
-IF(SurfMesh%SurfOnProc)THEN
-  IF (DSMC%ReservoirRateStatistic) THEN
-    DO iSpec = 1,nSpecies
-      IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
-        DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
-      ELSE
-        DesorbRate(iSpec) = 0.
-      END IF
-    END DO
-  ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-    iCase = 1
-    DO iSpec = 1,nSpecies
-      DesorbRate(iSpec)= 0.
-      IF (PartSurfaceModel.EQ.1) THEN
-        DO iReact = 1, Adsorption%ReactNum+1
-          ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
-              / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-          iCase = iCase + 1
-        END DO
-      ELSE IF (PartSurfaceModel.EQ.3) THEN
-        DO iReact = 1, Adsorption%ReactNum+1
-          IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-            ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
-                / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-          ELSE
-            ReactRate(iCase) = 0.
-          END IF
-          iCase = iCase + 1
-        END DO
-      END IF
-    END DO
-  END IF
+IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    DesorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes
+    IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
+      DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
+    ELSE
+      DesorbRate(iSpec) = 0.
+    END IF
   END DO
-ELSE
-  DesorbNum(:)  = 0
-  DesorbRate(:) = 0.
-  ReactRate(:)  = 0.
-  SurfaceActE(:)= 0.
-  ProperSurfaceActE(:)= 0.
+ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  iCase = 1
+  DO iSpec = 1,nSpecies
+    DesorbRate(iSpec)= 0.
+    IF (PartSurfaceModel.EQ.1) THEN
+      DO iReact = 1, Adsorption%ReactNum+1
+        ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
+            / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+        iCase = iCase + 1
+      END DO
+    ELSE IF (PartSurfaceModel.EQ.3) THEN
+      DO iReact = 1, Adsorption%ReactNum+1
+        IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+          ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
+              / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
+        ELSE
+          ReactRate(iCase) = 0.
+        END IF
+        iCase = iCase + 1
+      END DO
+    END IF
+  END DO
 END IF
+DO iSpec = 1,nSpecies
+  DesorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes
+END DO
 
 #ifdef MPI
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
-  DesorbRate  = DesorbRate / REAL(SurfCOMM%nProcs)
-  DesorbNum   = INT( REAL(DesorbNum) / REAL(SurfCOMM%nProcs) )
+IF (SurfCOMM%MPIOutputRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  DesorbRate  = DesorbRate / REAL(SurfCOMM%nOutputProcs)
+  DesorbNum   = INT( REAL(DesorbNum) / REAL(SurfCOMM%nOutputProcs) )
 ELSE
-  CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*MPI*/
 
-IF(SurfMesh%SurfOnProc)THEN
-  DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-  END DO
-END IF
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+END DO
 
-IF(SurfMesh%SurfOnProc)THEN
-  iCase = 1
-  DO iSpec = 1,nSpecies
-    DO iReact = 1,Adsorption%ReactNum+1
-      IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-        IF (PartSurfaceModel.EQ.1) THEN
-          SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
-              / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-        ELSE IF (PartSurfaceModel.EQ.3) THEN
-          SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-        END IF
-      ELSE
-        SurfaceActE(iCase) = 0.
+iCase = 1
+DO iSpec = 1,nSpecies
+  DO iReact = 1,Adsorption%ReactNum+1
+    IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+      IF (PartSurfaceModel.EQ.1) THEN
+        SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
+            / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
+      ELSE IF (PartSurfaceModel.EQ.3) THEN
+        SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
       END IF
-      iCase = iCase + 1
-    END DO
+    ELSE
+      SurfaceActE(iCase) = 0.
+    END IF
+    iCase = iCase + 1
   END DO
-ELSE
-  SurfaceActE(:)= 0.
-END IF
+END DO
 
-IF(SurfMesh%SurfOnProc)THEN
-  iCase = 1
-  DO iSpec = 1,nSpecies
-    DO iReact = 1,Adsorption%ReactNum+1
-      IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
-        IF (PartSurfaceModel.EQ.3) THEN
-          ProperSurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
-        END IF
-      ELSE
-        ProperSurfaceActE(iCase) = 0.
+iCase = 1
+DO iSpec = 1,nSpecies
+  DO iReact = 1,Adsorption%ReactNum+1
+    IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
+      IF (PartSurfaceModel.EQ.3) THEN
+        ProperSurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
       END IF
-      iCase = iCase + 1
-    END DO
+    ELSE
+      ProperSurfaceActE(iCase) = 0.
+    END IF
+    iCase = iCase + 1
   END DO
-ELSE
-  ProperSurfaceActE(:)= 0.
-END IF
+END DO
 
-IF(SurfMesh%SurfOnProc)THEN
-  iCase = 1
-  DO iSpec = 1,nSpecies
-    DO iReact = 1,Adsorption%ReactNum+1
-      IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-        IF (PartSurfaceModel.EQ.3) THEN
-          Surfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-        END IF
-      ELSE
-        Surfacenu(iCase) = 0.
+iCase = 1
+DO iSpec = 1,nSpecies
+  DO iReact = 1,Adsorption%ReactNum+1
+    IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+      IF (PartSurfaceModel.EQ.3) THEN
+        Surfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
       END IF
-      iCase = iCase + 1
-    END DO
+    ELSE
+      Surfacenu(iCase) = 0.
+    END IF
+    iCase = iCase + 1
   END DO
-ELSE
-  Surfacenu(:)= 0.
-END IF
+END DO
 
-IF(SurfMesh%SurfOnProc)THEN
-  iCase = 1
-  DO iSpec = 1,nSpecies
-    DO iReact = 1,Adsorption%ReactNum+1
-      IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
-        IF (PartSurfaceModel.EQ.3) THEN
-          ProperSurfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
-        END IF
-      ELSE
-        ProperSurfacenu(iCase) = 0.
+iCase = 1
+DO iSpec = 1,nSpecies
+  DO iReact = 1,Adsorption%ReactNum+1
+    IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
+      IF (PartSurfaceModel.EQ.3) THEN
+        ProperSurfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact) &
+            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
       END IF
-      iCase = iCase + 1
-    END DO
+    ELSE
+      ProperSurfacenu(iCase) = 0.
+    END IF
+    iCase = iCase + 1
   END DO
-ELSE
-  ProperSurfacenu(:)= 0.
-END IF
+END DO
 
 #ifdef MPI
 commSize = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE ,ReactRate        ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE ,SurfaceActE      ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE ,ProperSurfaceActE,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  ReactRate   = ReactRate   / REAL(SurfCOMM%nProcs)
-  SurfaceActE = SurfaceActE / REAL(SurfCOMM%nProcs)
-  ProperSurfaceActE = ProperSurfaceActE / REAL(SurfCOMM%nProcs)
+IF (SurfCOMM%MPIOutputRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE ,ReactRate        ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE ,SurfaceActE      ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE ,ProperSurfaceActE,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  ReactRate   = ReactRate   / REAL(SurfCOMM%nOutputProcs)
+  SurfaceActE = SurfaceActE / REAL(SurfCOMM%nOutputProcs)
+  ProperSurfaceActE = ProperSurfaceActE / REAL(SurfCOMM%nOutputProcs)
 ELSE
-  CALL MPI_REDUCE(ReactRate         ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(SurfaceActE       ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(ProperSurfaceActE ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(ReactRate         ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(SurfaceActE       ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(ProperSurfaceActE ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*MPI*/
 
-IF(SurfMesh%SurfOnProc)THEN
-  DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-    Adsorption%AdsorpInfo(iSPec)%NumOfDes = 0
-    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0
-    Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0
-  END DO
-END IF
+DO iSpec = 1,nSpecies
+  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  Adsorption%AdsorpInfo(iSPec)%NumOfDes = 0
+  Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact = 0.
+  Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0
+  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0
+END DO
 
 END SUBROUTINE GetSurfRates
 
@@ -1357,7 +1303,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1415,16 +1360,16 @@ END IF
 #ifdef MPI
 commSize1 = nSpecies*(Adsorption%ReactNum+1)
 commSize2 = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
-IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(1,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(2,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,AdsReactCount,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,DesReactCount,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+IF (SurfCOMM%MPIOutputRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(1,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,HeatFlux(2,:),nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,AdsReactCount,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,DesReactCount,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(HeatFlux(1,:),HE(1,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(HeatFlux(2,:),HE(2,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(AdsReactCount,RA          ,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(DesReactCount,RD          ,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(HeatFlux(1,:),HE(1,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(HeatFlux(2,:),HE(2,:)     ,nSpecies ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(AdsReactCount,RA          ,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
+  CALL MPI_REDUCE(DesReactCount,RD          ,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*MPI*/
 
@@ -1450,8 +1395,7 @@ USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
 USE MOD_Particle_Analyze_Vars
 USE MOD_SurfaceModel_Vars     ,ONLY: Liquid
 #ifdef MPI
-!USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 #endif /*MPI*/
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
@@ -1479,10 +1423,10 @@ Liquid%Info(:)%NumOfAds = 0
 Liquid%Info(:)%NumOfDes = 0
 
 #ifdef MPI
-  IF (PartMPI%MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF (SurfCOMM%MPIOutputRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   ELSE
-    CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
 #endif /*MPI*/
 
