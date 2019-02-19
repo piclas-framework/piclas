@@ -1301,7 +1301,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           Heat_A = 0.0
           Heat_Product1 = 0.0
           Heat_Product2 = 0.0
-          D_A = Adsorption%EDissBond(iDissocReact,SpecID)
+          D_A = Adsorption%EDissBond(iReact,SpecID)
           AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
                           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1311,7 +1311,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
         END IF
 #if (PP_TimeDiscMethod==42)
-        D_A = Adsorption%EDissBond(iDissocReact,SpecID)
+        D_A = Adsorption%EDissBond(iReact,SpecID)
         AdsorptionEnthalpie = ((( Heat_A -Heat_Product1 -Heat_Product2 ) + D_A) * BoltzmannConst &
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1394,7 +1394,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           Heat_A = 0.
           Heat_B = 0.
           Heat_AB = 0.
-          D_AB = Adsorption%EDissBond(Adsorption%DissNum+iReact,SpecID)
+          D_AB = Adsorption%EDissBond(iReact,SpecID)
           AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
                           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1406,7 +1406,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           NumDesorbLH(SpecID,iRecombReact) = NumDesorbLH(SpecID,iRecombReact) + 1
         END IF
 #if (PP_TimeDiscMethod==42)
-        D_AB = Adsorption%EDissBond(Adsorption%DissNum+iReact,SpecID)
+        D_AB = Adsorption%EDissBond(iReact,SpecID)
         AdsorptionEnthalpie = (-(( Heat_AB -Heat_A -Heat_B ) + D_AB) * BoltzmannConst &
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
