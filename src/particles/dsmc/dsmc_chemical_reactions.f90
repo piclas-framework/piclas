@@ -396,6 +396,9 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
   REAL                          :: Xi_elec(1:3), Telec(1:3), EZeroTempToExec(1:3)
   REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
+#ifdef CODE_ANALYZE
+  REAL                          :: Energy_old,Energy_new
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
   Xi_elec = 0.
   Telec = 0.
@@ -409,6 +412,21 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
     React2Inx = Coll_pData(iPair)%iPart_p1
     React1Inx = Coll_pData(iPair)%iPart_p2
   END IF
+
+#ifdef CODE_ANALYZE
+  Energy_new=0. ! Nullification is required!
+  Energy_old=&
+       0.5*Species(PartSpecies(React1Inx))%MassIC*DOT_PRODUCT(PartState(React1Inx,4:6),PartState(React1Inx,4:6))&
+      +0.5*Species(PartSpecies(React2Inx))%MassIC*DOT_PRODUCT(PartState(React2Inx,4:6),PartState(React2Inx,4:6))&
+      +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
+      +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)&
+      +ChemReac%EForm(iReac)
+  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+    Energy_old=Energy_old&
+        +0.5*Species(PartSpecies(iPart_p3))%MassIC *DOT_PRODUCT(PartState(iPart_p3,4:6) ,PartState(iPart_p3,4:6))&
+        +PartStateIntEn(iPart_p3  , 1)+PartStateIntEn(iPart_p3  , 2)+PartStateIntEn(iPart_p3  , 3)
+  END IF ! (TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')
+#endif /* CODE_ANALYZE */
 
   EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
@@ -760,6 +778,13 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
     DSMC_RHS(React2Inx,2) = VeloMy - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
     DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
 
+#ifdef CODE_ANALYZE
+    Energy_new=0.5*Species(PartSpecies(React2Inx))%MassIC*&
+        ((VeloMx - FracMassCent1*RanVelox)**2+&
+        (VeloMy - FracMassCent1*RanVeloy)**2+&
+        (VeloMz - FracMassCent1*RanVeloz)**2)
+#endif /* CODE_ANALYZE */
+
     ! Set velocity of pseudo molec (AB) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
     ! (Velocity of pseudo molecule is NOT equal to the COM frame velocity)
     VxPseuMolec = (VeloMx + FracMassCent2*RanVelox)
@@ -838,6 +863,27 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
     DSMC_RHS(React2Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
     DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
   END IF
+
+#ifdef CODE_ANALYZE
+  Energy_new=Energy_new&
+      +0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2+(VyPseuMolec + FracMassCent2*RanVeloy)**2+(VzPseuMolec + FracMassCent2*RanVeloz)**2)&
+      +0.5*Species(PartSpecies(React2Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2+(VyPseuMolec - FracMassCent1*RanVeloy)**2+(VzPseuMolec - FracMassCent1*RanVeloz)**2)&
+      +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
+      +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)
+  IF (.NOT.((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r'))) THEN
+    Energy_new=Energy_new&
+        +0.5*Species(PartSpecies(React3Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2+(VyPseuMolec - FracMassCent1*RanVeloy)**2+(VzPseuMolec - FracMassCent1*RanVeloz)**2)&
+        +PartStateIntEn(React3Inx , 1)+PartStateIntEn(React3Inx , 2)+PartStateIntEn(React3Inx , 3)
+  END IF ! .NOT.((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r'))
+
+  ! Check for energy difference
+  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'CODE_ANALYZE: DSMC_Chemistry ist not energy conserving for chemical reaction. Energy_old-Energy_new= ',&
+        RealInfoOpt=Energy_old-Energy_new)
+  END IF
+#endif /* CODE_ANALYZE */
 
 END SUBROUTINE DSMC_Chemistry
 
