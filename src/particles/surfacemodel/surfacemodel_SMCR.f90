@@ -371,28 +371,31 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
   IF (coverage_check.LE.0.) CYCLE
   ! reaction results
   kSpec = Adsorption%RecombReact(2,RecombReactID,iSpec)
+  ! Choose surface site with reactionpartner coordination
   jCoord = Adsorption%Coordination(PartBoundID,jSpec)
-  ! Choose Random surface site with reactionpartner coordination
-  CALL RANDOM_NUMBER(RanNum)
-  AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%nSites(jCoord)*RanNum)
-  Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%UsedSiteMap(AdsorbID)
-  !IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
+  IF (jCoord.EQ.Coord) THEN
+    Neighpos_j = SurfPos
+  ELSE
   !  CALL RANDOM_NUMBER(RanNum)
-  !  chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
-  !  Neighpos_j = &
-  !          SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
-  !END IF
+  !  AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%nSites(jCoord)*RanNum)
+  !  Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%UsedSiteMap(AdsorbID)
+    IF ( n_Neigh(jCoord)-n_empty_Neigh(jCoord).GT.0 ) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      chosen_Neigh_j = 1 + INT(n_Neigh(jCoord)*RanNum)
+      Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%NeighPos(Surfpos,NeighbourID(jCoord,chosen_Neigh_j))
+    END IF
+  END IF
   IF ( (Neighpos_j.GT.0) ) THEN
     IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%Species(Neighpos_j).EQ.jSpec) ) THEN
       ! calculation of activation energy
-      Heat_A = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.TRUE.)
-      Heat_B = 0. !Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,kSpec,Neighpos_k,.TRUE.)
+      Heat_A = 0.1*Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,iSpec,SurfPos,.TRUE.)
+      Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.FALSE.)
       Heat_AB = 0. ! direct associative desorption (recombination)
       D_AB = Adsorption%EDissBond(ReactNum,iSpec)
       D_A = 0.
       D_B = 0.
       E_a = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
-      E_d = 0.0 !0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.TRUE.)
+      E_d = 0.
       ! estimate characteristic vibrational temperature of surface-particle bond
       IF (Coord.EQ.1) THEN
         CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfID))
