@@ -363,19 +363,22 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac, iPart_p3)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY : abort
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Vars,         ONLY : PartSpecies, PartState, PDM, PEM, PartPosRef, Species
-USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
-USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, CalcXiElec
-USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
-USE MOD_DSMC_Analyze,          ONLY : CalcTVib, CalcTVibPoly, CalcTelec
-USE MOD_DSMC_Relaxation,       ONLY : DSMC_VibRelaxDiatomic, CalcXiVibPart, CalcXiTotalEqui
-USE MOD_part_tools,            ONLY : DiceUnitVector
-USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
-USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species
+USE MOD_vmpf_collision         ,ONLY: vMPF_AfterSplitting
+USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
+USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly, CalcTelec
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiVibPart, CalcXiTotalEqui
+USE MOD_part_tools             ,ONLY: DiceUnitVector
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
+USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
+#ifdef CODE_ANALYZE
+USE MOD_Globals                ,ONLY: unit_stdout,myrank
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -878,10 +881,18 @@ USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
 
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
+    ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
+      IF(energy.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
     CALL abort(&
         __STAMP__&
-        ,'CODE_ANALYZE: DSMC_Chemistry ist not energy conserving for chemical reaction. Energy_old-Energy_new= ',&
-        RealInfoOpt=Energy_old-Energy_new)
+        ,'CODE_ANALYZE: DSMC_Chemistry ist not energy conserving for chemical reaction.')
   END IF
 #endif /* CODE_ANALYZE */
 
