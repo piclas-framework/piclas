@@ -163,7 +163,7 @@ CALL prms%CreateIntOption(      'Surface-Adsorption-CalcTST'&
                                           , 'Define, which rate coefficient for adsorption are used:\n'//&
                                           ' 0: only those, specified in INI\n'//&
                                           ' 1: those not define in INI are calculated with TST\n'//&
-                                          ' 2: calculate every coefficient with TST','0')
+                                          ' 2: calculate every coefficient with TST','2')
 CALL prms%CreateIntOption(      'Surface-MaxDissNum', 'Define maximum number of Dissociations per species','0')
 CALL prms%CreateIntArrayOption( 'Part-Species[$]-SurfDiss[$]-Products'&
                                           , 'Define product species for surface dissociation number of considered species' &
