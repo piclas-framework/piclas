@@ -400,7 +400,8 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
   REAL, ALLOCATABLE             :: Xi_Vib1(:), Xi_Vib2(:), Xi_Vib3(:), XiVibPart(:,:)
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
 #ifdef CODE_ANALYZE
-  REAL                          :: Energy_old,Energy_new
+  REAL                          :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
+  INTEGER                       :: iMom
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
   Xi_elec = 0.
@@ -417,18 +418,22 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
   END IF
 
 #ifdef CODE_ANALYZE
-  Energy_new=0. ! Nullification is required!
+  ! Energy conservation
   Energy_old=&
        0.5*Species(PartSpecies(React1Inx))%MassIC*DOT_PRODUCT(PartState(React1Inx,4:6),PartState(React1Inx,4:6))&
       +0.5*Species(PartSpecies(React2Inx))%MassIC*DOT_PRODUCT(PartState(React2Inx,4:6),PartState(React2Inx,4:6))&
       +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
       +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)&
       +ChemReac%EForm(iReac)
-  IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')) THEN
+  IF (PRESENT(iPart_p3)) THEN
     Energy_old=Energy_old&
         +0.5*Species(PartSpecies(iPart_p3))%MassIC *DOT_PRODUCT(PartState(iPart_p3,4:6) ,PartState(iPart_p3,4:6))&
         +PartStateIntEn(iPart_p3  , 1)+PartStateIntEn(iPart_p3  , 2)+PartStateIntEn(iPart_p3  , 3)
-  END IF ! (TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r')
+  END IF
+  ! Momentum conservation
+  Momentum_old(1:3) = Species(PartSpecies(React1Inx))%MassIC * PartState(React1Inx,4:6) &
+                    + Species(PartSpecies(React2Inx))%MassIC * PartState(React2Inx,4:6)
+  IF (PRESENT(iPart_p3)) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpecies(iPart_p3))%MassIC * PartState(iPart_p3,4:6)
 #endif /* CODE_ANALYZE */
 
   EductReac(1:3) = ChemReac%DefinedReact(iReac,1,1:3)
@@ -786,6 +791,9 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
         ((VeloMx - FracMassCent1*RanVelox)**2+&
         (VeloMy - FracMassCent1*RanVeloy)**2+&
         (VeloMz - FracMassCent1*RanVeloz)**2)
+    Momentum_new(1:3) = Species(PartSpecies(React2Inx))%MassIC* (/VeloMx - FracMassCent1*RanVelox,&
+                                                                  VeloMy - FracMassCent1*RanVeloy,&
+                                                                  VeloMz - FracMassCent1*RanVeloz/)
 #endif /* CODE_ANALYZE */
 
     ! Set velocity of pseudo molec (AB) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
@@ -816,6 +824,28 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     DSMC_RHS(React3Inx,1) = VxPseuMolec - FracMassCent1*RanVelox
     DSMC_RHS(React3Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy
     DSMC_RHS(React3Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz
+
+#ifdef CODE_ANALYZE
+    ! New total energy
+    Energy_new=Energy_new&
+        +0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2    &
+                                                    +(VyPseuMolec + FracMassCent2*RanVeloy)**2    &
+                                                    +(VzPseuMolec + FracMassCent2*RanVeloz)**2)   &
+        +0.5*Species(PartSpecies(React3Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2    &
+                                                    +(VyPseuMolec - FracMassCent1*RanVeloy)**2    &
+                                                    +(VzPseuMolec - FracMassCent1*RanVeloz)**2)   &
+        +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
+        +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)&
+        +PartStateIntEn(React3Inx , 1)+PartStateIntEn(React3Inx , 2)+PartStateIntEn(React3Inx , 3)
+    ! New total momentum
+    Momentum_new(1:3) = Momentum_new(1:3) &
+                      + Species(PartSpecies(React1Inx))%MassIC * (/VxPseuMolec + FracMassCent2*RanVelox,  &
+                                                                   VyPseuMolec + FracMassCent2*RanVeloy,  &
+                                                                   VzPseuMolec + FracMassCent2*RanVeloz/) &
+                      + Species(PartSpecies(React3Inx))%MassIC * (/VxPseuMolec - FracMassCent1*RanVelox,  &
+                                                                   VyPseuMolec - FracMassCent1*RanVeloy,  &
+                                                                   VzPseuMolec - FracMassCent1*RanVeloz/)
+#endif /* CODE_ANALYZE */
 
   ELSEIF(ProductReac(3).EQ.0) THEN
     IF(EductReac(3).NE.0) THEN
@@ -865,22 +895,32 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     DSMC_RHS(React2Inx,1) = VxPseuMolec - FracMassCent1*RanVelox - PartState(React2Inx, 4)
     DSMC_RHS(React2Inx,2) = VyPseuMolec - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
     DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
+
+#ifdef CODE_ANALYZE
+    ! New total energy of remaining products (here, recombination: 2 producs)
+    Energy_new=&
+         0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2  &
+                                                    +(VyPseuMolec + FracMassCent2*RanVeloy)**2  &
+                                                    +(VzPseuMolec + FracMassCent2*RanVeloz)**2) &
+        +0.5*Species(PartSpecies(React2Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2  &
+                                                    +(VyPseuMolec - FracMassCent1*RanVeloy)**2  &
+                                                    +(VzPseuMolec - FracMassCent1*RanVeloz)**2) &
+        +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
+        +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)
+    ! New total momentum
+      Momentum_new(1:3) = Species(PartSpecies(React1Inx))%MassIC * (/VxPseuMolec + FracMassCent2*RanVelox,  &
+                                                                     VyPseuMolec + FracMassCent2*RanVeloy,  &
+                                                                     VzPseuMolec + FracMassCent2*RanVeloz/) &
+                        + Species(PartSpecies(React2Inx))%MassIC * (/VxPseuMolec - FracMassCent1*RanVelox,  &
+                                                                     VyPseuMolec - FracMassCent1*RanVeloy,  &
+                                                                     VzPseuMolec - FracMassCent1*RanVeloz/)
+#endif /* CODE_ANALYZE */
   END IF
 
 #ifdef CODE_ANALYZE
-  Energy_new=Energy_new&
-      +0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2+(VyPseuMolec + FracMassCent2*RanVeloy)**2+(VzPseuMolec + FracMassCent2*RanVeloz)**2)&
-      +0.5*Species(PartSpecies(React2Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2+(VyPseuMolec - FracMassCent1*RanVeloy)**2+(VzPseuMolec - FracMassCent1*RanVeloz)**2)&
-      +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
-      +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)
-  IF (.NOT.((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r'))) THEN
-    Energy_new=Energy_new&
-        +0.5*Species(PartSpecies(React3Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2+(VyPseuMolec - FracMassCent1*RanVeloy)**2+(VzPseuMolec - FracMassCent1*RanVeloz)**2)&
-        +PartStateIntEn(React3Inx , 1)+PartStateIntEn(React3Inx , 2)+PartStateIntEn(React3Inx , 3)
-  END IF ! .NOT.((TRIM(ChemReac%ReactType(iReac)).EQ.'R').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'r'))
-
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
@@ -892,8 +932,27 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
     CALL abort(&
         __STAMP__&
-        ,'CODE_ANALYZE: DSMC_Chemistry ist not energy conserving for chemical reaction.')
+        ,'CODE_ANALYZE: DSMC_Chemistry is not energy conserving for chemical reaction:', IntInfoOpt=iReac)
   END IF
+  ! Check for momentum difference
+  DO iMom=1,3
+    IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-10)) THEN
+      WRITE(UNIT_StdOut,*) '\n'
+      IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_old(iMom)-Momentum_new(iMom)
+      ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
+        IF(Momentum.GT.0.0)THEN
+          IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
+        END IF
+      END ASSOCIATE
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+      CALL abort(&
+          __STAMP__&
+          ,'CODE_ANALYZE: DSMC_Chemistry is not momentum conserving for chemical reaction:', IntInfoOpt=iReac)
+    END IF
+  END DO
 #endif /* CODE_ANALYZE */
 
 END SUBROUTINE DSMC_Chemistry
