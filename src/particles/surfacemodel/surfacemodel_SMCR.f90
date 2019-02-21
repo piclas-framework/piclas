@@ -397,11 +397,7 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
       E_a = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
       E_d = 0.
       ! estimate characteristic vibrational temperature of surface-particle bond
-      IF (Coord.EQ.1) THEN
-        CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(SurfID))
-      ELSE
-        CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nInterAtom)
-      END IF
+      CharaTemp = Heat_A / 200.
       ! calculation of ER-reaction probability
       SurfPartVibE = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%EVib(Neighpos_j)
 #if (PP_TimeDiscMethod==42)
@@ -721,11 +717,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     ReactID = 0
     ! estimate vibrational temperature of surface-particle bond
-    IF (Coord.EQ.1) THEN
-      CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-    ELSE
-      CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
-    END IF
+    CharaTemp = Heat_A / 200.
     ! calculate partition function of particles bound on surface
     VarPartitionFuncWall1 = PartitionFuncSurf(SpecID, WallTemp,CharaTemp)
     ! estimate partition function of activated complex
@@ -871,11 +863,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
             D_Product2 = 0.
             E_d = Calc_E_Act(Heat_Product1,Heat_Product2,Heat_A,0.,D_Product1,D_Product2,D_A,0.)
             ! estimate vibrational temperatures of surface-particle bond
-            IF (Coord.EQ.1) THEN
-              CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-            ELSE
-              CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
-            END IF
+            CharaTemp = Heat_A / 200.
             ! calculate partition function of particles bound on surface
             VarPartitionFuncWall1 = PartitionFuncSurf(SpecID, WallTemp,CharaTemp)
             ! estimate partition function of activated complex
@@ -942,18 +930,10 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         ! if diffusion barrier is greater then reaction activation, then it is limiting --> activation energy
         IF (E_Diff.GT.E_d) E_d = E_diff
         ! estimate vibrational temperatures of surface-particle bond
-        IF (Coord.EQ.1) THEN
-          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-        ELSE
-          CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
-        END IF
+        CharaTemp = Heat_A / 200.
         ! calculate partition function of first particle bound on surface
         VarPartitionFuncWall1 = PartitionFuncSurf(SpecID, WallTemp,CharaTemp)
-        IF (Coord_ReactP(ReactID).EQ.1) THEN
-          CharaTemp = Heat_B / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-        ELSE
-          CharaTemp = Heat_B / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(ReactID))%nInterAtom)
-        END IF
+        CharaTemp = Heat_B / 200.
         ! calculate partition function of second particle bound on surface
         VarPartitionFuncWall2 = PartitionFuncSurf(jSpec,WallTemp,CharaTemp)
         ! estimate partition function of activated complex
@@ -1202,18 +1182,10 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         ! if diffusion barrier is greater then reaction activation, then it is limiting --> activation energy
         IF (E_Diff.GT.E_d) E_d = E_diff
         ! estimate vibrational temperatures of surface-particle bond
-        IF (Coord.EQ.1) THEN
-          CharaTemp = Heat_A / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-        ELSE
-          CharaTemp = Heat_A / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nInterAtom)
-        END IF
+        CharaTemp = Heat_A / 200.
         ! calculate partition function of first particle bound on surface
         VarPartitionFuncWall1 = PartitionFuncSurf(SpecID, WallTemp,CharaTemp)
-        IF (Coord_ReactP(ReactID).EQ.1) THEN
-          CharaTemp = Heat_ReactP / 200. / (2 - 1./Adsorption%CrystalIndx(iSurf))
-        ELSE
-          CharaTemp = Heat_ReactP / 200. / (2 - 1./SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(ReactID))%nInterAtom)
-        END IF
+        CharaTemp = Heat_ReactP / 200.
         ! calculate partition function of second particle bound on surface
         VarPartitionFuncWall2 = PartitionFuncSurf(jSpec, WallTemp,CharaTemp)
         ! estimate partition function of activated complex
