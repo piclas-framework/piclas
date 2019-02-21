@@ -37,39 +37,14 @@ INTERFACE PartitionFuncActAdsorb
   MODULE PROCEDURE PartitionFuncActAdsorb
 END INTERFACE
 
-INTERFACE PartitionFuncActDissAdsorb
-  MODULE PROCEDURE PartitionFuncActDissAdsorb
-END INTERFACE
-
-INTERFACE PartitionFuncActER
-  MODULE PROCEDURE PartitionFuncActER
-END INTERFACE
-
 INTERFACE PartitionFuncActDesorb
   MODULE PROCEDURE PartitionFuncActDesorb
-END INTERFACE
-
-INTERFACE PartitionFuncActDissSurf
-  MODULE PROCEDURE PartitionFuncActDissSurf
-END INTERFACE
-
-INTERFACE PartitionFuncActLH
-  MODULE PROCEDURE PartitionFuncActLH
-END INTERFACE
-
-INTERFACE PartitionFuncActExchSurf
-  MODULE PROCEDURE PartitionFuncActExchSurf
 END INTERFACE
 
 PUBLIC :: PartitionFuncGas
 PUBLIC :: PartitionFuncSurf
 PUBLIC :: PartitionFuncActAdsorb
-PUBLIC :: PartitionFuncActDissAdsorb
-PUBLIC :: PartitionFuncActER
 PUBLIC :: PartitionFuncActDesorb
-PUBLIC :: PartitionFuncActDissSurf
-PUBLIC :: PartitionFuncActLH
-PUBLIC :: PartitionFuncActExchSurf
 !===================================================================================================================================
 
 CONTAINS
@@ -287,60 +262,6 @@ PartitionFuncActAdsorb = Qtra * Qrot * Qvib * Qelec
 END FUNCTION PartitionFuncActAdsorb
 
 
-REAL FUNCTION PartitionFuncActDissAdsorb(EductSpec,ResultSpec1,ResultSpec2,Temp)
-!===================================================================================================================================
-!> Calculation of Partitionfunction of activated complex (dissociative adsorption)
-!===================================================================================================================================
-! MODULES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: EductSpec
-INTEGER, INTENT(IN)           :: ResultSpec1
-INTEGER, INTENT(IN)           :: ResultSpec2
-REAL, INTENT(IN)              :: Temp
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL                          :: Qtra, Qrot, Qvib, Qelec
-!===================================================================================================================================
-Qtra = QPartTrans(EductSpec,Temp,2)
-Qrot = QPartRot(EductSpec,Temp)
-Qvib = QPartVib(ResultSpec1,Temp) * QPartVib(ResultSpec2,Temp)
-Qelec = QPartElec(EductSpec,Temp)
-PartitionFuncActDissAdsorb = Qtra * Qrot * Qvib * Qelec
-END FUNCTION PartitionFuncActDissAdsorb
-
-
-REAL FUNCTION PartitionFuncActER(EductSpec1,EductSpec2,ResultSpec,Temp)
-!===================================================================================================================================
-!> Calculation of Partitionfunction of activated complex (ER reaction)
-!===================================================================================================================================
-! MODULES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: EductSpec1
-INTEGER, INTENT(IN)           :: EductSpec2
-INTEGER, INTENT(IN)           :: ResultSpec
-REAL, INTENT(IN)              :: Temp
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL                          :: Qtra, Qrot, Qvib, Qelec
-!===================================================================================================================================
-Qtra = QPartTrans(ResultSpec,Temp,2)
-Qrot = QPartRot(ResultSpec,Temp)
-Qvib = QPartVib(EductSpec1,Temp) * QPartVib(EductSpec2,Temp)
-Qelec = QPartElec(ResultSpec,Temp)
-PartitionFuncActER = Qtra * Qrot * Qvib * Qelec
-END FUNCTION PartitionFuncActER
-
-
 REAL FUNCTION PartitionFuncActDesorb(iSpec,Temp,SurfDensity)
 !===================================================================================================================================
 !> Calculation of Partitionfunction of activated complex (desorption)
@@ -360,97 +281,11 @@ REAL, INTENT(IN)              :: SurfDensity
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
 Qtra = QPartTrans(iSpec,Temp,2)/SurfDensity
-!Qtra = 1.
 Qrot = 1.
 Qvib = QPartVib(iSpec,Temp)
 Qelec = QPartElec(iSpec,Temp)
 PartitionFuncActDesorb = Qtra * Qrot * Qvib * Qelec
 END FUNCTION PartitionFuncActDesorb
-
-
-REAL FUNCTION PartitionFuncActLH(EductSpec1,EductSpec2,ResultSpec,Temp,SurfDensity)
-!===================================================================================================================================
-!> Calculation of Partitionfunction of activated complex (LH reaction at surface)
-!===================================================================================================================================
-! MODULES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: EductSpec1
-INTEGER, INTENT(IN)           :: EductSpec2
-INTEGER, INTENT(IN)           :: ResultSpec
-REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: SurfDensity
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL                          :: Qtra, Qrot, Qvib, Qelec
-!===================================================================================================================================
-Qtra = QPartTrans(ResultSpec,Temp,2)/SurfDensity
-Qrot = 1.
-Qvib = QPartVib(EductSpec1,Temp) * QPartVib(EductSpec2,Temp)
-Qelec = QPartElec(ResultSpec,Temp)
-PartitionFuncActLH = Qtra * Qrot * Qvib * Qelec
-END FUNCTION PartitionFuncActLH
-
-
-REAL FUNCTION PartitionFuncActDissSurf(EductSpec,ResultSpec1,ResultSpec2,Temp,SurfDensity)
-!===================================================================================================================================
-!> Calculation of Partitionfunction of activated complex (dissociation reaction at surface)
-!===================================================================================================================================
-! MODULES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: EductSpec
-INTEGER, INTENT(IN)           :: ResultSpec1
-INTEGER, INTENT(IN)           :: ResultSpec2
-REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: SurfDensity
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL                          :: Qtra, Qrot, Qvib, Qelec
-!===================================================================================================================================
-Qtra = QPartTrans(EductSpec,Temp,2)/SurfDensity
-Qrot = 1.
-Qvib = QPartVib(ResultSpec1,Temp) * QPartVib(ResultSpec2,Temp)
-Qelec = QPartElec(EductSpec,Temp)
-PartitionFuncActDissSurf = Qtra * Qrot * Qvib * Qelec
-END FUNCTION PartitionFuncActDissSurf
-
-
-REAL FUNCTION PartitionFuncActExchSurf(EductSpec1,EductSpec2,ResultSpec1,ResultSpec2,Temp,SurfDensity)
-!===================================================================================================================================
-!> Calculation of Partitionfunction of activated complex (dissociation reaction at surface)
-!===================================================================================================================================
-! MODULES
-!----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: EductSpec1
-INTEGER, INTENT(IN)           :: EductSpec2
-INTEGER, INTENT(IN)           :: ResultSpec1
-INTEGER, INTENT(IN)           :: ResultSpec2
-REAL, INTENT(IN)              :: Temp
-REAL, INTENT(IN)              :: SurfDensity
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! LOCAL VARIABLES
-REAL                          :: Qtra, Qrot, Qvib, Qelec
-!===================================================================================================================================
-Qtra = QPartTrans(EductSpec1,Temp,2)/SurfDensity * QPartTrans(EductSpec2,Temp,2)/SurfDensity
-Qrot = 1.
-Qvib = QPartVib(ResultSpec1,Temp) * QPartVib(ResultSpec2,Temp)
-Qelec = QPartElec(ResultSpec1,Temp) * QPartElec(ResultSpec2,Temp)
-PartitionFuncActExchSurf = Qtra * Qrot * Qvib * Qelec
-END FUNCTION PartitionFuncActExchSurf
 
 
 END MODULE MOD_SurfaceModel_PartFunc
