@@ -394,14 +394,12 @@ DO iArgs = iArgsStart,nArgs
           offsetElem => INT(offsetElem,IK),&
           N_State    => INT(N_State,IK),&
           nElems     => INT(nElems,IK)    )
-      CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)  
+      IF(VisuSource)THEN
+        CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+      ELSE
+        CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5,RealArray=U)
+      END IF
     END ASSOCIATE
-
-    IF(VisuSource)THEN
-      CALL ReadArray('DG_Source',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
-    ELSE
-      CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_State+1,nElems/),offsetElem,5,RealArray=U)  
-    END IF
 
     IF(CalcDiffError)THEN
       IF(iArgs .EQ. 2)THEN
@@ -861,7 +859,10 @@ IF(nParts.GT.0) THEN
   ConnectInfo = 0.
 END IF
 
-CALL ReadArray('PartData',2,(/nParts, nPartsVar+3/),0,1,RealArray=tmpPartData)
+ASSOCIATE(nParts    => INT(nParts,IK),  &
+          nPartsVar => INT(nPartsVar,IK))
+CALL ReadArray('PartData',2,(/nParts, nPartsVar+3_IK/),0_IK,1,RealArray=tmpPartData)
+END ASSOCIATE
 
 DO iPart=1,nParts
   PartData(1:nPartsVar+3,iPart) = tmpPartData(iPart,1:nPartsVar+3)
@@ -1025,8 +1026,11 @@ IF(nSurfSample.EQ.1) THEN
     ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:SurfConnect%nSurfaceBCSides))
     SurfData=0.
     tempSurfData = 0.
-    CALL ReadArray('SurfaceData',4,(/nVarSurf, 1, 1, SurfConnect%nSurfaceBCSides/), &
-                    0,4,RealArray=tempSurfData(:,:,:,:))
+    ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
+              nSurfaceBCSides => INT(SurfConnect%nSurfaceBCSides,IK))
+      CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceBCSides/), &
+                      0_IK,4,RealArray=tempSurfData(:,:,:,:))
+    END ASSOCIATE
     SurfData(1:nVarSurf,1:SurfConnect%nSurfaceBCSides) = tempSurfData(1:nVarSurf,1,1,1:SurfConnect%nSurfaceBCSides)
     ALLOCATE(Coords(1:3,SurfConnect%nSurfaceNode))
     Coords = 0.
