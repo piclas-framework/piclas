@@ -298,7 +298,7 @@ ELSE
   DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
   !     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
   !     sigma = sigma + (2.*x(j) - x(j)**2.) * (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.)
-    sigma_m = sigma_m + (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.) &
+    sigma_m = sigma_m + (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2) &
                     / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
   END DO
 #if (PP_TimeDiscMethod==42)

@@ -255,8 +255,8 @@ REAL, INTENT(IN)              :: CharaSurfTemp
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
 Qtra = 1.
-Qrot = QPartRot(iSpec,Temp)
-Qvib = QPartVib(iSpec,Temp) * 1./(1.-EXP(-CharaSurfTemp/Temp))
+Qrot = 1.
+Qvib = QPartVib(iSpec,Temp) * (1./(1.-EXP(-CharaSurfTemp/Temp)))**2
 Qelec = QPartElec(iSpec,Temp)
 PartitionFuncSurf = Qtra * Qrot * Qvib * Qelec
 END FUNCTION PartitionFuncSurf
