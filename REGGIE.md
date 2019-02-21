@@ -49,14 +49,14 @@ Overview of the test cases performed during the nightly regression testing.
 
 Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link to build](regressioncheck/checks/NIG_Reservoir/builds.ini).
 
-| **No.** |                   **Case**                   | **CMAKE-CONFIG** |                   **Feature**                    | **Execution** | **Comparing** |                                             **Readme**                                              |
-| :-----: | :------------------------------------------: | :--------------: | :----------------------------------------------: | :-----------: | :-----------: | :-------------------------------------------------------------------------------------------------: |
-|  10-x   |         CHEM_dissocication_rate_CH4          |                  |                   Dissociation                   |   nProcs=1    |               |         [Link](regressioncheck/checks/NIG_Reservoir/CHEM_dissocication_rate_CH4/readme.md)          |
-|  10-x   |            CHEM_exchange_rate_CH3            |                  |                Exchange reactions                |   nProcs=1    |               |            [Link](regressioncheck/checks/NIG_Reservoir/CHEM_exchange_rate_CH3/readme.md)            |
-|  10-x   | CHEM_multi_ionization_fully_ionized_C_to_C6+ |                  | Impact ionization, from neutral to fully ionized |   nProcs=1    |               | [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_fully_ionized_C_to_C6+/readme.md) |
-|  10-x   |           CHEM_multi_ionization_N            |                  |                Impact ionization                 |   nProcs=1    |               |           [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_N/readme.md)            |
-|  10-x   |      CHEM_recombination_rate_CH3_and_H       |                  |                  Recombination                   |   nProcs=1    |               |      [Link](regressioncheck/checks/NIG_Reservoir/CHEM_recombination_rate_CH3_and_H/readme.md)       |
-|  10-x   |              RELAX_diatomic_N2               |                  |  Rotational, vibrational, electronic relaxation  |   nProcs=1    |               |              [Link](regressioncheck/checks/NIG_Reservoir/RELAX_diatomic_N2/readme.md)               |
+| **No.** |                   **Case**                   | **CMAKE-CONFIG** |                     **Feature**                      | **Execution** | **Comparing** |                                             **Readme**                                              |
+| :-----: | :------------------------------------------: | :--------------: | :--------------------------------------------------: | :-----------: | :-----------: | :-------------------------------------------------------------------------------------------------: |
+|  10-x   |         CHEM_RATES_dissocication_CH4         |                  | TCE rates for a dissociation: CH4 + M -> CH3 + H + M |   nProcs=1    |               |         [Link](regressioncheck/checks/NIG_Reservoir/CHEM_RATES_dissocication_CH4/readme.md)         |
+|  10-x   |          CHEM_RATES_exchange_CH4_H           |                  |   TCE rates for an exchange: CH4 + H <-> CH3 + H2    |   nProcs=1    |               |           [Link](regressioncheck/checks/NIG_Reservoir/CHEM_RATES_exchange_CH3/readme.md)            |
+|  10-x   | CHEM_multi_ionization_fully_ionized_C_to_C6+ |                  |   Impact ionization, from neutral to fully ionized   |   nProcs=1    |               | [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_fully_ionized_C_to_C6+/readme.md) |
+|  10-x   |           CHEM_multi_ionization_N            |                  |                  Impact ionization                   |   nProcs=1    |               |           [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_N/readme.md)            |
+|  10-x   |      CHEM_recombination_rate_CH3_and_H       |                  |                    Recombination                     |   nProcs=1    |               |      [Link](regressioncheck/checks/NIG_Reservoir/CHEM_recombination_rate_CH3_and_H/readme.md)       |
+|  10-x   |              RELAX_diatomic_N2               |                  |    Rotational, vibrational, electronic relaxation    |   nProcs=1    |               |              [Link](regressioncheck/checks/NIG_Reservoir/RELAX_diatomic_N2/readme.md)               |
 
 #### NIG_tracking_DSMC
 
