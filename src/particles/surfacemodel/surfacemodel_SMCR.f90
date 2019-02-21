@@ -1269,7 +1269,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         END IF
       END DO
 #if (PP_TimeDiscMethod==42)
-      CALL AnalyzeSurfRates(1,SpecID,iReact,loc_SurfActE(iReact),loc_Surfnu(iReact),ProbDes(iReact))
+      CALL AnalyzeSurfRates(2,SpecID,iReact,loc_SurfActE(iReact),loc_Surfnu(iReact),ProbDes(iReact))
 #endif
       IF (DSMC%ReservoirSurfaceRate) surf_react_case = 0 !only probabilities and analyze are calculated without actual desorption
       !-----------------------------------------------------------------------------------------------------------------------------
