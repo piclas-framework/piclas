@@ -56,7 +56,9 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 |  10-x   |            CHEM_RATES_recomb_CH4             |                  |    TCE rates for a recombination: CH3 + H -> CH4     |   nProcs=1    |               |            [Link](regressioncheck/checks/NIG_Reservoir/CHEM_RATES_recomb_CH4/readme.md)             |
 |  10-x   | CHEM_multi_ionization_fully_ionized_C_to_C6+ |                  |   Impact ionization, from neutral to fully ionized   |   nProcs=1    |               | [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_fully_ionized_C_to_C6+/readme.md) |
 |  10-x   |           CHEM_multi_ionization_N            |                  |                  Impact ionization                   |   nProcs=1    |               |           [Link](regressioncheck/checks/NIG_Reservoir/CHEM_multi_ionization_N/readme.md)            |
-|  10-x   |              RELAX_diatomic_N2               |                  |    Rotational, vibrational, electronic relaxation    |   nProcs=1    |               |              [Link](regressioncheck/checks/NIG_Reservoir/RELAX_diatomic_N2/readme.md)               |
+|  10-x   |                   RELAX_N2                   |                  |    Rotational, vibrational, electronic relaxation    |   nProcs=1    |               |                   [Link](regressioncheck/checks/NIG_Reservoir/RELAX_N2/readme.md)                   |
+|  10-x   |                  RELAX_CO2                   |                  |          Rotational, vibrational relaxation          |   nProcs=1    |               |                  [Link](regressioncheck/checks/NIG_Reservoir/RELAX_CO2/readme.md)                   |
+|  10-x   |                 RELAX_N2Ion                  |                  |    Rotational, vibrational, electronic relaxation    |   nProcs=1    |               |                 [Link](regressioncheck/checks/NIG_Reservoir/RELAX_N2Ion/readme.md)                  |
 
 #### NIG_tracking_DSMC
 

@@ -1,5 +1,5 @@
 # Relaxation of CO2 (polyatomic)
-* Test relaxation of CO2 from a thermal non-equilibrium to equilibrium
+* Test relaxation of CO2 from a thermal non-equilibrium to equilibrium (rotational, vibrational)
 * Restart from a given state file (additional test if VibQuantData is given)
 * T_t = 10000K, T_r=7500K, T_v = 5000K
 * Settings
