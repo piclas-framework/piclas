@@ -579,7 +579,7 @@ INTEGER             :: dir
         OPEN(unit_index,file=TRIM(outfile))
         !CALL FLUSH (unit_index)
         !--- insert header
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
         IF (CalcNumSpec) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','

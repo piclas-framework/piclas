@@ -218,7 +218,7 @@ REAL                :: WallCoverage(nSpecies)
       ELSE
         OPEN(unit_index,file=TRIM(outfile))
         !--- insert header
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
         IF (PartSurfaceModel.EQ.3) THEN
           IF (CalcSurfNumSpec) THEN
