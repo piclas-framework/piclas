@@ -771,7 +771,7 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     END IF
 
     ! FracMassCent's and reduced mass are calculated for the pseudo-molecule 1-3 and the second product, in the case of dissociation
-    ! this is the non-reating collision partner
+    ! this is the non-reacting collision partner
     CALL CalcPseudoScatterVars(ProductReac(1),ProductReac(3),ProductReac(2),FracMassCent1,FracMassCent2,MassRed)
 
     ! Calculate random vec and new squared velocities
@@ -787,10 +787,9 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
 
 #ifdef CODE_ANALYZE
-    Energy_new=0.5*Species(PartSpecies(React2Inx))%MassIC*&
-        ((VeloMx - FracMassCent1*RanVelox)**2+&
-        (VeloMy - FracMassCent1*RanVeloy)**2+&
-        (VeloMz - FracMassCent1*RanVeloz)**2)
+    Energy_new=0.5*Species(PartSpecies(React2Inx))%MassIC*((VeloMx - FracMassCent1*RanVelox)**2 &
+                                                         + (VeloMy - FracMassCent1*RanVeloy)**2 &
+                                                         + (VeloMz - FracMassCent1*RanVeloz)**2)
     Momentum_new(1:3) = Species(PartSpecies(React2Inx))%MassIC* (/VeloMx - FracMassCent1*RanVelox,&
                                                                   VeloMy - FracMassCent1*RanVeloy,&
                                                                   VeloMz - FracMassCent1*RanVeloz/)
