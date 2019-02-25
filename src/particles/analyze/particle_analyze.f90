@@ -154,6 +154,9 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'TODO-DEFINE-PARAME
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'TODO-DEFINE-PARAMETER\n'//&
                                                              'Flag, if the current calculation is a restart. '&
                                                            , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output of porous BCs such pumping speed, removal '//&
+                                                             'probability and pressure (normalized with the given pressure). '//&
+                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -347,10 +350,10 @@ IF (CalcPartBalance) THEN
   SDEALLOCATE(nPartOut)
   SDEALLOCATE(PartEkinIn)
   SDEALLOCATE(PartEkinOut)
-  ALLOCATE( nPartIn(nSpecies)     &
-          , nPartOut(nSpecies)    &
-          , PartEkinOut(nSpecies) &
-          , PartEkinIn(nSpecies)  )
+  ALLOCATE( nPartIn(1:nSpecAnalyze)     &
+          , nPartOut(1:nSpecAnalyze)    &
+          , PartEkinOut(1:nSpecAnalyze) &
+          , PartEkinIn(1:nSpecAnalyze)  )
   nPartIn=0
   nPartOut=0
   PartEkinOut=0.
@@ -358,8 +361,8 @@ IF (CalcPartBalance) THEN
 #if defined(LSERK) || defined(ROS) || defined(IMPA) 
   SDEALLOCATE( nPartInTmp)
   SDEALLOCATE( PartEkinInTmp)
-  ALLOCATE( nPartInTmp(nSpecies)     &
-          , PartEkinInTmp(nSpecies)  )
+  ALLOCATE( nPartInTmp(1:nSpecAnalyze)     &
+          , PartEkinInTmp(1:nSpecAnalyze)  )
   PartEkinInTmp=0.
   nPartInTmp=0
 #endif
@@ -420,6 +423,10 @@ IF(DoPartAnalyze)THEN
 END IF
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
+! Output for porous BC: Pump averaged values
+CalcPorousBCInfo = GETLOGICAL('CalcPorousBCInfo','.FALSE.')
+IF(CalcPorousBCInfo) DoPartAnalyze = .TRUE.
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -457,9 +464,6 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBSplitTime, LBPauseTime
-#endif /*USE_LOADBALANCE*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
@@ -470,6 +474,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
+USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -481,7 +486,7 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec, OutputCounter
+INTEGER             :: unit_index, iSpec, OutputCounter, iPBC
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
@@ -508,17 +513,11 @@ REAL                :: NumSpecTmp(nSpecAnalyze)
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
-#if USE_LOADBALANCE
-REAL                :: tLBStart
-#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
   END IF
   IF (.NOT.DoPartAnalyze) RETURN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
   IF (useDSMC) THEN
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
@@ -586,12 +585,12 @@ REAL                :: tLBStart
           OutputCounter = OutputCounter + 1
         END IF
         IF (CalcPartBalance) THEN
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -660,12 +659,12 @@ REAL                :: tLBStart
           END DO
         END IF
         IF (CalcPartBalance) THEN
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          DO iSpec=1, nSpecies
+          DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A9,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinOut-',iSpec,' '
             OutputCounter = OutputCounter + 1
@@ -765,6 +764,22 @@ REAL                :: tLBStart
               OutputCounter = OutputCounter + 1
             END DO
           END IF
+        END IF
+        IF(CalcPorousBCInfo) THEN
+          DO iPBC = 1, nPorousBC
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Measure',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PumpSpeed-Control',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-RemovalProbability',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I2.2,A,A5)',ADVANCE='NO') OutputCounter,'-PorousBC-',iPBC,'-PressureNorm',' '
+            OutputCounter = OutputCounter + 1
+          END DO
         END IF
         IF(DSMC%CalcQualityFactors) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -881,14 +896,17 @@ REAL                :: tLBStart
 !===================================================================================================================================
 #ifdef MPI
   IF (PartMPI%MPIRoot) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      IF(nSpecies.GT.1) THEN
+        nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
+        nPartOut(nSpecies+1)    = SUM(nPartOut(1:nSpecies))
+        PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
+        PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
+      END IF
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -898,15 +916,22 @@ REAL                :: tLBStart
       MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
     END IF
 #endif
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        CALL MPI_REDUCE(MPI_IN_PLACE,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+        IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
+          ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
+          ! Other variales are averaged over the elements
+          PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
+        END IF
+      END DO
+    END IF
   ELSE ! no Root
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartOut,RECBIM  ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -914,11 +939,13 @@ REAL                :: tLBStart
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
     END IF
 #endif
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+      END DO
+    END IF
   END IF
 #endif /*MPI*/
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -964,11 +991,11 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartCharge(3)
     END IF
     IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
@@ -1008,11 +1035,11 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
     IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartEkinIn(iSpec)
       END DO
-      DO iSpec=1, nSpecies
+      DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PartEkinOut(iSpec)
       END DO
@@ -1100,6 +1127,22 @@ IF (PartMPI%MPIROOT) THEN
         END DO
       END IF
     END IF
+    IF(CalcPorousBCInfo) THEN
+      DO iPBC = 1, nPorousBC
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(2)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(3)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(4)
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PorousBC(iPBC)%Output(5)
+        OutputCounter = OutputCounter + 1
+      END DO
+    END IF
     IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCollProb
@@ -1128,15 +1171,16 @@ IF (PartMPI%MPIROOT) THEN
   END IF
 #endif    /* MPI */
 
-  !104    FORMAT (e25.14)
+! Reset output variables
+IF(CalcPorousBCInfo) THEN
+  DO iPBC = 1,nPorousBC
+    PorousBC(iPBC)%Output(1:5) = 0.
+  END DO
+END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF( CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
 #if ( PP_TimeDiscMethod ==42 )
 ! hard coded
 ! array not allocated

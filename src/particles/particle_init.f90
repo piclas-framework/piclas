@@ -164,8 +164,6 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
 CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
-                                                                 , '100000')
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
@@ -985,7 +983,7 @@ USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag
-USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
+USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
@@ -996,6 +994,9 @@ USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
 USE MOD_ESBGK_Init                 ,ONLY: InitESBGK
+USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC
+USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
+USE MOD_Restart_Vars,               ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
@@ -1024,6 +1025,9 @@ END IF
 CALL InitializeVariables()
 IF(useBGField) CALL InitializeBackgroundField()
 
+! Read-in number of porous boundaries
+nPorousBC = GETINT('Part-nPorousBC', '0')
+
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
 
@@ -1047,9 +1051,12 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag.OR.(nPorousBC.GT.0)) THEN
   CALL InitParticleBoundarySampling()
 END IF
+
+! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
+IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
@@ -1069,6 +1076,11 @@ END IF
 ! has to be called AFTER InitializeVariables and InitDSMC 
 CALL InitParticleCommSize()
 #endif
+
+! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
+IF(.NOT.DoRestart) THEN
+  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
+END IF
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -1334,23 +1346,6 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-! predefine random vectors
-NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
-IF ((usevMPF).OR.(useDSMC)) THEN
-  ALLOCATE(RandomVec(NumRanVec, 3))
-  RandomVec = 0
-  DO iVec = 1, NumRanVec  ! calculation of NumRanVec different Vectors
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = 1 - 2*iRan
-    aVec              = SQRT(1 - bVec**2)
-    RandomVec(iVec,1) = bVec
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = Pi *2 * iRan
-    RandomVec(iVec,2) = aVec * COS(bVec)
-    RandomVec(iVec,3) = aVec * SIN(bVec)
-  END DO
-END IF
-
 ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          LastPartPos(1:PDM%maxParticleNumber,1:3)     , &
          Pt(1:PDM%maxParticleNumber,1:3)              , &
@@ -1594,7 +1589,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_NUMDENS,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
@@ -2808,9 +2803,6 @@ DO iSpec = 1,nSpecies
   IF (exitTrue) EXIT
 END DO
 
-
-
-
 IF(enableParticleMerge) THEN
  CALL DefinePolyVec(vMPFMergePolyOrder) 
  CALL DefineSplitVec(vMPFMergeCellSplitOrder)
@@ -3223,7 +3215,6 @@ SDEALLOCATE(PartIsImplicit)
 #endif /*defined(IMPA)*/
 !SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
-SDEALLOCATE(RandomVec)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartSpecies)

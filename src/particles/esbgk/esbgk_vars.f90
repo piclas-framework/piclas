@@ -30,9 +30,9 @@ LOGICAL                                        :: BGKDoAveragingCorrect
 LOGICAL                                        :: BGKUseQuantVibEn
 REAL                                           :: BGKMinCFL = 1.0
 INTEGER                                        :: BGKAdaptTimeStep
-INTEGER                      :: SBGKEnergyConsMethod
+INTEGER                                        :: SBGKEnergyConsMethod
 REAL                                           :: BGKAcceleration
-LOGICAL                         	       :: BGKDoVibRelaxation
+LOGICAL                                        :: BGKDoVibRelaxation
 
 LOGICAL                                        :: DoBGKCellSplitting
 REAL                         :: BGKSplittingDens

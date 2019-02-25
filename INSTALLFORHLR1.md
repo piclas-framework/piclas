@@ -15,7 +15,7 @@ Example submit script:
     #SBATCH --time=04:00:00
     #SBATCH --job-name=PLACEHOLDER
     #SBATCH --partition multinode
-    #SBATCH --mail-user=nizenkov@irs.uni-stuttgart.de
+    #SBATCH --mail-user=your@mail.de
     #SBATCH --mail-type=ALL
     
     module load mpi/impi/2018

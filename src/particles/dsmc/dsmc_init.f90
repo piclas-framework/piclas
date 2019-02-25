@@ -588,7 +588,7 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
     ! Check whether calculation of instantaneous translational temperature is required
-    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2)) THEN
+    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2).OR.DSMC%CalcQualityFactors) THEN
       ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
       DSMC%InstantTransTemp = 0.0
     END IF
@@ -1284,8 +1284,25 @@ __STAMP__&
 ,'wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
         END SELECT
       ELSE
-        TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
-        TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        IF(Species(iSpecies)%Surfaceflux(iInit)%Adaptive) THEN
+          SELECT CASE(Species(iSpecies)%Surfaceflux(iInit)%AdaptiveType)
+            CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+              TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+              TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+            CASE(2) ! adaptive Outlet/freestream
+              ElemID = PEM%Element(iPart)
+              TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
+                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
+              TRot = TVib
+            CASE DEFAULT
+              CALL abort(&
+              __STAMP__&
+              ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+          END SELECT
+        ELSE
+          TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
+          TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
+        END IF
       END IF
     CASE DEFAULT
       CALL abort(&
