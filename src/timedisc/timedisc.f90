@@ -4298,6 +4298,8 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif /*MPI*/
 USE MOD_ESBGK                  ,ONLY: ESBGK_main
 USE MOD_ESBGK_Vars             ,ONLY: BGKAdaptTimeStep, BGKMinCFL
+USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -4357,6 +4359,9 @@ ELSE
   ELSE
     CALL ParticleTracing()
   END IF
+END IF
+IF (nPorousBC.GT.0) THEN
+  CALL PorousBoundaryRemovalProb_Pressure()
 END IF
 IF(MeasureTrackTime) THEN
   CALL CPU_TIME(TimeEnd)
