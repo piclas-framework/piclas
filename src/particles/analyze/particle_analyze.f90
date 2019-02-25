@@ -579,7 +579,7 @@ INTEGER             :: dir
         OPEN(unit_index,file=TRIM(outfile))
         !CALL FLUSH (unit_index)
         !--- insert header
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
         IF (CalcNumSpec) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -2540,7 +2540,7 @@ IF ( DSMC%ElectronicModel ) THEN
         iunit=GETFREEUNIT()
         OPEN(UNIT=iunit,FILE=FileNameTransition,FORM='FORMATTED',STATUS='UNKNOWN')
 !         ! writing header
-        WRITE(iunit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(iunit,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
         ii = 2
         DO iSpec2 = 1, nSpecies
           DO iQua1 = 0, MaxElecQua
@@ -2619,7 +2619,7 @@ END SUBROUTINE WriteEletronicTransition
 !     OPEN(NEWUNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
 !     !CALL FLUSH (iunit)
 !      ! writing header
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') '001-TIME', ' '
 !      WRITE(iunit,'(A1)',ADVANCE='NO') ','
 !      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
 !      WRITE(iunit,'(A1)',ADVANCE='NO') ','
@@ -2714,7 +2714,7 @@ INTEGER,PARAMETER                        :: nOutputVar=10
 INTEGER,PARAMETER                        :: nOutputVar=9
 #endif
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time',     &
+    '001-time',     &
     'PartNum',  &
     'PartPosX', &
     'PartPosY', &
@@ -2839,7 +2839,7 @@ INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
 INTEGER,PARAMETER                        :: nOutputVar=13
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time',     &
+    '001-time',     &
     'PartPosX_Analytic', &
     'PartPosY_Analytic', &
     'PartPosZ_Analytic', &

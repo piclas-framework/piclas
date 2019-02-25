@@ -981,7 +981,7 @@ IF (DoPartAnalyze) THEN
         !CALL FLUSH (unit_index)
         !--- insert header
       
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-nBBChecks     '
           OutputCounter = OutputCounter + 1
