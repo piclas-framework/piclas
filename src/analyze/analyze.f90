@@ -915,7 +915,7 @@ IF(DoPerformErrorCalc)THEN
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
     AnalyzeCount = 0
     AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
