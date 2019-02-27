@@ -52,7 +52,6 @@ IF (SolidSimFlag) THEN
   CASE (3)
     CALL SMCR_Diffusion()
     CALL SMCR_PartDesorb()
-    !CALL AnalyzePartitionTemp()
   END SELECT
 END IF
 
@@ -188,24 +187,15 @@ IF (PartSurfaceModel.GT.0) THEN
                 SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
                       + (REAL(Adsorption%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
                       / maxPart) * REAL(numSites)
-                ! convert to integer adsorbates
-                new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-                IF (new_adsorbates.NE.0) THEN
-                  ! Adjust tracking of adsorbing background particles
-                  CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                    - new_adsorbates
-                END IF
-              ELSE ! additional check if coverage changed but adsorbnum_tmp is not zero while sumadsorbpart is
-                ! convert to integer adsorbates
-                new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-                IF (new_adsorbates.NE.0) THEN
-                  ! Adjust tracking of adsorbing background particles
-                  CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-                  SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                    - new_adsorbates
-                END IF
               END IF ! SumAdsorbPart!=0
+              ! convert to integer adsorbates
+              new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+              IF (new_adsorbates.NE.0) THEN
+                ! Adjust tracking of adsorbing background particles
+                CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
+                SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                                  - new_adsorbates
+              END IF
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
             END SELECT
 ! 3. sample adsorption coverage

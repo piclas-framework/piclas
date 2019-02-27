@@ -832,6 +832,7 @@ IF ( ANY(BlockingNeigh(Coordination,1:3)) ) THEN
   DO iNeigh = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%nNeighbours
     IF (.NOT.SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%IsNearestNeigh(SurfPos,iNeigh)) CYCLE
     NeighCoord = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighSite(SurfPos,iNeigh)
+    IF (NeighCoord.EQ.0) CYCLE ! outside of boundaries of lattice
     IF ( .NOT.BlockingNeigh(Coordination,NeighCoord) ) CYCLE
     ASSOCIATE (NeighSpec => SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(NeighCoord)%Species( &
                             SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coordination)%NeighPos(SurfPos,iNeigh)))
@@ -958,7 +959,7 @@ END ASSOCIATE
 END FUNCTION SampleAdsorptionHeat
 
 
-SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID)
+SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID,SampleFlag)
 !===================================================================================================================================
 !> Routine for adjusting the number of Adsorbates for the adsorbate background distribution (wallmodel 3)
 !> in case adsorption took place in SMCR_PartAdsorb and Coverage changed sufficiently (depending on particle weighting)
@@ -981,86 +982,113 @@ USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 ! INPUT / OUTPUT VARIABLES 
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,SpecID
 INTEGER,INTENT(INOUT)            :: adsorbates_num
+LOGICAL,INTENT(IN),OPTIONAL      :: SampleFlag
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: dist, PartBoundID
-INTEGER                          :: Coord, Surfnum, Surfpos, UsedSiteMapPos, nSites, nSitesRemain
+INTEGER                          :: Coord, nEmptySites, nAdsorbates, Surfpos, UsedSiteMapPos, nSites, nSitesRemain
+INTEGER                          :: ntreated, SitesRemain
 REAL                             :: RanNum
+LOGICAL                          :: LocSampleFlag
 !===================================================================================================================================
-IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
-      + (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
-      / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
-      * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
-      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
+IF (PRESENT(SampleFlag)) THEN
+  LocSampleFlag = SampleFlag
+ELSE
+  LocSampleFlag = .FALSE.
+END IF
+IF (LocSampleFlag) THEN
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
+        + (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
+        / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
+  END IF
 END IF
 
 PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
 IF (adsorbates_num.GT.0) THEN
   ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
-  dist = 1
+  ! do this only if chosen surface position is not occupied
   Coord = Adsorption%Coordination(PartBoundID,SpecID)
-  Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+  SitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
   ! check if new_adsorbates greater than number of empty adsorbate-sites on surface and correct to be added number
   ! the remaining number of to be added particles is still kept in tmp array
-  IF ((SurfNum - adsorbates_num).LT.0) THEN
-!    CALL abort(&
-!__STAMP__&
-!,'Error in AdjustReconstructMapNum: Too many new Adsorbates! not enough Sites for Coordination:' &
-!,Adsorption%Coordination(PartBoundID,SpecID))
-    adsorbates_num = SurfNum
+  IF ((SitesRemain - adsorbates_num).LT.0) THEN
+    adsorbates_num = SitesRemain
   END IF
-  DO WHILE (dist.LE.adsorbates_num)
+  ntreated = 0
+  dist = 0
+  nEmptySites = SitesRemain
+  DO WHILE (ntreated.LT.adsorbates_num .AND. nEmptySites.GT.0)
     CALL RANDOM_NUMBER(RanNum)
-    Surfpos = 1 + INT(Surfnum * RanNum)
+    Surfpos = 1 + INT(nEmptySites * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-    CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.FALSE.,relaxation=.TRUE.)
+    IF (.NOT.SpaceOccupied(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos)) THEN
+      CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.FALSE.,relaxation=.TRUE.)
+      ntreated = ntreated + 1
+    END IF
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
-    Surfnum = Surfnum - 1
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nEmptySites)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nEmptySites) = UsedSiteMapPos
+    nEmptySites = nEmptySites - 1
     dist = dist + 1
   END DO
-  SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = Surfnum
+  IF (ntreated.LT.dist) THEN
+    ! sort usedsitemap array
+    nEmptySites = SitesRemain
+    SurfPos = nEmptySites
+    DO dist=1,SitesRemain
+      UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
+      IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos).NE.0) THEN
+        ! rearrange UsedSiteMap-Surfpos-array
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nEmptySites)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nEmptySites) = UsedSiteMapPos
+        nEmptySites = nEmptySites - 1
+      END IF
+      SurfPos = SurfPos - 1
+    END DO
+  END IF
+  adsorbates_num = ntreated
+  SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nEmptySites
 ELSE IF (adsorbates_num.LT.0) THEN
   ! remove adsorbates randomly on the surface on the correct site and assign surface atom bond order
   dist = -1
   Coord = Adsorption%Coordination(PartBoundID,SpecID)
   nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
   nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
-  Surfnum = nSites - nSitesRemain
+  nAdsorbates = nSites - nSitesRemain
   ! check if new_adsorbates lower than number of adsorbates tracked on surface and correct to be removed number
   ! the remaining number of to be removed particles is still kept in tmp array
-  IF ((SurfNum - ABS(adsorbates_num)).LT.0) THEN
-!    CALL abort(&
-!__STAMP__&
-!,'Error in AdjustReconstructMapNum: Too few Adsorbates on surface to remove:' &
-!,Adsorption%Coordination(PartBoundID,SpecID))
-    adsorbates_num = -SurfNum
+  IF ((nAdsorbates - ABS(adsorbates_num)).LT.0) THEN
+    adsorbates_num = -nAdsorbates
   END IF
   DO WHILE (dist.GE.adsorbates_num)
     CALL RANDOM_NUMBER(RanNum)
-    Surfpos = 1 + INT(Surfnum * RanNum)
+    Surfpos = 1 + INT(nAdsorbates * RanNum)
     UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos)
     CALL UpdateSurfPos(SurfSideID,SubSurfxi,SubSurfeta,Coord,UsedSiteMapPos,SpecID,.TRUE.,relaxation=.TRUE.)
     ! rearrange UsedSiteMap-Surfpos-array
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos) = &
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1)
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1) = UsedSiteMapPos
-    Surfnum = Surfnum - 1
+    nAdsorbates = nAdsorbates - 1
     nSitesRemain = nSitesRemain + 1
     dist = dist - 1
   END DO
   SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
 END IF
 
-IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-  SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
-      - (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
-      / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
-      * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
-      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
+IF (LocSampleFlag) THEN
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
+        - (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
+        / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
+        * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
+        * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID),8)) / Species(1)%MacroParticleFactor
+  END IF
 END IF
 
 END SUBROUTINE SMCR_AdjustMapNum

@@ -43,7 +43,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL, GETLOGICAL, GETINT, GETINTARRAY
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, BlockingNeigh
-USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos
+USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, SMCR_AdjustMapNum
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -261,47 +261,27 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
-  DO iSubSurf = 1,nSurfSample
-  DO jSubSurf = 1,nSurfSample
+  DO iSubSurf = 1,nSurfSample ;  DO jSubSurf = 1,nSurfSample
     DO iSpec = 1,nSpecies
-      ! adjust coverage to actual discrete value
-      Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) &
-                  * SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(Adsorption%Coordination(PartboundID,iSpec)))
+      ! adjust coverage to discrete integer value
+      Adsorbates = INT(Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec)*SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
 #if (PP_TimeDiscMethod==42)
       IF(Adsorption%CoverageReduction) THEN
         Adsorption%CovReductionStep(iSpec) = NINT( REAL(Adsorbates) / (tend/ManualTimeStep))
         IF (Adsorption%CovReductionStep(iSpec).LE.0) Adsorption%CovReductionStep(iSpec) = 1
       END IF
 #endif
-      Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
-          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
       IF (SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Adsorption%Coordination(PartboundID,iSpec)).LT.Adsorbates) THEN
         CALL abort(&
-  __STAMP__&
-  ,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages for coordination:', &
-  Adsorption%Coordination(PartboundID,iSpec))
+__STAMP__&
+,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages for coordination:', &
+Adsorption%Coordination(PartboundID,iSpec))
       END IF
-      ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
-      dist = 1
-      Coord = Adsorption%Coordination(PartboundID,iSpec)
-      Surfnum = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord)
-      DO WHILE (dist.LE.Adsorbates)
-        CALL RANDOM_NUMBER(RanNum)
-        Surfpos = 1 + INT(Surfnum * RanNum)
-        UsedSiteMapPos = SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos)
-        ! add species to position and assign bond order of respective surface atoms in the surface lattice
-        CALL UpdateSurfPos(iSurfSide,iSubSurf,jSubSurf,Coord,UsedSiteMapPos,iSpec,.FALSE.,relaxation=.TRUE.)
-        ! rearrange UsedSiteMap-Surfpos-array
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
-            SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum)
-        SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
-        Surfnum = Surfnum - 1
-        dist = dist + 1
-      END DO
-      SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(Coord) = Surfnum
+      CALL SMCR_AdjustMapNum(iSubSurf,jSubSurf,iSurfSide,Adsorbates,iSpec)
+      Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = REAL(Adsorbates) &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(3))
     END DO
-  END DO
-  END DO
+  END DO ; END DO
   END DO
 END IF
 

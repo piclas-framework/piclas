@@ -205,9 +205,9 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 ! calculate probability for molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ReactNum = 0
-! check for occupation of nearest Neighbours
+! check for occupation of nearest Neighbours or wether 
 IF ( (SiteSpec.EQ.0) .AND. (.NOT.SpaceOccupied(SurfID,subsurfxi,subsurfeta,Coord,SurfPos)) &
-    .AND. (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(iSpec)).LE.0) ) THEN
+    .AND. (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(iSpec)).LT.1)) THEN
   ! calculation of molecular adsorption probability
   E_a = 0.
   E_d = 0.1 * Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,iSpec,Surfpos,.TRUE.) * Boltzmannconst
@@ -234,8 +234,8 @@ DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%nNeighbours
             SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
             .EQ.0) ) THEN
         n_empty_Neigh(Coord2) = n_empty_Neigh(Coord2) + 1
-      n_Neigh(Coord2) = n_Neigh(Coord2) + 1
-      NeighbourID(Coord2,n_Neigh(Coord2)) = i
+        n_Neigh(Coord2) = n_Neigh(Coord2) + 1
+        NeighbourID(Coord2,n_Neigh(Coord2)) = i
       END IF
     END IF
   END DO
@@ -250,8 +250,8 @@ DO ReactNum = 1,(Adsorption%DissNum)
   kSpec = Adsorption%DissocReact(2,DissocReactID,iSpec)
   IF ((jSpec.NE.0) .AND. (kSpec.NE.0)) THEN !if 2 resulting species, dissociation possible
     ! in one of the last iterations the surface-coverage of one resulting species was saturated
-    IF (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(jSpec)).GT.0 .OR. &
-        INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(kSpec)).GT.0 ) THEN
+    IF (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(jSpec)).GE.1. .OR. &
+        INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(kSpec)).GE.1. ) THEN
       CYCLE
     END IF
     jCoord = Adsorption%Coordination(PartBoundID,jSpec)
@@ -1664,9 +1664,7 @@ INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! diffusion into equilibrium distribution
-DO iSurf = 1,SurfMesh%nSides
-DO jSubSurf = 1,nSurfSample
-DO iSubSurf = 1,nSurfSample
+DO iSurf=1,SurfMesh%nSides ; DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
 
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
@@ -1684,6 +1682,8 @@ DO iSubSurf = 1,nSurfSample
     DO AdsorbID = nSitesRemain+1,nSites,1
       Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
       SpecID = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species(Surfpos)
+
+      ! choose Random vacant neighbour position
       n_equal_site_Neigh = 0
       free_Neigh_pos(:) = 0
 
@@ -1692,7 +1692,7 @@ DO iSubSurf = 1,nSurfSample
         IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
           IF ( (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species( &
               SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
-            ! check for occupation with neirest Neighbours of position
+            ! check for occupation with nearest Neighbours of position
             IF (SpaceOccupied(iSurf,iSubSurf,jSubSurf,Coord &
                 ,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i))) CYCLE
             n_equal_site_Neigh = n_equal_site_Neigh + 1
@@ -1750,9 +1750,7 @@ DO iSubSurf = 1,nSurfSample
         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
   END IF
-END DO  !iSubSurf = 1,nSurfSample
-END DO  !jSubSurf = 1,nSurfSample
-END DO  !iSurf = 1,SurfMesh%nSides
+END DO ; END DO ; END DO !iSubSurf = 1,nSurfSample; jSubSurf = 1,nSurfSample ; iSurf = 1,SurfMesh%nSides
 
 END SUBROUTINE SMCR_Diffusion
 
