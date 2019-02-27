@@ -176,13 +176,15 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Vars         ,ONLY: nSpecies, ManualTimeStep
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Restart_Vars          ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -318,10 +320,23 @@ IF(CalcElectronTemperature)THEN
   CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
 END IF
 !--------------------------------------------------------------------------------------------------------------------
-
-
+! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
+!             = 1: Analyze and output every time step
+!             = 0: Single output at the end, averaged over number of iterations (HUGE: MOD function can still be used to determine
+!                  whether an output has to be performed)
+!             = N: Analyze and output every Nth time step, average over N number of iterations
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
+
+#if (PP_TimeDiscMethod == 42)
+  IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
+    IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep),PartAnalyzeStep).NE.0) THEN
+      CALL abort(&
+        __STAMP__&
+        ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
+    END IF
+  END IF
+#endif
 
 DoPartAnalyze = .FALSE.
 ! only verifycharge and CalcCharge if particles are deposited onto the grid
@@ -2436,7 +2451,7 @@ IF(PartAnalyzeStep.GT.1)THEN
     END DO ! iReac=1, ChemReac%NumOfReact
   ELSE
     DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / PartAnalyzeStep 
+      RRate(iReac) = RRate(iReac) / MIN(PartAnalyzeStep,iter)
     END DO ! iReac=1, ChemReac%NumOfReact
   END IF
 END IF
