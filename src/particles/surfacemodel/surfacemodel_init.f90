@@ -792,13 +792,13 @@ INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
 
-SurfMesh%CatalyticSampSize=(5+nSpecies+nSpecies+(Adsorption%RecombNum*nSpecies))
+SurfMesh%CatalyticSampSize=(5+nSpecies+nSpecies+2*(Adsorption%ReactNum*nSpecies))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%Adsorption(1:5+nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Adsorption=0.
   ALLOCATE(SampWall(iSide)%Accomodation(1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Accomodation=0.
-  ALLOCATE(SampWall(iSide)%Reaction(1:Adsorption%RecombNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
+  ALLOCATE(SampWall(iSide)%Reaction(1:2*Adsorption%ReactNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%Reaction=0.
 END DO
 #ifdef MPI

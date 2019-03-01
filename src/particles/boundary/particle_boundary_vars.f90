@@ -96,8 +96,9 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 3-nSpecies+2: Coverages for certain species
   REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
                                                                        ! (nSpecies,p,q)
-  REAL,ALLOCATABLE                      :: Reaction(:,:,:,:)           ! 1-nReact,1-nSpecies: E-R + LHrecombination coefficient
-                                                                       ! (nReact,nSpecies,p,q)
+  REAL,ALLOCATABLE                      :: Reaction(:,:,:,:)           ! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient
+                                                                       ! (2*nReact,nSpecies,p,q) 
+                                                                       ! double entries for surface and adsorb react counter
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),
   !                                                                    ! 7-9 E_vib (pre, wall, re)

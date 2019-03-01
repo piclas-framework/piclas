@@ -570,7 +570,7 @@ INTEGER                           :: iSampleReact
 REAL                              :: loc_SurfActE(0:Adsorption%ReactNum+Adsorption%NumOfExchReact)
 REAL                              :: loc_Surfnu(0:Adsorption%ReactNum+Adsorption%NumOfExchReact)
 #endif
-INTEGER                           :: NumDesorbLH(1:nSpecies,1:Adsorption%RecombNum)
+INTEGER                           :: NumSurfReact(1:nSpecies,1:Adsorption%ReactNum)
 #if USE_LOADBALANCE
 INTEGER                           :: ElemID
 #endif /*USE_LOADBALANCE*/
@@ -635,7 +635,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
   remainNum(:) = 0
   P_react_back(:) = 0.
 
-  NumDesorbLH(:,:) = 0
+  NumSurfReact(:,:) = 0
 
   DO Coord=1,3
     nSites(Coord) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(Coord)
@@ -1285,6 +1285,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           !----  Sampling of energies
           SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
+          NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
 #if (PP_TimeDiscMethod==42)
         D_A = Adsorption%EDissBond(iReact,SpecID)
@@ -1378,8 +1379,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
           !----  Sampling of energies
           SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
-          !NumDesorbLH(Prod_Spec2,iRecombReact) = NumDesorbLH(Prod_Spec2,iRecombReact) + 1
-          NumDesorbLH(SpecID,iRecombReact) = NumDesorbLH(SpecID,iRecombReact) + 1
+          NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
 #if (PP_TimeDiscMethod==42)
         D_AB = Adsorption%EDissBond(iReact,SpecID)
@@ -1592,11 +1592,11 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      DO iReact = 1,Adsorption%RecombNum
-        IF (NumDesorbLH(iSpec,iReact).GT.0) THEN
+      DO iReact = Adsorption%ReactNum+1,Adsorption%ReactNum*2
+        IF (NumSurfReact(iSpec,iReact).GT.0) THEN
           SampWall(iSurf)%Reaction(iReact,iSpec,iSubSurf,jSubSurf) = &
               SampWall(iSurf)%Reaction(iReact,iSpec,iSubSurf,jSubSurf) &
-              + ((REAL(NumDesorbLH(iSpec,iReact)) / REAL(numSites)) * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+              + ((REAL(NumSurfReact(iSpec,iReact)) / REAL(numSites)) * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
               * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor)
         END IF
       END DO

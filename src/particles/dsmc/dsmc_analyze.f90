@@ -442,7 +442,7 @@ nVarSpec = 1
 IF(PartSurfaceModel.GT.0) THEN
   nAdsSamples = 5
   nVar = nVar + nAdsSamples
-  nVarSpec = nVarSpec + 3
+  nVarSpec = nVarSpec + 2 + 2*Adsorption%ReactNum
 END IF
 
 ! Allocate the output container
@@ -506,14 +506,14 @@ DO iSurfSide=1,SurfMesh%nSides
           END IF
           ! calculate coverage
           MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%Adsorption(5+iSpec,p,q) * dt / TimeSample
-          ! calculate recombination coefficient
-          DO iReact=1,Adsorption%RecombNum
-            IF (SampWall(iSurfSide)%State(12+iSpec,p,q).EQ.0) THEN
-              MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec)
-            ELSE
-              MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) = MacroSurfaceSpecVal(4,p,q,iSurfSide,iSpec) &
-                  + SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) * 2. / SampWall(iSurfSide)%State(12+iSpec,p,q)
-            END IF
+          ! calculate reaction counters
+          DO iReact=1,Adsorption%ReactNum
+            ! first part are surface collision processes
+            MacroSurfaceSpecVal(3+iReact,p,q,iSurfSide,iSpec) = &
+                SampWall(iSurfSide)%Reaction(iReact,iSpec,p,q) / TimeSample
+            ! second part are adsorbate processes
+            MacroSurfaceSpecVal(3+Adsorption%ReactNum+iReact,p,q,iSurfSide,iSpec) = &
+                SampWall(iSurfSide)%Reaction(Adsorption%ReactNum+iReact,iSpec,p,q) / TimeSample
           END DO
         END IF
       END DO ! iSpec=1,nSpecies

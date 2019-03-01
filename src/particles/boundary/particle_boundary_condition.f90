@@ -2194,6 +2194,16 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
   Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) &
      + AdsorptionEnthalpie/BoltzmannConst
 #endif
+  ! Sample recombination reaction counter
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    IF ( PartSurfaceModel.EQ.3) THEN
+      DO iReact = 1,Adsorption%DissNum
+        IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.outSpec(1) .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+          SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
+        END IF
+      END DO
+    END IF
+  END IF
   IF ((KeepWallparticles).OR.&
       (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     VelXold = PartState(PartID,4)
@@ -2267,7 +2277,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(1) &
      + AdsorptionEnthalpie/BoltzmannConst
 #endif
-  ! Sample recombination coefficient
+  ! Sample recombination reaction counter
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     IF (PartSurfaceModel.EQ.2) THEN
       DO iReact = 1,Adsorption%RecombNum
@@ -2278,7 +2288,8 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
     ELSE IF ( PartSurfaceModel.EQ.3) THEN
       DO iReact = 1,Adsorption%RecombNum
         IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.outSpec(2))THEN
-          SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) = SampWall(SurfSideID)%Reaction(iReact,SpecID,p,q) + 1
+          SampWall(SurfSideID)%Reaction(Adsorption%DissNum+iReact,SpecID,p,q) = &
+              SampWall(SurfSideID)%Reaction(Adsorption%DissNum+iReact,SpecID,p,q) + 1
         END IF
       END DO
     END IF

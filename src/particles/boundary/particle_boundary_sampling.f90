@@ -1003,7 +1003,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           iPos=iPos+5+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%RecombNum
+          DO iReact=1,2*Adsorption%ReactNum
             SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Reaction(iReact,:,p,q)
             iPos=iPos+nSpecies
           END DO
@@ -1074,7 +1074,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
-          DO iReact=1,Adsorption%RecombNum
+          DO iReact=1,2*Adsorption%ReactNum
             SampWall(SurfSideID)%Reaction(iReact,:,p,q)=SampWall(SurfSideID)%Reaction(iReact,:,p,q) &
                                                        +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos=iPos+nSpecies
@@ -1105,6 +1105,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
+USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies,PartSurfaceModel
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
@@ -1122,9 +1123,9 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID
+CHARACTER(LEN=255)                  :: SpecID, ReactID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, nAdsSamples, iReact
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -1140,14 +1141,13 @@ END IF
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
-
 ! Create dataset attribute "SurfVarNames"
-IF (PartSurfaceModel.GT.0) THEN
-  nVar2D = 10
-  nVar2D_Spec=4
-ELSE
-  nVar2D = 5
-  nVar2D_Spec=1
+nVar2D = 5
+nVar2D_Spec = 1
+IF(PartSurfaceModel.GT.0) THEN
+  nAdsSamples = 5
+  nVar2D = nVar2D + nAdsSamples
+  nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
 END IF
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
@@ -1178,7 +1178,14 @@ IF(SurfCOMM%MPIOutputRoot)THEN
     IF (PartSurfaceModel.GT.0) THEN
       Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
       Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
-      Str2DVarNames(nVarCount+4) ='Spec'//TRIM(SpecID)//'_Recomb_Coeff'
+      DO iReact=1,Adsorption%ReactNum
+        WRITE(ReactID,'(I3.3)') iReact
+        Str2DVarNames(nVarCount+3+iReact) ='Spec'//TRIM(SpecID)//'_CollReact'//TRIM(ReactID)//'_Count'
+      END DO
+      DO iReact=1,Adsorption%ReactNum
+        WRITE(ReactID,'(I3.3)') iReact
+        Str2DVarNames(nVarCount+3+Adsorption%ReactNum+iReact) ='Spec'//TRIM(SpecID)//'_SurfReact'//TRIM(ReactID)//'_Count'
+      END DO
     END IF
     nVarCount=nVarCount+nVar2D_Spec
   END DO ! iSpec=1,nSpecies
