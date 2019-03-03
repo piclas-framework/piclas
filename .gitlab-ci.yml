@@ -764,13 +764,21 @@ gnu_PIC:
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-gnu_DSMC/:
+gnu_DSMC:
   <<: *defaults_gnu
   stage: reggie_weekly
   tags:
     - withmodules
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
+
+gnu_DSMC_Reservoir:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -782,7 +790,7 @@ gnu_DSMC/:
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-# intel_DSMC/:
+# intel_DSMC:
 #   <<: *defaults_intel
 #   stage: reggie_weekly
 #   tags:
