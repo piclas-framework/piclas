@@ -176,13 +176,15 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Vars         ,ONLY: nSpecies, ManualTimeStep
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Restart_Vars          ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -318,10 +320,23 @@ IF(CalcElectronTemperature)THEN
   CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemperatureCell(1:PP_nElems))
 END IF
 !--------------------------------------------------------------------------------------------------------------------
-
-
+! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
+!             = 1: Analyze and output every time step
+!             = 0: Single output at the end, averaged over number of iterations (HUGE: MOD function can still be used to determine
+!                  whether an output has to be performed)
+!             = N: Analyze and output every Nth time step, average over N number of iterations
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
+
+#if (PP_TimeDiscMethod == 42)
+  IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
+    IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep),PartAnalyzeStep).NE.0) THEN
+      CALL abort(&
+        __STAMP__&
+        ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
+    END IF
+  END IF
+#endif
 
 DoPartAnalyze = .FALSE.
 ! only verifycharge and CalcCharge if particles are deposited onto the grid
@@ -579,7 +594,7 @@ INTEGER             :: dir
         OPEN(unit_index,file=TRIM(outfile))
         !CALL FLUSH (unit_index)
         !--- insert header
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
         IF (CalcNumSpec) THEN
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -2425,7 +2440,9 @@ IF(PartMPI%MPIRoot)THEN
   END DO
 END IF
 ChemReac%NumReac = 0.
-
+ChemReac%ReacCount = 0
+ChemReac%ReacCollMean = 0.0
+ChemReac%ReacCollMeanCount = 0
 ! Consider Part-AnalyzeStep
 IF(PartAnalyzeStep.GT.1)THEN
   IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
@@ -2434,7 +2451,7 @@ IF(PartAnalyzeStep.GT.1)THEN
     END DO ! iReac=1, ChemReac%NumOfReact
   ELSE
     DO iReac=1, ChemReac%NumOfReact
-      RRate(iReac) = RRate(iReac) / PartAnalyzeStep 
+      RRate(iReac) = RRate(iReac) / MIN(PartAnalyzeStep,iter)
     END DO ! iReac=1, ChemReac%NumOfReact
   END IF
 END IF
@@ -2538,7 +2555,7 @@ IF ( DSMC%ElectronicModel ) THEN
         iunit=GETFREEUNIT()
         OPEN(UNIT=iunit,FILE=FileNameTransition,FORM='FORMATTED',STATUS='UNKNOWN')
 !         ! writing header
-        WRITE(iunit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(iunit,'(A6,A5)',ADVANCE='NO') '001-TIME', ' '
         ii = 2
         DO iSpec2 = 1, nSpecies
           DO iQua1 = 0, MaxElecQua
@@ -2617,7 +2634,7 @@ END SUBROUTINE WriteEletronicTransition
 !     OPEN(NEWUNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
 !     !CALL FLUSH (iunit)
 !      ! writing header
-!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
+!      WRITE(iunit,'(A8,A5)',ADVANCE='NO') '001-TIME', ' '
 !      WRITE(iunit,'(A1)',ADVANCE='NO') ','
 !      WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
 !      WRITE(iunit,'(A1)',ADVANCE='NO') ','
@@ -2712,7 +2729,7 @@ INTEGER,PARAMETER                        :: nOutputVar=10
 INTEGER,PARAMETER                        :: nOutputVar=9
 #endif
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time',     &
+    '001-time',     &
     'PartNum',  &
     'PartPosX', &
     'PartPosY', &
@@ -2837,7 +2854,7 @@ INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
 INTEGER,PARAMETER                        :: nOutputVar=13
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
-    'time',     &
+    '001-time',     &
     'PartPosX_Analytic', &
     'PartPosY_Analytic', &
     'PartPosZ_Analytic', &
@@ -3154,7 +3171,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iPart,iElem,RegionID
-REAL                 :: charge
+REAL                 :: charge, MPF
 !===================================================================================================================================
 
 ! nullify
@@ -3166,39 +3183,28 @@ ElectronDensityCell=0.
 ! loop over all particles and count the number of electrons per cell
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(usevMPF) THEN
+    MPF = PartMPF(iPart)
+  ELSE
+    MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF
   ASSOCIATE ( &
-    vMPF    => PartMPF(iPart)                                  ,& ! Variable MPF
-     MPF    => Species(PartSpecies(iPart))%MacroParticleFactor ,& ! Fixed MPF
     ElemID  => PEM%Element(iPart)                              )  ! Element ID
     ASSOCIATE ( &
       n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
       n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
       n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
       Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
-      IF(PDM%ParticleInside(iPart))THEN
-        charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
-        IF(PARTISELECTRON(iPart))THEN ! electrons
-          IF(usevMPF) THEN
-            n_e = n_e + vMPF
-          ELSE
-            n_e = n_e + MPF
-          END IF
-        ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
-          IF(usevMPF) THEN
-            n_i = n_i + vMPF
-            Z   = Z   + charge*vMPF
-          ELSE
-            n_i = n_i + MPF
-            Z   = Z   + charge*MPF
-          END IF
-        ELSE ! neutrals
-          IF(usevMPF) THEN
-            n_n  = n_n + vMPF
-          ELSE
-            n_n  = n_n + MPF
-          END IF
-        END IF
-      END IF ! ParticleInside
+      charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
+      IF(PARTISELECTRON(iPart))THEN ! electrons
+        n_e = n_e + MPF
+      ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
+        n_i = n_i + MPF
+        Z   = Z   + charge*MPF
+      ELSE ! neutrals
+        n_n  = n_n + MPF
+      END IF
     END ASSOCIATE
   END ASSOCIATE
 END DO ! iPart

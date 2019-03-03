@@ -878,7 +878,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
-        IF ( SpecDSMC(iSpec)%InterID .eq. 4) THEN
+        IF ( (SpecDSMC(iSpec)%InterID .eq. 4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
           SpecDSMC(iSpec)%MaxElecQuant = 0
         ELSE
           ALLOCATE( SpecDSMC(iSpec)%levelcounter         ( 0:size(SpecDSMC(iSpec)%ElectronicState,2)-1) , &
@@ -1022,7 +1022,7 @@ __STAMP__&
             END IF
           END IF
         END IF
-        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
               CALL abort(&
               __STAMP__&
@@ -1217,12 +1217,7 @@ IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
       __STAMP__,&
       "Read-in from electronic database requires the definition of species name! Species:",iSpec)
 END IF
-IF(SpecDSMC(iSpec)%FullyIonized)THEN ! if the ion is fully ionized, set dummy ground state with degeneracy=1 and energy=0
-  ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:1, 0:1 ) )
-  SpecDSMC(iSpec)%ElectronicState(1,0) = 1.0
-  SpecDSMC(iSpec)%ElectronicState(1,1) = 0.0
-  SpecDSMC(iSpec)%MaxElecQuant         = 1
-ELSE
+IF(.NOT.SpecDSMC(iSpec)%FullyIonized)THEN
   CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
 END IF
 END SUBROUTINE SetElectronicModel

@@ -1146,7 +1146,6 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -1191,6 +1190,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
                   ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF
@@ -1553,7 +1553,6 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -1593,6 +1592,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           IF(ChemReac%RecombParticle.EQ. 0) THEN
             Coll_pData(PairForRec)%NeedForRec = .TRUE.
             ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+            ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           ELSE
             ChemReac%RecombParticle = 0
           END IF
@@ -1994,7 +1994,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2102,6 +2101,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2122,7 +2122,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2206,6 +2205,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2226,7 +2226,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2310,6 +2309,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2330,7 +2330,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2392,6 +2391,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2412,7 +2412,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2474,6 +2473,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2638,7 +2638,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2692,6 +2691,7 @@ __STAMP__&
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
                   ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF

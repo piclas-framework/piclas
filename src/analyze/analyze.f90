@@ -1015,7 +1015,7 @@ IF(DoPerformErrorCalc)THEN
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
     AnalyzeCount = 0
     AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
@@ -1081,7 +1081,7 @@ IF (DoPartAnalyze) THEN
         !CALL FLUSH (unit_index)
         !--- insert header
       
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-nBBChecks     '
           OutputCounter = OutputCounter + 1
