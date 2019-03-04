@@ -411,7 +411,7 @@ DO iPBC = 1,nPorousBC
         + PorousBC(iPBC)%DeltaPumpingSpeedKi * Adaptive_MacroVal(13,ElemID,1)
     ! c) Calculate the removal probability if any particles hit the pump
     IF(SumPartPorousBC.GT.0) THEN
-      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PumpingSpeedTemp*SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,1:nSpecies)) * dt &
+      PorousBC(iPBC)%RemovalProbability(iPBCSideID) = PumpingSpeedTemp*SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies)) * dt &
                                                                   / (REAL(SumPartPorousBC)*PartWeight)
     ELSE
       PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
@@ -421,7 +421,7 @@ DO iPBC = 1,nPorousBC
       PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 1.0
       ! Setting pumping speed to maximum value (alpha=1)
       PorousBC(iPBC)%PumpingSpeedSide(iPBCSideID) = REAL(SumPartPorousBC)*PartWeight &
-                                                    / (SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,1:nSpecies))*dt)
+                                                    / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies))*dt)
     ELSE IF(PorousBC(iPBC)%RemovalProbability(iPBCSideID).LE.0.0) THEN
       PorousBC(iPBC)%RemovalProbability(iPBCSideID) = 0.0
       ! Avoiding negative pumping speeds
@@ -436,13 +436,13 @@ DO iPBC = 1,nPorousBC
     ! -------- Sampling for output in DSMCSurfState --------------------------------------------------------------------------------
     IF(DSMC%CalcSurfaceVal) THEN
       SampWall(SurfSideID)%PumpCapacity = SampWall(SurfSideID)%PumpCapacity + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) &
-                                                        * PartWeight / (SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,1:nSpecies))*dt)
+                                                        * PartWeight / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies))*dt)
     END IF
     ! -------- Sampling for output in PartAnalyze ----------------------------------------------------------------------------------
     IF(CalcPorousBCInfo) THEN
       ! Sampling the actual instantaneous pumping speed S (m^3/s) through the number of deleted particles  (-PumpSpeed-Measure-)
       PorousBC(iPBC)%Output(2) = PorousBC(iPBC)%Output(2) + REAL(PorousBC(iPBC)%Sample(iPBCSideID,2)) * PartWeight &
-                                                            / (SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,1:nSpecies))*dt)
+                                                            / (SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,1:nSpecies))*dt)
       IF(PorousBC(iPBC)%Sample(iPBCSideID,1).GT.0) THEN
         ! Counting only sides, where a particle hit the pump
         PorousBC(iPBC)%Output(1) = PorousBC(iPBC)%Output(1) + 1.
