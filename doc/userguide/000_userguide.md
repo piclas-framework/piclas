@@ -50,6 +50,6 @@ the simulation code's features from a user and a developer point of view.
 * Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.
 * Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. 
 * Simulation tutorials are contained in Chapter \ref{chap:tutorials}.
-* Additional installation guidelines for specific systems are given in Chapter \ref{chap:install_guide}.
+* Development guidelines and Git-specific issues are given in Chapter \ref{chap:develop_guide}.
 * A complete list of all parameters is given in Chapter \ref{chap:parameterfile}.
 <!-- * The unit test system used to test key routines with CTest is described in Chapter \ref{chap:unittest}. -->

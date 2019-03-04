@@ -1,8 +1,43 @@
-\hypertarget{install_guide}{}
+\hypertarget{develop_guide}{}
 
-# Installation guidelines \label{chap:install_guide}
+# Development guidelines \label{chap:develop_guide}
 
-This chapter contains guidelines to install the code from Github on specific systems.
+This chapter contains information about the development process and other issues concerning Git (GitLab/GitHub).
+
+## Development process
+
+Naming convention for branches, workflow for development, milestones etc.
+
+After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master.
+
+## Release and deploy
+
+### Collaborative Numerics Group
+
+The master branch of development group can be merged after the succesful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote
+
+       git remote add remote_name git@gitlab.com:collaborative-numerics-group/piclas/piclas.git
+
+Now you can checkout the most recent version of the master branch of the collaborative-numerics-group and create a local branch with that version (a simple checkout will create a detached HEAD state)
+
+       git fetch
+       git checkout -b branch_name remote_name/master
+
+The master branch of the development repository can now be merged into the newly created branch. Make sure to have the most recent version of the master branch (of the development repository) as well.
+
+       git merge origin/master
+
+Finally, the changes can be pushed from the *branch_name* to the master of collaborative-numerics-group
+
+       git push remote_name master
+
+If a tag has also been created, it should be pushed separately.
+
+       git push remote_name tag_name
+
+### GitHub
+
+Upon completion of a milestone leading to tagged version, the tag should be deployed to GitHub.
 
 ## Cloning and compiling at the HLRS \label{sec:cloninghlrs}
 
