@@ -3971,6 +3971,7 @@ __STAMP__&
       END IF
       Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = .FALSE.
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit   = .FALSE.
+      Species(iSpec)%Surfaceflux(iSF)%CircularInflow=.FALSE.
     END IF
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .OR. .NOT.noAdaptive) THEN
       !--- normalize VeloVecIC
@@ -4072,6 +4073,8 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
+    ELSE
+      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType = 0
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
@@ -4280,13 +4283,15 @@ DO iSpec=1,nSpecies
     END IF
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+                  1:BCdata_auxSF(currentBC)%SideNumber))
+        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
-              1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+        Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+      END IF
     END IF
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -4410,8 +4415,10 @@ DO iSpec=1,nSpecies
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
-          IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+            IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
+                .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          END IF
         END IF ! CircularInflow: check r-bounds
         IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -4776,8 +4783,8 @@ DO iSpec=1,nSpecies
         shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
     IF (.NOT.DoPoissonRounding .AND. .NOT. DoTimeDepInflow .AND. noAdaptive) THEN
