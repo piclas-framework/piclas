@@ -577,6 +577,15 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Check whether calculation of instantaneous translational temperature is required
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+    ! 3. Case: Temperature required for the mean free path with the VHS model
+    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
+    DSMC%InstantTransTemp = 0.0
+  END IF
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
   ! allocate internal energy arrays
     IF ( DSMC%ElectronicModel ) THEN
@@ -592,11 +601,6 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
-    ! Check whether calculation of instantaneous translational temperature is required
-    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2).OR.DSMC%CalcQualityFactors) THEN
-      ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
-      DSMC%InstantTransTemp = 0.0
-    END IF
     DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
