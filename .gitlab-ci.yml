@@ -834,10 +834,10 @@ github:
     - rm -rf piclas_github || true ;
     - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
     - cd piclas_github ;
-    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
-    - git commit -m 'truncated history before v1.0.0' ;
-    - git rebase --onto orphan_branch v1.0.0 master ;
-    - git branch -D orphan_branch ;
+##    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
+##    - git commit -m 'truncated history before v1.0.0' ;
+##    - git rebase --onto orphan_branch v1.0.0 master ;
+##    - git branch -D orphan_branch ;
     - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
     - git push --force piclas-framework master ;
 #    - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../
