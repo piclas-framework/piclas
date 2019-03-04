@@ -225,7 +225,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
   INTEGER                         :: ProductReac(1:3)
   REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
   REAL                            :: SumOne, SumTwo
-  REAl(KIND=8)                    :: eps_prec=1.0E-5
+  REAl(KIND=8)                    :: eps_prec=0.1
 !===================================================================================================================================
 
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
@@ -270,20 +270,22 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
-      IF(DSMC%ElectronicModel.AND.(SpecDSMC(ProductReac(iProd))%InterID.NE.4)) THEN
-        SumOne = 0.0
-        SumTwo = 0.0
-        DO iQua = 0, SpecDSMC(ProductReac(iProd))%MaxElecQuant-1
-          SumOne = SumOne + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua)*BoltzmannConst &
-                          * SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)  &
-                          * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
-          SumTwo = SumTwo + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua) &
-                          * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
-        END DO
-        XiElecPart(iProd) = 2 * SumOne / (SumTwo * BoltzmannConst * MiddleTemp)
-        Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
-      ELSE IF(SpecDSMC(ProductReac(iProd))%InterID.EQ.4) THEN
-        IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
+      IF(DSMC%ElectronicModel) THEN
+        IF((SpecDSMC(ProductReac(iProd))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(iProd))%FullyIonized)) THEN
+          SumOne = 0.0
+          SumTwo = 0.0
+          DO iQua = 0, SpecDSMC(ProductReac(iProd))%MaxElecQuant-1
+            SumOne = SumOne + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua)*BoltzmannConst &
+                            * SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)  &
+                            * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
+            SumTwo = SumTwo + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua) &
+                            * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
+          END DO
+          XiElecPart(iProd) = 2 * SumOne / (SumTwo * BoltzmannConst * MiddleTemp)
+          Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
+        ELSE
+          IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
+        END IF
       END IF
     END DO
     EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp

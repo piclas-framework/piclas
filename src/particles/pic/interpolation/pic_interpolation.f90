@@ -1021,7 +1021,7 @@ CLOSE (ioUnit)
 !END IF
 IF(ncounts.GT.1) THEN
   DeltaExternalField = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,E25.14E3)') ' Delta external field: ',DeltaExternalField
+  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField
   IF(DeltaExternalField.LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
