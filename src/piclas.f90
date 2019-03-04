@@ -17,7 +17,7 @@ PROGRAM Piclas
 ! Control program of the Piclas code. Initialization of the computation
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_vars     ,ONLY: InitializationWallTime
+USE MOD_Globals_vars           ,ONLY: InitializationWallTime
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ParameterFile,ParameterDSMCFile
 USE MOD_Commandline_Arguments
@@ -38,7 +38,11 @@ USE MOD_MPI                    ,ONLY: FinalizeMPI
 #endif /*MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
-USE MOD_StringTools            ,ONLY:STRICMP, GetFileExtension
+USE MOD_StringTools            ,ONLY: STRICMP, GetFileExtension
+#ifdef PARTICLES
+USE MOD_Particle_Vars          ,ONLY: DoInitialIonization
+USE MOD_ParticleInit           ,ONLY: InitialIonization
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,6 +173,11 @@ END IF
 ! RESTART
 CALL Restart()
 
+#ifdef PARTICLES
+! Ionize the current particles
+IF(DoInitialIonization) CALL InitialIonization()
+#endif /*PARTICLES*/
+
 ! Measure init duration
 Time=PICLASTIME()
 InitializationWallTime=Time-StartTime
@@ -207,4 +216,3 @@ SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM Piclas
-

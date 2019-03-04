@@ -227,9 +227,13 @@ FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
 IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
   SELECT CASE(AnalyticInterpolationType)
   CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-    DO iPart = firstPart, LastPart
-      FieldAtParticle(iPart,6) = EXP(PartState(iPart,1)) ! "B_0" and "l" are dropped here
-    END DO
+    ASSOCIATE( B_0 => 1.0     , &
+               l   => 1.0  )
+               !l   => 0.2e-3  )
+      DO iPart = firstPart, LastPart
+        FieldAtParticle(iPart,6) = B_0 * EXP(PartState(iPart,1) / l)
+      END DO
+    END ASSOCIATE
   END SELECT
   ! exit the subroutine after field determination
   RETURN
@@ -1017,7 +1021,7 @@ CLOSE (ioUnit)
 !END IF
 IF(ncounts.GT.1) THEN
   DeltaExternalField = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,E25.14E3)') ' Delta external field: ',DeltaExternalField
+  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField
   IF(DeltaExternalField.LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF

@@ -66,6 +66,7 @@ USE MOD_DSMC_Init        ,ONLY: DefineParametersDSMC
 USE MOD_LD_Init          ,ONLY: DefineParametersLD
 USE MOD_SurfaceModel_Init,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze,ONLY: DefineParametersSurfModelAnalyze
+USE MOD_Particle_Boundary_Porous,ONLY:DefineParametersPorousBC
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -108,6 +109,7 @@ CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersParticles()
+CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()

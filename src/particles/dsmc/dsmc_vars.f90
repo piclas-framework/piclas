@@ -128,6 +128,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
 END TYPE tSpeciesDSMC
@@ -427,6 +428,8 @@ INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Co
 REAL, ALLOCATABLE                 :: QLocal(:)                  ! Intermediate Criterion (per cell)
 LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection 
                                                                 ! for Sampling Start is used (only  if UseQCrit=FALSE)
+INTEGER                           :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
+!                                                               ! reaching 1000 outputs of said warning
 
 TYPE tSampler ! DSMC sampling for Steady-State Detection
   REAL                            :: Energy(3)                  ! Energy in Cell (Translation)

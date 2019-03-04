@@ -238,7 +238,12 @@ IF(nGlobalElems_RPList.NE.nGlobalElems) CALL abort(&
 __STAMP__&
 ,'nGlobalElems from RPList differs from nGlobalElems from Mesh File!',999,999.)
 
-CALL ReadArray('OffsetRP',2,(/2,PP_nElems/),OffsetElem,2,IntegerArray=OffsetRPArray)
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      PP_nElems     => INT(PP_nElems,IK) ,&
+      OffsetElem    => INT(OffsetElem,IK) ) 
+  CALL ReadArray('OffsetRP',2,(/2_IK,PP_nElems/),OffsetElem,2,IntegerArray_i4=OffsetRPArray)
+END ASSOCIATE
 
 ! Check if local domain contains any record points
 ! OffsetRP: first index: 1: offset in RP list for first RP on elem,
@@ -257,7 +262,13 @@ ELSE
 END IF
 DEALLOCATE(HSize)
 ALLOCATE(xi_RP(3,nRP)) 
-CALL ReadArray('xi_RP',2,(/3,nRP/),offsetRP,2,RealArray=xi_RP)
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nRP      => INT(nRP,IK) ,&
+      offsetRP => INT(offsetRP,IK) ) 
+  CALL ReadArray('xi_RP',2,(/3_IK,nRP/),offsetRP,2,RealArray=xi_RP)
+END ASSOCIATE
 
 IF(nRP.LT.1) THEN
   RP_onProc=.FALSE.
@@ -321,7 +332,7 @@ SUBROUTINE RecordPoints(t,Output)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars          ,ONLY:U
-USE MOD_Timedisc_Vars,    ONLY:dt, iter
+USE MOD_Timedisc_Vars,    ONLY:dt!, iter
 USE MOD_TimeDisc_Vars    ,ONLY:tAnalyze
 USE MOD_Analyze_Vars     ,ONLY:Analyze_dt,FieldAnalyzeStep
 USE MOD_RecordPoints_Vars,ONLY:RP_Data,RP_ElemID
@@ -457,29 +468,39 @@ IF(iSample.GT.0)THEN
   IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
   nSamples=nSamples+iSample
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        PP_nVarP1    => INT(PP_nVar+1,IK)    ,&
+        nSamples     => INT(nSamples,IK)     ,&
+        nRP          => INT(nRP,IK)          ,&
+        iSample      => INT(iSample,IK)      ,&
+        offsetRP     => INT(offsetRP,IK)     )
+
 #ifdef MPI
-  IF(nRP_Procs.EQ.1)THEN
+    IF(nRP_Procs.EQ.1)THEN
 #endif
-    CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
-                          nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
-                          nVal=      (/PP_nVar+1,nRP      ,iSample/),&
-                          offset=    (/0        ,offsetRP ,nSamples-iSample/),&
-                          resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
-                          chunkSize= (/PP_nVar+1,nGlobalRP,chunkSamples      /),&
-                          RealArray=RP_Data(:,:,1:iSample),&
-                          collective=.FALSE.)!, existing=RP_fileExists)
+      CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank= 3       , &
+                            nValGlobal  = (/PP_nVarP1 , INT(nGlobalRP , IK)                  , nSamples/) , &
+                            nVal        = (/PP_nVarP1 , nRP           , iSample/)            , &
+                            offset      = (/0_IK      , offsetRP      , nSamples-iSample/)   , &
+                            resizeDim   = (/.FALSE.   , .FALSE.       , .TRUE./)             , &
+                            chunkSize   = (/PP_nVar+1 , nGlobalRP     , chunkSamples      /) , &
+                            RealArray   = RP_Data(:,:,1:iSample),&
+                            collective  = .FALSE.)
 #ifdef MPI
-  ELSE
-    CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
-                          nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
-                          nVal=      (/PP_nVar+1,nRP      ,iSample/),&
-                          offset=    (/0        ,offsetRP ,nSamples-iSample/),&
-                          resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
-                          chunkSize= (/PP_nVar+1,nGlobalRP,chunkSamples      /),&
-                          RealArray=RP_Data(:,:,1:iSample),&
-                          collective=.TRUE.)!, existing=RP_fileExists)
-  END IF
+    ELSE
+      CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank = 3      , &
+                            nValGlobal  = (/PP_nVarP1 , INT(nGlobalRP , IK)                  , nSamples/) , &
+                            nVal        = (/PP_nVarP1 , nRP           , iSample/)            , &
+                            offset      = (/0_IK      , offsetRP      , nSamples-iSample/)   , &
+                            resizeDim   = (/.FALSE.   , .FALSE.       , .TRUE./)             , &
+                            chunkSize   = (/PP_nVar+1 , nGlobalRP     , chunkSamples      /) , &
+                            RealArray   = RP_Data(:,:,1:iSample),&
+                            collective  = .TRUE.)
+    END IF
 #endif
+  END ASSOCIATE
   lastSample=RP_Data(:,:,iSample)
 END IF
 CALL CloseDataFile()

@@ -229,7 +229,7 @@ gnu:
   <<: *defaults_gnu
   stage: reggie_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
@@ -237,7 +237,7 @@ gnu:
 #   <<: *defaults_intel
 #   stage: reggie_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
 
@@ -245,7 +245,7 @@ gnu_maxwell:
   <<: *defaults_gnu_maxwell
   stage: reggie_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
@@ -253,7 +253,7 @@ gnu_maxwell:
 #   <<: *defaults_intel_maxwell
 #   stage: reggie_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
 
@@ -261,7 +261,7 @@ gnu_poisson:
   <<: *defaults_gnu_poisson
   stage: reggie_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
@@ -269,7 +269,7 @@ gnu_poisson:
 #   <<: *defaults_intel_poisson
 #   stage: reggie_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel_poisson ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
 
@@ -283,7 +283,7 @@ gnu_PIC_gyrotron_variable_Bz:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
 
@@ -291,7 +291,7 @@ gnu_PIC_single_particle_PML:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
     
@@ -299,33 +299,33 @@ gnu_PIC_IMD_coupling:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
-    
-gnu_DSMC_check:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
-
-# intel_DSMC_check:
-#   <<: *defaults_intel
-#   stage: reggie_feature_checkin
-#   tags:
-#     - withmodules
-#   script:
-#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+
+gnu_PIC_initial_ionization:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+    
+gnu_DSMC_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
@@ -333,7 +333,7 @@ gnu_PIC_maxwell_implicitBC:
 #   <<: *defaults_intel
 #   stage: reggie_feature_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
 #     
@@ -341,7 +341,7 @@ gnu_PIC_maxwell_implicitBC:
 #   <<: *defaults_intel
 #   stage: reggie_feature_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
 #     
@@ -349,7 +349,7 @@ gnu_PIC_maxwell_implicitBC:
 #   <<: *defaults_intel
 #   stage: reggie_feature_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
 #     
@@ -357,9 +357,25 @@ gnu_PIC_maxwell_implicitBC:
 #   <<: *defaults_intel
 #   stage: reggie_feature_checkin
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+#
+# intel_PIC_initial_ionization:
+#  <<: *defaults_intel
+#  stage: reggie_feature_checkin
+#  tags:
+#    - withmodules-concurrent
+#  script:
+#    - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
+#
+# intel_DSMC_check:
+#   <<: *defaults_intel
+#   stage: reggie_feature_checkin
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tracking_nightly": Build and run tracking examples on nightly
@@ -368,7 +384,7 @@ gnu_tracking:
   <<: *defaults_gnu
   stage: reggie_tracking_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
 
@@ -376,7 +392,7 @@ gnu_tracking:
 #   <<: *defaults_intel
 #   stage: reggie_tracking_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
 
@@ -387,7 +403,7 @@ gnu_reservoir_nightly:
   <<: *defaults_gnu
   stage: reggie_reservoir_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
 
@@ -395,7 +411,7 @@ gnu_reservoir_nightly:
 #   <<: *defaults_intel
 #   stage: reggie_reservoir_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
 
@@ -416,7 +432,7 @@ gnu_feature_dielectric:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
 
@@ -424,7 +440,7 @@ gnu_PIC:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_single_particle/ ; fi
 
@@ -432,7 +448,7 @@ gnu_emission_gyro:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_emission_gyrotron ; fi
 
@@ -440,7 +456,7 @@ gnu_TWT:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_TWT_recordpoints ; fi
        
@@ -448,7 +464,7 @@ gnu_convtest:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
 
@@ -456,7 +472,7 @@ gnu_convtest_t:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
        
@@ -464,7 +480,7 @@ gnu_poisson_turner:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_turner/ ; fi
        
@@ -472,7 +488,7 @@ gnu_power_density:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson_powerdensity/ ; fi
 
@@ -480,7 +496,7 @@ gnu_maxwell_cylinder_PML:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_cylinder_PML/ ; fi
 
@@ -488,7 +504,7 @@ gnu_PIC_poisson_plasma_wave:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 
@@ -496,7 +512,7 @@ gnu_maxwell_sphere_dielectric:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
@@ -504,7 +520,7 @@ gnu_maxwell_ExactFlux_PML:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_ExactFlux_PML/ ; fi
 
@@ -512,7 +528,7 @@ gnu_poisson_implicit_surface_flux:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicitsf/ ; fi
 
@@ -520,7 +536,7 @@ gnu_feature_PIC_poisson_imexfluid:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_imexfluid/ ; fi
 
@@ -528,7 +544,7 @@ gnu_PIC_maxwell_bgfield:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_bgfield/ ; fi
 
@@ -536,7 +552,7 @@ gnu_QDS:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
 
@@ -544,7 +560,7 @@ gnu_feature_LoadBalance:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
 
@@ -552,9 +568,17 @@ gnu_code_analyze:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+
+gnu_integer_kind8:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -564,7 +588,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
 #        
@@ -572,7 +596,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_single_particle/ ; fi
 # 
@@ -580,7 +604,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_emission_gyrotron ; fi
 # 
@@ -588,7 +612,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_TWT_recordpoints ; fi
 #        
@@ -596,7 +620,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
 #        
@@ -604,7 +628,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
 #        
@@ -612,7 +636,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_turner/ ; fi
 #        
@@ -620,7 +644,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson_powerdensity/ ; fi
 # 
@@ -628,7 +652,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_cylinder_PML/ ; fi
 # 
@@ -636,7 +660,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
 # 
@@ -644,7 +668,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 # 
@@ -652,7 +676,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_ExactFlux_PML/ ; fi
 # 
@@ -660,7 +684,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicitsf/ ; fi
 # 
@@ -668,7 +692,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_imexfluid/ ; fi
 # 
@@ -676,7 +700,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_bgfield/ ; fi
 # 
@@ -684,7 +708,7 @@ gnu_code_analyze:
 #   #<<: *defaults_intel
 #   #stage: reggie_nightly
 #   #tags:
-#     #- withmodules
+#     #- withmodules-concurrent
 #   #script:
 #     #- if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
 # 
@@ -692,7 +716,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
 # 
@@ -700,7 +724,7 @@ gnu_code_analyze:
 #   <<: *defaults_intel
 #   stage: reggie_nightly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
 
@@ -713,7 +737,7 @@ gnu_build_all:
   <<: *defaults_gnu
   stage: reggie_nightly_build_all
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
       
@@ -722,7 +746,7 @@ gnu_build_all:
 #   <<: *defaults_intel
 #   stage: reggie_nightly_build_all
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
 
@@ -736,17 +760,25 @@ gnu_PIC:
   <<: *defaults_gnu
   stage: reggie_weekly
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-gnu_DSMC/:
+gnu_DSMC:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
+
+gnu_DSMC_Reservoir:
   <<: *defaults_gnu
   stage: reggie_weekly
   tags:
     - withmodules
   script:
-    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -754,15 +786,15 @@ gnu_DSMC/:
 #   <<: *defaults_intel
 #   stage: reggie_weekly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-# intel_DSMC/:
+# intel_DSMC:
 #   <<: *defaults_intel
 #   stage: reggie_weekly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
 
@@ -772,14 +804,31 @@ gnu_DSMC/:
 #   <<: *defaults_intel
 #   stage: reggie_weekly
 #   tags:
-#     - withmodules
+#     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_QDS/ ; fi
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "github": truncate old history and push to github
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+userguide:
+  stage: deploy
+  tags:
+    - withmodules-concurrent
+  script:
+    - cd doc/userguide ; make; cd ..
+    #- if [ -n "${DO_DEPLOY}" ]; then scp -r userguide flexi@euler:~/homepage/. ; fi
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - doc/userguide
 
 github:
   stage: deploy
   tags:
-    - withmodules
+    - withmodules-concurrent
   script:
     - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
     - rm -rf piclas_github || true ;
