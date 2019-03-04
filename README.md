@@ -1,8 +1,5 @@
 # Welcome to PICLas
 
-[![build status](https://gitlab.com/piclas/piclas/badges/master.dev/build.svg)](https://gitlab.com/piclas/piclas/pipelines)
-
-
 ## PICLas Documentation (PDF available)
 
 1. [Introduction](doc/userguide/000_userguide.md)
