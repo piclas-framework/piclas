@@ -370,22 +370,22 @@ Liquid%Info(:)%NumOfDes = 0
 Liquid%SumEvapPart(:,:,:,:) = 0
 DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
-    IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))) CYCLE
-    IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) ))).NE.iSpec) CYCLE
+    IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))) CYCLE
+    IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) ))).NE.iSpec) CYCLE
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
-      globSide = SurfMesh%SurfSideToGlobSideMap(iSurfSide)
+      globSide = SurfMesh%SurfIDToSideID(iSurfSide)
       ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
       nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
     END IF
 #endif /*USE_LOADBALANCE*/
-    LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
+    LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         ! Antoine parameters defined in ini file are chosen so pressure given is in bar
-        A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
-        B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
-        C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
+        A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+        B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+        C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
         ! Use Antoine Eq. to calculate pressure vapor
         pressure_vapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
         ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
