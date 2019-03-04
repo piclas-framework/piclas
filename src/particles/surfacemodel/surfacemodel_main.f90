@@ -62,10 +62,10 @@ END SUBROUTINE SurfaceModel_main
 
 SUBROUTINE UpdateSurfModelVars()
 !===================================================================================================================================
-!> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogenous reactions)
+!> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
 !> Only procs with surface enter function, all other exit routine
 !> 1. Communicate number of particles that were adsorbed on halo-sides of neighbour procs, 
-!>    so that own proc has number of total adsorbtion particles for each species on own surfaces
+!>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
 !> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
@@ -73,7 +73,7 @@ SUBROUTINE UpdateSurfModelVars()
 !> 3. Sample macroscopic surface coverage values
 !> 4. Reinitialized surface reaction counters
 !> 5. Calculated global adsorption probabilities for surfacemodel=1,2
-!> 6. Send Coverages and Distribuition info of own sides to halo sides of other procs (other procs have own sides as halo sides 
+!> 6. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
 !>    and need coverage info for adsorption calculation
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -126,7 +126,7 @@ IF (PartSurfaceModel.GT.0) THEN
       DO iSurfSide = 1,SurfMesh%nSides
         SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+        IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)
@@ -370,22 +370,22 @@ Liquid%Info(:)%NumOfDes = 0
 Liquid%SumEvapPart(:,:,:,:) = 0
 DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
-    IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))) CYCLE
-    IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) ))).NE.iSpec) CYCLE
+    IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))) CYCLE
+    IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) ))).NE.iSpec) CYCLE
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
-      globSide = SurfMesh%SurfSideToGlobSideMap(iSurfSide)
+      globSide = SurfMesh%SurfIDToSideID(iSurfSide)
       ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
       nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
     END IF
 #endif /*USE_LOADBALANCE*/
-    LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfSideToGlobSideMap(iSurfSide))))
+    LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
         ! Antoine parameters defined in ini file are chosen so pressure given is in bar
-        A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
-        B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
-        C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfSideToGlobSideMap(iSurfSide) )))
+        A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+        B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+        C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
         ! Use Antoine Eq. to calculate pressure vapor
         pressure_vapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
         ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface

@@ -53,7 +53,11 @@ PUBLIC::ParticleSanityCheck
 CONTAINS
 
 
+#ifdef IMPA
 SUBROUTINE ParticleTriaTracking(doParticle_In)
+#else
+SUBROUTINE ParticleTriaTracking()
+#endif /*IMPA*/
 !===================================================================================================================================
 ! Routine for tracking of moving particles, calculate intersection and boundary interaction
 ! in case of no reference tracking (dorefmapping = false) and using Triangles (TriTracking = true)
@@ -74,12 +78,17 @@ USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPa
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
+#endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
+#ifdef IMPA
+LOGICAL                          :: doParticle
+LOGICAL                          :: doPartInExists
+#endif
 INTEGER                          :: i
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
@@ -99,16 +108,22 @@ REAL, PARAMETER                  :: eps = 0
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
-IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
-ELSE
-  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
-END IF
+#ifdef IMPA
+doPartInExists=.FALSE.
+IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*IMPA*/
 
 DO i = 1,PDM%ParticleVecLength
-  !IF (PDM%ParticleInside(i)) THEN
-  IF(DoParticle(i))THEN
+#ifdef IMPA
+  IF(doPartInExists)THEN
+    DoParticle=PDM%ParticleInside(i).AND.DoParticle_In(i)
+  ELSE
+    DoParticle=PDM%ParticleInside(i)
+  END IF
+  IF(DoParticle)THEN
+#else
+  IF (PDM%ParticleInside(i)) THEN
+#endif /*IMPA*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -293,10 +308,10 @@ END DO
 END SUBROUTINE ParticleTriaTracking
 
 
-#ifndef IMPA
-SUBROUTINE ParticleTracing(doParticle_In)
-#else
+#ifdef IMPA
 SUBROUTINE ParticleTracing(doParticle_In,nInnerNewton_In)
+#else
+SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
 !===================================================================================================================================
 ! Routine for tracing moving particles, calculate intersection and boundary interaction
@@ -344,15 +359,18 @@ USE MOD_LoadBalance_tools,           ONLY:LBStartTime,LBElemPauseTime,LBElemSpli
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 #ifdef IMPA
-INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In 
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 #endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
+#ifdef IMPA
+LOGICAL                       :: doParticle
+LOGICAL                       :: doPartInExists
+#endif /*IMPA*/
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
@@ -373,20 +391,29 @@ REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
-IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
-ELSE
-  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
-END IF
 IF (UseAuxBCs) THEN
   ALLOCATE(locAlphaAll(1:6+nAuxBCs) &
     ,locListAll(1:6+nAuxBCs))
 END IF
 
+#ifdef IMPA
+doPartInExists=.FALSE.
+IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*IMPA*/
+
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
   alphaOld = -1.0
-  IF(DoParticle(iPart))THEN
+#ifdef IMPA
+  IF(doPartInExists)THEN
+    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
+  ELSE
+    DoParticle=PDM%ParticleInside(iPart)
+  END IF
+  IF(DoParticle)THEN
+#else
+  IF (PDM%ParticleInside(iPart)) THEN
+#endif /*IMPA*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -616,7 +643,9 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
           PartIsDone=.TRUE.
           PDM%ParticleInside(iPart)=.FALSE.
-          DoParticle(iPart)=.FALSE.
+#ifdef IMPA
+          DoParticle=.FALSE.
+#endif /*IMPA*/
           IF(CountNbOfLostParts) nLostParts=nLostParts+1
           EXIT
         END IF
@@ -655,7 +684,9 @@ DO iPart=1,PDM%ParticleVecLength
             IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
             PartIsDone=.TRUE.
             PDM%ParticleInside(iPart)=.FALSE.
-            DoParticle(iPart)=.FALSE.
+#ifdef IMPA
+            DoParticle=.FALSE.
+#endif /*IMPA*/
             IF(CountNbOfLostParts) nLostParts=nLostParts+1
             EXIT
           END IF
@@ -745,9 +776,11 @@ DO iPart=1,PDM%ParticleVecLength
             alphaOld = -1.0
           END IF
         END IF
+#ifdef IMPA
         IF(CrossedBC)THEN
-          IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+          IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
         END IF
+#endif /*IMPA*/
       CASE DEFAULT ! two or more hits
         ! more careful witEh bc elems
           IF (HasAuxBC) THEN
@@ -845,9 +878,11 @@ DO iPart=1,PDM%ParticleVecLength
               alphaOld = -1.0
             END IF
           END IF
+#ifdef IMPA
           IF(CrossedBC)THEN
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
           END IF
+#endif /*IMPA*/
          !! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
 !        END IF
       END SELECT
@@ -895,7 +930,9 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
     IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
-        DoParticle(iPart)=.FALSE.
+#ifdef IMPA
+        DoParticle=.FALSE.
+#endif /*IMPA*/
         CYCLE !particle is outside cell
       END IF
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
@@ -947,9 +984,6 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
-#ifdef IMPA
-  IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
-#endif /*IMPA*/
 END DO ! iPart
 
 #ifdef CODE_ANALYZE
@@ -958,16 +992,24 @@ END DO ! iPart
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(.NOT.DoParticle(iPart)) CYCLE
+#ifdef IMPA
+  IF(doPartInExists)THEN
+    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
+  ELSE
+    DoParticle=PDM%ParticleInside(iPart)
+  END IF
+  IF(DoParticle)THEN
+#else
+  IF (PDM%ParticleInside(iPart)) THEN
+#endif /*IMPA*/
     IF( (PartState(iPart,1).GT.GEO%xmaxglob) &
     .OR.(PartState(iPart,1).LT.GEO%xminglob) &
     .OR.(PartState(iPart,2).GT.GEO%ymaxglob) &
     .OR.(PartState(iPart,2).LT.GEO%yminglob) &
     .OR.(PartState(iPart,3).GT.GEO%zmaxglob) &
     .OR.(PartState(iPart,3).LT.GEO%zminglob) ) THEN
-      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle(iPart)
 #ifdef IMPA
+      IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
       IF(PRESENT(nInnerNewton_In))THEN
@@ -1023,7 +1065,11 @@ END IF
 END SUBROUTINE ParticleTracing
 
 
+#ifdef IMPA
 SUBROUTINE ParticleRefTracking(doParticle_In)
+#else
+SUBROUTINE ParticleRefTracking()
+#endif
 !===================================================================================================================================
 ! Reference Tracking for particle without treatment of each inner faces
 !===================================================================================================================================
@@ -1058,12 +1104,17 @@ USE MOD_LoadBalance_tools,       ONLY:LBStartTime, LBElemPauseTime, LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
+#ifdef IMPA
+LOGICAL                           :: doParticle
+LOGICAL                           :: doPartInExists
+#endif
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)!,loc_distance
@@ -1081,15 +1132,22 @@ REAL                              :: lengthPartTrajectory0, epsElement
 REAL                              :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
-IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
-ELSE
-  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
-END IF
+#ifdef IMPA
+doPartInExists=.FALSE.
+IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*IMPA*/
 
 DO iPart=1,PDM%ParticleVecLength
-  IF(DoParticle(iPart))THEN
+#ifdef IMPA
+  IF(doPartInExists)THEN
+    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
+  ELSE
+    DoParticle=PDM%ParticleInside(iPart)
+  END IF
+  IF(DoParticle)THEN
+#else
+  IF (PDM%ParticleInside(iPart)) THEN
+#endif /*IMPA*/
     LastElemID = PEM%lastElement(iPart)
     ElemID=LastElemID
 #if USE_LOADBALANCE
@@ -1106,7 +1164,9 @@ DO iPart=1,PDM%ParticleVecLength
       CALL ParticleBCTracking(lengthPartTrajectory0 &
                              ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved,1)
       IF(PartIsDone) THEN
-        IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+#ifdef IMPA
+        IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
+#endif /*IMPA*/
         CYCLE ! particle has left domain by a boundary condition
       END IF
       IF(PartIsMoved)THEN ! particle is reflected at a wall
@@ -1364,7 +1424,9 @@ __STAMP__ &
           CALL ParticleBCTracking(lengthPartTrajectory0 &
                                  ,TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved,1)
           IF(PartIsDone)THEN
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle(iPart)=.FALSE.
+#ifdef IMPA
+            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
+#endif /*IMPA*/
             CYCLE
           END IF
           CALL GetPositionInRefElem(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)

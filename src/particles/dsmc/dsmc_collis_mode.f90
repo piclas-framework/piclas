@@ -331,9 +331,9 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
   REAL                          :: RanVec(3)                        ! Max. Quantum Number
   REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
+  INTEGER                       :: iSpec1, iSpec2
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
-!REAL::evor, enach
 !===================================================================================================================================
 
   DoRot1  = .FALSE.
@@ -359,41 +359,40 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
 
-  CALL RANDOM_NUMBER(iRan)
-  IF((SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.EQ.2) &
-    .OR.(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.EQ.20)) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%RotRelaxProb.GT.iRan) THEN
+  iSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
+  iSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
+
+  IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
+    CALL RANDOM_NUMBER(iRan)
+    IF(SpecDSMC(iSpec1)%RotRelaxProb.GT.iRan) THEN
       DoRot1 = .TRUE.
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) ! adding rot energy to coll energy
-      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
-      IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
+      Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
+      IF(SpecDSMC(iSpec1)%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
-    ! step as TRUE
-    CALL RANDOM_NUMBER(iRan)
-    IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID .ne. 4 ) THEN
-      IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%ElecRelaxProb .GT. iRan ) THEN
+    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+      CALL RANDOM_NUMBER(iRan)
+      IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) THEN
         DoElec1 = .TRUE.
       END IF
     END IF
   END IF
 
-  CALL RANDOM_NUMBER(iRan)
-  IF((SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.EQ.2) &
-    .OR.(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.EQ.20)) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%RotRelaxProb.GT.iRan) THEN
+  IF((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
+    CALL RANDOM_NUMBER(iRan)
+    IF(SpecDSMC(iSpec2)%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) ! adding rot energy to coll energy
-      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
-      IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
+      Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
+      IF(SpecDSMC(iSpec2)%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
   IF ( DSMC%ElectronicModel ) THEN
-    ! step as TRUE
-    CALL RANDOM_NUMBER(iRan)
-    IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.NE.4) THEN
-      IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%ElecRelaxProb.GT.iRan) THEN
+    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
+      CALL RANDOM_NUMBER(iRan)
+      IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) THEN
         DoElec2 = .TRUE.
       END IF
     END IF
@@ -405,7 +404,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
 IF (DSMC%DoTEVRRelaxation) THEN
-  IF(.NOT.SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
+  IF(.NOT.SpecDSMC(iSpec1)%PolyatomicMol) THEN
     IF(DoElec1.AND.DoVib1) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
                            +    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
@@ -421,7 +420,7 @@ IF (DSMC%DoTEVRRelaxation) THEN
     END IF
   END IF
 
-  IF(.NOT.SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+  IF(.NOT.SpecDSMC(iSpec2)%PolyatomicMol) THEN
     IF(DoElec2.AND.DoVib2) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
                            +    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
@@ -481,7 +480,7 @@ END IF
 
   IF(DoVib1) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
+    IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
@@ -491,7 +490,7 @@ END IF
 
   IF(DoVib2) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+    IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
@@ -503,9 +502,9 @@ END IF
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------! 
   IF(DoRot1) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
-        (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND. &
+        (SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
+      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
@@ -515,22 +514,22 @@ END IF
           Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
           PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
           Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+          FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
           PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
                                                        + Phi * PartStateIntEnTemp
         END IF
       ELSE
         PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
-        FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+        FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       END IF
     END IF
   END IF
 
   IF(DoRot2) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
-        (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+    IF(SpecDSMC(iSpec2)%PolyatomicMol.AND. &
+        (SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
+      FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
@@ -561,8 +560,8 @@ END IF
     END IF
   END IF
 
-  FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
-  FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
+  FracMassCent1 = CollInf%FracMassCent(iSpec1, Coll_pData(iPair)%PairType)
+  FracMassCent2 = CollInf%FracMassCent(iSpec2, Coll_pData(iPair)%PairType)
 
   !Calculation of velo from center of mass
   VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
@@ -670,14 +669,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
   
   ! calculate probability for rotational/vibrational relaxation for both particles
-  IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
+  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib1, ProbVibMax1)
     CALL DSMC_calc_P_rot(iSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
-  IF (SpecDSMC(jSpec)%InterID.EQ.2) THEN
+  IF ((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(jSpec, iSpec, iPair, Xi_rel, ProbVib2, ProbVibMax2)
     CALL DSMC_calc_P_rot(jSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
@@ -1147,7 +1146,6 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -1192,6 +1190,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
                   ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF
@@ -1554,7 +1553,6 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -1594,6 +1592,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           IF(ChemReac%RecombParticle.EQ. 0) THEN
             Coll_pData(PairForRec)%NeedForRec = .TRUE.
             ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+            ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           ELSE
             ChemReac%RecombParticle = 0
           END IF
@@ -1995,7 +1994,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2103,6 +2101,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2123,7 +2122,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2207,6 +2205,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2227,7 +2226,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2311,6 +2309,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2331,7 +2330,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2393,6 +2391,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2413,7 +2412,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2475,6 +2473,7 @@ __STAMP__&
               IF(ChemReac%RecombParticle.EQ. 0) THEN
                 Coll_pData(PairForRec)%NeedForRec = .TRUE.
                 ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ChemReac%nPairForRec = ChemReac%nPairForRec + 1
               ELSE
                 ChemReac%RecombParticle = 0
               END IF
@@ -2639,7 +2638,6 @@ __STAMP__&
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
           iPart_p3 = 0
@@ -2693,6 +2691,7 @@ __STAMP__&
                 IF(ChemReac%RecombParticle.EQ. 0) THEN
                   Coll_pData(PairForRec)%NeedForRec = .TRUE.
                   ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                  ChemReac%nPairForRec = ChemReac%nPairForRec + 1
                 ELSE
                   ChemReac%RecombParticle = 0
                 END IF

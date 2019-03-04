@@ -327,7 +327,7 @@ SUBROUTINE LD_ResidualOutout
       outfile = 'LD_Residual.csv'
       OPEN(unit_index,file=TRIM(outfile))
       !--- insert header  
-      WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME' 
+      WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME' 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_Linf' 
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','

@@ -46,10 +46,12 @@ SUBROUTINE DSMC_main()
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, SpecDSMC
+  USE MOD_DSMC_Analyze,          ONLY : CalcMeanFreePath
 
   USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, WriteMacroVolumeValues, nSpecies
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
   USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
@@ -110,13 +112,6 @@ SUBROUTINE DSMC_main()
       DSMC%MeanFreePath = 0.0
       DSMC%MCSoverMFP = 0.0
     END IF
-#if (PP_TimeDiscMethod==42)
-    IF (ChemReac%NumOfReact.GT.0) THEN
-      ChemReac%ReacCount = 0
-      ChemReac%ReacCollMean = 0.0
-      ChemReac%ReacCollMeanCount = 0
-    END IF
-#endif
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
       IF(BGGas%BGGasSpecies.NE.0) THEN
@@ -161,6 +156,16 @@ SUBROUTINE DSMC_main()
             END IF
           END IF
         END DO
+        IF(DSMC%CalcQualityFactors) THEN
+          IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+            ! Calculation of the mean free path
+            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(nPart), GEO%Volume(iElem), &
+                                                  SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            ! Determination of the MCS/MFP for the case without octree
+            IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
+                                                                                            / DSMC%MeanFreePath
+          END IF
+        END IF
         DEALLOCATE(Coll_pData)
       END IF                                                                                     ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
