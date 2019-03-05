@@ -1145,6 +1145,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
       MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
       ActivationEnergy = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)
+    ELSEIF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+      ActivationEnergy = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Ediss_eV * 11604.52500617 ! eV -> K
     END IF
   END IF
 
