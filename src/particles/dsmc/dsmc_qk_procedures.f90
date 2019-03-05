@@ -48,7 +48,8 @@ CONTAINS
 
 SUBROUTINE QK_dissociation(iPair,iReac,RelaxToDo)
 !===================================================================================================================================
-! test for QK dissociation
+! Decide whether a dissociation occurs: Check if the relative translation kinetic energy plus vibrational energy of the molecule
+! under consideration is larger than the dissociation energy
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -68,7 +69,7 @@ LOGICAL, INTENT(INOUT)        :: RelaxToDo
 ! LOCAL VARIABLES 
 INTEGER                       :: iQuaMax, iQuaDiss, PartToExec, PartReac2
 !===================================================================================================================================
-
+! Determining, which collision partner is the dissociating particle (always the first molecule in the DefinedReact array)
 IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
   PartToExec = Coll_pData(iPair)%iPart_p1
   PartReac2  = Coll_pData(iPair)%iPart_p2
@@ -76,26 +77,20 @@ ELSE
   PartToExec = Coll_pData(iPair)%iPart_p2
   PartReac2  = Coll_pData(iPair)%iPart_p1
 END IF
-! Check if the relative translation kinetic energy plus vibrational energy of the molecule under consideration
-! is larger than the activation energy
-Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
-                     + PartStateIntEn(PartToExec,1)
-! correction for second collision partner
+! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
+Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 + PartStateIntEn(PartToExec,1)
+! Correction for second collision partner
 IF ((SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.20)) THEN
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(PartReac2))%EZeroPoint
 END IF
-
-iQuaMax   = INT(Coll_pData(iPair)%Ec   / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
-iQuaDiss  = INT(ChemReac%EActiv(iReac) / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ))
-
-IF ( iQuaMax .GT. iQuaDiss ) THEN
+! Determination of the quantum number corresponding to the collision energy
+iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
+! Comparing the collision quantum number with the dissociation quantum number
+IF ( iQuaMax .GT. SpecDSMC(PartSpecies(PartToExec))%DissQuant ) THEN
 #if (PP_TimeDiscMethod==42)
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
 # endif
-      ! calculate the collision energy as required input for the performance of the dissociation reaction
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,2) + &
-                          PartStateIntEn(PartReac2,1) + PartStateIntEn(PartReac2,2)
     CALL DSMC_Chemistry(iReac, iPair)
 #if (PP_TimeDiscMethod==42)
   END IF
@@ -105,7 +100,8 @@ IF ( iQuaMax .GT. iQuaDiss ) THEN
 # endif
   RelaxToDo = .FALSE.
 END IF
-END SUBROUTINE
+
+END SUBROUTINE QK_dissociation
 
 
 SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
