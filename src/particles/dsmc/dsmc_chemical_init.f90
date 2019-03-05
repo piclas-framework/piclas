@@ -247,7 +247,8 @@ __STAMP__&
       DO iReac = ChemReac%NumOfReact/2+1, ChemReac%NumOfReact
         iReacForward = iReac - ChemReac%NumOfReact/2
         IF(ChemReac%QKProcedure(iReacForward)) THEN
-          IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK') THEN
+          IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK').OR.&
+             (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
             ChemReac%ReactType(iReac) = 'r'
             ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
             ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
@@ -258,7 +259,7 @@ __STAMP__&
             ChemReac%EForm(iReac)                 = -ChemReac%EForm(iReacForward)
             ChemReac%EActiv(iReac) = 0.0
             ! Calculation of the analytical solutoin for the forward rate, to be able to calculate the backward rate with part.func.
-            CALL InitQKForwardReac(iReac, INT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval))
+            CALL InitQKForwardReac(iReac, INT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval),TRIM(ChemReac%ReactType(iReacForward)))
           ELSE
             CALL abort(__STAMP__,&
             'Other reaction types than iQK are not implemented with the automatic backward rate determination, Reaction:', iReac)
@@ -1134,51 +1135,71 @@ SUBROUTINE Calc_Arrhenius_Factors()
 END SUBROUTINE Calc_Arrhenius_Factors
 
 
-SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize)
+SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize, ReactType)
 !===================================================================================================================================
 ! Calculation of the forward reaction rate through the analytical expression for the backward reaction probability for QK
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi, BoltzmannConst
-USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, QKBackWard, ChemReac, CollInf
-USE MOD_DSMC_ChemReact,     ONLY: gammainc
+USE MOD_Globals_Vars   ,ONLY: Pi, BoltzmannConst
+USE MOD_DSMC_Vars      ,ONLY: DSMC, SpecDSMC, QKBackWard, ChemReac, CollInf
+USE MOD_DSMC_ChemReact ,ONLY: gammainc
+USE MOD_Globals        ,ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iReac, PartitionArraySize
+INTEGER, INTENT(IN)           :: iReac, PartitionArraySize
+CHARACTER(LEN=*),INTENT(IN)   :: ReactType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iReacOrigin, iSpec1, iSpec2, MaxElecQua
-  INTEGER                       :: iInter, iQua
-  REAL                          :: Qelec, Temp, IncomGamma, ForwardRate, Rcoll, TrefVHS
+INTEGER                       :: iReacOrigin, iSpec1, iSpec2, MaxElecQua
+INTEGER                       :: iInter, iQua
+REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
+!REAL                          :: Y ! fraction of collisions that have sufficient energy
+REAL                          :: Q ! incomplete gamma function
+REAL                          :: Temp, ForwardRate, Rcoll, TrefVHS
 !===================================================================================================================================
-  ALLOCATE(QKBackWard(iReac)%ForwardRate(1:PartitionArraySize))
-  iReacOrigin = iReac - ChemReac%NumOfReact/2
-  iSpec1 = ChemReac%DefinedReact(iReacOrigin,1,1)
-  iSpec2 = ChemReac%DefinedReact(iReacOrigin,1,2)
-  MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
-  TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
-  Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
+ALLOCATE(QKBackWard(iReac)%ForwardRate(1:PartitionArraySize))
+iReacOrigin = iReac - ChemReac%NumOfReact/2
+iSpec1 = ChemReac%DefinedReact(iReacOrigin,1,1)
+iSpec2 = ChemReac%DefinedReact(iReacOrigin,1,2)
+TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
+Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
     * (SpecDSMC(iSpec1)%DrefVHS/2. + SpecDSMC(iSpec2)%DrefVHS/2.)**2 &
     * SQRT(2. * BoltzmannConst * TrefVHS &
     / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
+
+SELECT CASE (ReactType)
+CASE('iQK')
+  MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
   DO iInter = 1, PartitionArraySize
     Temp = iInter * DSMC%PartitionInterval
-    Qelec = 0.
+    z = 0.
     ForwardRate = 0.0
     DO iQua = 0, MaxElecQua
-      IncomGamma = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
+      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
           SpecDSMC(iSpec1)%ElectronicState(2,iQua))/Temp])
-      ForwardRate= ForwardRate + IncomGamma * SpecDSMC(iSpec1)%ElectronicState(1,iQua) &
-                  * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-      Qelec = Qelec + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
+      ForwardRate= ForwardRate + Q * SpecDSMC(iSpec1)%ElectronicState(1,iQua) &
+          * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
+      z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
     END DO  
-    QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/Qelec
+    QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
   END DO
+CASE('D')
+  DO iInter = 1, PartitionArraySize
+    Temp = iInter * DSMC%PartitionInterval
+    ForwardRate = 0.0
+    DO iQua = 0, SpecDSMC(iSpec1)%MaxVibQuant
+      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,((SpecDSMC(iSpec1)%MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
+      ForwardRate= ForwardRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
+    END DO
+      z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
+    QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
+  END DO
+END SELECT
 END SUBROUTINE InitQKForwardReac
 
 SUBROUTINE Init_TLU_Data

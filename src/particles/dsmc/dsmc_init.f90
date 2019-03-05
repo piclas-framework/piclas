@@ -348,7 +348,7 @@ USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_ChemReact         ,ONLY: CalcBackwardRate, CalcPartitionFunction
+USE MOD_DSMC_ChemReact         ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
