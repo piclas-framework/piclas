@@ -250,6 +250,7 @@ __STAMP__&
           IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK').OR.&
              (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
             ChemReac%ReactType(iReac) = 'r'
+            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D')ChemReac%ReactType(iReac) = 'R'
             ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
             ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
             ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
