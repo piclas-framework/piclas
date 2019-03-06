@@ -1160,6 +1160,7 @@ INTEGER                       :: iInter, iQua
 REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
 !REAL                          :: Y ! fraction of collisions that have sufficient energy
 REAL                          :: Q ! incomplete gamma function
+INTEGER                       :: MaxVibQuant ! highest vibrational quantum state
 REAL                          :: Temp, ForwardRate, Rcoll, TrefVHS
 !===================================================================================================================================
 ALLOCATE(QKBackWard(iReac)%ForwardRate(1:PartitionArraySize))
@@ -1189,14 +1190,15 @@ CASE('iQK')
     QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
   END DO
 CASE('D')
+  MaxVibQuant = SpecDSMC(iSpec1)%DissQuant + 1
   DO iInter = 1, PartitionArraySize
     Temp = iInter * DSMC%PartitionInterval
     ForwardRate = 0.0
-    DO iQua = 0, SpecDSMC(iSpec1)%MaxVibQuant
-      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,((SpecDSMC(iSpec1)%MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
+    DO iQua = 0, MaxVibQuant - 1
+      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
       ForwardRate= ForwardRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
     END DO
-      z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
+    z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
     QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
   END DO
 END SELECT
