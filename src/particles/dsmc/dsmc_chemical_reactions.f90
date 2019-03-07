@@ -321,6 +321,22 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
       ReactionProb = ForwardRate / Rcoll
+    ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
+      TiQK = (CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+                + 2.*PartStateIntEn(React1Inx,1))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
+                + Xi_vib1)*BoltzmannConst)
+      CALL CalcForwardRate(iReac,TiQK,ForwardRate)
+      Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  / (BoltzmannConst &
+              * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) 
+      b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)     
+      Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
+        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
+        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
+        / (CollInf%MassRed(CollInf%Coll_Case(EductReac(1), EductReac(2)))))
+      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
+           * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
+      ReactionProb = ForwardRate / Rcoll
     ELSE
       IF(SpecDSMC(EductReac(2))%PolyatomicMol.OR.SpecDSMC(EductReac(1))%PolyatomicMol) THEN
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational

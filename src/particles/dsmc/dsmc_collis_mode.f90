@@ -1116,7 +1116,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3, iQuaMax
-INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
+INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4, ReacToDo
 INTEGER                       :: nPartNode, PairForRec, nPair
 REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX, IonizationEnergy
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
@@ -2720,6 +2720,8 @@ __STAMP__&
           PartToExec = Coll_pData(iPair)%iPart_p2
           PartReac2 = Coll_pData(iPair)%iPart_p1
         END IF
+        ! Determine the collision energy (only relative translational)
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
         IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,3)
         ! ionization level is last known energy level of species
         iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
@@ -2728,6 +2730,8 @@ __STAMP__&
         ! the pure energy comparison
         IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
           CALL CalcReactionProb(iPair,iReac,ReactionProb)
+        ELSE
+          ReactionProb = 0.
         END IF
         ! second pseudo reaction probability
         IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
@@ -2749,6 +2753,8 @@ __STAMP__&
         ! Comparing the collision quantum number with the dissociation quantum number
         IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
           CALL CalcReactionProb(iPair,iReac,ReactionProb2)
+        ELSE
+          ReactionProb2 = 0.
         END IF
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -2758,34 +2764,36 @@ __STAMP__&
           ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
         END IF
 #endif
-        CALL RANDOM_NUMBER(iRan)
-        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-          CALL RANDOM_NUMBER(iRan)
-          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-            IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-              CALL DSMC_Chemistry(iPair, iReac)
-#if (PP_TimeDiscMethod==42)
-            END IF
-            IF (DSMC%ReservoirRateStatistic) THEN
-              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-            END IF
-#endif
-          ELSE
-            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-            IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-              CALL DSMC_Chemistry(iPair, iReac2)
-#if (PP_TimeDiscMethod==42)
-            END IF
-            IF (DSMC%ReservoirRateStatistic) THEN
-              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-            END IF
-#endif
+        ReacToDo = 0
+        IF(ReactionProb*ReactionProb2.LE.0.0) THEN
+          IF(ReactionProb.GT.0.0) THEN
+            ReacToDo = iReac
           END IF
+          IF(ReactionProb2.GT.0.0) THEN
+            ReacToDo = iReac2
+          ENDIF
+        ELSE
+          CALL RANDOM_NUMBER(iRan)
+          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
+            CALL RANDOM_NUMBER(iRan)
+            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+              ReacToDo = iReac
+            ELSE
+              ReacToDo = iReac2
+            END IF
+          END IF
+        END IF
+        IF(ReacToDo.NE.0) THEN
+#if (PP_TimeDiscMethod==42)
+          IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+            CALL DSMC_Chemistry(iPair, ReacToDo)
+#if (PP_TimeDiscMethod==42)
+          END IF
+          IF (DSMC%ReservoirRateStatistic) THEN
+            ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
+          END IF
+#endif
           RelaxToDo = .FALSE.
         END IF
       END IF
