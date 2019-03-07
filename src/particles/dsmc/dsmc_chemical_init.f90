@@ -250,7 +250,7 @@ __STAMP__&
           IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK').OR.&
              (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
             ChemReac%ReactType(iReac) = 'r'
-            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D')ChemReac%ReactType(iReac) = 'R'
+            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
             ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
             ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
             ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
@@ -397,13 +397,31 @@ __STAMP__&
     ! Case 18: only electron impact ionization
     DO iReac = 1, ChemReac%NumOfReact
       IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'iQK').AND.(.NOT.YetDefined_Help(iReac))) THEN
-          Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-          Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-          ChemReac%ReactCase(Reactant1, Reactant2) = 18
-          ChemReac%ReactCase(Reactant2, Reactant1) = 18
-          ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-          ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-          YetDefined_Help(iReac) = .TRUE.
+        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+        ChemReac%ReactCase(Reactant1, Reactant2) = 18
+        ChemReac%ReactCase(Reactant2, Reactant1) = 18
+        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+        DO iReac2 = 1, ChemReac%NumOfReact
+          IF(ChemReac%QKProcedure(iReac2)) THEN
+            IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
+              IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
+                  PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
+                Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+                Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+                ChemReac%ReactCase(Reactant1, Reactant2) = 20
+                ChemReac%ReactCase(Reactant2, Reactant1) = 20
+                ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+                ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+                ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
+                ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+                YetDefined_Help(iReac2) = .TRUE.
+              END IF
+            END IF
+          END IF
+        END DO
+        YetDefined_Help(iReac) = .TRUE.
       END IF
     END DO  
     ! Case 16: only simple CEX/MEX possible
@@ -418,34 +436,6 @@ __STAMP__&
           YetDefined_Help(iReac) = .TRUE.
       END IF
     END DO  
-    ! Case 6/17: associative ionization (N + N -> N2(ion) + e) and recombination possible
-!    DO iReac = 1, ChemReac%NumOfReact
-!      IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'i').AND.(.NOT.YetDefined_Help(iReac))) THEN
-!        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-!        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-!        ChemReac%ReactCase(Reactant1, Reactant2) = 6
-!        ChemReac%ReactCase(Reactant2, Reactant1) = 6
-!        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-!        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-!        YetDefined_Help(iReac) = .TRUE.
-!        DO iReac2 = 1, ChemReac%NumOfReact
-!          IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-!            IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-!                PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-!              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-!              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-!              ChemReac%ReactCase(Reactant1, Reactant2) = 17
-!              ChemReac%ReactCase(Reactant2, Reactant1) = 17
-!              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-!              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-!              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-!              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-!              YetDefined_Help(iReac2) = .TRUE.
-!            END IF
-!          END IF
-!        END DO
-!      END IF
-!    END DO
     ! Case 5/7/8/9/10/11/12: At least two dissociations possible
     DO iReac = 1, ChemReac%NumOfReact
       IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac))) THEN
@@ -521,23 +511,6 @@ __STAMP__&
                                           YetDefined_Help(iReac4) = .TRUE.
                                     END IF
                                   END IF
-  !                                IF ((TRIM(ChemReac%ReactType(iReac4)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac4))) THEN
-  !                                  IF (PairCombID(ChemReac%DefinedReact(iReac4,1,1),ChemReac%DefinedReact(iReac4,1,2)).EQ.&
-  !                                      PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2))) THEN
-  !                                        ! Case 16: Three dissociations and one recombination
-  !                                        Reactant1 = ChemReac%DefinedReact(iReac4,1,1)
-  !                                        Reactant2 = ChemReac%DefinedReact(iReac4,1,2)
-  !                                        ChemReac%ReactCase(Reactant1, Reactant2) = 16
-  !                                        ChemReac%ReactCase(Reactant2, Reactant1) = 16
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-  !                                        YetDefined_Help(iReac4) = .TRUE.
-  !                                  END IF
-  !                                END IF
                                 END IF
                               END DO
                             END IF

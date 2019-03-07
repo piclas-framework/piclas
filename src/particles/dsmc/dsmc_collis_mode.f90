@@ -1115,10 +1115,10 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3
+INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3, iQuaMax
 INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
 INTEGER                       :: nPartNode, PairForRec, nPair
-REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
+REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX, IonizationEnergy
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
 !===================================================================================================================================
@@ -1396,7 +1396,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           ReactionProb2 = 0
         END IF
         IF (ReactionProb.GT.0.) THEN
-          ! determine if first molecule dissociate
+          ! determine if first molecule dissociates
           CALL RANDOM_NUMBER(iRan)
           IF ( ReactionProb / ( ReactionProb + ReactionProb2) .gt. iRan) THEN
             CALL QK_dissociation(iPair,iReac,RelaxToDo)
@@ -2705,6 +2705,89 @@ __STAMP__&
             RelaxToDo = .FALSE.
           END IF ! ReactionProb > iRan
         END IF ! Q-K
+      END IF
+! ############################################################################################################################### !
+    CASE(20) ! Dissociation and ionization with QK are possible
+! ############################################################################################################################### !
+      iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
+      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
+        ! first pseudo reaction probability
+        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+          PartToExec = Coll_pData(iPair)%iPart_p1
+          PartReac2 = Coll_pData(iPair)%iPart_p2
+        ELSE
+          PartToExec = Coll_pData(iPair)%iPart_p2
+          PartReac2 = Coll_pData(iPair)%iPart_p1
+        END IF
+        IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,3)
+        ! ionization level is last known energy level of species
+        iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
+        IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
+        ! if you have electronic levels above the ionization limit, such limits should be used instead of
+        ! the pure energy comparison
+        IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
+          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+        END IF
+        ! second pseudo reaction probability
+        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+          PartToExec = Coll_pData(iPair)%iPart_p1
+          PartReac2 = Coll_pData(iPair)%iPart_p2
+        ELSE
+          PartToExec = Coll_pData(iPair)%iPart_p2
+          PartReac2 = Coll_pData(iPair)%iPart_p1
+        END IF
+        ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+                                + PartStateIntEn(PartToExec,1)
+        ! Correction for second collision partner
+        IF ((SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.20)) THEN
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(PartReac2))%EZeroPoint
+        END IF
+        ! Determination of the quantum number corresponding to the collision energy
+        iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
+        ! Comparing the collision quantum number with the dissociation quantum number
+        IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
+          CALL CalcReactionProb(iPair,iReac,ReactionProb2)
+        END IF
+#if (PP_TimeDiscMethod==42)
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
+#endif
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
+          CALL RANDOM_NUMBER(iRan)
+          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+              CALL DSMC_Chemistry(iPair, iReac)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+#endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+              CALL DSMC_Chemistry(iPair, iReac2)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+#endif
+          END IF
+          RelaxToDo = .FALSE.
+        END IF
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT

@@ -320,7 +320,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
         / (CollInf%MassRed(CollInf%Coll_Case(EductReac(1), EductReac(2)))))
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
-      ReactionProb = ForwardRate / Rcoll 
+      ReactionProb = ForwardRate / Rcoll
     ELSE
       IF(SpecDSMC(EductReac(2))%PolyatomicMol.OR.SpecDSMC(EductReac(1))%PolyatomicMol) THEN
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
