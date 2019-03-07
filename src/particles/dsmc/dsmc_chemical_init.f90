@@ -1164,7 +1164,7 @@ CASE('iQK')
     QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
   END DO
 CASE('D')
-  MaxVibQuant = SpecDSMC(iSpec1)%DissQuant + 1
+  MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
   DO iInter = 1, PartitionArraySize
     Temp = iInter * DSMC%PartitionInterval
     ForwardRate = 0.0
