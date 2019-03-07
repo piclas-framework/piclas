@@ -243,31 +243,33 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
     ! Zero-point energy of educts is removed from the collision energy utilized for the calculation of the reaction probability
     EReact = Coll_pData(iPair)%Ec - EZeroPoint_Educt
     ! Determination of the Beta coefficient (array for diatomic molecules, calculation for polyatomic)
-    IF (SpecDSMC(EductReac(1))%PolyatomicMol                &
-        .OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
-        .OR.SpecDSMC(ProductReac(1))%PolyatomicMol  &
-        .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
-      BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-    ELSE
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-        BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(                                                         &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-      ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-        BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(                                                         &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-      ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
-          BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-        ELSE
-          BetaReaction = &
-            ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
-        END IF
+    IF(.NOT.ChemReac%QKProcedure(iReac))THEN
+      IF (SpecDSMC(EductReac(1))%PolyatomicMol                &
+          .OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
+          .OR.SpecDSMC(ProductReac(1))%PolyatomicMol  &
+          .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
+        BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
       ELSE
-!        CALL abort(&
-!       __STAMP__&
-!        ,'Reaction Type is not properly specified. Reaction: ',iReac)
+        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(                                                         &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
+        ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
+          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(                                                         &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
+        ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+          IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
+            BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
+          ELSE
+            BetaReaction = &
+              ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
+          END IF
+        ELSE
+!          CALL abort(&
+!         __STAMP__&
+!          ,'Reaction Type is not properly specified. Reaction: ',iReac)
+        END IF
       END IF
     END IF
     ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical

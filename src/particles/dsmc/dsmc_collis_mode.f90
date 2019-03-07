@@ -2752,7 +2752,7 @@ __STAMP__&
         iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
         ! Comparing the collision quantum number with the dissociation quantum number
         IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
-          CALL CalcReactionProb(iPair,iReac,ReactionProb2)
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
         ELSE
           ReactionProb2 = 0.
         END IF
