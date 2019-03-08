@@ -2216,7 +2216,7 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
     PartState(PartID,6)  = WallVelo(3)
 
     VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-    EtraOld = 0.5 * Species(outSpec(1))%MassIC * VeloReal**2
+    EtraOld = 0.5 * Species(SpecID)%MassIC * VeloReal**2
     EtraWall = 0.0
     EtraNew = EtraWall
 
@@ -2230,7 +2230,7 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
-    IF (SpecDSMC(outSpec(1))%InterID.EQ.2) THEN
+    IF (SpecDSMC(SpecID)%InterID.EQ.2) THEN
       !---- Rotational energy accommodation
       CALL RANDOM_NUMBER(RanNum)
       ErotWall = 0
@@ -2242,16 +2242,16 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
       !---- Vibrational energy accommodation
       EvibWall = 0.0
       EvibNew  = 0.0
-      IF(SpecDSMC(outSpec(1))%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(outSpec(1))%SpecToPolyArray
+      IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
         DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
           IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(outSpec(1))%MacroParticleFactor
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(SpecID)%MacroParticleFactor
         END DO
       ELSE
-        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(outSpec(1))%CharaTVib) &
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) &
                     - DSMC%GammaQuant)
-        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(outSpec(1))%CharaTVib
+        IntArray(4) = (VibQuant + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(SpecID)%CharaTVib
       END IF
       IntArray(5) = EvibWall
       IntArray(6) = EvibNew
@@ -2559,7 +2559,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     SampWall(SurfSideID)%Adsorption(3,p,q) = SampWall(SurfSideID)%Adsorption(3,p,q) &
                                            + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
-    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
+    CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
