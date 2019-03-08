@@ -170,7 +170,6 @@ CASE(2) !PartBound%ReflectiveBC)
         SELECT CASE (adsorbindex)
         CASE(1)
           ! 1: adsorption (is either removed or set to be on surface)
-          ! 2: Eley-Rideal reaction (particle is removed and product inserted in surface flux)
           IF (KeepWallParticles.AND.(adsorbindex.EQ.1)) THEN
             PDM%ParticleAtWall(iPart) = .TRUE.
           ELSE
@@ -186,6 +185,7 @@ CASE(2) !PartBound%ReflectiveBC)
             alpha=-1.
           END IF
         CASE(2)
+          ! 2: Eley-Rideal reaction (particle is reflected in catalytic treatment routine)
           !CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
         CASE(0) ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
@@ -394,9 +394,8 @@ CASE(2) !PartBound%ReflectiveBC)
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
         ! assign right treatment
         SELECT CASE (adsorbindex)
-        CASE(1,2)
+        CASE(1)
           ! 1: adsorption (is either removed or set to be on surface)
-          ! 2: Eley-Rideal reaction (particle is removed and inserted product inserted in surface flux)
           IF (KeepWallParticles.AND.(adsorbindex.EQ.1)) THEN
             PDM%ParticleAtWall(iPart) = .TRUE.
           ELSE
@@ -411,6 +410,9 @@ CASE(2) !PartBound%ReflectiveBC)
 #endif /*IMPA*/
             alpha=-1.
           END IF
+        CASE(2)
+          ! 2: Eley-Rideal reaction (particle is reflected in catalytic treatment routine)
+          !CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
         CASE(0) ! inelastic reflection
           CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                                 ,BCSideID=BCSideID,opt_reflected=crossedBC)
@@ -2361,7 +2363,8 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   VelXOld = 0.
   VelYOld = 0.
   VelZOld = 0.
-  
+  EtraOld = EtraNew
+
   IF (ModelERSpecular) THEN
     ! perfect velocity reflection
     PartState(PartID,4:6) = PartState(PartID,4:6) - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc
