@@ -94,10 +94,7 @@ IF ( iQuaMax .GT. iQuaDiss ) THEN
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
 # endif
-      ! calculate the collision energy as required input for the performance of the dissociation reaction
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,2) + &
-                          PartStateIntEn(PartReac2,1) + PartStateIntEn(PartReac2,2)
-    CALL DSMC_Chemistry(iReac, iPair)
+    CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
   END IF
   IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -189,7 +186,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         IF (usevMPF) THEN
           CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
         ELSE
-          CALL DSMC_Chemistry(iReac, iPair, iPart_p3)
+          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         END IF
 #if (PP_TimeDiscMethod==42)
       END IF
@@ -243,7 +240,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         IF (usevMPF) THEN
           CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
         ELSE
-          CALL DSMC_Chemistry(iReac, iPair, iPart_p3)
+          CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
         END IF
         RelaxToDo = .FALSE.
 #if (PP_TimeDiscMethod==42)
@@ -334,7 +331,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
       Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                            + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
                            + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-      CALL DSMC_Chemistry(iReac, iPair)
+      CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
     END IF
     IF ( DSMC%ReservoirRateStatistic) THEN
@@ -375,7 +372,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
         Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
                                   + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
                                   + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-        CALL DSMC_Chemistry(iReac, iPair)
+        CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
       END IF
       IF ( DSMC%ReservoirRateStatistic ) THEN
@@ -433,7 +430,7 @@ SELECT CASE (ChemReac%QKMethod(iReac))
           Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
                                + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
                                + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          CALL DSMC_Chemistry(iReac, iPair)
+          CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
         END IF
         IF ( DSMC%ReservoirRateStatistic) THEN
@@ -712,7 +709,7 @@ IF (ReactionProb.GT.iRan) THEN
 !      CALL IonRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
 !    ELSE
      !CALL IonRecomb(iReac, iPair, iPart_p3, iElem)
-     CALL DSMC_Chemistry(iReac, iPair, iPart_p3)
+     CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
 !    END IF
 #if (PP_TimeDiscMethod==42)
   END IF
