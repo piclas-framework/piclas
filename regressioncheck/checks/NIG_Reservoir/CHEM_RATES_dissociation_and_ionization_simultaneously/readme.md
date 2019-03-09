@@ -21,3 +21,17 @@
   * DSMCReservoirSim       = T
   * DSMCReservoirSimRate   = T
   * DSMCReservoirStatistic = T
+* Reactions
+
+| Reaction   | Type     | Number    |
+| :--------: | :------: | :-------: |
+| N2+N2      | Diss.    | 1         |
+| N2+e       | Ioni.    | 2         |
+| N2+e       | Diss.    | 3         |
+| N2+N2+     | Diss.    | 4         |
+| N2+N       | Diss.    | 5         |
+| N2         | R(D)     | 6         |
+| e          | R(I)     | 7         |
+| e          | R(D)     | 8         |
+| N2+        | R(D)     | 9         |
+| N          | R(D)     | 10        |
