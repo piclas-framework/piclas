@@ -551,11 +551,12 @@ INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevecto
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
-INTEGER                       :: Vertex(data_size,nElems)
+INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
-CHARACTER(LEN=200)            :: Buffer
-CHARACTER(LEN=1)              :: lf
+CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
+CHARACTER(LEN=1)              :: lf, components_string
 REAL(KIND=4)                  :: float
+INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 !===================================================================================================================================
 
 nVTKElems=nNodes
@@ -566,6 +567,34 @@ IF(nElems.LT.1)THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
   RETURN
 END IF
+
+! Prepare output of vector variables as a vector variable suitable for VisIt and Paraview
+IF(.NOT.ALLOCATED(VarNameCombine))    ALLOCATE(VarNameCombine   (nVar))
+IF(.NOT.ALLOCATED(VarNameCombineLen)) ALLOCATE(VarNameCombineLen(nVar))
+VarNameCombine = 0
+DO iVar=2,nVar
+  ! Get the length of the variable name
+  iLen = LEN(TRIM(VarNameVisu(iVar)))
+  ! Save the strings in temporary variables
+  tmp = VarNameVisu(iVar)
+  tmp2 = VarNameVisu(iVar-1)
+  ! Compare the strings, while omitting the last character to find identify VeloX/Y/Z as a vector
+  IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
+    ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
+      ! If it is the first occurence, start counting
+      IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
+      VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
+    END IF
+  END IF
+END DO
+VarNameCombineLen = 0
+VarNameCombineLen(nVar) = VarNameCombine(nVar)
+DO iVar=nVar-1,1,-1
+  IF (VarNameCombine(iVar).GT.0) THEN
+    VarNameCombineLen(iVar) = MAX(VarNameCombine(iVar), VarNameCombineLen(iVar+1))
+  END IF
+END DO
 
 ! Line feed character
 lf = char(10)
@@ -589,10 +618,21 @@ Offset=0
 WRITE(StrOffset,'(I16)')Offset
 IF (nVar .GT.0)THEN
   DO iVar=1,nVar
+    IF(VarNameCombine(iVar).EQ.0) THEN
       Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
       '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
       Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(float),4)
       WRITE(StrOffset,'(I16)')Offset
+    ELSE IF (VarNameCombine(iVar).EQ.1) THEN
+      str_len = LEN_TRIM(VarNameVisu(iVar))
+      WRITE(components_string,'(I1)') VarNameCombineLen(iVar)
+      VarNameString = VarNameVisu(iVar)(1:str_len-1)
+      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
+      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
+      WRITE(ivtk) TRIM(Buffer)
+      Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(float),4)*VarNameCombineLen(iVar)
+      WRITE(StrOffset,'(I16)')Offset
+    END IF
   END DO
 END IF
 Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -630,7 +670,11 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 ! cell data
 nBytes = nVTKCells*INT(SIZEOF(FLOAT),4)
 DO iVal=1,nVar
-  WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
+  IF (VarNameCombine(iVal).EQ.0) THEN
+    WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
+  ELSEIF(VarNameCombine(iVal).EQ.1) THEN
+    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Value(iVal:iVal+VarNameCombineLen(iVal)-1,1:nVTKCells),4)
+  ENDIF
 END DO
 ! Points
 nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
@@ -668,6 +712,10 @@ Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+
+SDEALLOCATE(VarNameCombine)
+SDEALLOCATE(VarNameCombineLen)
+
 END SUBROUTINE WriteDataToVTK_PICLas
 
 
@@ -937,16 +985,16 @@ CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
 nVarAdd=INT(HSize(1),4)
 
 IF (nVarAdd.GT.0) THEN
-  ALLOCATE(VarNamesAdd(nVarAdd))
-  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd)
-  ALLOCATE(ElemData(1:nVarAdd, nElems))
+  ALLOCATE(VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  ALLOCATE(ElemData(1:nVarAdd,1:nElems))
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         nVarAdd => INT(nVarAdd,IK) ,&
         offsetElem => INT(offsetElem,IK),&
         nElems     => INT(nElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData)
+    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   SELECT CASE(TRIM(File_Type))
     CASE('State')
