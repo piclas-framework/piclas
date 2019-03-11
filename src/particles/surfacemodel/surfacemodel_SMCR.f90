@@ -1592,10 +1592,10 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      DO iReact = Adsorption%ReactNum+1,Adsorption%ReactNum*2
+      DO iReact = 1,Adsorption%ReactNum
         IF (NumSurfReact(iSpec,iReact).GT.0) THEN
-          SampWall(iSurf)%Reaction(iReact,iSpec,iSubSurf,jSubSurf) = &
-              SampWall(iSurf)%Reaction(iReact,iSpec,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%Reaction(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) = &
+              SampWall(iSurf)%Reaction(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) &
               + ((REAL(NumSurfReact(iSpec,iReact)) / REAL(numSites)) * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
               * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor)
         END IF
