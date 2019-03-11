@@ -115,14 +115,10 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ROS4
                                                               ROS46
                                                               ROS6
+                                                              FP-Flow
                                                               ESBGK
                                                               BGK-Euler
                                                               BGK-Euler-Gravitation
-                                                              BGK-Phase
-                                                              BGK-Phase-RK3
-                                                              BGK-Phase-RK4
-                                                              BGK-Phase-RK14
-                                                              BGK-Phase-LeapFrog
                                                               FieldRelaxation
                                                               FieldRelaxation-AdaptiveTimeStep
                                                               LD
@@ -305,22 +301,14 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ESBGK")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Euler")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=410)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Euler-Gravitation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=411)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Phase")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=440)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=441 -DLSERK)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=442 -DLSERK)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Phase-RK14")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=443 -DLSERK)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Phase-LeapFrog")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=445)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")

@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 #include "piclas.h"
 
 MODULE MOD_ESBGK
@@ -22,15 +34,110 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ESBGK_main, BGKEuler_main
+PUBLIC :: ESBGK_main, BGKEuler_main, BGK_DSMC_main
 !===================================================================================================================================
 
 CONTAINS
 
+SUBROUTINE BGK_DSMC_main()
+!===================================================================================================================================
+! Performs FP Momentum Evaluation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
+USE MOD_Mesh_Vars,              ONLY: nElems
+USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
+USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt, ESBGKSplitCells
+USE MOD_Particle_Mesh_Vars,     ONLY: GEO
+USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species
+USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
+USE MOD_ESBGK_Vars,             ONLY: DoBGKCellSplitting, BGKDSMCSwitchDens
+USE MOD_ESBGK_CollOperator,     ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
+USE MOD_DSMC,                   ONLY: DSMC_main
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iElem, nPart, iLoop, iPart, iSpec
+INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
+LOGICAL               :: DoElement(nElems)
+REAL                  :: vBulk(3), TotalMass, dens
+!===================================================================================================================================
+DSMC_RHS = 0.0
+DoElement = .FALSE.
+
+DO iElem = 1, nElems
+  nPart = PEM%pNumber(iElem)
+  IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
+  dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem) 
+  IF (dens.LT.BGKDSMCSwitchDens) THEN
+    DoElement(iElem) = .TRUE.
+    CYCLE
+  END IF
+
+  IF (DoBGKCellAdaptation) THEN
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CollProbMax = 1.
+      DSMC%CollSepDist = 0.
+    END IF
+    CALL ESBGK_octree_adapt(iElem)
+    IF(DSMC%CalcQualityFactors) THEN
+      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN 
+        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollSepDist
+      END IF
+    END IF
+  ELSE IF (DoBGKCellSplitting) THEN
+    CALL ESBGKSplitCells(iElem)
+  ELSE  
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CollProbMax = 1.
+    END IF
+
+    ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+
+    TotalMass = 0.0
+    vBulk(1:3) = 0.0
+    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    DO iLoop = 1, nPart
+      iPartIndx_Node(iLoop) = iPart
+      iSpec = PartSpecies(iPart)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)*Species(iSpec)%MassIC
+      TotalMass = TotalMass + Species(iSpec)%MassIC
+      iPart = PEM%pNext(iPart)
+    END DO
+    vBulk = vBulk / TotalMass
+
+    IF (BGKDoAveraging) THEN
+      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
+          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
+               CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
+    ELSE 
+      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    END IF
+    IF(DSMC%CalcQualityFactors) THEN
+      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+      END IF
+    END IF
+    DEALLOCATE(iPartIndx_Node)
+  END IF
+END DO
+
+CALL DSMC_main(DoElement)
+
+END SUBROUTINE BGK_DSMC_main
+
 
 SUBROUTINE ESBGK_main()
 !===================================================================================================================================
-!> Performs ESBGK Momentum Evaluation
+!> description
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -98,11 +205,11 @@ ELSE
     vBulk = vBulk / nPart
 
     IF (BGKDoAveraging) THEN
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), vBulk, &
+      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, iElem, GEO%Volume(iElem), vBulk)
+      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
@@ -145,10 +252,8 @@ SUBROUTINE BGKEuler_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_Euler
 USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
 USE MOD_Restart_Vars       ,ONLY: RestartTime
@@ -181,7 +286,7 @@ DO iElem = 1, nElems
   END DO
   vBulk = vBulk / nPart
 
-  CALL ESBGK_Euler(iPartIndx_Node(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk)
+  CALL ESBGK_Euler(iPartIndx_Node(1:nPart), nPart, vBulk)
   DEALLOCATE(iPartIndx_Node)
 END DO
 
@@ -209,6 +314,5 @@ IF(SamplingActive) THEN
 END IF
 
 END SUBROUTINE BGKEuler_main
-
 
 END MODULE MOD_ESBGK

@@ -1568,7 +1568,6 @@ USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_ESBGK_Vars         ,ONLY: ElemSplitCells
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -390,9 +390,6 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -576,17 +573,9 @@ __STAMP__&
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
              IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
              ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
              END IF
            END IF
            iPart = iPart + 1
@@ -634,17 +623,9 @@ __STAMP__&
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
             IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
               CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
             ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
+              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
             END IF
         END IF
           iPart = iPart + 1
@@ -4761,9 +4742,6 @@ USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
@@ -5508,17 +5486,9 @@ __STAMP__&
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr .ne. 0) THEN
           IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-             CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
             CALL DSMC_SetInternalEnr_Poly(iSpec,iSF,PositionNbr,2)
-#endif
           ELSE
-#if (PP_TimeDiscMethod==300)
-               CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
-#endif
+            CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
           END IF
         END IF
         iPart = iPart + 1

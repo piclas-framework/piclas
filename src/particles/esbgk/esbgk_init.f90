@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 #include "piclas.h"
 
 MODULE MOD_ESBGK_Init
@@ -18,7 +30,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitESBGK, DefineParametersBGK, ESBGK_BuildTransGaussNumsEnCon
+PUBLIC :: InitESBGK, DefineParametersBGK
 !===================================================================================================================================
 
 CONTAINS
@@ -33,29 +45,36 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("BGK")
 
-CALL prms%CreateRealOption(     'Particles-BGKAdaptTimeStep'  ,     'TODO-DEFINE-PARAMETER.BGK adaptation timestep [sec]?', '0.0')
-CALL prms%CreateLogicalOption(  'Particles-BGK-DoCellAdaptation',   'Enable BGK Cell Adaptation','.FALSE.')
-CALL prms%CreateIntOption(      'Particles-BGK-MinPartsPerCell'  ,  'Define minimum number of particles per cell', '10')
-CALL prms%CreateIntOption(      'Particles-BGKCollModel'  ,         'TODO-DEFINE-PARAMETER. Define BGK method used.\n'//&
-                                '1: ...\n'//&
-                                '2: ...\n'//&
-                                '3: ...\n'//&
-                                '4: ...\n', '1')
-CALL prms%CreateIntOption(      'Particles-ESBGKModel'  ,         'TODO-DEFINE-PARAMETER.\n'//&
-                                '1: Approximative\n'//&
-                                '2: Exact\n'//&
-                                '3: MetropolisHastings', '1')
-CALL prms%CreateRealOption(     'Particles-UnifiedBGK-Ces'  ,     'TODO-DEFINE-PARAMETER', '1000.0')
-CALL prms%CreateLogicalOption(  'Particles-BGKDoAveraging',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-BGKDoAveragingCorrection',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateIntOption(      'Particles-BGKAveragingLength'  ,  'TODO-DEFINE-PARAMETER', '5')
-CALL prms%CreateIntOption(      'Particles-SBGKEnergyConsMethod'  ,  'SBGK energy conservation scheme', '1')
-CALL prms%CreateLogicalOption(  'Particles-BGKUseQuantVibEn',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateRealOption(     'Particles-BGKAcceleration'  ,     'TODO-DEFINE-PARAMETER', '-9.81')
-CALL prms%CreateRealOption(     'Particles-BGKSplittingDens'  ,     'TODO-DEFINE-PARAMETER', '0.0')
-CALL prms%CreateLogicalOption(  'Particles-BGK-DoBGKCellSplitting',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-BGK-SampAdapFac',       'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-BGK-DoVibRelaxation',       'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'TODO-DEFINE-PARAMETER. Define BGK method used.\n'//&
+                                                                    '1: Ellipsoidal statistical\n'//&
+                                                                    '2: Shakov\n'//&
+                                                                    '3: Standard BGK\n'//&
+                                                                    '4: Unified\n')
+CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'TODO-DEFINE-PARAMETER.\n'//&
+                                                                    '1: Approximative\n'//&
+                                                                    '2: Exact\n'//&
+                                                                    '3: MetropolisHastings', '1')
+CALL prms%CreateIntOption(    'Particles-SBGK-EnergyConsMethod',    'SBGK energy conservation scheme', '1')
+CALL prms%CreateRealOption(   'Particles-UnifiedBGK-Ces',           'TODO-DEFINE-PARAMETER', '1000.0')
+CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables octree cell refinement until the given number of'//&
+                                                                    'particles is reached. Equal refinement in all three'//&
+                                                                    'directions (x,y,z)','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define minimum number of particles per cell for octree cell'//&
+                                                                    'refinement', '10')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'TODO-DEFINE-PARAMETER', '5')
+CALL prms%CreateRealOption(   'Particles-BGK-Acceleration',         'TODO-DEFINE-PARAMETER', '-9.81')
+CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'TODO-DEFINE-PARAMETER', '0.0')
+CALL prms%CreateLogicalOption('Particles-BGK-DoBGKCellSplitting',   'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-SampAdapFac',          'TODO-DEFINE-PARAMETER','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quantized treatment of vibrational energy levels',  &
+                                                                    '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number'//&
+                                                                    'density as a switch parameter','.FALSE.')
+CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number density [1/m3] above which the FP method is used'//&
+                                                                    'below which DSMC is performed.','0.0')
 
 END SUBROUTINE DefineParametersBGK
 
@@ -64,7 +83,6 @@ SUBROUTINE InitESBGK()
 !> Init of BGK Vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc            ,ONLY: PP_N
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
@@ -73,7 +91,6 @@ USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_ESBGK_Vars
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
-USE MOD_Interpolation_Vars ,ONLY: xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,7 +99,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)         :: hilf
 INTEGER               :: iSpec, iSpec2, iElem
 REAL                  :: b
 !===================================================================================================================================
@@ -101,29 +117,30 @@ b = (0.5 - SpecDSMC(1)%omegaVHS)
 ESBGKTempCorrectFact = (2.-SpecDSMC(1)%omegaVHS)**b * GAMMA(2.-SpecDSMC(1)%omegaVHS) &
                         / GAMMA(2.-SpecDSMC(1)%omegaVHS+b)
 
-BGKAdaptTimeStep = GETINT('Particles-BGKAdaptTimeStep')
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
-BGKCollModel = GETINT('Particles-BGKCollModel')
-ESBGKModel = GETINT('Particles-ESBGKModel')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
+BGKCollModel = GETINT('Particles-BGK-CollModel')
+ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
+BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens','0.')
+CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC','.FALSE.')
 IF (BGKCollModel.EQ.2) THEN
-  SBGKEnergyConsMethod = GETINT('Particles-SBGKEnergyConsMethod')
+  SBGKEnergyConsMethod = GETINT('Particles-SBGK-EnergyConsMethod')
 ELSE
   SBGKEnergyConsMethod = 1
 END IF
 IF (BGKUnifiedCes.EQ.1000.) THEN
   BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
 END IF
-BGKAveragingLength = GETINT('Particles-BGKAveragingLength')
-BGKDoAveraging = GETLOGICAL('Particles-BGKDoAveraging')
-BGKDoAveragingCorrect = GETLOGICAL('Particles-BGKDoAveragingCorrection')
-BGKUseQuantVibEn = GETLOGICAL('Particles-BGKUseQuantVibEn')
+BGKAveragingLength = GETINT('Particles-BGK-AveragingLength')
+BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')
+BGKDoAveragingCorrect = GETLOGICAL('Particles-BGK-DoAveragingCorrection')
+BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF (BGKDoAveraging) CALL BGK_init_Averaging()
-BGKAcceleration = GETREAL('Particles-BGKAcceleration')
+BGKAcceleration = GETREAL('Particles-BGK-Acceleration')
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
 DoBGKCellSplitting = GETLOGICAL('Particles-BGK-DoBGKCellSplitting')
-BGKSplittingDens = GETREAL('Particles-BGKSplittingDens')
+BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 IF (DoBGKCellSplitting) THEN
   DoBGKCellAdaptation = .FALSE.
   ALLOCATE(ElemSplitCells(nElems))
@@ -136,48 +153,6 @@ END IF
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitESBGK
-
-
-SUBROUTINE ESBGK_BuildTransGaussNumsEnCon(nPart, iRanPart)
-!===================================================================================================================================
-! Performs FP Momentum Evaluation
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: sumiRan(3), varianceiRan(3)
-INTEGER                        :: iLoop
-!===================================================================================================================================
-sumiRan(1:3) = 0.0
-varianceiRan(1:3) = 0.0
-DO iLoop = 1, nPart
-  iRanPart(1,iLoop) = rnor()
-  iRanPart(2,iLoop) = rnor()
-  iRanPart(3,iLoop) = rnor()
-  sumiRan(1:3) = sumiRan(1:3) + iRanPart(1:3,iLoop)
-END DO
-sumiRan(1:3) = sumiRan(1:3)/nPart
-DO iLoop = 1, nPart
-  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)-sumiRan(1:3)
-  varianceiRan(1:3) = varianceiRan(1:3) + iRanPart(1:3,iLoop)*iRanPart(1:3,iLoop)
-END DO
-varianceiRan(1:3) = SQRT(varianceiRan(1:3)/nPart)
-
-DO iLoop = 1, nPart
-  iRanPart(1:3,iLoop) = iRanPart(1:3,iLoop)/varianceiRan(1:3)
-END DO
-
-END SUBROUTINE ESBGK_BuildTransGaussNumsEnCon
-
 
 
 SUBROUTINE DefineElementOrientation()
@@ -197,8 +172,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL      :: Vec(3), P(3,8), ResVec1(3,3), ResVec2(3,3), DiffVec(3,3), MinVec(3), MaxDir(3), angle(3,3), vecmag(3)
-INTEGER   :: iElem, iNode, ii, jj, firstDir1, firstDir2
+REAL      :: Vec(3), ResVec1(3,3), ResVec2(3,3), DiffVec(3,3), MinVec(3), angle(3,3), vecmag(3)
+INTEGER   :: iElem, ii, jj, firstDir1, firstDir2
 !===================================================================================================================================
 DO iElem = 1, nElems
   Vec(1:3) = (/-0.99,0.,0./)
@@ -272,7 +247,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem, NodeDepth
+INTEGER                       :: iElem
 !===================================================================================================================================
 ALLOCATE(ElemNodeAveraging(nElems))
 DO iElem = 1, nElems

@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 MODULE MOD_ESBGK_Vars
 !===================================================================================================================================
 ! Contains the FP Flow variables
@@ -28,14 +40,13 @@ INTEGER                                        :: BGKAveragingLength
 LOGICAL                                        :: BGKDoAveraging
 LOGICAL                                        :: BGKDoAveragingCorrect
 LOGICAL                                        :: BGKUseQuantVibEn
-REAL                                           :: BGKMinCFL = 1.0
-INTEGER                                        :: BGKAdaptTimeStep
 INTEGER                                        :: SBGKEnergyConsMethod
 REAL                                           :: BGKAcceleration
 LOGICAL                                        :: BGKDoVibRelaxation
-
 LOGICAL                                        :: DoBGKCellSplitting
-REAL                         :: BGKSplittingDens
+REAL                                           :: BGKSplittingDens
+REAL                                           :: BGKDSMCSwitchDens
+LOGICAL                                        :: CoupledBGKDSMC
 TYPE tElemSplitCells
   REAL, ALLOCATABLE                            :: SplitCellVolumes(:,:,:)
   INTEGER                                      :: Splitnum(3)
@@ -43,12 +54,6 @@ TYPE tElemSplitCells
 END TYPE
 
 TYPE(tElemSplitCells), ALLOCATABLE             :: ElemSplitCells(:)
-
-REAL                                           :: BGKDiffEn = 0.0
-REAL                                           :: BGKDiffEn2 = 0.0
-REAL                                           :: BGKDiffEn3 = 0.0
-REAL                                           :: BGKDiffEn4 = 0.0
-INTEGER                                        :: BGKTest = 0
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()

@@ -1,3 +1,15 @@
+!==================================================================================================================================
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 #include "piclas.h"
 
 MODULE MOD_ESBGK_Adaptation
@@ -29,13 +41,14 @@ SUBROUTINE ESBGK_octree_adapt(iElem)
 !> or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars              ,ONLY: tTreeNode, DSMC, ElemNodeVol
+USE MOD_DSMC_Vars              ,ONLY: tTreeNode, ElemNodeVol
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef,Species
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_ESBGK_CollOperator     ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_ESBGK_Vars             ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength,BGKSplittingDens
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperatorOctree
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -47,7 +60,6 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iLoop, nPart
 REAL                          :: vBulk(3), Dens
-REAL, ALLOCATABLE             :: MappedPartStates(:,:)
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
@@ -99,15 +111,20 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   END IF
   DEALLOCATE(TreeNode%MappedPartStates)
 ELSE
+#if (PP_TimeDiscMethod==300)
+    CALL FP_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart &
+                              , GEO%Volume(iElem), vBulk)
+#else
   IF (BGKDoAveraging) THEN
     CALL ESBGK_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart, &
-              iElem, GEO%Volume(iElem), vBulk, &
+              GEO%Volume(iElem), vBulk, &
              ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
              CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ELSE
     CALL ESBGK_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart &
-                            , iElem, GEO%Volume(iElem), vBulk)
+                            , GEO%Volume(iElem), vBulk)
   END IF
+#endif
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -122,13 +139,13 @@ RECURSIVE SUBROUTINE AddESBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars            ,ONLY: tTreeNode, DSMC, tNodeVolume
-USE MOD_Particle_Vars        ,ONLY: nSpecies, PartSpecies, PartState
-USE MOD_DSMC_Vars            ,ONLY: ElemNodeVol
-USE MOD_ESBGK_CollOperator   ,ONLY: ESBGK_CollisionOperatorOctree
-USE MOD_DSMC_ParticlePairing ,ONLY: DSMC_CalcSubNodeVolumes
-USE MOD_ESBGK_Vars           ,ONLY: BGKMinPartPerCell,tNodeAverage, ElemNodeAveraging, BGKDoAveraging, BGKDoAveragingCorrect
-USE MOD_ESBGK_Vars           ,ONLY: BGKAveragingLength
+USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
+USE MOD_Particle_Vars         ,ONLY: PartState
+USE MOD_ESBGK_CollOperator    ,ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes
+USE MOD_ESBGK_Vars            ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKDoAveraging
+USE MOD_ESBGK_Vars            ,ONLY: BGKAveragingLength
+USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperatorOctree
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -141,11 +158,11 @@ TYPE(tNodeAverage),INTENT(INOUT), POINTER, OPTIONAL :: Averaging
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies), iLoop2
+INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, iLoop2
 INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
-INTEGER                      :: PartNumChildNode(8), MergeTemp(8), NodeAveragingCorrect(8)
-REAL                         :: NodeVolumeTemp(8), vBulk(3,8), NodeAveragingTemp(8,5,BGKAveragingLength)
+INTEGER                      :: PartNumChildNode(8)
+REAL                         :: NodeVolumeTemp(8), vBulk(3,8)
 LOGICAL                      :: ForceESBGK
 !===================================================================================================================================
 IF (TreeNode%PNum_Node.LE.8.*BGKMinPartPerCell) THEN
@@ -339,53 +356,58 @@ DO iLoop = 1, 8
     DEALLOCATE(TreeNode%ChildNode)
   ELSE IF (PartNumChildNode(iLoop).GE.2) THEN
     vBulk(1:3,iLoop) = vBulk(1:3,iLoop) / PartNumChildNode(iLoop)
+#if (PP_TimeDiscMethod==300)
+      CALL FP_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+#else
     IF (BGKDoAveraging) THEN
       SELECT CASE(iLoop)
         CASE(1)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode1%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode1%CorrectStep)
         CASE(2)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode2%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode2%CorrectStep)
         CASE(3)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode3%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode3%CorrectStep)
         CASE(4)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode4%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode4%CorrectStep)
         CASE(5)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode5%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode5%CorrectStep)
         CASE(6)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode6%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode6%CorrectStep)
         CASE(7)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode7%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode7%CorrectStep)
         CASE(8)
           CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
+                PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode8%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode8%CorrectStep)
       END SELECT
     ELSE
       CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
+              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
     END IF
+#endif
   END IF
 END DO
 
@@ -454,7 +476,6 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1).AND.(Dens.GT.BGKSp
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
     CALL GetPositionInRefElem(PartState(iPart,1:3),MappedPartStates(iLoop,1:3),iElem)
-!    CALL GeoCoordToMap(PartState(iPart,1:3), MappedPartStates(iLoop,1:3), iElem)
     MappedPartStates(iLoop,1) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,1))),MappedPartStates(iLoop,1))
     MappedPartStates(iLoop,2) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,2))),MappedPartStates(iLoop,2))
     MappedPartStates(iLoop,3) = SIGN(MIN(0.9999999,ABS(MappedPartStates(iLoop,3))),MappedPartStates(iLoop,3))
@@ -499,7 +520,7 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1).AND.(Dens.GT.BGKSp
     IF (PartNum_SplitCell(iCell).GE.2) THEN
         vBulk_SplitCell(1:3,iCell) = vBulk_SplitCell(1:3,iCell) /PartNum_SplitCell(iCell)
         CALL ESBGK_CollisionOperatorOctree(iPartIndx_SplitCell(1:PartNum_SplitCell(iCell),iCell), &
-                PartNum_SplitCell(iCell), iElem, Volumes(iCell), &
+                PartNum_SplitCell(iCell), Volumes(iCell), &
                 vBulk_SplitCell(1:3,iCell))
     END IF
   END DO
@@ -520,7 +541,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
   vBulk(1:3) = vBulk(1:3) / nPart
-  CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, iElem, GEO%Volume(iElem), vBulk(1:3))
+  CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, GEO%Volume(iElem), vBulk(1:3))
   IF (TotalSubCells.EQ.1) THEN
     IF(DSMC%CalcQualityFactors) THEN
       IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
@@ -569,11 +590,11 @@ INTEGER, INTENT(IN)                     :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                 :: j, k ,l, NumOfPoints
+INTEGER                                 :: j, k ,l
 REAL                                    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), LocalwGP
 REAL, ALLOCATABLE                       :: DetJac(:,:,:,:)
 REAL, ALLOCATABLE                       :: LocalVdm(:,:), LocalxGP(:)
-INTEGER                                 :: LocalDepth, LowestCommonMultipl, PosX, PosY, PosZ
+INTEGER                                 :: LowestCommonMultipl, PosX, PosY, PosZ
 !===================================================================================================================================
 IF (ALLOCATED(ElemSplitCells(iElem)%SplitCellVolumes)) THEN
   IF (((ElemSplitCells(iElem)%Splitnum(1)+1).EQ.SIZE(ElemSplitCells(iElem)%SplitCellVolumes,1)) &

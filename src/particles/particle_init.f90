@@ -993,12 +993,17 @@ USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
-USE MOD_ESBGK_Init                 ,ONLY: InitESBGK
 USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC
 USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
+#endif
+#if (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
+#endif
+#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411)
+USE MOD_ESBGK_Init                 ,ONLY: InitESBGK
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1063,9 +1068,12 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
   IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
   IF (LiquidSimFlag) CALL InitLiquidSurfaceModel()
-#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411 || PP_TimeDiscMethod==441 || PP_TimeDiscMethod==442 || PP_TimeDiscMethod==443 || PP_TimeDiscMethod==445) 
+#if (PP_TimeDiscMethod==300)
+  CALL InitFPFlow()
+#endif
+#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411)
   CALL InitESBGK()
-#endif 
+#endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
@@ -1136,9 +1144,8 @@ INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
 LOGICAL               :: PartDens_OnlyInit
-REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
 REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
