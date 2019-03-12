@@ -67,13 +67,11 @@ SUBROUTINE InitFPFlow()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY: Pi, BoltzmannConst
+USE MOD_Globals_Vars,         ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,            ONLY: SpecDSMC
 USE MOD_PARTICLE_Vars,        ONLY: nSpecies, Species
-USE MOD_Equation_Vars
 USE MOD_FPFlow_Vars
-USE MOD_Basis,                ONLY: LegendreGaussNodesAndWeights, LegGaussLobNodesAndWeights, BarycentricWeights
 USE MOD_ESBGK_Vars,           ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -93,7 +91,7 @@ DO iSpec = 1, nSpecies
   ALLOCATE(SpecFP(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
     SpecFP(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 & 
-        * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
+        * SQRT(2.*PI*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
         /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
   END DO
 END DO
