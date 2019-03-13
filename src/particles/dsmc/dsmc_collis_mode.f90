@@ -655,6 +655,10 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   DoRot2  = .FALSE.
   DoVib1  = .FALSE.
   DoVib2  = .FALSE.
+  ProbVib1 = 0.
+  ProbRot1 = 0.
+  ProbVib2 = 0.
+  ProbRot2 = 0.
 
   iSpec = PartSpecies(Coll_pData(iPair)%iPart_p1)
   jSpec = PartSpecies(Coll_pData(iPair)%iPart_p2)
@@ -871,7 +875,6 @@ __STAMP__&
     ! check for polyatomic treatment
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ! no polyatomic treatment
@@ -911,7 +914,6 @@ __STAMP__&
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)    ! adding rot en to collision en
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
@@ -2819,7 +2821,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -2833,7 +2835,6 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                        :: TransEn, RotEn, RotDOF, CorrFact
-  REAL, PARAMETER           :: PI=3.14159265358979323846_8
 !===================================================================================================================================
 
   TransEn = Coll_pData(iPair)%Ec      ! notice that during probability calculation,Collision energy only contains translational part
@@ -2884,7 +2885,7 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,          ONLY : PolyatomMolDSMC
 
@@ -2901,7 +2902,6 @@ REAL, INTENT(INOUT)       :: ProbVib, ProbVibMax
 ! LOCAL VARIABLES
 REAL                      :: CorrFact, CRelaSub, TempCorr, DrefVHS
 INTEGER                   :: iPolyatMole, iDOF
-REAL, PARAMETER           :: PI=3.14159265358979323846_8
 !===================================================================================================================================
 
   ProbVib = 0.
