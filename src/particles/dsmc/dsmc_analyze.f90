@@ -1568,6 +1568,7 @@ USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
+USE MOD_ESBGK_Vars         ,ONLY: BGKInitDone, BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1580,7 +1581,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality, &
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, kk , ll, mm, iSpec, nVarCount, nSpecTemp
-REAL                    :: TVib_TempFac
+REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
 ! nullify
@@ -1710,30 +1711,32 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
 
   ! write dsmc quality values
   IF (DSMC%CalcQualityFactors) THEN
-    DO iElem=1,nElems
-    !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
-      IF(WriteMacroVolumeValues) THEN
-        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(DSMC%SampNum)
-        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(DSMC%SampNum)
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(DSMC%SampNum)
+    IF(WriteMacroVolumeValues) THEN
+      iter_loc = REAL(DSMC%SampNum)
+    ELSE
+      IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+        iter_loc = REAL(iter)
       ELSE
-        IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(iter)
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(iter)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(iter)
-        ELSE
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-        END IF
+        iter_loc = (Time-(1-DSMC%TimeFracSamp)*TEnd) / dt
       END IF
-    !END DO; END DO; END DO
+    END IF
+    DO iElem=1,nElems
+      IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
+        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / DSMC%QualityFacSamp(iElem,4)
+      END IF
+      IF(BGKInitDone) THEN
+        IF(BGK_QualityFacSamp(iElem,1).GT.0) THEN
+          DSMC_MacroVal(nVar+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(iElem,2) / BGK_QualityFacSamp(iElem,1)
+        END IF
+        IF(BGK_QualityFacSamp(iElem,4).GT.0) THEN
+          DSMC_MacroVal(nVar+5,kk,ll,mm,iElem) = BGK_QualityFacSamp(iElem,3) / BGK_QualityFacSamp(iElem,4)
+        END IF
+        DSMC_MacroVal(nVar+6,kk,ll,mm,iElem) = BGK_QualityFacSamp(iElem,4) / iter_loc
+      END IF
     END DO
   END IF
-  ! fill remaining node values with calculated values
-  DO mm = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO kk = 0, HODSMC%nOutputDSMC
-    DSMC_MacroVal(:,kk,ll,mm,:) = DSMC_MacroVal(:,1,1,1,:)
-  END DO; END DO; END DO
 ELSE ! all other sampling types
   nVarCount=0
   DO iSpec = 1, nSpecies
@@ -1971,6 +1974,7 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_ESBGK_Vars    ,ONLY: BGKInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1985,7 +1989,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
+INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -2006,6 +2010,7 @@ END IF
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
+  IF(BGKInitDone) nVar_quality = nVar_quality + 3
 ELSE
   nVar_quality=0
 END IF
@@ -2048,6 +2053,12 @@ IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
   nVarCount=nVarCount+3
+  IF(BGKInitDone) THEN
+    StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
+    StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'
+    StrVarNames(nVarCount+3) ='BGK_DSMC_Ratio'
+    nVarCount=nVarCount+3
+  END IF
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)

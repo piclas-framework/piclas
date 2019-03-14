@@ -191,6 +191,8 @@ SUBROUTINE DSMC_main(DoElement)
             END IF
             ! mean collision separation distance of actual collisions
             IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+            ! Counting sample size
+            DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0

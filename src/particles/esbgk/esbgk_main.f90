@@ -50,9 +50,10 @@ USE MOD_Mesh_Vars,              ONLY: nElems
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
 USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt, ESBGKSplitCells
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species
+USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
 USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
 USE MOD_ESBGK_Vars,             ONLY: DoBGKCellSplitting, BGKDSMCSwitchDens
+USE MOD_ESBGK_Vars,             ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
 USE MOD_ESBGK_CollOperator,     ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
 USE MOD_DSMC,                   ONLY: DSMC_main
@@ -82,23 +83,10 @@ DO iElem = 1, nElems
   END IF
 
   IF (DoBGKCellAdaptation) THEN
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
-      DSMC%CollSepDist = 0.
-    END IF
     CALL ESBGK_octree_adapt(iElem)
-    IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN 
-        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
-        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollSepDist
-      END IF
-    END IF
   ELSE IF (DoBGKCellSplitting) THEN
     CALL ESBGKSplitCells(iElem)
   ELSE  
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
-    END IF
 
     ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
 
@@ -114,6 +102,11 @@ DO iElem = 1, nElems
     END DO
     vBulk = vBulk / TotalMass
 
+    IF(DSMC%CalcQualityFactors) THEN
+      BGK_MeanRelaxFactorCounter = 0
+      BGK_MeanRelaxFactor = 0.
+      BGK_MaxRelaxFactor = 0.
+    END IF
     IF (BGKDoAveraging) THEN
       CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
@@ -122,8 +115,11 @@ DO iElem = 1, nElems
       CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+        BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
+        BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
+        BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
+        BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)
@@ -148,8 +144,8 @@ USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt, ESBGKSplitCells
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
-USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellSplitting
+USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, DoBGKCellSplitting
+USE MOD_ESBGK_Vars         ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
 ! IMPLICIT VARIABLE HANDLING
@@ -168,17 +164,7 @@ DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
-      DSMC%CollSepDist = 0.
-    END IF
     CALL ESBGK_octree_adapt(iElem)
-    IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
-        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollSepDist
-      END IF
-    END IF
   END DO
 ELSE IF (DoBGKCellSplitting) THEN
   DO iElem = 1, nElems
@@ -188,10 +174,6 @@ ELSE
   DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
-    END IF
 
     ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
 
@@ -204,6 +186,12 @@ ELSE
     END DO
     vBulk = vBulk / nPart
 
+    IF(DSMC%CalcQualityFactors) THEN
+      BGK_MeanRelaxFactorCounter = 0
+      BGK_MeanRelaxFactor = 0.
+      BGK_MaxRelaxFactor = 0.
+    END IF
+
     IF (BGKDoAveraging) THEN
       CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
@@ -212,8 +200,11 @@ ELSE
       CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+        BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
+        BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
+        BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
+        BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)

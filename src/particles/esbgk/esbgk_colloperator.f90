@@ -39,7 +39,7 @@ SUBROUTINE ESBGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, 
 !> description
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: PartState, Species
+USE MOD_Particle_Vars ,ONLY: PartState, Species, WriteMacroVolumeValues
 USE MOD_DSMC_Vars     ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Analyze  ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars ,ONLY: dt, TEnd, Time
@@ -47,6 +47,7 @@ USE MOD_Globals_Vars  ,ONLY: Pi, BoltzmannConst
 USE MOD_ESBGK_Vars    ,ONLY: SpecESBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
 USE MOD_ESBGK_Vars    ,ONLY: BGKAveragingLength, BGKDoAveraging
 USE MOD_ESBGK_Vars    ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
+USE MOD_ESBGK_Vars    ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -71,7 +72,7 @@ REAL, ALLOCATABLE     :: iRanPart(:,:), Xi_vib_DOF(:), VibEnergyDOF(:,:)
 REAL                  :: A(3,3), Work(1000), W(3), trace, CShak
 INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax, localBGKModel
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
-REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver, meanV, TimeStep
+REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver
 ! === DEBUG ===
 ! REAL                  :: testEnNew, testEnOld, testMomNew(3), testMomOld(3)
 !===================================================================================================================================
@@ -211,6 +212,14 @@ ELSE IF (localBGKModel.EQ.4) THEN
 ELSE
   relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
       /dynamicvis*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + 1./(relaxfreq * dt)
+    BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
+    BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,1./(relaxfreq * dt))
+  END IF
 END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
@@ -614,19 +623,6 @@ DO iLoop = 1, nRotRelax
   PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
 !   testEnNew = testEnNew + PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop),2)
 END DO
-
-IF(DSMC%CalcQualityFactors) THEN
-  IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-    DSMC%CollSepDist = DSMC%CollSepDist + 1.
-    ! Calculation of the lowest required timestep in the cell
-    meanV = SQRT(vBulkAll(1)*vBulkAll(1)+vBulkAll(2)*vBulkAll(2)+vBulkAll(3)*vBulkAll(3)) &
-              + SQRT(8.*BoltzmannConst*CellTemp/(Pi*Species(1)%MassIC))
-    IF(meanV.GT.0.0) THEN
-      TimeStep = NodeVolume**(1./3.) / meanV
-      DSMC%CollProbMax = MIN(DSMC%CollProbMax,TimeStep)
-    END IF
-  END IF
-END IF
 
 !print*, OldEn, alpha
 !print*, nPart, nRelax, nRotRelax, nVibRelax

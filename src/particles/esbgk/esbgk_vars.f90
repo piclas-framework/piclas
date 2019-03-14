@@ -23,6 +23,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                        :: ESBGK_Flow
+LOGICAL                                        :: BGKInitDone = .FALSE.
 
 TYPE tSpeciesESBGK                                                              ! ESBK Species Param
   REAL, ALLOCATABLE                            :: CollFreqPreFactor(:)
@@ -31,7 +32,6 @@ END TYPE tSpeciesESBGK
 TYPE(tSpeciesESBGK), ALLOCATABLE               :: SpecESBGK(:)                  ! Species DSMC params (nSpec)
 LOGICAL                                        :: DoBGKCellAdaptation
 REAL                                           :: ESBGKTempCorrectFact
-
 INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK
 INTEGER                                        :: ESBGKModel                    ! 1 Approx Levin; 2 Exact Solution A; 3 Metropolis
 REAL                                           :: BGKUnifiedCes
@@ -52,6 +52,11 @@ TYPE tElemSplitCells
   INTEGER                                      :: Splitnum(3)
   INTEGER                                      :: CellOrientation(3)
 END TYPE
+
+REAL, ALLOCATABLE                              :: BGK_QualityFacSamp(:,:)
+INTEGER                                        :: BGK_MeanRelaxFactorCounter
+REAL                                           :: BGK_MeanRelaxFactor
+REAL                                           :: BGK_MaxRelaxFactor
 
 TYPE(tElemSplitCells), ALLOCATABLE             :: ElemSplitCells(:)
 

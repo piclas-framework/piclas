@@ -86,7 +86,7 @@ SUBROUTINE InitESBGK()
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC
 USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_ESBGK_Vars
@@ -149,6 +149,13 @@ IF (DoBGKCellSplitting) THEN
     ElemSplitCells(iElem)%Splitnum(1:3) = (/0,4,0/) 
   END DO 
 END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  ALLOCATE(BGK_QualityFacSamp(nElems,1:4))
+  BGK_QualityFacSamp(1:nElems,1:4) = 0.0
+END IF
+
+BGKInitDone = .TRUE.
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 

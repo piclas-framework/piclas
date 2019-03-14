@@ -41,14 +41,17 @@ SUBROUTINE ESBGK_octree_adapt(iElem)
 !> or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars              ,ONLY: tTreeNode, ElemNodeVol
+USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
+USE MOD_DSMC_Vars              ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef,Species
+USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_ESBGK_CollOperator     ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_ESBGK_Vars             ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength,BGKSplittingDens
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperatorOctree
+USE MOD_ESBGK_Vars             ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
+USE MOD_ESBGK_Vars             ,ONLY: BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,6 +65,15 @@ INTEGER                       :: iPart, iLoop, nPart
 REAL                          :: vBulk(3), Dens
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF(BGKInitDone) THEN
+    BGK_MeanRelaxFactorCounter = 0
+    BGK_MeanRelaxFactor = 0.
+    BGK_MaxRelaxFactor = 0.
+  END IF
+END IF
+
 nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
@@ -125,6 +137,17 @@ ELSE
                             , GEO%Volume(iElem), vBulk)
   END IF
 #endif
+END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    IF(BGKInitDone) THEN
+      BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
+      BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
+      BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
+      BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
+    END IF
+  END IF
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -420,10 +443,11 @@ SUBROUTINE ESBGKSplitCells(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars      ,ONLY: PartState, PEM, Species
+USE MOD_Particle_Vars      ,ONLY: PartState, PEM, Species, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_ESBGK_Vars         ,ONLY: BGKMinPartPerCell, ElemSplitCells, BGKSplittingDens
+USE MOD_ESBGK_Vars         ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars          ,ONLY: DSMC
@@ -443,6 +467,15 @@ INTEGER                      :: PosX, PosY, PosZ, nPart, TotalSubCells, iQual
 REAL                         :: vBulk(3), Dens
 INTEGER, ALLOCATABLE         :: Map(:,:), MapInvers(:,:,:)
 !===================================================================================================================================
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF(BGKInitDone) THEN
+    BGK_MeanRelaxFactorCounter = 0
+    BGK_MeanRelaxFactor = 0.
+    BGK_MaxRelaxFactor = 0.
+  END IF
+END IF
+
 nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
@@ -525,12 +558,6 @@ IF((nPart.GE.(2.*BGKMinPartPerCell)).AND.(TotalSubCells.GT.1).AND.(Dens.GT.BGKSp
     END IF
   END DO
 
-  IF(DSMC%CalcQualityFactors) THEN
-    IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-      DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + (1.-REAL(iQual)/(REAL(TotalSubCells)-1.))
-    END IF
-  END IF
-
 ELSE
   ALLOCATE(iPartIndx(nPart))
   vBulk = 0.0
@@ -542,11 +569,15 @@ ELSE
   END DO
   vBulk(1:3) = vBulk(1:3) / nPart
   CALL ESBGK_CollisionOperatorOctree(iPartIndx(1:nPart), nPart, GEO%Volume(iElem), vBulk(1:3))
-  IF (TotalSubCells.EQ.1) THEN
-    IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + 1.
-      END IF
+END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+    IF(BGKInitDone) THEN
+      BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
+      BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
+      BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
+      BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
     END IF
   END IF
 END IF
