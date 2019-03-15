@@ -142,8 +142,8 @@ END IF
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     IF(BGKInitDone) THEN
-      BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + REAL(BGK_MeanRelaxFactorCounter)
-      BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + BGK_MeanRelaxFactor
+      BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
+      BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
     END IF
