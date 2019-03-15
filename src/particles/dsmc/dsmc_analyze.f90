@@ -1736,10 +1736,10 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
           DSMC_MacroVal(nVar+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(1,iElem) / BGK_QualityFacSamp(2,iElem)
         END IF
         IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
-          ! Max relaxation factor (maximal value)
+          ! Max relaxation factor (maximal value of all octree subcells)
           DSMC_MacroVal(nVar+5,kk,ll,mm,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
         END IF
-        ! Ratio between BGK and DSMC
+        ! Ratio between BGK and DSMC usage per cell
         DSMC_MacroVal(nVar+6,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
       END IF
     END DO

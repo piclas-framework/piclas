@@ -39,15 +39,18 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, Av
 !> description
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: PartState, Species, WriteMacroVolumeValues
-USE MOD_DSMC_Vars     ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Analyze  ,ONLY: CalcTVibPoly
-USE MOD_TimeDisc_Vars ,ONLY: dt, TEnd, Time
-USE MOD_Globals_Vars  ,ONLY: Pi, BoltzmannConst
-USE MOD_BGK_Vars      ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
-USE MOD_BGK_Vars      ,ONLY: BGKAveragingLength, BGKDoAveraging
-USE MOD_BGK_Vars      ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
-USE MOD_BGK_Vars      ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, WriteMacroVolumeValues
+USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
+USE MOD_TimeDisc_Vars         ,ONLY: dt, TEnd, Time
+USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
+USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
+USE MOD_BGK_Vars              ,ONLY: BGKAveragingLength, BGKDoAveraging
+USE MOD_BGK_Vars              ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
+USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
+#ifdef CODE_ANALYZE
+USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,10 +76,24 @@ REAL                  :: A(3,3), Work(1000), W(3), trace, CShak
 INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax, localBGKModel
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver
-! === DEBUG ===
-! REAL                  :: testEnNew, testEnOld, testMomNew(3), testMomOld(3)
+#ifdef CODE_ANALYZE
+REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3), testVar(3)
+INTEGER               :: iMom
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
-!testMomNew = 0.0; testMomOld = 0.0; testEnNew = 0.0; testEnOld = 0.0
+#ifdef CODE_ANALYZE
+! Momentum and energy conservation check: summing up old values
+Momentum_new = 0.0; Momentum_old = 0.0; Energy_new = 0.0; Energy_old = 0.0
+DO iLoop = 1, nPart
+  Momentum_old(1:3) = Momentum_old(1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Energy_old = Energy_old + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
+           + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
+  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+    Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+  END IF
+END DO
+#endif
+
 NewEn = 0.; OldEn = 0.
 OldEnRot = 0.
 NewEnRot = 0.
@@ -245,9 +262,6 @@ iPartIndx_NodeRelaxTemp = 0
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart
-!    testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop),4:6) 
-!    testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-!            + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
     CALL RANDOM_NUMBER(iRan)
     ProbAddPart = 1.-exp(-relaxfreq*dt)
     IF (ProbAddPart.GT.iRan) THEN
@@ -265,7 +279,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)
       OldEnRot = OldEnRot + PartStateIntEn(iPartIndx_Node(iLoop),2)
-!      testEnOld = testEnOld + PartStateIntEn(iPartIndx_Node(iLoop),2)
     END IF
     ! Vibration
     IF(BGKDoVibRelaxation) THEN
@@ -275,7 +288,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop) 
         OldEn = OldEn + PartStateIntEn(iPartIndx_NodeRelaxVib(nVibRelax),1) - SpecDSMC(1)%EZeroPoint
-  !      testEnOld = testEnOld + PartStateIntEn(iPartIndx_NodeRelaxVib(nVibRelax),1)
       END IF
     END IF
   END DO
@@ -328,9 +340,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     END DO
 ELSE
   DO iLoop = 1, nPart
-  !  testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop),4:6) 
-  !  testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-  !          + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
     CALL RANDOM_NUMBER(iRan)
     ProbAddPart = 1.-exp(-relaxfreq*dt)
     IF (ProbAddPart.GT.iRan) THEN
@@ -353,9 +362,6 @@ ELSE
               *((PartState(iPartIndx_NodeRelax(iLoop),4)-vBulkRelaxOld(1))**2.0 &
               + (PartState(iPartIndx_NodeRelax(iLoop),5)-vBulkRelaxOld(2))**2.0 &
               + (PartState(iPartIndx_NodeRelax(iLoop),6)-vBulkRelaxOld(3))**2.0)
-  !    testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_NodeRelax(iLoop),4:6) 
-  !    testEnOld = testEnOld + (PartState(iPartIndx_NodeRelax(iLoop),4)**2. + PartState(iPartIndx_NodeRelax(iLoop),5)**2. &
-  !            + PartState(iPartIndx_NodeRelax(iLoop),6)**2.)*0.5*Species(1)%MassIC
       END DO
     ELSE
       DO iLoop = 1, nPart
@@ -363,9 +369,6 @@ ELSE
               *((PartState(iPartIndx_Node(iLoop),4)-vBulkAll(1))**2.0 &
               + (PartState(iPartIndx_Node(iLoop),5)-vBulkAll(2))**2.0 &
               + (PartState(iPartIndx_Node(iLoop),6)-vBulkAll(3))**2.0)
-  !      testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop),4:6) 
-  !      testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-  !              + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
       END DO
     END IF
   END IF
@@ -373,7 +376,6 @@ END IF
 
 IF (nRelax.GT.0) THEN
   ALLOCATE(iRanPart(3,nRelax))
-
   SELECT CASE(localBGKModel)
   CASE (1)
     IF (ESBGKModel.EQ.1) THEN
@@ -566,7 +568,6 @@ IF(BGKDoVibRelaxation) THEN
             PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst  
           END IF
           OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
-        !  testEnNew = testEnNew + PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop),1)
         END DO
       END IF
     ELSE
@@ -590,47 +591,75 @@ IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
     DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkRelaxOld(1:3) &
                         + alpha*(DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3)-vBulkRelax(1:3)) &
                         - PartState(iPartIndx_NodeRelax(iLoop),4:6)
-!    testMomNew(1:3) = testMomNew(1:3) + DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) + PartState(iPartIndx_NodeRelax(iLoop),4:6)
-!    testEnNew = testEnNew &
-!            + ((DSMC_RHS(iPartIndx_NodeRelax(iLoop),1) + PartState(iPartIndx_NodeRelax(iLoop),4))**2. &
-!            + (DSMC_RHS(iPartIndx_NodeRelax(iLoop),2) + PartState(iPartIndx_NodeRelax(iLoop),5))**2. &
-!            + (DSMC_RHS(iPartIndx_NodeRelax(iLoop),3) + PartState(iPartIndx_NodeRelax(iLoop),6))**2.)*0.5*Species(1)%MassIC
   END DO
 ELSE
   alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.))) 
   DO iLoop = 1, nRelax
     DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkAll(1:3) + alpha*(DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3)-vBulk(1:3)) &
                         - PartState(iPartIndx_NodeRelax(iLoop),4:6)
-  !  testMomNew(1:3) = testMomNew(1:3) + DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) + PartState(iPartIndx_NodeRelax(iLoop),4:6)
-  !  testEnNew = testEnNew &
-  !          + ((DSMC_RHS(iPartIndx_NodeRelax(iLoop),1) + PartState(iPartIndx_NodeRelax(iLoop),4))**2. &
-  !          + (DSMC_RHS(iPartIndx_NodeRelax(iLoop),2) + PartState(iPartIndx_NodeRelax(iLoop),5))**2. &
-  !          + (DSMC_RHS(iPartIndx_NodeRelax(iLoop),3) + PartState(iPartIndx_NodeRelax(iLoop),6))**2.)*0.5*Species(1)%MassIC
   END DO
   DO iLoop = 1, nPart-nRelax
     DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),1:3) = vBulkAll(1:3) &
                         + alpha*(PartState(iPartIndx_NodeRelaxTemp(iLoop),4:6)-vBulk(1:3)) &
                         - PartState(iPartIndx_NodeRelaxTemp(iLoop),4:6)
-  !  testMomNew(1:3) = testMomNew(1:3) + DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),1:3) + PartState(iPartIndx_NodeRelaxTemp(iLoop),4:6)
-  !  testEnNew = testEnNew &
-  !          + ((DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),1) + PartState(iPartIndx_NodeRelaxTemp(iLoop),4))**2. &
-  !          + (DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),2) + PartState(iPartIndx_NodeRelaxTemp(iLoop),5))**2. &
-  !          + (DSMC_RHS(iPartIndx_NodeRelaxTemp(iLoop),3) + PartState(iPartIndx_NodeRelaxTemp(iLoop),6))**2.)*0.5*Species(1)%MassIC
   END DO
 END IF
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
   PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
-!   testEnNew = testEnNew + PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop),2)
 END DO
 
-!print*, OldEn, alpha
-!print*, nPart, nRelax, nRotRelax, nVibRelax
-!print*, testEnOld, testEnNew, testEnOld-testEnNew
-!print*, testMomOld
-!print*, testMomNew
-!print*, testMomOld-testMomNew
-!read*
+#ifdef CODE_ANALYZE
+DO iLoop = 1, nPart
+  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Energy_new = Energy_new &
+          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
+  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+    Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+  END IF
+END DO
+! Check for energy difference
+IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+  WRITE(UNIT_StdOut,*) '\n'
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
+  ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
+    IF(energy.GT.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
+    END IF
+  END ASSOCIATE
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+  IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha           : ", OldEn, alpha
+  IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax, nRotRelax, nVibRelax
+  CALL abort(&
+      __STAMP__&
+      ,'CODE_ANALYZE: BGK_CollisionOperator is not energy conserving!')
+END IF
+! Check for momentum difference
+DO iMom=1,3
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-9)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_old(iMom)-Momentum_new(iMom)
+    ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
+      IF(Momentum.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-9
+    IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha             : ", OldEn, alpha
+    IPWRITE(UNIT_StdOut,*)                     " nPart, nRelax, nRotRelax, nVibRelax: ", nPart, nRelax, nRotRelax, nVibRelax
+    CALL abort(&
+        __STAMP__&
+        ,'CODE_ANALYZE: BGK_CollisionOperator is not momentum conserving!')
+  END IF
+END DO
+#endif /* CODE_ANALYZE */
 
 END SUBROUTINE BGK_CollisionOperator
 
