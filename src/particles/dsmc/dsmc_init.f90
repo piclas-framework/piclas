@@ -346,7 +346,6 @@ USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_ChemReact         ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
@@ -360,7 +359,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   INTEGER               :: iInter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: Temp
@@ -399,9 +398,9 @@ IMPLICIT NONE
   END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
-! Partition functions are calculated for each species during initialization and stored for values starting with the
-! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values
   DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
+! Partition functions are calculated for each species during initialization and stored for values starting with the
+! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
   DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
   DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 !-----------------------------------------------------------------------------------
@@ -410,7 +409,7 @@ IMPLICIT NONE
   IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
     CALL abort(&
 __STAMP__&
-,'do not use DSMC%CalcQualityFactors for collismode<1')
+,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
   END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
   DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
   DSMC%ReservoirSurfaceRate    = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
@@ -940,15 +939,6 @@ __STAMP__&
 ! Define chemical reactions (including ionization and backward reaction rate)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
-    IF(DSMC%BackwardReacRate) THEN
-      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-        PartitionArraySize = INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR: Partition temperature limit must be multiple of partition interval!')
-      END IF
-    END IF
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
@@ -1027,12 +1017,6 @@ __STAMP__&
               ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
           END IF
         END IF
-        ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
-        DO iInter = 1, PartitionArraySize
-          Temp = iInter * DSMC%PartitionInterval
-          CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
-          SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
-        END DO
       END IF
       !-----------------------------------------------------------------------------------------------------------------------------
       SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
@@ -1505,7 +1489,7 @@ SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
-SDEALLOCATE(QKBackWard)
+SDEALLOCATE(QKAnalytic)
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)

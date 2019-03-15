@@ -367,11 +367,11 @@ END TYPE
 TYPE(tChemReactions)              :: ChemReac
 
 
-TYPE tQKBackWard
+TYPE tQKAnalytic
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKBackWard), ALLOCATABLE    :: QKBackWard(:)       
+TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)       
 
 REAL                              :: realtime               ! realtime of simulation
 

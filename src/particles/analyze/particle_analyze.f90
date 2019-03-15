@@ -861,7 +861,7 @@ INTEGER             :: dir
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
-  IF(CalcEkin)THEN
+  IF(CalcEkin.OR.CalcEint)THEN
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
     ELSE

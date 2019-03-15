@@ -311,7 +311,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       TiQK = (CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                 + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
                 + Xi_elec1)*BoltzmannConst)
-      CALL CalcForwardRate(iReac,TiQK,ForwardRate)
+      CALL CalcQKAnalyticRate(iReac,TiQK,ForwardRate)
       Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  / (BoltzmannConst &
               * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) 
       b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)     
@@ -327,7 +327,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       TiQK = (CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                 + 2.*PartStateIntEn(React1Inx,1))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
                 + Xi_vib1)*BoltzmannConst)
-      CALL CalcForwardRate(iReac,TiQK,ForwardRate)
+      CALL CalcQKAnalyticRate(iReac,TiQK,ForwardRate)
       Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  / (BoltzmannConst &
               * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) 
       b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)     
@@ -361,11 +361,11 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 #if (PP_TimeDiscMethod==42)
     IF(DSMC%ReservoirRateStatistic) THEN
 #endif
-      IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.1000)) THEN
+      IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.100)) THEN
         ReactionProbGTUnityCounter=ReactionProbGTUnityCounter+1
         IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac,'    ReactionProb:',ReactionProb
-        IF(ReactionProbGTUnityCounter.EQ.1000)THEN
-          IPWRITE(*,*) ' Counted 1000 ReactionProb greater than unity. Turning this warning off.'
+        IF(ReactionProbGTUnityCounter.EQ.100)THEN
+          IPWRITE(*,*) ' Counted 100 ReactionProb greater than unity. Turning this warning off.'
         END IF
       END IF
 #if (PP_TimeDiscMethod==42)
@@ -1136,7 +1136,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, QKBackWard
+  USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, QKAnalytic
   USE MOD_Particle_Vars,         ONLY : nSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1204,7 +1204,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_lower = QKBackWard(iReacTmp)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
+        k_b_lower = QKAnalytic(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
             * EXP(ActivationEnergy/(LowerLevel * DSMC%PartitionInterval))
       ELSE
         k_b_lower = ChemReac%Arrhenius_Prefactor(iReac)  &
@@ -1226,7 +1226,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_upper = QKBackWard(iReacTmp)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
+        k_b_upper = QKAnalytic(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
             * EXP(ActivationEnergy/(UpperLevel * DSMC%PartitionInterval))
       ELSE
         k_b_upper = ChemReac%Arrhenius_Prefactor(iReac) &
@@ -1272,49 +1272,42 @@ SUBROUTINE CalcPseudoScatterVars(PseuSpec1, PseuSpec2, ScatterSpec3, FracMassCen
 END SUBROUTINE CalcPseudoScatterVars
 
 
-SUBROUTINE CalcForwardRate(iReacTmp,LocalTemp,ForwardRate)
+SUBROUTINE CalcQKAnalyticRate(iReac,LocalTemp,ForwardRate)
 !===================================================================================================================================
-! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
+! Interpolate the analytic QK reaction rate from the stored QKAnalytic array
+! CalcBackwardRate: for the backward rate, the value of the respective forward rate was copied during the initialization
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, ChemReac, QKBackWard
+  USE MOD_DSMC_Vars,             ONLY : DSMC, ChemReac, QKAnalytic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iReacTmp
+  INTEGER, INTENT(IN)           :: iReac
   REAL, INTENT(IN)              :: LocalTemp
-  REAL, INTENT(OUT)             :: ForwardRate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+  REAL, INTENT(OUT)             :: ForwardRate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                        :: iReac, LowerLevel, UpperLevel
-  REAL                            :: k_f_lower, k_f_upper
+  INTEGER                       :: LowerLevel, UpperLevel
 !===================================================================================================================================
   ! Determination of the lower and upper value of the temperature interval
   LowerLevel = INT(LocalTemp/DSMC%PartitionInterval)
   UpperLevel = LowerLevel + 1
-  iReac = iReacTmp + ChemReac%NumOfReact/2
   IF(UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)) THEN
     CALL abort(&
      __STAMP__&
       ,'Temperature limit for the forward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
   END IF
 
-  ! Calculation of the backward reaction rate at the lower temperature value (using the equilibrium constant)
-  k_f_lower = QKBackWard(iReac)%ForwardRate(LowerLevel)
-
-! Calculation of the backward reaction rate at the upper temperature value (using the equilibrium constant)
-  k_f_upper = QKBackWard(iReac)%ForwardRate(UpperLevel)
-
 ! Linear interpolation of the backward rate coefficient at the actual temperature
-  ForwardRate = k_f_lower &
-            + (k_f_upper - k_f_lower)  &
-            / (DSMC%PartitionInterval) * (LocalTemp - LowerLevel * DSMC%PartitionInterval)
+  ForwardRate = QKAnalytic(iReac)%ForwardRate(LowerLevel) &
+              + (QKAnalytic(iReac)%ForwardRate(UpperLevel) - QKAnalytic(iReac)%ForwardRate(LowerLevel))  &
+              / (DSMC%PartitionInterval) * (LocalTemp - LowerLevel * DSMC%PartitionInterval)
 
-END SUBROUTINE CalcForwardRate
+END SUBROUTINE CalcQKAnalyticRate
 
 
 FUNCTION gammainc( arg )
