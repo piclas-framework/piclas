@@ -942,7 +942,7 @@ INTEGER, INTENT(IN) :: SurfID, iSubSurf, jSubSurf
 INTEGER :: SurfPos, SpecID, AdsorbID, Coord
 !===================================================================================================================================
 SampleAdsorptionHeat = 0.0
-IF (.NOT.PartBound%SolidCatalytic(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))) RETURN
+IF (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))) RETURN
 
 ASSOCIATE ( nSites => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%nSites(:) ,&
             nSitesRemain => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%SitesRemain(:) )

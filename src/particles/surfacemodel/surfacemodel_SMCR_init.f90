@@ -260,7 +260,7 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   DO iSurfSide = 1,SurfMesh%nSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
   DO iSubSurf = 1,nSurfSample ;  DO jSubSurf = 1,nSurfSample
     DO iSpec = 1,nSpecies
       ! adjust coverage to discrete integer value
@@ -829,7 +829,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
 SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidCatalytic(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
+IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
 DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions (Nx-1)
@@ -1126,7 +1126,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidCatalytic(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
+  IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
   DO iSubSurf = 1,nSurfSample ; DO jSubSurf = 1,nSurfSample
     ! surfsquare chosen from nSite(3) for correct SurfIndx definitions
     surfsquare = NINT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))/2.))
