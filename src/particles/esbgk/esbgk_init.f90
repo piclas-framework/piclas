@@ -66,7 +66,6 @@ CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','TODO-DEFINE
 CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'TODO-DEFINE-PARAMETER', '5')
 CALL prms%CreateRealOption(   'Particles-BGK-Acceleration',         'TODO-DEFINE-PARAMETER', '-9.81')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'TODO-DEFINE-PARAMETER', '0.0')
-CALL prms%CreateLogicalOption('Particles-BGK-DoBGKCellSplitting',   'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption('Particles-BGK-SampAdapFac',          'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.FALSE.')
 CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quantized treatment of vibrational energy levels',  &
@@ -139,16 +138,7 @@ BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF (BGKDoAveraging) CALL BGK_init_Averaging()
 BGKAcceleration = GETREAL('Particles-BGK-Acceleration')
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
-DoBGKCellSplitting = GETLOGICAL('Particles-BGK-DoBGKCellSplitting')
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
-IF (DoBGKCellSplitting) THEN
-  DoBGKCellAdaptation = .FALSE.
-  ALLOCATE(ElemSplitCells(nElems))
-  CALL DefineElementOrientation()
-  DO iElem = 1, nElems
-    ElemSplitCells(iElem)%Splitnum(1:3) = (/0,4,0/) 
-  END DO 
-END IF
 
 IF(DSMC%CalcQualityFactors) THEN
   ALLOCATE(BGK_QualityFacSamp(1:4,nElems))
@@ -160,83 +150,6 @@ BGKInitDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitESBGK
-
-
-SUBROUTINE DefineElementOrientation()
-!===================================================================================================================================
-!> description
-!===================================================================================================================================
-! MODULES
-USE MOD_Mesh_Vars    ,ONLY: nElems,NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Globals_Vars ,ONLY: Pi
-USE MOD_ESBGK_Vars   ,ONLY: ElemSplitCells
-USE MOD_Eval_xyz     ,ONLY: TensorProductInterpolation
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL      :: Vec(3), ResVec1(3,3), ResVec2(3,3), DiffVec(3,3), MinVec(3), angle(3,3), vecmag(3)
-INTEGER   :: iElem, ii, jj, firstDir1, firstDir2
-!===================================================================================================================================
-DO iElem = 1, nElems
-  Vec(1:3) = (/-0.99,0.,0./)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,1))
-  Vec(1:3) = (/0.99,0.,0./)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,1))
-  Vec(1:3) = (/0.,-0.99,0./)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,2))
-  Vec(1:3) = (/0.,0.99,0./)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,2))
-  Vec(1:3) = (/0.,0.,-0.99/)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec1(1:3,3))
-  Vec(1:3) = (/0.,0.,0.99/)
-  CALL TensorProductInterpolation(Vec(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),ResVec2(1:3,3))
-
-  DO ii=1,3; DO jj=1,3
-    DiffVec(ii,jj) = ResVec1(ii,jj)-ResVec2(ii,jj)
-  END DO; END DO
-  DO ii=1,3
-    vecmag(ii) = SQRT(DiffVec(1,ii)*DiffVec(1,ii)+DiffVec(2,ii)*DiffVec(2,ii)+DiffVec(3,ii)*DiffVec(3,ii))
-  END DO
-  DO ii=1,3; DO jj=1,3
-    angle(ii,jj) = ACOS(DiffVec(ii,jj)/ vecmag(jj))
-    IF (angle(ii,jj).GT.Pi/2.) THEN
-      angle(ii,jj) = Pi - angle(ii,jj)
-    END IF
-  END DO; END DO
-
-  DO ii=1,3
-    MinVec(ii) = MINVAL(angle(:,ii))
-  END DO
-  firstDir1 = MINLOC(MinVec,1)
-  firstDir2 = MINLOC(angle(:,firstDir1),1)
-  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-  DO ii=1,3
-    angle(ii,firstDir1) = 1000
-    angle(firstDir2,ii) = 1000
-  END DO
-  DO ii=1,3
-    MinVec(ii) = MINVAL(angle(:,ii))
-  END DO
-  firstDir1 = MINLOC(MinVec,1)
-  firstDir2 = MINLOC(angle(:,firstDir1),1)
-  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-  DO ii=1,3
-    angle(ii,firstDir1) = 1000
-    angle(firstDir2,ii) = 1000
-  END DO
-  DO ii=1,3
-    MinVec(ii) = MINVAL(angle(:,ii))
-  END DO
-  firstDir1 = MINLOC(MinVec,1)
-  firstDir2 = MINLOC(angle(:,firstDir1),1)
-  ElemSplitCells(iElem)%CellOrientation(firstDir2) = firstDir1
-END DO
-END SUBROUTINE DefineElementOrientation
 
 
 SUBROUTINE BGK_init_Averaging()

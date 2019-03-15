@@ -43,22 +43,13 @@ LOGICAL                                        :: BGKUseQuantVibEn
 INTEGER                                        :: SBGKEnergyConsMethod
 REAL                                           :: BGKAcceleration
 LOGICAL                                        :: BGKDoVibRelaxation
-LOGICAL                                        :: DoBGKCellSplitting
 REAL                                           :: BGKSplittingDens
 REAL                                           :: BGKDSMCSwitchDens
 LOGICAL                                        :: CoupledBGKDSMC
-TYPE tElemSplitCells
-  REAL, ALLOCATABLE                            :: SplitCellVolumes(:,:,:)
-  INTEGER                                      :: Splitnum(3)
-  INTEGER                                      :: CellOrientation(3)
-END TYPE
-
 REAL, ALLOCATABLE                              :: BGK_QualityFacSamp(:,:)
 INTEGER                                        :: BGK_MeanRelaxFactorCounter
 REAL                                           :: BGK_MeanRelaxFactor
 REAL                                           :: BGK_MaxRelaxFactor
-
-TYPE(tElemSplitCells), ALLOCATABLE             :: ElemSplitCells(:)
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()

@@ -48,11 +48,10 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
 USE MOD_Mesh_Vars,              ONLY: nElems
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
-USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt, ESBGKSplitCells
+USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
-USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
-USE MOD_ESBGK_Vars,             ONLY: DoBGKCellSplitting, BGKDSMCSwitchDens
+USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, BGKDSMCSwitchDens
 USE MOD_ESBGK_Vars,             ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
 USE MOD_ESBGK_CollOperator,     ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
@@ -84,12 +83,8 @@ DO iElem = 1, nElems
 
   IF (DoBGKCellAdaptation) THEN
     CALL ESBGK_octree_adapt(iElem)
-  ELSE IF (DoBGKCellSplitting) THEN
-    CALL ESBGKSplitCells(iElem)
   ELSE  
-
     ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-
     TotalMass = 0.0
     vBulk(1:3) = 0.0
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
@@ -140,11 +135,11 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt, ESBGKSplitCells
+USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, DoBGKCellSplitting
+USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
 USE MOD_ESBGK_Vars         ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
 USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
@@ -165,10 +160,6 @@ DSMC_RHS = 0.0
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
     CALL ESBGK_octree_adapt(iElem)
-  END DO
-ELSE IF (DoBGKCellSplitting) THEN
-  DO iElem = 1, nElems
-    CALL ESBGKSplitCells(iElem)
   END DO
 ELSE
   DO iElem = 1, nElems
