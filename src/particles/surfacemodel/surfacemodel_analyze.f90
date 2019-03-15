@@ -822,7 +822,7 @@ SubWallNumSpec = 0.
 
 DO iSpec=1,nSpecies
 DO iSurfSide=1,SurfMesh%nSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SolidReactive(PartboundID)) THEN
   DO q = 1,nSurfSample

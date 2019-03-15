@@ -96,7 +96,7 @@ INTEGER                          :: PartBoundID
 !===================================================================================================================================
 DO iSpec=1,nSpecies
   DO SurfSide=1,SurfMesh%nSides
-    PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSide)))
+    PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -159,7 +159,7 @@ INTEGER                          :: PartBoundID
 !===================================================================================================================================
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
-  PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSide)))
+  PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -230,7 +230,7 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,I
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Boundary_vars ,ONLY: PartBound
+USE MOD_Particle_Boundary_vars ,ONLY: PartBound, SurfMesh
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
@@ -255,7 +255,7 @@ REAL                           :: A, B, sigma, sigma_m
 !REAL                           :: Heat_D_AL
 !INTEGER                        :: neighSpec, neighSpec2, Coord2, Coord3, ReactNum, nNeigh_interactions
 !===================================================================================================================================
-PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
+PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID)))
 Coordination = Adsorption%Coordination(PartBoundID,Species)
 !ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 !   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
@@ -532,7 +532,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMo
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 !USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 !USE MOD_DSMC_ChemReact ,ONLY: gammainc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -691,7 +691,7 @@ CASE(3) ! eley-rideal
   EZeroPoint_Educt = EZeroPoint_Educt! + DSMC%GammaQuant*BoltzmannConst*CharaTemp
   SurfPartIntE = 0.
 !  SurfPartVibE = 0.
-  globSide = Adsorption%SurfSideToGlobSideMap(SurfID)
+  globSide = SurfMesh%SurfIDToSideID(SurfID)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
   WallTemp = PartBound%WallTemp(PartBoundID)
 
@@ -850,8 +850,8 @@ SUBROUTINE UpdateSurfPos(SurfID,subsurfxi,subsurfeta,Coordination,SurfPos,Specie
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -880,7 +880,7 @@ ELSE
   IF (PRESENT(relaxation)) THEN
     ! set vibrational energy of adsorbate
     IF ((SpecDSMC(Species)%InterID.EQ.2).OR.(SpecDSMC(Species)%InterID.EQ.20)) THEN
-      WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))
+      WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))
       IF(SpecDSMC(Species)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(Species)%SpecToPolyArray
         DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -928,8 +928,8 @@ REAL FUNCTION SampleAdsorptionHeat(SurfID,iSubSurf,jSubSurf)
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -942,7 +942,7 @@ INTEGER, INTENT(IN) :: SurfID, iSubSurf, jSubSurf
 INTEGER :: SurfPos, SpecID, AdsorbID, Coord
 !===================================================================================================================================
 SampleAdsorptionHeat = 0.0
-IF (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfID))))) RETURN
+IF (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) RETURN
 
 ASSOCIATE ( nSites => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%nSites(:) ,&
             nSitesRemain => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%SitesRemain(:) )
@@ -1006,7 +1006,7 @@ IF (LocSampleFlag) THEN
   END IF
 END IF
 
-PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSideID)))
+PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID)))
 IF (adsorbates_num.GT.0) THEN
   ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
   ! do this only if chosen surface position is not occupied

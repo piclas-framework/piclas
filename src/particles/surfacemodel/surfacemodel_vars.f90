@@ -87,8 +87,6 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density
   INTEGER , ALLOCATABLE                  :: CrystalIndx(:)          ! Number of binding atoms in hollow site
-  INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
-                                                                    ! needed to calculate BC temperature for adsorption
   ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
   REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n

@@ -1168,7 +1168,7 @@ END IF
 ALLOCATE(SurfCalcData(nVar,nSurfSample,nSurfSample,SurfMesh%nSides,nSpecies))
 SurfCalcData = 0.
 DO iSurfSide = 1,SurfMesh%nSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SolidReactive(PartboundID)) THEN
     DO jsubsurf = 1,nSurfSample
@@ -1227,7 +1227,7 @@ IF (PartSurfaceModel.EQ.3) THEN
 
   ! calculate number of adsorbates on each coordination (already on surface) and all sites 
   DO iSurfSide = 1,SurfMesh%nSides
-    SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+    SideID = SurfMesh%SurfIDToSideID(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
     IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample
@@ -1261,7 +1261,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
   iOffset = offsetnSurfPart
   DO iSurfSide = 1,SurfMesh%nSides
-    SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+    SideID = SurfMesh%SurfIDToSideID(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
     IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample

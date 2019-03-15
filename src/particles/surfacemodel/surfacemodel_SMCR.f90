@@ -88,7 +88,7 @@ REAL                             :: loc_Adsnu(1:Adsorption%ReactNum+1)
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
-globSide = Adsorption%SurfSideToGlobSideMap(SurfID)
+globSide = SurfMesh%SurfIDToSideID(SurfID)
 PartBoundID = PartBound%MapToPartBC(BC(globSide))
 #if (PP_TimeDiscMethod==42)
 IF (Adsorption%TPD) THEN
@@ -608,7 +608,7 @@ END DO ; END DO ; END DO
 
 ! loop over all surfaces and decide if catalytic boundary
 DO iSurf = 1,SurfMesh%nSides
-  globSide = Adsorption%SurfSideToGlobSideMap(iSurf)
+  globSide = SurfMesh%SurfIDToSideID(iSurf)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
   IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
 #if USE_LOADBALANCE
@@ -1718,7 +1718,7 @@ DO iSurf=1,SurfMesh%nSides ; DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSamp
 
       ! only try to diffuse particle if unoccupied sites available
       IF (n_equal_site_Neigh .GE. 1) THEN
-        globSide = Adsorption%SurfSideToGlobSideMap(iSurf)
+        globSide = SurfMesh%SurfIDToSideID(iSurf)
         WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
         Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
         CALL RANDOM_NUMBER(RanNum)

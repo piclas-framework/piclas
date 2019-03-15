@@ -406,19 +406,19 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides
           Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides),&
+          SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides),&
           Adsorption%AreaIncrease(1:SurfMesh%nTotalSides),&
           Adsorption%CrystalIndx(1:SurfMesh%nTotalSides))
 
-Adsorption%SurfSideToGlobSideMap(:) = -1
+SurfMesh%SurfIDToSideID(:) = -1
 DO iSide = 1,nTotalSides
   IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
-  Adsorption%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
+  SurfMesh%SurfIDToSideID(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
 ! Initialize surface properties from particle boundary values
 DO iSide=1,SurfMesh%nTotalSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSide)
+  SideID = SurfMesh%SurfIDToSideID(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (PartBound%SolidReactive(PartboundID)) THEN
     !IF (PartSurfaceModel.EQ.3) Adsorption%SurfMassIC(iSide) = PartBound%SolidMassIC(PartBoundID)
@@ -650,7 +650,7 @@ IF (TRIM(SurfaceFileName).EQ.'none') THEN
       Adsorption%Coverage(:,:,:,:) = 0.
     ELSE
       DO iSurfSide=1,SurfMesh%nSides
-        SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+        SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
         DO iSpec=1,nSpecies
           Adsorption%Coverage(:,:,iSurfSide,iSpec) = Coverage_tmp(PartBoundID,iSpec)
@@ -747,7 +747,7 @@ __STAMP__&
     iVar = 3
     DO iSpec = 1, nSpecies
       DO iSurfSide = 1, SurfMesh%nSides
-        SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+        SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
         IF (PartBound%SolidReactive(PartboundID)) THEN
           DO jSubSurf = 1, nSurfSample
@@ -874,7 +874,7 @@ SDEALLOCATE(Adsorption%SumERDesorbed)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 SDEALLOCATE(Adsorption%AreaIncrease)
 SDEALLOCATE(Adsorption%CrystalIndx)
-SDEALLOCATE(Adsorption%SurfSideToGlobSideMap)
+SDEALLOCATE(SurfMesh%SurfIDToSideID)
 ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
 SDEALLOCATE(Adsorption%MaxCoverage)
 SDEALLOCATE(Adsorption%InitStick)

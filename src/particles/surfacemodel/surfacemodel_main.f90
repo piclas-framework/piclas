@@ -127,7 +127,7 @@ IF (PartSurfaceModel.GT.0) THEN
 #endif
 ! 2. go through all sides and adjust coverages
       DO iSurfSide = 1,SurfMesh%nSides
-        SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+        SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
         IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
         DO q = 1,nSurfSample
@@ -277,7 +277,7 @@ DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
-      globSide = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+      globSide = SurfMesh%SurfIDToSideID(iSurfSide)
       ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
       nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
     END IF

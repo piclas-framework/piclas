@@ -109,7 +109,7 @@ Max_Surfsites_halo = 0
 
 ! Allocate and initializes number of surface sites and neighbours
 DO iSurfSide = 1,SurfMesh%nTotalSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO iSubSurf = 1,nSurfSample
     DO jSubSurf = 1,nSurfSample
@@ -258,7 +258,7 @@ IF(Adsorption%CoverageReduction) ALLOCATE(Adsorption%CovReductionStep(1:nSpecies
 ! Use Coverage information to distribute adsorbates randomly on surface
 IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   DO iSurfSide = 1,SurfMesh%nSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
   DO iSubSurf = 1,nSurfSample ;  DO jSubSurf = 1,nSurfSample
@@ -827,7 +827,7 @@ INTEGER                          :: surfsquare
 INTEGER                          :: Surfpos, Indx, Indy
 !===================================================================================================================================
 DO iSurfSide = 1,SurfMesh%nTotalSides
-SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+SideID = SurfMesh%SurfIDToSideID(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
 IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
 DO iSubSurf = 1,nSurfSample
@@ -1124,7 +1124,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 !===================================================================================================================================
 
 DO iSurfSide = 1,SurfMesh%nTotalSides
-  SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
   DO iSubSurf = 1,nSurfSample ; DO jSubSurf = 1,nSurfSample

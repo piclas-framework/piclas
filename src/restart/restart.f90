@@ -1226,7 +1226,7 @@ __STAMP__&
                          offsetSurfSide,4,RealArray=SurfCalcData)
         END ASSOCIATE
         DO iSurfSide = 1,SurfMesh%nSides
-          SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
           PartboundID = PartBound%MapToPartBC(BC(SideID))
           IF (PartBound%SolidReactive(PartboundID)) THEN
             DO jsubsurf = 1,nSurfSample
@@ -1288,7 +1288,7 @@ __STAMP__&
                 CALL ReadArray('SurfPartData',2,(/locnSurfPart,SurfPartDataSize/),offsetnSurfPart,1,IntegerArray_i4=SurfPartData)
               END ASSOCIATE
               DO iSurfSide = 1,SurfMesh%nSides
-                SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+                SideID = SurfMesh%SurfIDToSideID(iSurfSide)
                 PartboundID = PartBound%MapToPartBC(BC(SideID))
                 IF (PartBound%SolidReactive(PartboundID)) THEN
                   DO jsubsurf = 1,nSurfSample

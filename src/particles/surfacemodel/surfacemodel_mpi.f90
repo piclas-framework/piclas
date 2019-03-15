@@ -489,7 +489,7 @@ END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
 DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
-SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
+SideID = SurfMesh%SurfIDToSideID(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
 IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
   DO q=1,nSurfSample
