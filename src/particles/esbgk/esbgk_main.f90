@@ -116,10 +116,10 @@ DO iElem = 1, nElems
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-        BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
-        BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
-        BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
-        BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
+        BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
+        BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
+        BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
+        BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)
@@ -201,10 +201,10 @@ ELSE
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-        BGK_QualityFacSamp(iElem,1) = BGK_QualityFacSamp(iElem,1) + REAL(BGK_MeanRelaxFactorCounter)
-        BGK_QualityFacSamp(iElem,2) = BGK_QualityFacSamp(iElem,2) + BGK_MeanRelaxFactor
-        BGK_QualityFacSamp(iElem,3) = BGK_QualityFacSamp(iElem,3) + BGK_MaxRelaxFactor
-        BGK_QualityFacSamp(iElem,4) = BGK_QualityFacSamp(iElem,4) + 1.
+        BGK_QualityFacSamp(1,iElem) = BGK_QualityFacSamp(1,iElem) + BGK_MeanRelaxFactor
+        BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
+        BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
+        BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)

@@ -78,17 +78,7 @@ DO iElem = 1, nElems
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 1.
-      DSMC%CollSepDist = 0.
-    END IF
     CALL ESBGK_octree_adapt(iElem)
-    IF(DSMC%CalcQualityFactors) THEN
-      IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN 
-        DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
-        DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollSepDist
-      END IF
-    END IF
   ELSE  
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 1.

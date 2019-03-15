@@ -216,9 +216,9 @@ END IF
 
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + 1./(relaxfreq * dt)
+    BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
     BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
-    BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,1./(relaxfreq * dt))
+    BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
   END IF
 END IF
 

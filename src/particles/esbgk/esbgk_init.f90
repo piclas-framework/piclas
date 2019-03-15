@@ -151,8 +151,8 @@ IF (DoBGKCellSplitting) THEN
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(nElems,1:4))
-  BGK_QualityFacSamp(1:nElems,1:4) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:4,nElems))
+  BGK_QualityFacSamp(1:4,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.
