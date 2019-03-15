@@ -71,9 +71,9 @@ TYPE tSurfaceMesh
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
-  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
+  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
-  INTEGER,ALLOCATABLE                   :: SurfSideToGlobSideMap(:)      ! map of surfside ID to global Side ID
+  INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)             ! Mapping of surface side ID (reflective) to side ID
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
@@ -104,8 +104,45 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
+  REAL,ALLOCATABLE                      :: PumpCapacity                ! 
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
+
+INTEGER                                 :: nPorousBC              ! Number of porous BCs
+INTEGER                                 :: nPorousBCVars = 2      ! 1: Number of particles impinging the porous BC
+                                                                  ! 2: Number of particles deleted at the porous BC
+INTEGER                                 :: PorousBCSampIter       !
+REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
+
+TYPE tPorousBC
+  INTEGER                               :: BC                     ! 
+  REAL                                  :: Pressure               !
+  REAL                                  :: Temperature            !
+  REAL                                  :: NumberDensity          !
+  REAL                                  :: PumpingSpeed           !
+  REAL                                  :: DeltaPumpingSpeedKp    !
+  REAL                                  :: DeltaPumpingSpeedKi    !
+  CHARACTER(LEN=50)                     :: Region                 !
+  LOGICAL                               :: UsingRegion            !
+  INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
+  REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
+  REAL                                  :: rmax                   ! max radius of to-be inserted particles
+  REAL                                  :: rmin                   ! min radius of to-be inserted particles
+  INTEGER                               :: SideNumber             !
+  INTEGER, ALLOCATABLE                  :: SideList(:)            !
+  INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
+  INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
+                                                                  ! 1: side is completely outside porous region
+                                                                  ! 2: side is partially inside porous region
+  REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
+  REAL, ALLOCATABLE                     :: PressureDifference(:)  ! Removal probability at the porous BC
+  REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
+  REAL                                  :: Output(1:5)            ! 1: 
+END TYPE
+TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! 
+
+INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
+INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
 
 TYPE tSurfColl
   INTEGER                               :: NbrOfSpecies           ! Nbr. of Species to be counted for wall collisions (def. 0: all)
@@ -157,7 +194,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
-  LOGICAL , ALLOCATABLE                  :: SolidCatalytic(:)             ! flag defining if solid surface treated catalytically
+  LOGICAL , ALLOCATABLE                  :: SolidReactive(:)             ! flag defining if solid surface treated catalytically
   INTEGER , ALLOCATABLE                  :: SolidSpec(:)
   REAL    , ALLOCATABLE                  :: SolidPartDens(:)
   REAL    , ALLOCATABLE                  :: SolidMassIC(:)

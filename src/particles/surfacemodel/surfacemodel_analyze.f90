@@ -276,7 +276,7 @@ IF (SurfMesh%nSides.EQ.0) RETURN
       ELSE
         OPEN(unit_index,file=TRIM(outfile))
         !--- insert header
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
         IF (PartSurfaceModel.EQ.3) THEN
           IF (CalcSurfNumSpec) THEN
@@ -728,12 +728,12 @@ INTEGER                     :: iLoop
 IF(PRESENT(RealArray)) THEN
   DO iLoop = 1, nVal
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealArray(iLoop)
+    WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealArray(iLoop)
   END DO
 END IF
 IF(PRESENT(RealScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(E25.14E3)',ADVANCE='NO') RealScalar
+  WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealScalar
 END IF
 
 IF(PRESENT(IntegerArray)) THEN

@@ -25,8 +25,10 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
-LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization:
+LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
+INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
+!                                                                            ! * Ammosov-Delone-Krainov (ADK) model Yu 2018
 LOGICAL,ALLOCATABLE   :: SpecReset(:)                                        ! Flag for resetting species distribution with init
                                                                              ! during restart
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
@@ -38,6 +40,10 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              ! 2 Recombination coefficient (Laux model)
                                                                              ! 3 adsorption/desorption + chemical interaction 
                                                                              !   (SMCR with UBI-QEP, TST and TCE)
+                                                                             ! 4 TODO
+                                                                             ! 5 SEE (secondary e- emission) by Levko2015
+                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016 
+                                                                             !   (orignally from Harrower1956)
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
@@ -271,25 +277,39 @@ TYPE typeSurfaceflux
   REAL                                   :: VFR_total                        ! Total Volumetric flow rate through surface
   REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)            ! -''-, all values for root in ReduceNoise-case
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
+  REAL                                   :: totalAreaSF                      ! Total area of the respective surface flux
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
   INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
-  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
-  LOGICAL                                :: SimpleRadialVeloFit !fit of veloR/veloTot=-r*(A*exp(B*r)+C)
+  LOGICAL                                :: SimpleRadialVeloFit              ! fit of veloR/veloTot=-r*(A*exp(B*r)+C)
   REAL                                   :: preFac !A
   REAL                                   :: powerFac !B
   REAL                                   :: shiftFac !C
+  LOGICAL                                :: CircularInflow                   ! Circular region, which can be used to define small
+                                                                             ! geometry features on large boundaries
   INTEGER                                :: dir(3)                           ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   REAL                                   :: PressureFraction
   TYPE(tSurfFluxLink), POINTER           :: firstSurfFluxPart => null()      ! pointer to first particle inserted for iSurfaceFlux
                                                                              ! used for linked list during sampling
   TYPE(tSurfFluxLink), POINTER           :: lastSurfFluxPart => null()       ! pointer to last particle inserted for iSurfaceFlux
                                                                              ! used for abort criterion in do while during sampling
+  LOGICAL                                :: Adaptive                         ! Is the surface flux an adaptive boundary?
+  INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
+  REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
+  REAL                                   :: AdaptivePressure                 ! Static pressure [Pa], which is held constant
+  REAL, ALLOCATABLE                      :: AdaptivePreviousVelocity(:,:)    ! A velocity is stored in case of negative values
+  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)       ! Adaptive, Type 4: Weighting factor for SF-sides to
+                                                                             ! insert the right amount of particles
+  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)     ! Adaptive, Type 4: Area within a triangle, determined
+                                                                             ! through Monte Carlo integration (initially)
+  INTEGER                                :: AdaptivePartNumOut               ! Adaptive, Type 4: Number of particles exiting through
+                                                                             ! the adaptive boundary condition
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -307,11 +327,26 @@ TYPE tSpecies                                                                ! P
 #endif
 END TYPE
 
+LOGICAL                                  :: UseCircularInflow                !
+LOGICAL                                  :: UseAdaptive                 !
 REAL                                     :: AdaptiveWeightFac                ! weighting factor theta for weighting of average
                                                                              ! instantaneous values with those
                                                                              ! of previous iterations
-REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value (dens,Temp,..) near boundaries
-                                                                             ! saved for daptive surfaceflux
+REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! Macroscopic value near boundaries
+                                                                             ! (1:14,1:nElems,1:nSpecies)
+                                                                             !  1:  VELOX
+                                                                             !  2:  VELOY
+                                                                             !  3:  VELOZ
+                                                                             !  4:  TEMPX
+                                                                             !  5:  TEMPY
+                                                                             !  6:  TEMPZ
+                                                                             !  7:  NUMBER DENSITY
+                                                                             !  8:  TVIB
+                                                                             !  9:  TROT
+                                                                             ! 10:  TELEC
+                                                                             ! 11:  Pumping capacity [m3/s]
+                                                                             ! 12:  Static pressure [Pa]
+                                                                             ! 13:  Integral pressure difference [Pa]
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
@@ -411,8 +446,6 @@ LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
-INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
-REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs

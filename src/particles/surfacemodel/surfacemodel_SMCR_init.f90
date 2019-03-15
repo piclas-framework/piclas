@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
 ! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -113,7 +113,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO iSubSurf = 1,nSurfSample
     DO jSubSurf = 1,nSurfSample
-      IF (PartBound%SolidCatalytic(PartboundID)) THEN
+      IF (PartBound%SolidReactive(PartboundID)) THEN
   !     IF (KeepWallParticles) THEN ! does not work with vMPF
   !       surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
   !                     * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
@@ -213,7 +213,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%NeighSite(:,:) = 0
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%IsNearestNeigh(:,:) = .FALSE.
         END DO
-      ELSE !PartBound%SolidCatalytic(PartboundID)
+      ELSE !PartBound%SolidReactive(PartboundID)
         nSites=1 !dummy for correct allocation
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1:3)=nSites
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(1:3)=0

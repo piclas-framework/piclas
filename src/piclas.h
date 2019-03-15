@@ -130,8 +130,11 @@
 #define RIEMANN_DIELECTRIC2VAC_NC 5
 #define RIEMANN_VAC2DIELECTRIC_NC 6
 
-! format
+! formats
+! print to std out like  "    1.41421356237310E+000   -1.41421356237310E+000   -1.41421356237310E+000"
 #define WRITEFORMAT '(ES25.14E3)'
+! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
+#define CSVFORMAT '(A1,E23.16E3))'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1
@@ -164,11 +167,11 @@
 #define DSMC_TEMPX       4
 #define DSMC_TEMPY       5
 #define DSMC_TEMPZ       6
-#define DSMC_DENSITY     7
+#define DSMC_NUMDENS     7
 #define DSMC_TVIB        8
 #define DSMC_TROT        9
 #define DSMC_TELEC       10
-#define DSMC_POINTWEIGHT 11
+#define DSMC_SIMPARTNUM  11
 #define DSMC_TEMPMEAN    12
 
 #define DSMC_NVARS       12

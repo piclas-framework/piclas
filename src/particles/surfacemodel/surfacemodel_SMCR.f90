@@ -610,7 +610,7 @@ END DO ; END DO ; END DO
 DO iSurf = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(iSurf)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
-  IF (.NOT.PartBound%SolidCatalytic(PartboundID)) CYCLE
+  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
 #if USE_LOADBALANCE
   IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
 #endif /*USE_LOADBALANCE*/

@@ -92,7 +92,13 @@ CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
                                 '0: Maxwell scattering\n'//&
                                 '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
                                 '2: Recombination model\n'//&
-                                '3: (SMCR with UBI-QEP, TST and TCE)', '0')
+                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
+                                '4: TODO\n'//&
+                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
+                                    'by Levko2015 for copper electrondes\n'//&
+                                '6: SEE-E (secondary e- emission due to e- bombardment) '//&
+                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
+                                , '0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -164,14 +170,14 @@ CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected
 CALL prms%CreateIntOption(      'Part-LorentzType'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Used Lorentz boost ', '3')
 CALL prms%CreateLogicalOption(  'PrintrandomSeeds'            , 'Flag defining if random seeds are written.', '.FALSE.')
-CALL prms%CreateIntOption(      'Particles-NumberOfRandomVectors', 'Option defining how many random vectors are calculated'&
-                                                                 , '100000')
 #if (PP_TimeDiscMethod==509)
 CALL prms%CreateLogicalOption(  'velocityOutputAtTime' , 'Flag if leapfrog uses an velocity-output at real time' , '.TRUE.')
 #endif
 
-CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization. Implemented models are:\n'//&                                  
-                                                                ' * Ammosov-Delone-Krainov (ADK) model', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-DoFieldIonization'      , 'Do Field Ionization by quantum tunneling.', '.FALSE.')
+CALL prms%CreateIntOption(      'FieldIonizationModel'        , 'Field Ionization models. Implemented models are:\n'//&                                  
+                                                                ' * Ammosov-Delone-Krainov (ADK) model Bruhwiler 2003\n'//&
+                                                                ' * Ammosov-Delone-Krainov (ADK) model Yu 2018')
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -868,7 +874,7 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidCatalytic'  &
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidReactive'  &
                                 , 'Flag for defining solid surface to be treated catalytically (for surfacemodel>0).', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
@@ -918,22 +924,22 @@ CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
                                   '-> more details see also Part-Boundary[$]-Condition',  'open', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation',  '0', numberedmulti=.TRUE.)
+                                  'Momentum accommodation',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]',  '0', numberedmulti=.TRUE.)
+                                  'Wall temperature of boundary[$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Translation accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Vibrational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Rotational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]',  '0', numberedmulti=.TRUE.)
+                                  'Electronic accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Resample Equilibirum Distribution with reflection',  '.FALSE.'&
@@ -986,7 +992,7 @@ USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
 USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag
-USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
+USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
@@ -997,6 +1003,9 @@ USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
+USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC
+USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
+USE MOD_Restart_Vars,               ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
@@ -1025,6 +1034,9 @@ END IF
 CALL InitializeVariables()
 IF(useBGField) CALL InitializeBackgroundField()
 
+! Read-in number of porous boundaries
+nPorousBC = GETINT('Part-nPorousBC', '0')
+
 CALL InitializeParticleEmission()
 CALL InitializeParticleSurfaceflux()
 
@@ -1048,9 +1060,12 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag.OR.(nPorousBC.GT.0)) THEN
   CALL InitParticleBoundarySampling()
 END IF
+
+! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
+IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
@@ -1067,6 +1082,11 @@ END IF
 ! has to be called AFTER InitializeVariables and InitDSMC 
 CALL InitParticleCommSize()
 #endif
+
+! sampling of near adaptive boundary element values in the first time step to get initial distribution for porous BC
+IF(.NOT.DoRestart) THEN
+  IF(nPorousBC.GT.0) CALL AdaptiveBCAnalyze(initSampling_opt=.TRUE.)
+END IF
 
 ParticlesInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
@@ -1332,23 +1352,6 @@ IF(DoRefMapping)THEN
   PartPosRef=-888.
 END IF
 
-! predefine random vectors
-NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
-IF ((usevMPF).OR.(useDSMC)) THEN
-  ALLOCATE(RandomVec(NumRanVec, 3))
-  RandomVec = 0
-  DO iVec = 1, NumRanVec  ! calculation of NumRanVec different Vectors
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = 1 - 2*iRan
-    aVec              = SQRT(1 - bVec**2)
-    RandomVec(iVec,1) = bVec
-    CALL RANDOM_NUMBER(iRan)
-    bVec              = Pi *2 * iRan
-    RandomVec(iVec,2) = aVec * COS(bVec)
-    RandomVec(iVec,3) = aVec * SIN(bVec)
-  END DO
-END IF
-
 ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          LastPartPos(1:PDM%maxParticleNumber,1:3)     , &
          Pt(1:PDM%maxParticleNumber,1:3)              , &
@@ -1496,6 +1499,9 @@ PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
 DoFieldIonization = GETLOGICAL('Part-DoFieldIonization')
+IF(DoFieldIonization)THEN
+  FieldIonizationModel = GETINT('FieldIonizationModel')
+END IF
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -1592,7 +1598,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_NUMDENS,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
@@ -2159,7 +2165,7 @@ ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidCatalytic(1:nPartBound))
+ALLOCATE(PartBound%SolidReactive(1:nPartBound))
 ALLOCATE(PartBound%SolidSpec(1:nPartBound))
 ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
 ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
@@ -2259,20 +2265,20 @@ __STAMP__&
      PartMeshHasReflectiveBCs=.TRUE.
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
-     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
-     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp','0')
-     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC','0')
-     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC','0')
-     PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC','0')
-     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC','0')
-     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
-     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
-     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
-     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState','.TRUE.')
-     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec','0')
+     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
+     PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
+     PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
+     PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
+     PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
+     PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
+     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
+     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+     PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+     PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
+     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec')
      IF(PartBound%SolidState(iPartBound))THEN
        SolidSimFlag = .TRUE.
-       PartBound%SolidCatalytic(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidCatalytic')
+       PartBound%SolidReactive(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidReactive')
        PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec')
        PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
        PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
@@ -2435,14 +2441,14 @@ END IF
 KeepWallParticles = .FALSE.
 IF (SolidSimFlag) THEN
   !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
-  PartSurfaceModel = GETINT('Particles-SurfaceModel','0')
+  PartSurfaceModel = GETINT('Particles-SurfaceModel')
 ELSE
   PartSurfaceModel = 0
 END IF
 IF (PartSurfaceModel.GT.0 .AND. .NOT.useDSMC) THEN
   CALL abort(&
 __STAMP__&
-,'Cant use surfacemodel>0 withoput useDSMC flag!')
+,'Cannot use surfacemodel>0 with useDSMC=F!')
 END IF
 
 !--- initialize randomization
@@ -2556,14 +2562,14 @@ IF (nAuxBCs.GT.0) THEN
       PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
     CASE('reflective')
       PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
-      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC','0')
-      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp','0')
-      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC','0')
-      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC','0')
-      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC','0')
-      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC','0')
-      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample','.FALSE.')
-      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
+      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
+      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
+      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
+      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
+      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
+      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
+      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
+      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
       IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
         !read Species to be changed at wall (in, out), out=0: delete
         PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -2811,9 +2817,6 @@ DO iSpec = 1,nSpecies
   END DO
   IF (exitTrue) EXIT
 END DO
-
-
-
 
 IF(enableParticleMerge) THEN
  CALL DefinePolyVec(vMPFMergePolyOrder) 
@@ -3227,7 +3230,6 @@ SDEALLOCATE(PartIsImplicit)
 #endif /*defined(IMPA)*/
 !SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
-SDEALLOCATE(RandomVec)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartSpecies)
@@ -3277,7 +3279,7 @@ SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidCatalytic)
+SDEALLOCATE(PartBound%SolidReactive)
 SDEALLOCATE(PartBound%SolidSpec)
 SDEALLOCATE(PartBound%SolidPartDens)
 SDEALLOCATE(PartBound%SolidMassIC)

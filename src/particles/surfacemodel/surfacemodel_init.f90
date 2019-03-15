@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+! Copyright (c) 2015-2019 Wladimir Reschke
 !
 ! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -205,7 +205,7 @@ END SUBROUTINE DefineParametersSurfModel
 
 SUBROUTINE InitSurfaceModel()
 !===================================================================================================================================
-!> Init of surface model variables
+!> Initialize surface model variables
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                    ,ONLY: abort
@@ -240,7 +240,7 @@ IF (CollisMode.GT.1) THEN
   IF (PartSurfaceModel.EQ.1) CALL abort(&
 __STAMP__&
 ,'Error in InitSurfaceModel: SurfaceModel 1 not working!')
-  IF (PartSurfaceModel.GT.3 .OR. PartSurfaceModel.LT.0) CALL abort(&
+  IF (PartSurfaceModel.GT.6 .OR. PartSurfaceModel.LT.0) CALL abort(&
 __STAMP__&
 ,'Error in InitSurfaceModel: SurfaceModel must be 0,1,2 or 3!')
 ELSE IF (CollisMode.LE.1) THEN
@@ -265,7 +265,8 @@ END IF
 #if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
 #endif
-IF (PartSurfaceModel.EQ.1) THEN
+SELECT CASE(PartSurfaceModel)
+CASE(1)
   ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
             Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
             Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
@@ -274,19 +275,19 @@ IF (PartSurfaceModel.EQ.1) THEN
             Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
             Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
-ELSE IF (PartSurfaceModel.EQ.2) THEN
+CASE(2)
   ALLOCATE( Adsorption%RecombCoeff(1:nPartBound,1:nSpecies),&
             Adsorption%RecombEnergy(1:nPartBound,1:nSpecies),&
             Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
             Adsorption%RecombData(1:2,1:nSpecies))
-ELSE IF (PartSurfaceModel.EQ.3) THEN
+CASE(3)
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies),&
             Adsorption%Coordination(1:nPartBound,1:nSpecies),&
             Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies),&
             Adsorption%DiCoord(1:nPartBound,1:nSpecies))
-END IF
+END SELECT
 
-! initialize info and constants
+! Initialize info and constants
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds  = 0.
@@ -298,38 +299,39 @@ DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
 #endif
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
-  IF (PartSurfaceModel.EQ.1) THEN
-    Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
-    Adsorption%InitStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
-    Adsorption%PrefactorStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
-    Adsorption%Adsorbexp(:,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
-    Adsorption%Nu_a(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
-    Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
-    Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
+  SELECT CASE(PartSurfaceModel)
+  CASE(1)
+    Adsorption%MaxCoverage(:,iSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
+    Adsorption%InitStick(:,iSpec)       = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
+    Adsorption%PrefactorStick(:,iSpec)  = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
+    Adsorption%Adsorbexp(:,iSpec)       = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
+    Adsorption%Nu_a(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
+    Adsorption%Nu_b(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
+    Adsorption%DesorbEnergy(:,iSpec)    = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
     Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
-  ELSE IF (PartSurfaceModel.EQ.2) THEN
+  CASE(2)
     Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
     Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
-        IF(PartBound%SolidCatalytic(iPartBound))THEN
+        IF(PartBound%SolidReactive(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
-          Adsorption%RecombCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
-          Adsorption%RecombEnergy(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
+          Adsorption%RecombCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
+          Adsorption%RecombEnergy(iPartBound,iSpec)       = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
           Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
             CALL abort(&
-__STAMP__,&
-'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
+                __STAMP__,&
+                'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
           END IF
         END IF
       END IF
     END DO
-  ELSE IF (PartSurfaceModel.EQ.3) THEN
+  CASE(3)
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
-        IF(PartBound%SolidCatalytic(iPartBound))THEN
+        IF(PartBound%SolidReactive(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination')
@@ -376,15 +378,15 @@ __STAMP__&
           Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
           Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
           IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
-          WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
+            WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
             CALL abort(&
-__STAMP__,&
-'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+                __STAMP__,&
+                'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
           END IF
         END IF
       END IF
     END DO
-  END IF
+  END SELECT
 END DO
 ! initialize specific variables for analyze functionality like TPD and rate analysis
 #if (PP_TimeDiscMethod==42)
@@ -414,25 +416,25 @@ DO iSide = 1,nTotalSides
   IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
   Adsorption%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
-! initialize surface properties from particle boundary values
+! Initialize surface properties from particle boundary values
 DO iSide=1,SurfMesh%nTotalSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%SolidCatalytic(PartboundID)) THEN
+  IF (PartBound%SolidReactive(PartboundID)) THEN
     !IF (PartSurfaceModel.EQ.3) Adsorption%SurfMassIC(iSide) = PartBound%SolidMassIC(PartBoundID)
     Adsorption%DensSurfAtoms(iSide) = PartBound%SolidPartDens(PartBoundID)
-    Adsorption%AreaIncrease(iSide) = PartBound%SolidAreaIncrease(PartBoundID)
-    Adsorption%CrystalIndx(iSide) = PartBound%SolidCrystalIndx(PartBoundID)
+    Adsorption%AreaIncrease(iSide)  = PartBound%SolidAreaIncrease(PartBoundID)
+    Adsorption%CrystalIndx(iSide)   = PartBound%SolidCrystalIndx(PartBoundID)
     Adsorption%DensSurfAtoms(iSide) = Adsorption%DensSurfAtoms(iSide)*Adsorption%AreaIncrease(iSide)
   ELSE
     Adsorption%DensSurfAtoms(iSide) = 0
-    Adsorption%AreaIncrease(iSide) = 0
-    Adsorption%CrystalIndx(iSide) = 0
+    Adsorption%AreaIncrease(iSide)  = 0
+    Adsorption%CrystalIndx(iSide)   = 0
     Adsorption%DensSurfAtoms(iSide) = 0
   END IF
 END DO
 
-! initialize surface coverage
+! Initialize surface coverage
 CALL InitSurfCoverage()
 
 IF (SurfMesh%SurfOnProc) THEN
@@ -442,30 +444,32 @@ IF (SurfMesh%SurfOnProc) THEN
   END IF
   Adsorption%SumDesorbPart(:,:,:,:) = 0
   Adsorption%SumAdsorbPart(:,:,:,:) = 0
-  Adsorption%SumReactPart(:,:,:,:) = 0
+  Adsorption%SumReactPart(:,:,:,:)  = 0
   Adsorption%SumERDesorbed(:,:,:,:) = 0
-
 #ifdef MPI
   CALL InitSurfModel_MPI()
 #endif /*MPI*/
+END IF ! SurfMesh%SurfOnProc
 
-  IF (PartSurfaceModel.EQ.2) THEN
+SELECT CASE(PartSurfaceModel)
+CASE(1)
+  ! Define number of possible recombination reactions per species needed for sampling
+  Adsorption%RecombNum = 0
+CASE(2)
+  IF (SurfMesh%SurfOnProc) THEN
     CALL CalcDesorbProb()
     CALL CalcAdsorbProb()
 #ifdef MPI
     CALL ExchangeCoverageInfo()
 #endif /*MPI*/
   END IF
-END IF ! SurfMesh%SurfOnProc
-
-IF (PartSurfaceModel.EQ.3) THEN
+  ! Define number of possible recombination reactions per species needed for sampling
+  Adsorption%RecombNum = 1
+CASE(3)
   CALL InitSMCR()
   CALL InitSMCR_Chem()
-END IF
+END SELECT
 
-! define number of possible recombination reactions per species needed for sampling
-IF (PartSurfaceModel.EQ.1) Adsorption%RecombNum = 0
-IF (PartSurfaceModel.EQ.2) Adsorption%RecombNum = 1
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal) THEN
   IF(SurfMesh%SurfOnProc) CALL Init_SurfChemistrySampling()
 END IF
@@ -745,7 +749,7 @@ __STAMP__&
       DO iSurfSide = 1, SurfMesh%nSides
         SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (PartBound%SolidCatalytic(PartboundID)) THEN
+        IF (PartBound%SolidReactive(PartboundID)) THEN
           DO jSubSurf = 1, nSurfSample
             DO iSubSurf = 1, nSurfSample
               Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = SurfState_HDF5(iVar,iSubSurf,jSubSurf,iSurfSide)

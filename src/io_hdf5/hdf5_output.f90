@@ -129,6 +129,8 @@ USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
+USE MOD_Particle_Vars          ,ONLY: UseAdaptive
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -175,7 +177,7 @@ CALL CPU_TIME(StartT)
 
 ! set local variables for output and previous times
 IF(OutputTimeFixed.GE.0.0)THEN
-  SWRITE(UNIT_StdOut,'(A,E25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
+  SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
   OutputTime_loc   = OutputTimeFixed
   PreviousTime_loc = OutputTimeFixed
 ELSE
@@ -365,7 +367,7 @@ END ASSOCIATE
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
-CALL WriteAdaptiveInfoToHDF5(FileName)
+IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
@@ -619,9 +621,7 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-INTEGER                        :: minnParts
-#endif /* HDF5_F90 */
+INTEGER(KIND=IK)               :: locnPart_max
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec
 !=============================================
 ! Required default values for KIND=IK
@@ -701,15 +701,11 @@ CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIN
 !  END DO
 !END IF
 LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER_INT_KIND, MPI_MIN, MPI_COMM_WORLD, IERROR)
-#endif /* HDF5_F90 */
+CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
 nPart_glob=locnPart
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-minnParts=locnPart
-#endif /* HDF5_F90 */
+locnPart_max=locnPart
 #endif
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
 ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
@@ -998,6 +994,17 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
+  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+    IF(MPIRoot)THEN ! only root writes the container
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteArrayToHDF5(DataSetName='PartData'   , rank=2           , &
+                            nValGlobal=(/nPart_glob  , PartDataSize/)   , &
+                            nVal=      (/locnPart    , PartDataSize  /) , &
+                            offset=    (/offsetnPart , 0_IK  /)         , &
+                            collective=.FALSE.       , RealArray=PartData)
+      CALL CloseDataFile()
+    END IF !MPIRoot
+  END IF !locnPart_max.EQ.0
 #ifdef MPI
   CALL DistributedWriteArray(FileName                     , &
                              DataSetName  = 'PartData'    , rank = 2          , &
@@ -1163,7 +1170,7 @@ SurfCalcData = 0.
 DO iSurfSide = 1,SurfMesh%nSides
   SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%SolidCatalytic(PartboundID)) THEN
+  IF (PartBound%SolidReactive(PartboundID)) THEN
     DO jsubsurf = 1,nSurfSample
       DO isubsurf = 1,nSurfSample
         SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:) = Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:)
@@ -1222,7 +1229,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample
         DO isubsurf = 1,nSurfSample
           DO iCoord = 1,Coordinations
@@ -1256,7 +1263,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
-    IF (PartBound%SolidCatalytic(PartboundID)) THEN
+    IF (PartBound%SolidReactive(PartboundID)) THEN
       DO jsubsurf = 1,nSurfSample
         DO isubsurf = 1,nSurfSample
           DO iCoord = 1,Coordinations
@@ -1377,7 +1384,6 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Adaptive_MacroVal
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1394,10 +1400,9 @@ INTEGER                        :: nVar
 INTEGER                        :: iElem,iVar,iSpec
 REAL,ALLOCATABLE               :: AdaptiveData(:,:,:)
 !===================================================================================================================================
-! first check if adaptive boundaries are defined 
-IF (nAdaptiveBC.LE.0) RETURN
 
-nVar = 4
+
+nVar = 10
 iVar = 1
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
@@ -1405,13 +1410,18 @@ DO iSpec=1,nSpecies
   StrVarNames(iVar)   = 'Spec'//TRIM(SpecID)//'-VeloX'
   StrVarNames(iVar+1) = 'Spec'//TRIM(SpecID)//'-VeloY'
   StrVarNames(iVar+2) = 'Spec'//TRIM(SpecID)//'-VeloZ'
-  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-Density'
+  StrVarNames(iVar+3) = 'Spec'//TRIM(SpecID)//'-TempX'
+  StrVarNames(iVar+4) = 'Spec'//TRIM(SpecID)//'-TempY'
+  StrVarNames(iVar+5) = 'Spec'//TRIM(SpecID)//'-TempZ'
+  StrVarNames(iVar+6) = 'Spec'//TRIM(SpecID)//'-Density'
+  StrVarNames(iVar+7) = 'Spec'//TRIM(SpecID)//'-PumpVeloPerArea'
+  StrVarNames(iVar+8) = 'Spec'//TRIM(SpecID)//'-PumpPressure'
+  StrVarNames(iVar+9) = 'Spec'//TRIM(SpecID)//'-PumpIntegralError'
   iVar = iVar + nVar
 END DO
 
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteAttributeToHDF5(File_ID,'nAdaptiveBC',1,IntegerScalar=nAdaptiveBC)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
@@ -1423,7 +1433,12 @@ DO iElem = 1,nElems
   AdaptiveData(1,:,iElem) = Adaptive_MacroVal(DSMC_VELOX,iElem,:)
   AdaptiveData(2,:,iElem) = Adaptive_MacroVal(DSMC_VELOY,iElem,:)
   AdaptiveData(3,:,iElem) = Adaptive_MacroVal(DSMC_VELOZ,iElem,:)
-  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_DENSITY,iElem,:)
+  AdaptiveData(4,:,iElem) = Adaptive_MacroVal(DSMC_TEMPX,iElem,:)
+  AdaptiveData(5,:,iElem) = Adaptive_MacroVal(DSMC_TEMPY,iElem,:)
+  AdaptiveData(6,:,iElem) = Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)
+  AdaptiveData(7,:,iElem) = Adaptive_MacroVal(DSMC_NUMDENS,iElem,:)
+  ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
+  AdaptiveData(8:10,:,iElem) = Adaptive_MacroVal(11:13,iElem,:)
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
@@ -2309,7 +2324,7 @@ IF(.NOT.DoRestart)THEN
     CALL PrintOption('IMDNumber'      , 'OUTPUT' , IntOpt=IMDNumber)
     t = REAL(IMDanalyzeIter) * IMDtimestep * IMDTimeScale * REAL(IMDNumber)
     CALL PrintOption('t'              , 'OUTPUT' , RealOpt=t)
-    SWRITE(UNIT_StdOut,'(A,E25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
+    SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)

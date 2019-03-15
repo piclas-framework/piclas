@@ -112,13 +112,6 @@ SUBROUTINE DSMC_main()
       DSMC%MeanFreePath = 0.0
       DSMC%MCSoverMFP = 0.0
     END IF
-#if (PP_TimeDiscMethod==42)
-    IF (ChemReac%NumOfReact.GT.0) THEN
-      ChemReac%ReacCount = 0
-      ChemReac%ReacCollMean = 0.0
-      ChemReac%ReacCollMeanCount = 0
-    END IF
-#endif
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
       IF(BGGas%BGGasSpecies.NE.0) THEN
