@@ -117,8 +117,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               ROS6
                                                               FP-Flow
                                                               BGK
-                                                              BGK-Euler
-                                                              BGK-Euler-Gravitation
                                                               FieldRelaxation
                                                               FieldRelaxation-AdaptiveTimeStep
                                                               LD
@@ -305,10 +303,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Euler")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=410)
- ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Euler-Gravitation")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=411)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
