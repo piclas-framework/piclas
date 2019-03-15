@@ -1,9 +1,10 @@
 # Chemistry
-* Test ionization and recombination of atomic carbon: C^x+ + e- <-> C^x+1+ + 2e
-* Number Of Reactions: 8
-* Initial composition: N and e-
+* Test the theoretical reaction rates for ionization and recombination of H
+* Verifying the correct QK implementation by determining the reaction rate (counting the number of reactions)
+* Reference databases show acceptable agreement with Arrhenius results and analytical QK rates
+* Initial composition: n=3E23 at equal parts H, H+ and e
 * Settings
   * BackwardReacRate       = true
-  * DSMCReservoirSim       = false
-  * DSMCReservoirSimRate   = false
-  * DSMCReservoirStatistic = false
+  * DSMCReservoirSim       = true
+  * DSMCReservoirSimRate   = true
+  * DSMCReservoirStatistic = true
