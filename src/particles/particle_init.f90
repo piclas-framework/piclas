@@ -1002,8 +1002,8 @@ USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
 #endif
-#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411)
-USE MOD_ESBGK_Init                 ,ONLY: InitESBGK
+#if (PP_TimeDiscMethod==400)
+USE MOD_BGK_Init                   ,ONLY: InitBGK
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1071,8 +1071,8 @@ IF (useDSMC) THEN
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
 #endif
-#if (PP_TimeDiscMethod==400 || PP_TimeDiscMethod==410 || PP_TimeDiscMethod==411)
-  CALL InitESBGK()
+#if (PP_TimeDiscMethod==400)
+  CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.

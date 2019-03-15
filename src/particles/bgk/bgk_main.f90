@@ -12,21 +12,17 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_ESBGK
+MODULE MOD_BGK
 !===================================================================================================================================
-! Module for ESBGK Flow
+! Module for BGK Flow
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE ESBGK_main
-  MODULE PROCEDURE ESBGK_main
-END INTERFACE
-
-INTERFACE BGKEuler_main
-  MODULE PROCEDURE BGKEuler_main
+INTERFACE BGK_main
+  MODULE PROCEDURE BGK_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -34,7 +30,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ESBGK_main, BGKEuler_main, BGK_DSMC_main
+PUBLIC :: BGK_main, BGK_DSMC_main
 !===================================================================================================================================
 
 CONTAINS
@@ -48,12 +44,12 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
 USE MOD_Mesh_Vars,              ONLY: nElems
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
-USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt
+USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
-USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, BGKDSMCSwitchDens
-USE MOD_ESBGK_Vars,             ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
-USE MOD_ESBGK_CollOperator,     ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, BGKDSMCSwitchDens
+USE MOD_BGK_Vars,               ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
+USE MOD_BGK_CollOperator,       ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
 USE MOD_DSMC,                   ONLY: DSMC_main
 ! IMPLICIT VARIABLE HANDLING
@@ -82,7 +78,7 @@ DO iElem = 1, nElems
   END IF
 
   IF (DoBGKCellAdaptation) THEN
-    CALL ESBGK_octree_adapt(iElem)
+    CALL BGK_octree_adapt(iElem)
   ELSE  
     ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
     TotalMass = 0.0
@@ -103,11 +99,11 @@ DO iElem = 1, nElems
       BGK_MaxRelaxFactor = 0.
     END IF
     IF (BGKDoAveraging) THEN
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE 
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -126,7 +122,7 @@ CALL DSMC_main(DoElement)
 END SUBROUTINE BGK_DSMC_main
 
 
-SUBROUTINE ESBGK_main()
+SUBROUTINE BGK_main()
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -135,13 +131,13 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_Adaptation   ,ONLY: ESBGK_octree_adapt
+USE MOD_BGK_Adaptation     ,ONLY: BGK_octree_adapt
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_ESBGK_Vars         ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
-USE MOD_ESBGK_Vars         ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_BGK_Vars           ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
+USE MOD_BGK_Vars           ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
+USE MOD_BGK_CollOperator   ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -159,7 +155,7 @@ DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    CALL ESBGK_octree_adapt(iElem)
+    CALL BGK_octree_adapt(iElem)
   END DO
 ELSE
   DO iElem = 1, nElems
@@ -184,11 +180,11 @@ ELSE
     END IF
 
     IF (BGKDoAveraging) THEN
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -224,77 +220,6 @@ IF(SamplingActive) THEN
   END IF
 END IF
 
-END SUBROUTINE ESBGK_main
+END SUBROUTINE BGK_main
 
-SUBROUTINE BGKEuler_main()
-!===================================================================================================================================
-!> description
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
-USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
-USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_CollOperator ,ONLY: ESBGK_Euler
-USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
-USE MOD_Restart_Vars       ,ONLY: RestartTime
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
-INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-REAL                  :: vBulk(3)
-!===================================================================================================================================
-DSMC_RHS = 0.0
-
-DO iElem = 1, nElems
-  nPart = PEM%pNumber(iElem)
-  IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-
-  ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-
-  vBulk(1:3) = 0.0
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-    iPartIndx_Node(iLoop) = iPart
-    vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
-    iPart = PEM%pNext(iPart)
-  END DO
-  vBulk = vBulk / nPart
-
-  CALL ESBGK_Euler(iPartIndx_Node(1:nPart), nPart, vBulk)
-  DEALLOCATE(iPartIndx_Node)
-END DO
-
-IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
-    SamplingActive=.TRUE.
-    SWRITE(*,*)'Sampling active'
-  END IF
-END IF
-
-IF(SamplingActive) THEN
-  CALL DSMCHO_data_sampling()
-  IF(DSMC%NumOutput.NE.0) THEN
-    nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
-    IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
-      DSMC%NumOutput = DSMC%NumOutput - 1
-      ! Skipping outputs immediately after the first few iterations
-      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
-        CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
-        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
-
-      END IF
-    END IF
-  END IF
-END IF
-
-END SUBROUTINE BGKEuler_main
-
-END MODULE MOD_ESBGK
+END MODULE MOD_BGK

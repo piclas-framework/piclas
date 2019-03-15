@@ -72,7 +72,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars,            ONLY: SpecDSMC
 USE MOD_PARTICLE_Vars,        ONLY: nSpecies, Species
 USE MOD_FPFlow_Vars
-USE MOD_ESBGK_Vars,           ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
+USE MOD_BGK_Vars,             ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

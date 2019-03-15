@@ -728,7 +728,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_ESBGK_Vars             ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif

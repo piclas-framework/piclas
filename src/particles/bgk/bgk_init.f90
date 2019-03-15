@@ -12,17 +12,17 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_ESBGK_Init
+MODULE MOD_BGK_Init
 !===================================================================================================================================
-! Initialization of ESBGK
+! Initialization of BGK
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE InitESBGK
-  MODULE PROCEDURE InitESBGK
+INTERFACE InitBGK
+  MODULE PROCEDURE InitBGK
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -30,7 +30,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitESBGK, DefineParametersBGK
+PUBLIC :: InitBGK, DefineParametersBGK
 !===================================================================================================================================
 
 CONTAINS
@@ -77,7 +77,7 @@ CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number dens
 
 END SUBROUTINE DefineParametersBGK
 
-SUBROUTINE InitESBGK()
+SUBROUTINE InitBGK()
 !===================================================================================================================================
 !> Init of BGK Vars
 !===================================================================================================================================
@@ -88,7 +88,7 @@ USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC
 USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_ESBGK_Vars
+USE MOD_BGK_Vars
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -102,19 +102,15 @@ INTEGER               :: iSpec, iSpec2
 REAL                  :: b
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
-ALLOCATE(SpecESBGK(nSpecies))
+ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
-  ALLOCATE(SpecESBGK(iSpec)%CollFreqPreFactor(nSpecies))
+  ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
-    SpecESBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
         * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
         /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
   END DO
 END DO
-
-b = (0.5 - SpecDSMC(1)%omegaVHS)
-ESBGKTempCorrectFact = (2.-SpecDSMC(1)%omegaVHS)**b * GAMMA(2.-SpecDSMC(1)%omegaVHS) &
-                        / GAMMA(2.-SpecDSMC(1)%omegaVHS+b)
 
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
 BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
@@ -149,7 +145,7 @@ BGKInitDone = .TRUE.
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
-END SUBROUTINE InitESBGK
+END SUBROUTINE InitBGK
 
 
 SUBROUTINE BGK_init_Averaging()
@@ -157,7 +153,7 @@ SUBROUTINE BGK_init_Averaging()
 !> Building of the octree for a node depth of 2 during the initialization
 !===================================================================================================================================
 ! MODULES
-USE MOD_ESBGK_Vars ,ONLY: ElemNodeAveraging, BGKAveragingLength, BGKDoAveragingCorrect
+USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKAveragingLength, BGKDoAveragingCorrect
 USE MOD_Mesh_Vars  ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -185,4 +181,4 @@ END DO
 
 END SUBROUTINE BGK_init_Averaging
 
-END MODULE MOD_ESBGK_Init
+END MODULE MOD_BGK_Init

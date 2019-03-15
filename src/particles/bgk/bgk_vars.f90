@@ -10,7 +10,7 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
-MODULE MOD_ESBGK_Vars
+MODULE MOD_BGK_Vars
 !===================================================================================================================================
 ! Contains the FP Flow variables
 !===================================================================================================================================
@@ -22,16 +22,14 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                                        :: ESBGK_Flow
 LOGICAL                                        :: BGKInitDone = .FALSE.
 
-TYPE tSpeciesESBGK                                                              ! ESBK Species Param
+TYPE tSpeciesBGK                                                              ! ESBK Species Param
   REAL, ALLOCATABLE                            :: CollFreqPreFactor(:)
-END TYPE tSpeciesESBGK
+END TYPE tSpeciesBGK
 
-TYPE(tSpeciesESBGK), ALLOCATABLE               :: SpecESBGK(:)                  ! Species DSMC params (nSpec)
+TYPE(tSpeciesBGK), ALLOCATABLE                 :: SpecBGK(:)                  ! Species DSMC params (nSpec)
 LOGICAL                                        :: DoBGKCellAdaptation
-REAL                                           :: ESBGKTempCorrectFact
 INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK
 INTEGER                                        :: ESBGKModel                    ! 1 Approx Levin; 2 Exact Solution A; 3 Metropolis
 REAL                                           :: BGKUnifiedCes
@@ -70,4 +68,4 @@ END TYPE
 
 TYPE (tElemNodeAveraging), ALLOCATABLE         :: ElemNodeAveraging(:)
 !===================================================================================================================================
-END MODULE MOD_ESBGK_Vars
+END MODULE MOD_BGK_Vars

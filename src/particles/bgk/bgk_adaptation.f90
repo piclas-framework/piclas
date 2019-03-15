@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_ESBGK_Adaptation
+MODULE MOD_BGK_Adaptation
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -21,8 +21,8 @@ MODULE MOD_ESBGK_Adaptation
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE ESBGK_octree_adapt
-  MODULE PROCEDURE ESBGK_octree_adapt
+INTERFACE BGK_octree_adapt
+  MODULE PROCEDURE BGK_octree_adapt
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -30,12 +30,12 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ESBGK_octree_adapt
+PUBLIC :: BGK_octree_adapt
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE ESBGK_octree_adapt(iElem)
+SUBROUTINE BGK_octree_adapt(iElem)
 !===================================================================================================================================
 !> Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node 
 !> or start nearest neighbour search
@@ -46,12 +46,12 @@ USE MOD_DSMC_Vars              ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_ESBGK_CollOperator     ,ONLY: ESBGK_CollisionOperatorOctree
-USE MOD_ESBGK_Vars             ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength,BGKSplittingDens
+USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
+USE MOD_BGK_Vars               ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength,BGKSplittingDens
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperatorOctree
-USE MOD_ESBGK_Vars             ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_ESBGK_Vars             ,ONLY: BGK_QualityFacSamp
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
+USE MOD_BGK_Vars               ,ONLY: BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -117,9 +117,9 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   TreeNode%NodeDepth = 1
   TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
   IF (BGKDoAveraging) THEN
-    CALL AddESBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
+    CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
   ELSE
-    CALL AddESBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
   END IF
   DEALLOCATE(TreeNode%MappedPartStates)
 ELSE
@@ -128,12 +128,12 @@ ELSE
                               , GEO%Volume(iElem), vBulk)
 #else
   IF (BGKDoAveraging) THEN
-    CALL ESBGK_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart, &
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
               GEO%Volume(iElem), vBulk, &
              ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
              CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
   ELSE
-    CALL ESBGK_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart &
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
                             , GEO%Volume(iElem), vBulk)
   END IF
 #endif
@@ -153,10 +153,10 @@ END IF
 DEALLOCATE(TreeNode%iPartIndx_Node)
 DEALLOCATE(TreeNode)
 
-END SUBROUTINE ESBGK_octree_adapt
+END SUBROUTINE BGK_octree_adapt
 
 
-RECURSIVE SUBROUTINE AddESBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
+RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 !===================================================================================================================================
 !> Adds additional octree node/branch (fancy)
 !===================================================================================================================================
@@ -164,10 +164,10 @@ RECURSIVE SUBROUTINE AddESBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_Particle_Vars         ,ONLY: PartState
-USE MOD_ESBGK_CollOperator    ,ONLY: ESBGK_CollisionOperatorOctree
+USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes
-USE MOD_ESBGK_Vars            ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKDoAveraging
-USE MOD_ESBGK_Vars            ,ONLY: BGKAveragingLength
+USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKDoAveraging
+USE MOD_BGK_Vars              ,ONLY: BGKAveragingLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperatorOctree
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -186,12 +186,12 @@ INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(8)
 REAL                         :: NodeVolumeTemp(8), vBulk(3,8)
-LOGICAL                      :: ForceESBGK
+LOGICAL                      :: ForceBGK
 !===================================================================================================================================
 IF (TreeNode%PNum_Node.LE.8.*BGKMinPartPerCell) THEN
-  ForceESBGK = .TRUE.
+  ForceBGK = .TRUE.
 ELSE
-  ForceESBGK = .FALSE.
+  ForceBGK = .FALSE.
 END IF
 ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
@@ -265,7 +265,7 @@ DO iPart=1,TreeNode%PNum_Node
   END IF
 END DO
 
-IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) ForceESBGK = .TRUE.
+IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) ForceBGK = .TRUE.
 
 IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
   localDepth = TreeNode%NodeDepth
@@ -287,7 +287,7 @@ IF (BGKDoAveraging) THEN
   END IF
 END IF
 
-IF(ForceESBGK) THEN
+IF(ForceBGK) THEN
   DO iLoop = 1, 7
     IF (PartNumChildNode(iLoop).LT.BGKMinPartPerCell) THEN
       DO iPart=1, PartNumChildNode(iLoop)
@@ -321,7 +321,7 @@ END IF
 
 DO iLoop = 1, 8
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-  IF ((PartNumChildNode(iLoop).GE.(2.*BGKMinPartPerCell)).AND.(.NOT.ForceESBGK)) THEN
+  IF ((PartNumChildNode(iLoop).GE.(2.*BGKMinPartPerCell)).AND.(.NOT.ForceBGK)) THEN
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
     NULLIFY(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode)
@@ -356,23 +356,23 @@ DO iLoop = 1, 8
     TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
     ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
     IF (BGKDoAveraging) THEN
-      IF (iLoop.EQ.1) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1, Averaging%SubNode1)
-      IF (iLoop.EQ.2) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2, Averaging%SubNode2)
-      IF (iLoop.EQ.3) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3, Averaging%SubNode3)
-      IF (iLoop.EQ.4) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4, Averaging%SubNode4)
-      IF (iLoop.EQ.5) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5, Averaging%SubNode5)
-      IF (iLoop.EQ.6) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6, Averaging%SubNode6)
-      IF (iLoop.EQ.7) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7, Averaging%SubNode7)
-      IF (iLoop.EQ.8) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8, Averaging%SubNode8)
+      IF (iLoop.EQ.1) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1, Averaging%SubNode1)
+      IF (iLoop.EQ.2) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2, Averaging%SubNode2)
+      IF (iLoop.EQ.3) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3, Averaging%SubNode3)
+      IF (iLoop.EQ.4) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4, Averaging%SubNode4)
+      IF (iLoop.EQ.5) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5, Averaging%SubNode5)
+      IF (iLoop.EQ.6) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6, Averaging%SubNode6)
+      IF (iLoop.EQ.7) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7, Averaging%SubNode7)
+      IF (iLoop.EQ.8) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8, Averaging%SubNode8)
     ELSE
-      IF (iLoop.EQ.1) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-      IF (iLoop.EQ.2) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-      IF (iLoop.EQ.3) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-      IF (iLoop.EQ.4) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
-      IF (iLoop.EQ.5) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5)
-      IF (iLoop.EQ.6) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6)
-      IF (iLoop.EQ.7) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7)
-      IF (iLoop.EQ.8) CALL AddESBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8)
+      IF (iLoop.EQ.1) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
+      IF (iLoop.EQ.2) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
+      IF (iLoop.EQ.3) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
+      IF (iLoop.EQ.4) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
+      IF (iLoop.EQ.5) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5)
+      IF (iLoop.EQ.6) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6)
+      IF (iLoop.EQ.7) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7)
+      IF (iLoop.EQ.8) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8)
     END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
@@ -386,55 +386,55 @@ DO iLoop = 1, 8
     IF (BGKDoAveraging) THEN
       SELECT CASE(iLoop)
         CASE(1)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode1%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode1%CorrectStep)
         CASE(2)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode2%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode2%CorrectStep)
         CASE(3)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode3%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode3%CorrectStep)
         CASE(4)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode4%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode4%CorrectStep)
         CASE(5)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode5%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode5%CorrectStep)
         CASE(6)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode6%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode6%CorrectStep)
         CASE(7)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode7%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode7%CorrectStep)
         CASE(8)
-          CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
                 PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop), &
                 Averaging%SubNode8%AverageValues(1:5,1:BGKAveragingLength), &
                 CorrectStep = Averaging%SubNode8%CorrectStep)
       END SELECT
     ELSE
-      CALL ESBGK_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+      CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
     END IF
 #endif
   END IF
 END DO
 
-END SUBROUTINE AddESBGKOctreeNode
+END SUBROUTINE AddBGKOctreeNode
 
 
 integer function lcm(a,b)
@@ -458,7 +458,7 @@ SUBROUTINE BGK_AllocateAveragingNode(Averaging)
 ! description
 !===================================================================================================================================
 ! MODULES
-USE MOD_ESBGK_Vars,             ONLY :tNodeAverage, BGKAveragingLength
+USE MOD_BGK_Vars,               ONLY :tNodeAverage, BGKAveragingLength
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -507,4 +507,4 @@ Averaging%SubNode8%CorrectStep = 0
 
 END SUBROUTINE BGK_AllocateAveragingNode
 
-END MODULE MOD_ESBGK_Adaptation
+END MODULE MOD_BGK_Adaptation

@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars,              ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMo
 USE Ziggurat
 USE MOD_FPFlow_Init,            ONLY: FP_BuildTransGaussNums
 USE MOD_DSMC_Analyze,           ONLY: CalcTVibPoly
-USE MOD_ESBGK_CollOperator,     ONLY: CalcTEquiPoly, CalcTEqui
+USE MOD_BGK_CollOperator,       ONLY: CalcTEquiPoly, CalcTEqui
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

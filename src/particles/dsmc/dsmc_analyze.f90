@@ -1568,7 +1568,7 @@ USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_ESBGK_Vars         ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1977,7 +1977,7 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies
-USE MOD_ESBGK_Vars    ,ONLY: BGKInitDone
+USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

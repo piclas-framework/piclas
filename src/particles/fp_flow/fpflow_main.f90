@@ -48,8 +48,8 @@ USE MOD_Particle_Vars,          ONLY: PEM, PartState, Species
 USE MOD_FP_CollOperator,        ONLY: FP_CollisionOperatorOctree
 USE MOD_FPFlow_Vars,            ONLY: FPDSMCSwitchDens
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
-USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation
-USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt
+USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
 USE MOD_DSMC,                   ONLY: DSMC_main
 ! IMPLICIT VARIABLE HANDLING
@@ -78,7 +78,7 @@ DO iElem = 1, nElems
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
-    CALL ESBGK_octree_adapt(iElem)
+    CALL BGK_octree_adapt(iElem)
   ELSE  
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 1.
@@ -117,8 +117,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Vars,          ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_FP_CollOperator,        ONLY: FP_CollisionOperatorOctree
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_ESBGK_Vars,             ONLY: DoBGKCellAdaptation
-USE MOD_ESBGK_Adaptation,       ONLY: ESBGK_octree_adapt
+USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
 USE MOD_Restart_Vars,           ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
@@ -137,7 +137,7 @@ DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
-    CALL ESBGK_octree_adapt(iElem)
+    CALL BGK_octree_adapt(iElem)
   END DO
 ELSE
   DO iElem = 1, nElems

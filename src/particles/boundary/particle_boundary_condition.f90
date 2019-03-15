@@ -985,7 +985,7 @@ USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
 #if (PP_TimeDiscMethod==400)
-USE MOD_ESBGK_Vars,             ONLY: BGKDoVibRelaxation
+USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Vars,            ONLY: FPDoVibRelaxation
 #endif

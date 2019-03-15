@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_ESBGK_CollOperator
+MODULE MOD_BGK_CollOperator
 !===================================================================================================================================
 ! Module solving collision operator using BGK
 !===================================================================================================================================
@@ -21,20 +21,20 @@ MODULE MOD_ESBGK_CollOperator
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE ESBGK_CollisionOperatorOctree
-  MODULE PROCEDURE ESBGK_CollisionOperator
+INTERFACE BGK_CollisionOperator
+  MODULE PROCEDURE BGK_CollisionOperator
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ESBGK_CollisionOperatorOctree, ESBGK_Euler, ARShakhov, CalcTEquiPoly, CalcTEqui
+PUBLIC :: BGK_CollisionOperator, ARShakhov, CalcTEquiPoly, CalcTEqui
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE ESBGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
+SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -44,10 +44,10 @@ USE MOD_DSMC_Vars     ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomM
 USE MOD_DSMC_Analyze  ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars ,ONLY: dt, TEnd, Time
 USE MOD_Globals_Vars  ,ONLY: Pi, BoltzmannConst
-USE MOD_ESBGK_Vars    ,ONLY: SpecESBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
-USE MOD_ESBGK_Vars    ,ONLY: BGKAveragingLength, BGKDoAveraging
-USE MOD_ESBGK_Vars    ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
-USE MOD_ESBGK_Vars    ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
+USE MOD_BGK_Vars      ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
+USE MOD_BGK_Vars      ,ONLY: BGKAveragingLength, BGKDoAveraging
+USE MOD_BGK_Vars      ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
+USE MOD_BGK_Vars      ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -223,7 +223,7 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  collisionfreq = SpecESBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
+  collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
@@ -396,7 +396,7 @@ IF (nRelax.GT.0) THEN
       SMat(2,1)=SMat(1,2)
       SMat(3,1)=SMat(1,3)
       SMat(3,2)=SMat(2,3)
-      CALL ESBGK_BuildTransGaussNums(nRelax, iRanPart)
+      CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
     ELSE
       !! Exact Solution
       DO fillMa1 =1, 3
@@ -440,7 +440,7 @@ IF (nRelax.GT.0) THEN
           SMat = MATMUL(A, SMat)
           SMat = MATMUL(SMat, TRANSPOSE(A))
         END IF
-        CALL ESBGK_BuildTransGaussNums(nRelax, iRanPart)
+        CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
       ELSE IF (ESBGKModel.EQ.3) THEN
         A(2,1)=A(1,2)
         A(3,1)=A(1,3)
@@ -452,7 +452,7 @@ IF (nRelax.GT.0) THEN
 !    CALL MetropolisShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
     CALL ARShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
   CASE (3)
-    CALL ESBGK_BuildTransGaussNums(nRelax, iRanPart)
+    CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
   CASE (4)
       DO fillMa1 =1, 3
         DO fillMa2 =fillMa1, 3
@@ -632,100 +632,7 @@ END DO
 !print*, testMomOld-testMomNew
 !read*
 
-END SUBROUTINE ESBGK_CollisionOperator
-
-
-SUBROUTINE ESBGK_Euler(iPartIndx_Node, nPart, vBulkAll)
-!===================================================================================================================================
-!> description
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Vars           ,ONLY: PartState, Species
-USE MOD_DSMC_Vars               ,ONLY: DSMC_RHS, SpecDSMC, PartStateIntEn
-USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                  :: nPart
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(IN)                        :: vBulkAll(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                  :: V_rel(3), vmag2, alpha, NewEn, OldEn
-! REAL                  :: testEnNew, testEnOld, testMomNew(3), testMomOld(3)
-REAL                  :: NewEnRot, OldEnRot, Xi_Rot
-INTEGER               :: iLoop
-REAL, ALLOCATABLE     :: iRanPart(:,:)
-!===================================================================================================================================
-!siehe paper An efficient particle Fokker–Planck algorithm for rarefied gas flows, Gorji, JCP 2014  
-!testMomNew = 0.0; testMomOld = 0.0; testEnNew = 0.0; testEnOld = 0.0
-NewEn = 0.; OldEn = 0.
-OldEnRot = 0.0; NewEnRot = 0.0
-DO iLoop = 1, nPart
-!  testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop),4:6) 
-!  testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-!          + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
-  V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
-  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  OldEn = OldEn +  vmag2
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) OldEnRot = OldEnRot + PartStateIntEn(iPartIndx_Node(iLoop),2)
-END DO
-OldEn = 0.5*Species(1)%MassIC * OldEn
-!testEnOld = testEnOld + OldEnRot
-IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  Xi_rot = SpecDSMC(1)%Xi_Rot
-!  DO iLoop = 1, nPart
-!    CALL RANDOM_NUMBER(iRan)
-!    PartStateIntEn(iPartIndx_Node(iLoop), 2) = -LOG(iRan)
-!    NewEnRot = NewEnRot + PartStateIntEn(iPartIndx_Node(iLoop), 2)
-!  END DO
-END IF
-
-ALLOCATE(iRanPart(3,nPart))
-CALL FP_BuildTransGaussNums(nPart, iRanPart)
-DO iLoop = 1, nPart
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = iRanPart(1:3,iLoop)
-  vmag2 = DSMC_RHS(iPartIndx_Node(iLoop),1)**2. + DSMC_RHS(iPartIndx_Node(iLoop),2)**2. &
-        + DSMC_RHS(iPartIndx_Node(iLoop),3)**2.
-  NewEn =  NewEn + vmag2
-END DO
-NewEn = NewEn*0.5*Species(1)%MassIC
-
-IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  OldEn = OldEn + OldEnRot
-  alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nPart+3.*(nPart-1.)))
-ELSE
-  alpha = SQRT(OldEn/NewEn)                       ! create particle index list for pairin
-END IF
-
-DO iLoop = 1, nPart
-  DSMC_RHS(iPartIndx_Node(iLoop),1:3) = vBulkAll(1:3) + alpha*DSMC_RHS(iPartIndx_Node(iLoop),1:3) &
-                      - PartState(iPartIndx_Node(iLoop),4:6)
-!  testMomNew(1:3) = testMomNew(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
-!  testEnNew = testEnNew &
-!          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
-!          + (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
-!          + (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
-END DO
-
-IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-  alpha = OldEn/OldEnRot*(Xi_rot*nPart/(Xi_rot*nPart+3.*(nPart-1.)))
-  DO iLoop = 1, nPart
-    PartStateIntEn(iPartIndx_Node(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_Node(iLoop), 2)
-!    testEnNew = testEnNew + PartStateIntEn(iPartIndx_Node(iLoop),2)
-  END DO
-END IF
-
-!print*, testEnOld, testEnNew, testEnOld-testEnNew
-!print*, testMomOld
-!print*, testMomNew
-!print*, testMomOld-testMomNew
-!read*
-
-END SUBROUTINE ESBGK_Euler
+END SUBROUTINE BGK_CollisionOperator
 
 
 SUBROUTINE MetropolisES(nPart, iRanPart, A)
@@ -799,88 +706,6 @@ DO iPart = 2, nPart
 END DO
 
 END SUBROUTINE MetropolisES
-
-! SUBROUTINE MetropolisShakhov(nPart, iRanPart, Vtherm, HeatVec, Prandtl)
-! !===================================================================================================================================
-! !> description
-! !===================================================================================================================================
-! ! MODULES
-! USE Ziggurat
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! INTEGER, INTENT(IN)           :: nPart
-! REAL, INTENT(IN)              :: HeatVec(3), Prandtl, Vtherm
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL, INTENT(OUT)             :: iRanPart(:,:)
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! REAL                           :: iRanPartTemp(3), Vheat, V2, iRan, NewProb, OldProb, NormProb
-! INTEGER                        :: iLoop, iPart, iRun, iCount
-! LOGICAL                        :: Changed
-! !===================================================================================================================================
-! iRanPart(1,1) = rnor()
-! iRanPart(2,1) = rnor()
-! iRanPart(3,1) = rnor()
-! V2 = iRanPart(1,1)*iRanPart(1,1) + iRanPart(2,1)*iRanPart(2,1) + iRanPart(3,1)*iRanPart(3,1)
-! Vheat = iRanPart(1,1)*HeatVec(1) + iRanPart(2,1)*HeatVec(2) + iRanPart(3,1)*HeatVec(3)
-! OldProb = (1. + (1.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-! IF (OldProb.LT.0.0) THEN
-!   iCount = 0
-!   DO WHILE (OldProb.LT.0.0)
-!     iCount = iCount + 1
-!     IF (iCount.EQ.100) EXIT
-!     iRanPart(1,1) = rnor()
-!     iRanPart(2,1) = rnor()
-!     iRanPart(3,1) = rnor()
-!     V2 = iRanPart(1,1)*iRanPart(1,1) + iRanPart(2,1)*iRanPart(2,1) + iRanPart(3,1)*iRanPart(3,1)
-!     Vheat = iRanPart(1,1)*HeatVec(1) + iRanPart(2,1)*HeatVec(2) + iRanPart(3,1)*HeatVec(3)
-!     OldProb = (1. + (1.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-!   END DO
-! END IF
-! !Burn in
-! DO iLoop = 1, 35
-!   iRanPartTemp(1) = rnor()
-!   iRanPartTemp(2) = rnor()
-!   iRanPartTemp(3) = rnor()
-!   V2 = iRanPartTemp(1)*iRanPartTemp(1) + iRanPartTemp(2)*iRanPartTemp(2) + iRanPartTemp(3)*iRanPartTemp(3)
-!   Vheat = iRanPartTemp(1)*HeatVec(1) + iRanPartTemp(2)*HeatVec(2) + iRanPartTemp(3)*HeatVec(3)
-!   NewProb = (1. + (1.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-!   NormProb = MIN(1.,NewProb/OldProb)
-!   CALL RANDOM_NUMBER(iRan)
-!   IF (NormProb.GT.iRan) THEN
-!     iRanPart(1:3,1) = iRanPartTemp(1:3)
-!     OldProb = NewProb
-!   END IF
-! END DO
-! ! All the others
-! DO iPart = 2, nPart
-!   iRanPart(1,iPart) = iRanPart(1,iPart-1)
-!   iRanPart(2,iPart) = iRanPart(2,iPart-1)
-!   iRanPart(3,iPart) = iRanPart(3,iPart-1)
-!   iRun = 0
-!   Changed = .FALSE.
-!   DO WHILE ((iRun.LT.10).OR.(.NOT.Changed))
-!     iRun = iRun + 1
-!     iRanPartTemp(1) = rnor()
-!     iRanPartTemp(2) = rnor()
-!     iRanPartTemp(3) = rnor()
-!     V2 = iRanPartTemp(1)*iRanPartTemp(1) + iRanPartTemp(2)*iRanPartTemp(2) + iRanPartTemp(3)*iRanPartTemp(3)
-!     Vheat = iRanPartTemp(1)*HeatVec(1) + iRanPartTemp(2)*HeatVec(2) + iRanPartTemp(3)*HeatVec(3)
-!     NewProb = (1. + (1.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-!     NormProb = MIN(1.,NewProb/OldProb)
-!     CALL RANDOM_NUMBER(iRan)
-!     IF (NormProb.GT.iRan) THEN
-!      Changed = .TRUE.
-!       iRanPart(1:3,iPart) = iRanPartTemp(1:3)
-!       OldProb = NewProb
-!     END IF
-!   END DO
-! END DO
-
-! END SUBROUTINE MetropolisShakhov
 
 SUBROUTINE ARShakhov(nPart, iRanPart, Vtherm, HeatVec, Prandtl)
 !===================================================================================================================================
@@ -1007,7 +832,7 @@ END DO
 END SUBROUTINE MetropolisUnified
 
 
-SUBROUTINE ESBGK_BuildTransGaussNums(nPart, iRanPart)
+SUBROUTINE BGK_BuildTransGaussNums(nPart, iRanPart)
 !===================================================================================================================================
 !> description
 !===================================================================================================================================
@@ -1031,7 +856,7 @@ DO iLoop = 1, nPart
   iRanPart(3,iLoop) = rnor()
 END DO
 
-END SUBROUTINE ESBGK_BuildTransGaussNums
+END SUBROUTINE BGK_BuildTransGaussNums
 
 SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
       TEqui, rotrelaxfreq, vibrelaxfreq, DoVibRelaxIn)
@@ -1042,7 +867,7 @@ SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, Vi
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC
-  USE MOD_ESBGK_Vars,             ONLY : BGKDoVibRelaxation
+  USE MOD_BGK_Vars,               ONLY : BGKDoVibRelaxation
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1148,7 +973,7 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_ESBGK_Vars,             ONLY : BGKDoVibRelaxation
+  USE MOD_BGK_Vars,               ONLY : BGKDoVibRelaxation
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1263,4 +1088,4 @@ SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_Vib_DOF, Xi_Vib_old, Ro
 
 END SUBROUTINE CalcTEquiPoly
 
-END MODULE MOD_ESBGK_CollOperator
+END MODULE MOD_BGK_CollOperator
