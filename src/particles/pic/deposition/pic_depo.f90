@@ -3328,14 +3328,14 @@ LOGICAL, INTENT(IN), OPTIONAL    :: const_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                    
-#if (defined (PP_HDG) && (PP_nVar==1))
+!#if (defined (PP_HDG) && (PP_nVar==1))
 !yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
-INTEGER, PARAMETER               :: SourceSize=1
-REAL                             :: Fac(4:4), Fac2(4:4)
-#else
+!INTEGER, PARAMETER               :: SourceSize=1
+!REAL                             :: Fac(4:4), Fac2(4:4)
+!#else
 INTEGER                          :: SourceSize
 REAL                             :: Fac(4-SourceSize_in+1:4), Fac2(4-SourceSize_in+1:4)
-#endif
+!#endif
 INTEGER                          :: iCase, ind
 REAL                             :: ShiftedPart(1:3), caseShiftedPart(1:3), n_loc(1:3)
 INTEGER                          :: iSFfix, LinkLoopEnd(2), iSFfixLink, iTwin, iLinkRecursive, SFfixIdx, SFfixIdx2
@@ -3349,16 +3349,16 @@ IF (PRESENT(const_opt)) THEN
 ELSE
   const=.FALSE.
 END IF
-#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !(defined (PP_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
-#endif
+!#endif
 IF (SourceSize.EQ.1) THEN
   Fac2= ChargeMPF
-#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !(defined (PP_HDG) && (PP_nVar==1))
 ELSE IF (SourceSize.EQ.4) THEN
   Fac2(1:3) = PartVelo*ChargeMPF
   Fac2(4)= ChargeMPF
-#endif
+!#endif
 ELSE
   CALL abort(&
 __STAMP__ &
@@ -3463,13 +3463,13 @@ ELSE ! NbrOfSFdepoFixes.NE.0
               END IF
               ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
               Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
-#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !(defined (PP_HDG) && (PP_nVar==1))
               IF (SourceSize.EQ.4) THEN
                 ! change velocity
                 n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
                 Fac(1:3) = Fac2(1:3) -2.*DOT_PRODUCT(Fac2(1:3),n_loc)*n_loc 
               END IF
-#endif
+!#endif
               IF (SFfixIdx2.NE.0) THEN !check if new position would not reach a dof because of the other plane
                 SFfixDistance2 = SFdepoFixesGeo(SFfixIdx2,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(SFfixIdx2,1,1)) &
                   + SFdepoFixesGeo(SFfixIdx2,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(SFfixIdx2,1,2)) &
@@ -3515,11 +3515,11 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-#if (defined (PP_HDG) && (PP_nVar==1))
-REAL, INTENT(IN)                 :: Fac(4:4)
-#else
+!#if (defined (PP_HDG) && (PP_nVar==1))
+!REAL, INTENT(IN)                 :: Fac(4:4)
+!#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
-#endif
+!#endif
 LOGICAL, INTENT(IN)              :: const
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -3581,18 +3581,18 @@ DO kk = kmin,kmax
               IF (const) THEN
                 IF (SourceSize.EQ.1) THEN
                   PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !(defined (PP_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-#endif
+!#endif
                 END IF
               ELSE !.NOT.const
                 IF (SourceSize.EQ.1) THEN
                   PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !(defined (PP_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
-#endif
+!#endif
                 END IF
               END IF !const.
             END IF

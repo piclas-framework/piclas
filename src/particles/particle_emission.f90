@@ -1414,6 +1414,61 @@ __STAMP__&
          i=i+1
          chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: cuboid_sphere (remove all particles outside of CuboidHeightIC / 2 (spherical cutout) ----------
+    CASE('cuboid_sphere')
+      lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+        CALL abort(&
+__STAMP__&
+,'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      i=1
+      chunkSize2=0
+      DO WHILE (i .LE. chunkSize)
+         CALL RANDOM_NUMBER(RandVal)
+         Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
+         Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
+         IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
+         ELSE
+#if (PP_TimeDiscMethod==201)
+!           !scaling due to variable time step (for inlet-condition, but already fixed when %CalcHeightFromDt is used!!!)
+!           IF (iter.GT.0) THEN
+!             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * dt / dt_maxwell * RandVal(3)
+!           ELSE
+             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+!           END IF
+#else
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+#endif
+         END IF
+         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
+           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
+           IF (insideExcludeRegion) THEN
+             i=i+1
+             CYCLE !particle is in excluded region
+           END IF
+         END IF
+         ! Exclude particles outside of radius defined by CuboidHeightIC / 2
+         IF(SQRT(Particle_pos(1)**2+Particle_pos(2)**2+Particle_pos(3)**2).GT.Species(FractNbr)%Init(iInit)%CuboidHeightIC/2.0)THEN
+           !i=i+1
+           CYCLE !particle is in excluded region
+         END IF
+         ! new particle
+         particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
+         particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
+         particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
+         i=i+1
+         chunkSize2=chunkSize2+1
+      END DO
     !------------------SpaceIC-case: cylinder---------------------------------------------------------------------------------------
     CASE('cylinder')
       lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
