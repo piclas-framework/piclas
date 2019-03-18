@@ -478,7 +478,8 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
     SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
     SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
     SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
-    SWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname)
+    SWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
+        ' (+1 for the ground state)'
   END IF
   ! Close the file.
   CALL H5FCLOSE_F(file_id_dsmc, err)

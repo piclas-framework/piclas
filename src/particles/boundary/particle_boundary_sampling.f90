@@ -147,7 +147,7 @@ END IF
 DEALLOCATE(BCName)
 
 ! get number of BC-Sides
-ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides),SurfMesh%SurfIDToSideID(1:nTotalSides))
+ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides))
 SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 ! first own sides
 SurfMesh%nSides=0
@@ -156,7 +156,6 @@ DO iSide=1,nBCSides
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-    SurfMesh%SurfIDToSideID(SurfMesh%nSides) = iSide
   END IF
 END DO
 
@@ -167,15 +166,14 @@ DO iSide=nSides+1,nTotalSides
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
-    SurfMesh%SurfIDToSideID(SurfMesh%nTotalSides) = iSide
   END IF
 END DO
 
-ALLOCATE(SurfMesh%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides))
-SurfMesh%SurfSideToGlobSideMap(:) = -1
+ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
+SurfMesh%SurfIDToSideID(:) = -1
 DO iSide = 1,nTotalSides
   IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
-  SurfMesh%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
+  SurfMesh%SurfIDToSideID(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
 
 SurfMesh%SurfOnProc=.FALSE.
@@ -379,7 +377,7 @@ END DO ! iSide=1,nTotalSides
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
 #endif /*MPI*/
 
-SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
+SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
@@ -1514,7 +1512,7 @@ INTEGER :: iProc,iSurfSide
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
-SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
+SDEALLOCATE(SurfMesh%SurfIDToSideID)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)

@@ -100,6 +100,9 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: Ediss_eV                   ! Energy of Dissosiation in eV, ini_2
   INTEGER                     :: MaxVibQuant                ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant               ! Max elec quantum number + 1
+  INTEGER                     :: DissQuant                  ! Vibrational quantum number corresponding to the dissociation energy
+                                                            ! (used for QK chemistry, not using MaxVibQuant to avoid confusion with
+                                                            !   the TSHO model)
   REAL                        :: RotRelaxProb               ! rotational relaxation probability
   REAL                        :: VibRelaxProb               ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb              ! electronic relaxation probability
@@ -128,6 +131,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
 END TYPE tSpeciesDSMC
@@ -363,11 +367,11 @@ END TYPE
 TYPE(tChemReactions)              :: ChemReac
 
 
-TYPE tQKBackWard
+TYPE tQKAnalytic
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKBackWard), ALLOCATABLE    :: QKBackWard(:)       
+TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)       
 
 REAL                              :: realtime               ! realtime of simulation
 
@@ -427,6 +431,8 @@ INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Co
 REAL, ALLOCATABLE                 :: QLocal(:)                  ! Intermediate Criterion (per cell)
 LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection 
                                                                 ! for Sampling Start is used (only  if UseQCrit=FALSE)
+INTEGER                           :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
+!                                                               ! reaching 1000 outputs of said warning
 
 TYPE tSampler ! DSMC sampling for Steady-State Detection
   REAL                            :: Energy(3)                  ! Energy in Cell (Translation)

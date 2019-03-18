@@ -1923,11 +1923,11 @@ __STAMP__&
         NbrOfParticle = (i-Nshift)-1 ! don't change here, change at velocity
         SWRITE(UNIT_stdOut,'(A)') 'Min-Max particle positions from IMD source file:'
         SWRITE(UNIT_stdOut,'(A25,A25)')  "x-Min [nm]","x-Max [nm]"
-        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') xMin*1.e9,xMax*1.e9
+        SWRITE(UNIT_stdOut,'(ES25.14E3,ES25.14E3)') xMin*1.e9,xMax*1.e9
         SWRITE(UNIT_stdOut,'(A25,A25)')  "y-Min [nm]","y-Max [nm]"
-        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') yMin*1.e9,yMax*1.e9
+        SWRITE(UNIT_stdOut,'(ES25.14E3,ES25.14E3)') yMin*1.e9,yMax*1.e9
         SWRITE(UNIT_stdOut,'(A25,A25)')  "z-Min [nm]","z-Max [nm]"
-        SWRITE(UNIT_stdOut,'(E25.14E3,E25.14E3)') zMin*1.e9,zMax*1.e9
+        SWRITE(UNIT_stdOut,'(ES25.14E3,ES25.14E3)') zMin*1.e9,zMax*1.e9
         CALL PrintOption('IMD Particles Found','OUTPUT',IntOpt=(i-Nshift)-1)
       ELSE ! TRIM(IMDAtomFile) = 'no file found' -> exit
         Species(FractNbr)%Init(iInit)%velocityDistribution=''
@@ -3971,6 +3971,7 @@ __STAMP__&
       END IF
       Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = .FALSE.
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit   = .FALSE.
+      Species(iSpec)%Surfaceflux(iSF)%CircularInflow=.FALSE.
     END IF
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .OR. .NOT.noAdaptive) THEN
       !--- normalize VeloVecIC
@@ -4072,6 +4073,8 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
+    ELSE
+      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType = 0
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
@@ -4280,13 +4283,15 @@ DO iSpec=1,nSpecies
     END IF
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+                  1:BCdata_auxSF(currentBC)%SideNumber))
+        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
-              1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+        Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+      END IF
     END IF
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -4410,8 +4415,10 @@ DO iSpec=1,nSpecies
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
-          IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+            IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
+                .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          END IF
         END IF ! CircularInflow: check r-bounds
         IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -4776,8 +4783,8 @@ DO iSpec=1,nSpecies
         shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
     IF (.NOT.DoPoissonRounding .AND. .NOT. DoTimeDepInflow .AND. noAdaptive) THEN
@@ -4917,7 +4924,7 @@ __STAMP__&
               END IF !TriaSurfaceFlux
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
           END IF !PartSurfaceModel .OR. LiquidSimFlag
-        END IF
+        END IF !noAdaptive
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
@@ -5348,15 +5355,15 @@ __STAMP__&
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
 #ifdef IMPA
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
-              IPWRITE(UNIt_stdOut,'(I0,A18,E25.14)')                       ' PartDtFrac ', PartDtFrac(ParticleIndexNbr)
+              IPWRITE(UNIt_stdOut,'(I0,A18,ES25.14)')                       ' PartDtFrac ', PartDtFrac(ParticleIndexNbr)
 #endif /*IMPA*/
               IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
               IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' x', GEO%xminglob, LastPartPos(ParticleIndexNbr,1) &
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' x', GEO%xminglob, LastPartPos(ParticleIndexNbr,1) &
                                                                             , GEO%xmaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' y', GEO%yminglob, LastPartPos(ParticleIndexNbr,2) &
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' y', GEO%yminglob, LastPartPos(ParticleIndexNbr,2) &
                                                                             , GEO%ymaxglob
-              IPWRITE(UNIt_stdOut,'(I0,A2,x,E25.14,x,E25.14,x,E25.14)') ' z', GEO%zminglob, LastPartPos(ParticleIndexNbr,3) &
+              IPWRITE(UNIt_stdOut,'(I0,A2,x,ES25.14,x,ES25.14,x,ES25.14)') ' z', GEO%zminglob, LastPartPos(ParticleIndexNbr,3) &
                                                                             , GEO%zmaxglob
               CALL abort(&
                  __STAMP__ &
@@ -5459,23 +5466,23 @@ __STAMP__&
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-      IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
-        print*,'herre'
-        nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
-        DO iPart=1,NbrOfparticle
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
-                                  PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
-        END DO ! iPart
-      ELSE
-        print*,'or here'
+      ! IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+      !   !print*,'herre' ! TODO: does this need fixing? (see IMPA or Ros)
+      !   nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
+      !   DO iPart=1,NbrOfparticle
+      !     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+      !     IF (PositionNbr .ne. 0) PartEkinInTmp(PartSpecies(PositionNbr)) = &
+      !                             PartEkinInTmp(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
+      !   END DO ! iPart
+      ! ELSE
+        !print*,'or here' ! TODO: does this need fixing? (see IMPA or Ros)
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) PartEkinIn(PartSpecies(PositionNbr))= &
                                   PartEkinIn(PartSpecies(PositionNbr))+CalcEkinPart(PositionNbr)
         END DO ! iPart
-      END IF
+      !END IF
 #elif  defined(IMPA) || defined(ROS)
       !IF(iStage.EQ.nRKStages)THEN
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
@@ -6469,7 +6476,7 @@ DO i=1,PDM%ParticleVecLength
     Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2)
         END IF
       END IF

@@ -113,7 +113,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirStatistic'&
                                          , 'Only TD=Reservoir (42).\n'//&
                                           'Probabilities (rates) are calculated\n'//&
                                           ' [TRUE] counting reacting particles.\n'//&
-                                          ' [FALSE] summing reaction probabilities.' , '.FALSE.')
+                                          ' [FALSE] summing reaction probabilities (does not work with Q-K).' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
                                           , 'Only TD=Reservoir (42).\n'//&
                                           'Set [TRUE] to disable particle adsorption and desorption and keep surface coverage '//&
@@ -181,12 +181,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
 CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                            ,'Reference value for exponent omega for variable hard sphere model.', '0.'&
                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib'  &
-                                           ,'Characteristic vibrational temperature.', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV'  &
-                                           ,'Energy of Dissoziation in [eV].', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
                                            ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
                                            , numberedmulti=.TRUE.)
@@ -223,6 +221,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-HeatOfFormation_K'  &
                                            , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-PreviousState'  &
                                            ,'Species number of the previous state (e.g. N for NIon) ', '0', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-FullyIonized'  &
+                                           ,'Flag if the species is fully ionized, e.g., C^6+ ', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-NextIonizationSpecies'  &
                                            , 'SpeciesID of the next higher ionization level (required for field ionization)'&
                                            , '0', numberedmulti=.TRUE.)
@@ -339,7 +339,6 @@ USE MOD_Preproc                ,ONLY: PP_N
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
-USE MOD_DSMC_ElectronicModel   ,ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
@@ -347,11 +346,10 @@ USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_ChemReact         ,ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -361,8 +359,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter, MaxElecQua, counter
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
+  INTEGER               :: iInter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: Temp
   REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
@@ -371,10 +369,12 @@ IMPLICIT NONE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii
 #endif
-  LOGICAL               :: AutoDetect
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
+
+  ! Initialize counter (Count the number of ReactionProb>1)
+  ReactionProbGTUnityCounter = 0
   
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
@@ -398,21 +398,18 @@ IMPLICIT NONE
   END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
-! Partition functions are calculated for each species during initialization and stored for values starting with the
-! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values
   DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
+! Partition functions are calculated for each species during initialization and stored for values starting with the
+! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
   DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
   DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 !-----------------------------------------------------------------------------------
   DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors','.FALSE.')
   DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim','.FALSE.')
-#if (PP_TimeDiscMethod==42)
-  DSMC%CalcQualityFactors = .TRUE.
-#endif
   IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
     CALL abort(&
 __STAMP__&
-,'do not use DSMC%CalcQualityFactors for collismode<1')
+,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
   END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
   DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
   DSMC%ReservoirSurfaceRate    = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
@@ -422,7 +419,8 @@ __STAMP__&
   LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
-  IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.(CollisMode .GT. 1)) THEN 
+  IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
+      ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
     DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
   ELSEIF(DSMC%ElectronicModel) THEN
     CALL Abort(&
@@ -465,6 +463,25 @@ __STAMP__&
     ,"ERROR: nSpecies .LE. 0:", nSpecies)
   END IF
 
+  ! Either CollisMode.GT.0 or without chemical reactions due to collisions but with field ionization
+  IF(DoFieldIonization.OR.CollisMode.NE.0)THEN
+    ALLOCATE(SpecDSMC(nSpecies))
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
+      SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
+      SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
+      SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
+      SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
+      SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
+      IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+        DSMC%ElectronSpecies = iSpec
+      END IF
+      ! reading electronic state informations from HDF5 file
+      IF((DSMC%ElectronicModelDatabase.NE.'none').AND.(SpecDSMC(iSpec)%InterID.NE.4)) CALL SetElectronicModel(iSpec)
+    END DO
+  END IF
+
   IF (CollisMode.EQ.0) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) || (PP_TimeDiscMethod==42)
     CALL Abort(&
@@ -474,27 +491,12 @@ __STAMP__&
   ELSE !CollisMode.GT.0
 
 ! reading species data of ini_2
-  ALLOCATE(SpecDSMC(nSpecies))
   DO iSpec = 1, nSpecies
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
-    SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
-    SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
-    SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
     IF((SpecDSMC(iSpec)%InterID*SpecDSMC(iSpec)%TrefVHS*SpecDSMC(iSpec)%DrefVHS).eq.0) THEN
-    CALL Abort(&
-    __STAMP__&
-    ,"ERROR in species data ini_2")
-    END IF
-    SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS 
-  ! reading electronic state informations from HDF5 file
-    IF((DSMC%ElectronicModelDatabase .NE. 'none').AND.(SpecDSMC(iSpec)%InterID .NE. 4)) THEN
-      IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
-        CALL Abort(&
-           __STAMP__,&
-           "Read-in from electronic database requires the definition of species name! Species:",iSpec)
-      END IF
-      CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      CALL Abort(&
+      __STAMP__&
+      ,"ERROR in species data ini_2 (InterID*TrefVHS*DrefVHS is zero)")
     END IF
   END DO
 
@@ -572,6 +574,15 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
 !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Check whether calculation of instantaneous translational temperature is required
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+    ! 3. Case: Temperature required for the mean free path with the VHS model
+    ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
+    DSMC%InstantTransTemp = 0.0
+  END IF
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
   ! allocate internal energy arrays
     IF ( DSMC%ElectronicModel ) THEN
@@ -587,13 +598,8 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
-    ! Check whether calculation of instantaneous translational temperature is required
-    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2)) THEN
-      ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
-      DSMC%InstantTransTemp = 0.0
-    END IF
     DO iSpec = 1, nSpecies
-      IF(.NOT.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
+      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
         SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
         IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%DoTEVRRelaxation)  THEN
@@ -606,23 +612,19 @@ __STAMP__&
           SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
         ELSEIF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           SpecDSMC(iSpec)%Xi_Rot     = 2
-          SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')
+          SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
           SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-          SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
-          IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib.EQ.0) THEN
-            CALL Abort(&
-            __STAMP__&
-            ,'Error! Ediss_eV or CharaTVib is not set or equal to zero!')
+          SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
+          IF (DSMC%VibEnergyModel.EQ.0) THEN
+            SpecDSMC(iSpec)%MaxVibQuant = 200
           ELSE
-            IF (DSMC%VibEnergyModel.EQ.0) THEN
-              SpecDSMC(iSpec)%MaxVibQuant = 200
-            ELSE
-              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
-                  (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
-            END IF
-            ! Calculation of the zero-point energy
-            SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+            SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
+                (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
           END IF
+          ! Calculation of the zero-point energy
+          SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+          ! Calculation of the dissociation quantum number (used for QK chemistry)
+          SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
         END IF
         SpecDSMC(iSpec)%VFD_Phi3_Factor = GETREAL('Part-Species'//TRIM(hilf)//'-VFDPhi3','0.')
         ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
@@ -873,7 +875,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
-        IF ( SpecDSMC(iSpec)%InterID .eq. 4) THEN
+        IF ( (SpecDSMC(iSpec)%InterID .eq. 4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
           SpecDSMC(iSpec)%MaxElecQuant = 0
         ELSE
           ALLOCATE( SpecDSMC(iSpec)%levelcounter         ( 0:size(SpecDSMC(iSpec)%ElectronicState,2)-1) , &
@@ -913,7 +915,7 @@ __STAMP__&
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         print*,SpecDSMC(iSpec)%InterID
-        IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
+        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
             WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
             DebugElectronicStateFilename = 'Initial_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
@@ -937,15 +939,6 @@ __STAMP__&
 ! Define chemical reactions (including ionization and backward reaction rate)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
-    IF(DSMC%BackwardReacRate) THEN
-      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-        PartitionArraySize = INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR: Partition temperature limit must be multiple of partition interval!')
-      END IF
-    END IF
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
@@ -975,7 +968,7 @@ __STAMP__&
       END IF
       ! Read-in of electronic levels for QK and backward reaction rate -------------------------------------------------------------
       IF (DSMC%ElectronicModelDatabase .EQ.'none') THEN
-        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
           IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
             ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
@@ -1017,19 +1010,13 @@ __STAMP__&
             END IF
           END IF
         END IF
-        IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
               CALL abort(&
               __STAMP__&
               ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
           END IF
         END IF
-        ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
-        DO iInter = 1, PartitionArraySize
-          Temp = iInter * DSMC%PartitionInterval
-          CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
-          SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
-        END DO
       END IF
       !-----------------------------------------------------------------------------------------------------------------------------
       SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
@@ -1044,64 +1031,11 @@ __STAMP__&
 
     ! Calculating the heat of formation for ionized species (including higher ionization levels)
     ! Requires the completed read-in of species data
-    AutoDetect=.TRUE.
-    DO iSpec = 1, nSpecies
-      counter = 0
-      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-        IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
-          jSpec = SpecDSMC(iSpec)%PreviousState
-          DO
-            MaxElecQua = SpecDSMC(jSpec)%MaxElecQuant - 1
-            SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
-                                          + SpecDSMC(jSpec)%ElectronicState(2,MaxElecQua)*BoltzmannConst
-            IF(SpecDSMC(jSpec)%PreviousState.EQ.0) EXIT
-            jSpec = SpecDSMC(jSpec)%PreviousState
-            ! Fail-safe, abort after 100 iterations
-            counter = counter + 1
-            IF(counter.GT.100) THEN
-              CALL abort(&
-              __STAMP__&
-              ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
-            END IF
-          END DO
-          IF(AutoDetect)THEN
-            SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
-            AutoDetect=.FALSE.
-          END IF
-          ! Add the heat of formation of the ground state
-          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
-          WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-          CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
-              RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
-        ELSE
-          CALL abort(&
-          __STAMP__&
-          ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
-        END IF
-      END IF
-    END DO
+    CALL CalcHeatOfFormation()
 
     ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
     ! NextIonizationSpecies => SpeciesID of the next higher ionization level
-    AutoDetect=.FALSE.
-    DO iSpec = 1, nSpecies
-      IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
-        IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
-          SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
-          AutoDetect=.TRUE.
-        END IF
-      ELSE
-        SpecDSMC(iSpec)%NextIonizationSpecies = 0
-        DSMC%ElectronSpecies = iSpec
-      END IF
-    END DO
-    IF(AutoDetect)THEN
-      SWRITE(UNIT_stdOut,'(A)')' Automatically determined NextIonizationSpecies:'
-      DO iSpec = 1, nSpecies
-        WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-        CALL PrintOption('iSpec='//TRIM(hilf2)//': NextIonizationSpecies','CALCUL.',IntOpt=SpecDSMC(iSpec)%NextIonizationSpecies)
-      END DO
-    END IF
+    CALL SetNextIonizationSpecies()
 
     CALL DSMC_chemical_init()
   ELSE IF ((PartSurfaceModel.GT.0 .OR. LiquidSimFlag) .AND. CollisMode.GT.1) THEN
@@ -1210,10 +1144,165 @@ __STAMP__&
 
   END IF !CollisMode.GT.0
 
+  ! If field ionization is used without chemical reactions due to collisions (DSMC chemistry)
+  IF(DoFieldIonization.AND.(CollisMode.NE.3))THEN
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
+      ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
+      SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState','0')
+      IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: Please specify the previous state of the ion species:', iSpec)
+        END IF
+      END IF
+
+      ! Read-in of species for field ionization (only required if it cannot be determined automatically)
+      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
+      ELSE
+        SpecDSMC(iSpec)%NextIonizationSpecies = 0
+      END IF
+    END DO ! iSpec = 1, nSpecies
+
+
+    ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
+    ! NextIonizationSpecies => SpeciesID of the next higher ionization level
+    CALL SetNextIonizationSpecies()
+  END IF
+
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitDSMC
+
+
+SUBROUTINE SetElectronicModel(iSpec)
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals              ,ONLY: abort
+USE MOD_DSMC_Vars            ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN) :: iSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
+  CALL Abort(&
+      __STAMP__,&
+      "Read-in from electronic database requires the definition of species name! Species:",iSpec)
+END IF
+IF(.NOT.SpecDSMC(iSpec)%FullyIonized)THEN
+  CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
+END IF
+END SUBROUTINE SetElectronicModel
+
+
+SUBROUTINE CalcHeatOfFormation() 
+!===================================================================================================================================
+! Calculating the heat of formation for ionized species (including higher ionization levels)
+! Requires the completed read-in of species data
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals       ,ONLY: abort,mpiroot,UNIT_stdOut
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+USE MOD_ReadInTools   ,ONLY: PrintOption
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32) :: hilf2
+LOGICAL       :: AutoDetect
+INTEGER       :: iSpec,jSpec,counter,MaxElecQua
+!===================================================================================================================================
+AutoDetect=.TRUE.
+DO iSpec = 1, nSpecies
+  counter = 0
+  IF((SpecDSMC(iSpec)%InterID.EQ.10).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
+      jSpec = SpecDSMC(iSpec)%PreviousState
+      DO
+        MaxElecQua = SpecDSMC(jSpec)%MaxElecQuant - 1
+        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation &
+            + SpecDSMC(jSpec)%ElectronicState(2,MaxElecQua)*BoltzmannConst
+        IF(SpecDSMC(jSpec)%PreviousState.EQ.0) EXIT
+        jSpec = SpecDSMC(jSpec)%PreviousState
+        ! Fail-safe, abort after 100 iterations
+        counter = counter + 1
+        IF(counter.GT.100) THEN
+          CALL abort(&
+              __STAMP__&
+              ,'ERROR: Nbr. of ionization lvls per spec limited to 100. More likely wrong input in PreviuosState of spec:', iSpec)
+        END IF
+      END DO
+      IF(AutoDetect)THEN
+        SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
+        AutoDetect=.FALSE.
+      END IF
+      ! Add the heat of formation of the ground state
+      SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
+      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+      CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
+          RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
+    ELSE
+      CALL abort(&
+          __STAMP__&
+          ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+    END IF
+  END IF
+END DO
+END SUBROUTINE CalcHeatOfFormation
+
+
+SUBROUTINE SetNextIonizationSpecies() 
+!===================================================================================================================================
+! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
+! NextIonizationSpecies => SpeciesID of the next higher ionization level
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
+USE MOD_ReadInTools   ,ONLY: PrintOption
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32) :: hilf2
+LOGICAL       :: AutoDetect
+INTEGER       :: iSpec
+!===================================================================================================================================
+AutoDetect=.FALSE.
+DO iSpec = 1, nSpecies
+  ! loop all species, except electrons (also loop over fully ionized species!)
+  IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
+    IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
+      SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
+      AutoDetect=.TRUE.
+    END IF
+  ELSE
+    SpecDSMC(iSpec)%NextIonizationSpecies = 0
+  END IF
+END DO
+IF(AutoDetect)THEN
+  SWRITE(UNIT_stdOut,'(A)')' Automatically determined NextIonizationSpecies:'
+  DO iSpec = 1, nSpecies
+    WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+    CALL PrintOption('iSpec='//TRIM(hilf2)//': NextIonizationSpecies','CALCUL.',IntOpt=SpecDSMC(iSpec)%NextIonizationSpecies)
+  END DO
+END IF
+END SUBROUTINE SetNextIonizationSpecies
 
 
 SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
@@ -1243,7 +1332,6 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
   INTEGER                       :: iQuant
   REAL                        :: TVib                       ! vibrational temperature
   REAL                        :: TRot                       ! rotational temperature
-  INTEGER                     :: iInitTemp, init_or_sfTemp
   INTEGER                     :: ElemID
   REAL                        :: pressure
 !===================================================================================================================================
@@ -1329,10 +1417,12 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF ( DSMC%ElectronicModel .and. SpecDSMC(iSpecies)%InterID .ne. 4) THEN
-    iInitTemp = iInit
-    init_or_sfTemp = init_or_sf
-    CALL InitElectronShell(iSpecies,iPart,iInitTemp,init_or_sfTemp)
+  IF (DSMC%ElectronicModel) THEN
+    IF((SpecDSMC(iSpecies)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpecies)%FullyIonized)) THEN
+      CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
+    ELSE
+      PartStateIntEn(iPart, 3) = 0.
+    END IF
   ENDIF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set internal energy for LD
@@ -1399,7 +1489,7 @@ SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
-SDEALLOCATE(QKBackWard)
+SDEALLOCATE(QKAnalytic)
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)

@@ -904,7 +904,7 @@ IF(nParts.GT.0) THEN
   tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
   ALLOCATE(ConnectInfo(1,1:nParts))
-  ConnectInfo = 0.
+  ConnectInfo = 0
 END IF
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &

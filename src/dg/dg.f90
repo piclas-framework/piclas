@@ -540,7 +540,7 @@ INTEGER                         :: i,j,k,iElem
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
 #ifdef maxwell
-IF(DoExactFlux) RETURN
+IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
 #endif /*maxwell*/
 DO iElem=1,PP_nElems
   DO k=0,PP_N
