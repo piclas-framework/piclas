@@ -598,11 +598,6 @@ __STAMP__&
     SpecDSMC(1:nSpecies)%EZeroPoint = 0.0
     SpecDSMC(1:nSpecies)%PolyatomicMol=.false.
     SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
-    ! Check whether calculation of instantaneous translational temperature is required
-    IF(DSMC%BackwardReacRate.OR.(SelectionProc.EQ.2).OR.DSMC%CalcQualityFactors) THEN
-      ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
-      DSMC%InstantTransTemp = 0.0
-    END IF
     DO iSpec = 1, nSpecies
       IF(SpecDSMC(iSpec)%InterID.NE.4) THEN
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
