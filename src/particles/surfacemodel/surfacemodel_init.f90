@@ -406,16 +406,10 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides
           Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides),&
           Adsorption%AreaIncrease(1:SurfMesh%nTotalSides),&
           Adsorption%CrystalIndx(1:SurfMesh%nTotalSides))
 
-SurfMesh%SurfIDToSideID(:) = -1
-DO iSide = 1,nTotalSides
-  IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
-  SurfMesh%SurfIDToSideID(SurfMesh%SideIDToSurfID(iSide)) = iSide
-END DO
 ! Initialize surface properties from particle boundary values
 DO iSide=1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSide)
