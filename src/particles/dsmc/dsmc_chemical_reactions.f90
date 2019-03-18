@@ -243,31 +243,33 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
     ! Zero-point energy of educts is removed from the collision energy utilized for the calculation of the reaction probability
     EReact = Coll_pData(iPair)%Ec - EZeroPoint_Educt
     ! Determination of the Beta coefficient (array for diatomic molecules, calculation for polyatomic)
-    IF (SpecDSMC(EductReac(1))%PolyatomicMol                &
-        .OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
-        .OR.SpecDSMC(ProductReac(1))%PolyatomicMol  &
-        .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
-      BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-    ELSE
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
-        BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(                                                         &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-      ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
-        BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(                                                         &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
-                              ChemReac%MeanEVibQua_PerIter(EductReac(2)))
-      ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
-          BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
-        ELSE
-          BetaReaction = &
-            ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
-        END IF
+    IF(.NOT.ChemReac%QKProcedure(iReac))THEN
+      IF (SpecDSMC(EductReac(1))%PolyatomicMol                &
+          .OR.SpecDSMC(EductReac(2))%PolyatomicMol           &
+          .OR.SpecDSMC(ProductReac(1))%PolyatomicMol  &
+          .OR.SpecDSMC(ProductReac(2))%PolyatomicMol) THEN
+        BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
       ELSE
-!        CALL abort(&
-!       __STAMP__&
-!        ,'Reaction Type is not properly specified. Reaction: ',iReac)
+        IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(                                                         &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
+        ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
+          BetaReaction = ChemReac%ReactInfo(iReac)%Beta_Exch_Arrhenius(                                                         &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(1)),                                          &
+                                ChemReac%MeanEVibQua_PerIter(EductReac(2)))
+        ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
+          IF(SpecDSMC(EductReac(3))%PolyatomicMol) THEN
+            BetaReaction = Calc_Beta_Poly(iReac,Xi_Total)
+          ELSE
+            BetaReaction = &
+              ChemReac%ReactInfo(iReac)%Beta_Rec_Arrhenius(EductReac(3),ChemReac%MeanEVibQua_PerIter(EductReac(3)))
+          END IF
+        ELSE
+!          CALL abort(&
+!         __STAMP__&
+!          ,'Reaction Type is not properly specified. Reaction: ',iReac)
+        END IF
       END IF
     END IF
     ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
@@ -309,7 +311,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       TiQK = (CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                 + 2.*PartStateIntEn(React1Inx,3))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
                 + Xi_elec1)*BoltzmannConst)
-      CALL CalcForwardRate(iReac,TiQK,ForwardRate)
+      CALL CalcQKAnalyticRate(iReac,TiQK,ForwardRate)
       Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  / (BoltzmannConst &
               * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) 
       b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)     
@@ -320,7 +322,23 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
         / (CollInf%MassRed(CollInf%Coll_Case(EductReac(1), EductReac(2)))))
       Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
            * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
-      ReactionProb = ForwardRate / Rcoll 
+      ReactionProb = ForwardRate / Rcoll
+    ELSE IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D'.AND.ChemReac%QKProcedure(iReac)) THEN
+      TiQK = (CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+                + 2.*PartStateIntEn(React1Inx,1))/((2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS) &
+                + Xi_vib1)*BoltzmannConst)
+      CALL CalcQKAnalyticRate(iReac,TiQK,ForwardRate)
+      Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  / (BoltzmannConst &
+              * 2.*(2.-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) 
+      b=     (0.5 - SpecDSMC(EductReac(1))%omegaVHS)     
+      Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(EductReac(1),EductReac(2)))) &
+        * (SpecDSMC(EductReac(1))%DrefVHS/2. + SpecDSMC(EductReac(2))%DrefVHS/2.)**2 &
+        * (Tcoll / SpecDSMC(EductReac(1))%TrefVHS)**(0.5 - SpecDSMC(EductReac(1))%omegaVHS) &
+        * SQRT(2. * BoltzmannConst * SpecDSMC(EductReac(1))%TrefVHS &
+        / (CollInf%MassRed(CollInf%Coll_Case(EductReac(1), EductReac(2)))))
+      Rcoll = Rcoll * (2.-SpecDSMC(EductReac(1))%omegaVHS)**b &
+           * gamma(2.-SpecDSMC(EductReac(1))%omegaVHS)/gamma(2.-SpecDSMC(EductReac(1))%omegaVHS+b)
+      ReactionProb = ForwardRate / Rcoll
     ELSE
       IF(SpecDSMC(EductReac(2))%PolyatomicMol.OR.SpecDSMC(EductReac(1))%PolyatomicMol) THEN
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
@@ -343,11 +361,11 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 #if (PP_TimeDiscMethod==42)
     IF(DSMC%ReservoirRateStatistic) THEN
 #endif
-      IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.1000)) THEN
+      IF((ReactionProb.GT.1).AND.(ReactionProbGTUnityCounter.LT.100)) THEN
         ReactionProbGTUnityCounter=ReactionProbGTUnityCounter+1
         IPWRITE(*,*) 'Warning: ReactionProb greater than unity! ReacNbr:', iReac,'    ReactionProb:',ReactionProb
-        IF(ReactionProbGTUnityCounter.EQ.1000)THEN
-          IPWRITE(*,*) ' Counted 1000 ReactionProb greater than unity. Turning this warning off.'
+        IF(ReactionProbGTUnityCounter.EQ.100)THEN
+          IPWRITE(*,*) ' Counted 100 ReactionProb greater than unity. Turning this warning off.'
         END IF
       END IF
 #if (PP_TimeDiscMethod==42)
@@ -1118,7 +1136,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, QKBackWard
+  USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, QKAnalytic
   USE MOD_Particle_Vars,         ONLY : nSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1145,6 +1163,8 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     IF (TRIM(ChemReac%ReactType(iReac)).EQ.'iQK') THEN
       MaxElecQua=SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxElecQuant - 1
       ActivationEnergy = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%ElectronicState(2,MaxElecQua)
+    ELSEIF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+      ActivationEnergy = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Ediss_eV * 11604.52500617 ! eV -> K
     END IF
   END IF
 
@@ -1184,7 +1204,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_lower = QKBackWard(iReacTmp)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
+        k_b_lower = QKAnalytic(iReac)%ForwardRate(LowerLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
             * EXP(ActivationEnergy/(LowerLevel * DSMC%PartitionInterval))
       ELSE
         k_b_lower = ChemReac%Arrhenius_Prefactor(iReac)  &
@@ -1206,7 +1226,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
     END DO
     IF((PartFuncProduct(1).NE.0.).AND.(PartFuncProduct(2).NE.0.)) THEN
       IF (ChemReac%QKProcedure(iReac)) THEN
-        k_b_upper = QKBackWard(iReacTmp)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
+        k_b_upper = QKAnalytic(iReac)%ForwardRate(UpperLevel)* (PartFuncProduct(1)/PartFuncProduct(2)) &
             * EXP(ActivationEnergy/(UpperLevel * DSMC%PartitionInterval))
       ELSE
         k_b_upper = ChemReac%Arrhenius_Prefactor(iReac) &
@@ -1252,49 +1272,42 @@ SUBROUTINE CalcPseudoScatterVars(PseuSpec1, PseuSpec2, ScatterSpec3, FracMassCen
 END SUBROUTINE CalcPseudoScatterVars
 
 
-SUBROUTINE CalcForwardRate(iReacTmp,LocalTemp,ForwardRate)
+SUBROUTINE CalcQKAnalyticRate(iReac,LocalTemp,ForwardRate)
 !===================================================================================================================================
-! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
+! Interpolate the analytic QK reaction rate from the stored QKAnalytic array
+! CalcBackwardRate: for the backward rate, the value of the respective forward rate was copied during the initialization
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, ChemReac, QKBackWard
+  USE MOD_DSMC_Vars,             ONLY : DSMC, ChemReac, QKAnalytic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iReacTmp
+  INTEGER, INTENT(IN)           :: iReac
   REAL, INTENT(IN)              :: LocalTemp
-  REAL, INTENT(OUT)             :: ForwardRate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+  REAL, INTENT(OUT)             :: ForwardRate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                        :: iReac, LowerLevel, UpperLevel
-  REAL                            :: k_f_lower, k_f_upper
+  INTEGER                       :: LowerLevel, UpperLevel
 !===================================================================================================================================
   ! Determination of the lower and upper value of the temperature interval
   LowerLevel = INT(LocalTemp/DSMC%PartitionInterval)
   UpperLevel = LowerLevel + 1
-  iReac = iReacTmp + ChemReac%NumOfReact/2
   IF(UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)) THEN
     CALL abort(&
      __STAMP__&
       ,'Temperature limit for the forward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
   END IF
 
-  ! Calculation of the backward reaction rate at the lower temperature value (using the equilibrium constant)
-  k_f_lower = QKBackWard(iReac)%ForwardRate(LowerLevel)
-
-! Calculation of the backward reaction rate at the upper temperature value (using the equilibrium constant)
-  k_f_upper = QKBackWard(iReac)%ForwardRate(UpperLevel)
-
 ! Linear interpolation of the backward rate coefficient at the actual temperature
-  ForwardRate = k_f_lower &
-            + (k_f_upper - k_f_lower)  &
-            / (DSMC%PartitionInterval) * (LocalTemp - LowerLevel * DSMC%PartitionInterval)
+  ForwardRate = QKAnalytic(iReac)%ForwardRate(LowerLevel) &
+              + (QKAnalytic(iReac)%ForwardRate(UpperLevel) - QKAnalytic(iReac)%ForwardRate(LowerLevel))  &
+              / (DSMC%PartitionInterval) * (LocalTemp - LowerLevel * DSMC%PartitionInterval)
 
-END SUBROUTINE CalcForwardRate
+END SUBROUTINE CalcQKAnalyticRate
 
 
 FUNCTION gammainc( arg )
