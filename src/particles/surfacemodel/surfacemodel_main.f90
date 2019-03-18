@@ -87,7 +87,7 @@ USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
-USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum
+USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface
 #ifdef MPI
 USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, ExchangeSurfDistInfo
 #endif /*MPI*/
@@ -96,7 +96,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
+INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
 REAL                             :: maxPart
 REAL                             :: coverage_tmp, coverage_corrected
 #if USE_LOADBALANCE
@@ -127,9 +127,7 @@ IF (PartSurfaceModel.GT.0) THEN
 #endif
 ! 2. go through all sides and adjust coverages
       DO iSurfSide = 1,SurfMesh%nSides
-        SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-        PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+        IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)

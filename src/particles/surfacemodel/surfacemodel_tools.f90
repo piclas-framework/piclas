@@ -57,6 +57,10 @@ INTERFACE SampleAdsorptionHeat
   MODULE PROCEDURE SampleAdsorptionHeat
 END INTERFACE
 
+INTERFACE IsReactiveSurface
+  MODULE PROCEDURE IsReactiveSurface
+END INTERFACE
+
 INTERFACE SMCR_AdjustMapNum
   MODULE PROCEDURE SMCR_AdjustMapNum
 END INTERFACE
@@ -69,6 +73,7 @@ PUBLIC :: CalcAdsorbReactProb
 PUBLIC :: SpaceOccupied
 PUBLIC :: UpdateSurfPos
 PUBLIC :: SampleAdsorptionHeat
+PUBLIC :: IsReactiveSurface
 PUBLIC :: SMCR_AdjustMapNum
 !===================================================================================================================================
 
@@ -97,6 +102,7 @@ INTEGER                          :: PartBoundID
 DO iSpec=1,nSpecies
   DO SurfSide=1,SurfMesh%nSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
+    IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -160,6 +166,7 @@ INTEGER                          :: PartBoundID
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
+  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -256,6 +263,9 @@ REAL                           :: A, B, sigma, sigma_m
 !INTEGER                        :: neighSpec, neighSpec2, Coord2, Coord3, ReactNum, nNeigh_interactions
 !===================================================================================================================================
 PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID)))
+IF (.NOT.PartBound%SolidReactive(PartboundID)) CALL Abort(&
+__STAMP__,&
+'Calc_Adsorb_Heat_ERROR: Given SurfSideID is not reactive',SurfSideID)
 Coordination = Adsorption%Coordination(PartBoundID,Species)
 !ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 !   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
@@ -927,9 +937,7 @@ REAL FUNCTION SampleAdsorptionHeat(SurfID,iSubSurf,jSubSurf)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -942,7 +950,7 @@ INTEGER, INTENT(IN) :: SurfID, iSubSurf, jSubSurf
 INTEGER :: SurfPos, SpecID, AdsorbID, Coord
 !===================================================================================================================================
 SampleAdsorptionHeat = 0.0
-IF (.NOT.PartBound%SolidReactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) RETURN
+IF (.NOT.IsReactiveSurface(SurfID)) RETURN
 
 ASSOCIATE ( nSites => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%nSites(:) ,&
             nSitesRemain => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%SitesRemain(:) )
@@ -957,6 +965,28 @@ ASSOCIATE ( nSites => SurfDistInfo(iSubSurf,jSubSurf,SurfID)%nSites(:) ,&
 END ASSOCIATE
 
 END FUNCTION SampleAdsorptionHeat
+
+
+LOGICAL FUNCTION IsReactiveSurface(SurfID)
+!===================================================================================================================================
+!> Checks if SurfID has reactive boundary flag
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: SurfID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IsReactiveSurface = .FALSE.
+IF (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) IsReactiveSurface = .TRUE.
+END FUNCTION IsReactiveSurface
 
 
 SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID,SampleFlag)
@@ -1092,5 +1122,6 @@ IF (LocSampleFlag) THEN
 END IF
 
 END SUBROUTINE SMCR_AdjustMapNum
+
 
 END MODULE MOD_SurfaceModel_Tools

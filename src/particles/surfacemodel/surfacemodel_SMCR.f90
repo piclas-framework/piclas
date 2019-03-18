@@ -509,7 +509,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorptionHeat
-USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos
+USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos, IsReactiveSurface
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncSurf
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -596,15 +596,18 @@ ALLOCATE( P_react_forward(1:Adsorption%nExchReactions),&
           Pos_Product(1:2,1:Adsorption%ReactNum+Adsorption%nExchReactions))
 
 ! sample energy of surfaces before desorption treatment
-DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
-  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
-        + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
-        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
-        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
-        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
-  END IF
-END DO ; END DO ; END DO
+DO iSurf = 1,SurfMesh%nSides
+  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+          + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+          * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+          * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+    END IF
+  END DO ; END DO
+END DO
 
 ! loop over all surfaces and decide if catalytic boundary
 DO iSurf = 1,SurfMesh%nSides
@@ -1613,15 +1616,18 @@ END DO ; END DO ! nSurfSample
 END DO ! SurfMesh%nSides
 
 ! sample energy of surfaces after desorption treatment
-DO iSurf = 1,SurfMesh%nSides ; DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
-  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
-        - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
-        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
-        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
-        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
-  END IF
-END DO ; END DO ; END DO
+DO iSurf = 1,SurfMesh%nSides
+  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+          - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+          * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+          * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+    END IF
+  END DO ; END DO
+END DO
 
 DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,adsorbates)
 DEALLOCATE(ProbDes,P_react_forward,P_react_back)
@@ -1645,7 +1651,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: Species, WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
-USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat, SpaceOccupied, SampleAdsorptionHeat
+USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat, SpaceOccupied, SampleAdsorptionHeat, IsReactiveSurface
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt, TEnd, time
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -1664,93 +1670,96 @@ INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! diffusion into equilibrium distribution
-DO iSurf=1,SurfMesh%nSides ; DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
+DO iSurf=1,SurfMesh%nSides
+  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
 
-  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
-        + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
-        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
-        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
-        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
-  END IF
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+          + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+          * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+          * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+    END IF
 
-  DO Coord = 1,3
-    nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(Coord)
-    nSitesRemain = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%SitesRemain(Coord)
+    DO Coord = 1,3
+      nSites = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(Coord)
+      nSitesRemain = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%SitesRemain(Coord)
 
-    ALLOCATE ( free_Neigh_pos(1:SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours))
-    DO AdsorbID = nSitesRemain+1,nSites,1
-      Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
-      SpecID = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species(Surfpos)
+      ALLOCATE ( free_Neigh_pos(1:SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours))
+      DO AdsorbID = nSitesRemain+1,nSites,1
+        Surfpos = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
+        SpecID = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species(Surfpos)
 
-      ! choose Random vacant neighbour position
-      n_equal_site_Neigh = 0
-      free_Neigh_pos(:) = 0
+        ! choose Random vacant neighbour position
+        n_equal_site_Neigh = 0
+        free_Neigh_pos(:) = 0
 
-      ! find free Neighbour positions of the same site-coordination
-      DO i = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours
-        IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
-          IF ( (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species( &
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
-            ! check for occupation with nearest Neighbours of position
-            IF (SpaceOccupied(iSurf,iSubSurf,jSubSurf,Coord &
-                ,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i))) CYCLE
-            n_equal_site_Neigh = n_equal_site_Neigh + 1
-            free_Neigh_pos(n_equal_site_Neigh) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)
-          END IF
-        END IF
-      END DO
-
-      ! calculate heat of adsorption for actual site then reduce bond order of bondatoms
-      Heat_i = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,Surfpos,.FALSE.)
-      ! update surfatom bond order and species map
-      CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)
-
-      ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
-      Heat_j = 0.
-      DO i = 1,n_equal_site_Neigh
-        Heat_temp = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,free_Neigh_pos(i),.TRUE.)
-        IF (Heat_temp .GT. Heat_j) THEN
-          Heat_j = Heat_temp
-          newpos = free_Neigh_pos(i)
-        END IF
-      END DO
-
-      ! only try to diffuse particle if unoccupied sites available
-      IF (n_equal_site_Neigh .GE. 1) THEN
-        globSide = SurfMesh%SurfIDToSideID(iSurf)
-        WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
-        Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
-        CALL RANDOM_NUMBER(RanNum)
-        IF (dt.LT.1e-1) Prob_diff = Prob_diff*dt
-        IF (Prob_diff.GT.RanNum) THEN
-        ! move particle to new position and update map
-          DO i = 1,nSitesRemain
-            IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(i).EQ.newpos) THEN
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
-              SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = newpos
+        ! find free Neighbour positions of the same site-coordination
+        DO i = 1,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours
+          IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
+            IF ( (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%Species( &
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
+              ! check for occupation with nearest Neighbours of position
+              IF (SpaceOccupied(iSurf,iSubSurf,jSubSurf,Coord &
+                  ,SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i))) CYCLE
+              n_equal_site_Neigh = n_equal_site_Neigh + 1
+              free_Neigh_pos(n_equal_site_Neigh) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos,i)
             END IF
-          END DO
+          END IF
+        END DO
+
+        ! calculate heat of adsorption for actual site then reduce bond order of bondatoms
+        Heat_i = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,Surfpos,.FALSE.)
+        ! update surfatom bond order and species map
+        CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)
+
+        ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
+        Heat_j = 0.
+        DO i = 1,n_equal_site_Neigh
+          Heat_temp = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,free_Neigh_pos(i),.TRUE.)
+          IF (Heat_temp .GT. Heat_j) THEN
+            Heat_j = Heat_temp
+            newpos = free_Neigh_pos(i)
+          END IF
+        END DO
+
+        ! only try to diffuse particle if unoccupied sites available
+        IF (n_equal_site_Neigh .GE. 1) THEN
+          globSide = SurfMesh%SurfIDToSideID(iSurf)
+          WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+          Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
+          CALL RANDOM_NUMBER(RanNum)
+          IF (dt.LT.1e-1) Prob_diff = Prob_diff*dt
+          IF (Prob_diff.GT.RanNum) THEN
+          ! move particle to new position and update map
+            DO i = 1,nSitesRemain
+              IF (SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(i).EQ.newpos) THEN
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
+                SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = newpos
+              END IF
+            END DO
+          ELSE
+            newpos = Surfpos
+          END IF
         ELSE
           newpos = Surfpos
-        END IF
-      ELSE
-        newpos = Surfpos
-      END IF ! end if (n_equal_site_Neigh >= 1)
+        END IF ! end if (n_equal_site_Neigh >= 1)
 
-      ! update surfatom bond order and species map
-      CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,newpos,SpecID,.FALSE.,relaxation=.TRUE.)
+        ! update surfatom bond order and species map
+        CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,newpos,SpecID,.FALSE.,relaxation=.TRUE.)
+      END DO
+      DEALLOCATE(free_Neigh_pos)
     END DO
-    DEALLOCATE(free_Neigh_pos)
-  END DO
-  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
-        - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
-        / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
-        * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
-        * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
-  END IF
-END DO ; END DO ; END DO !iSubSurf = 1,nSurfSample; jSubSurf = 1,nSurfSample ; iSurf = 1,SurfMesh%nSides
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+          - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
+          / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
+          * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
+          * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(1)%MacroParticleFactor
+    END IF
+  END DO ; END DO !iSubSurf = 1,nSurfSample; jSubSurf = 1,nSurfSample
+END DO !iSurf = 1,SurfMesh%nSides
 
 END SUBROUTINE SMCR_Diffusion
 
