@@ -264,9 +264,9 @@ REAL                :: FAST_RELATIVISTIC_PUSH(1:3) ! The stamp
 ! LOCAL VARIABLES
 REAL                :: velosq, LorentzFac,qmt
 REAL                :: E(1:3),Pt(1:3)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
 REAL                :: B(1:3)
-#endif
+!#endif
 REAL                :: LorentzFac2,LorentzFac3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
 
@@ -306,19 +306,19 @@ Vinv(3,3) = (c2*LorentzFac3 + (v1s+v2s)*LorentzFac)*normfac
 qmt = Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC
 
 E(1:3) = FieldAtParticle(1:3) * qmt
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
 B(1:3) = FieldAtParticle(4:6) * qmt
-#endif
+!#endif
 ! Calc Lorentz forces in x, y, z direction:
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
 Pt(1) = E(1) + PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2)
 Pt(2) = E(2) + PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3)
 Pt(3) = E(3) + PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1)
-#else
-Pt(1) = E(1) 
-Pt(2) = E(2) 
-Pt(3) = E(3) 
-#endif
+!#else
+!Pt(1) = E(1) 
+!Pt(2) = E(2) 
+!Pt(3) = E(3) 
+!#endif
 
 FAST_RELATIVISTIC_PUSH = MATMUL(Vinv,Pt)
 
@@ -372,15 +372,15 @@ ASSOCIATE (&
   END IF
   ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
 
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
     F(1) = E1 + v2 * B3 - v3 * B2
     F(2) = E2 + v3 * B1 - v1 * B3
     F(3) = E3 + v1 * B2 - v2 * B1
-#else
-    F(1) = E1 
-    F(2) = E2 
-    F(3) = E3 
-#endif
+!#else
+!    F(1) = E1 
+!    F(2) = E2 
+!    F(3) = E3 
+!#endif
 
     ! Calculate the acceleration
     ACCELERATION_RELATIVISTIC_PUSH = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(PartID,4:6))*PartState(PartID,4:6)*c2_inv )

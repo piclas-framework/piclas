@@ -89,6 +89,8 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   CALL ReadVariableExternalField()
 END IF
 
+
+
 #ifdef CODE_ANALYZE
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
 IF(DoInterpolationAnalytic)THEN
@@ -214,6 +216,7 @@ END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
 
+
 IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -221,6 +224,7 @@ IF (.NOT.InterpolationElemLoop) THEN
   END DO
   RETURN
 END IF
+
 
 FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
 #ifdef CODE_ANALYZE
@@ -255,11 +259,11 @@ ELSE ! use variable or fixed external field
     FieldAtParticle(firstPart:lastPart,1) = externalField(1)
     FieldAtParticle(firstPart:lastPart,2) = externalField(2)
     FieldAtParticle(firstPart:lastPart,3) = externalField(3)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
     FieldAtParticle(firstPart:lastPart,4) = externalField(4)
     FieldAtParticle(firstPart:lastPart,5) = externalField(5)
     FieldAtParticle(firstPart:lastPart,6) = externalField(6)
-#endif
+!#endif
   END IF ! use constant external field
 #ifdef CODE_ANALYZE
 END IF
@@ -670,11 +674,12 @@ ELSE ! use variable or fixed external field
     FieldAtParticle(1) = externalField(1)
     FieldAtParticle(2) = externalField(2)
     FieldAtParticle(3) = externalField(3)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
     FieldAtParticle(4) = externalField(4)
     FieldAtParticle(5) = externalField(5)
     FieldAtParticle(6) = externalField(6)
-#endif
+!#endif
+
   END IF ! use constant external field
 #ifdef CODE_ANALYZE
 END IF
@@ -954,6 +959,7 @@ __STAMP__&
   END SELECT
 END IF
     
+
 RETURN
 END SUBROUTINE InterpolateFieldToSingleParticle
 
