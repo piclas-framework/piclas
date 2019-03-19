@@ -440,13 +440,14 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
   Energy_old=&
        0.5*Species(PartSpecies(React1Inx))%MassIC*DOT_PRODUCT(PartState(React1Inx,4:6),PartState(React1Inx,4:6))&
       +0.5*Species(PartSpecies(React2Inx))%MassIC*DOT_PRODUCT(PartState(React2Inx,4:6),PartState(React2Inx,4:6))&
-      +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
-      +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)&
+      +PartStateIntEn(React1Inx,1)+PartStateIntEn(React1Inx,2)+PartStateIntEn(React2Inx,1)+PartStateIntEn(React2Inx,2)&
       +ChemReac%EForm(iReac)
+  IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(React1Inx,3) + PartStateIntEn(React2Inx, 3)
   IF (PRESENT(iPart_p3)) THEN
     Energy_old=Energy_old&
         +0.5*Species(PartSpecies(iPart_p3))%MassIC *DOT_PRODUCT(PartState(iPart_p3,4:6) ,PartState(iPart_p3,4:6))&
-        +PartStateIntEn(iPart_p3  , 1)+PartStateIntEn(iPart_p3  , 2)+PartStateIntEn(iPart_p3  , 3)
+        +PartStateIntEn(iPart_p3,1)+PartStateIntEn(iPart_p3,2)
+    IF(DSMC%ElectronicModel) Energy_old=Energy_old + PartStateIntEn(iPart_p3,3)
   END IF
   ! Momentum conservation
   Momentum_old(1:3) = Species(PartSpecies(React1Inx))%MassIC * PartState(React1Inx,4:6) &
@@ -845,15 +846,16 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
 #ifdef CODE_ANALYZE
     ! New total energy
     Energy_new=Energy_new&
-        +0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2    &
-                                                    +(VyPseuMolec + FracMassCent2*RanVeloy)**2    &
-                                                    +(VzPseuMolec + FracMassCent2*RanVeloz)**2)   &
-        +0.5*Species(PartSpecies(React3Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2    &
-                                                    +(VyPseuMolec - FracMassCent1*RanVeloy)**2    &
-                                                    +(VzPseuMolec - FracMassCent1*RanVeloz)**2)   &
-        +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
-        +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)&
-        +PartStateIntEn(React3Inx , 1)+PartStateIntEn(React3Inx , 2)+PartStateIntEn(React3Inx , 3)
+        + 0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2    &
+                                                     +(VyPseuMolec + FracMassCent2*RanVeloy)**2    &
+                                                     +(VzPseuMolec + FracMassCent2*RanVeloz)**2)   &
+        + 0.5*Species(PartSpecies(React3Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2    &
+                                                     +(VyPseuMolec - FracMassCent1*RanVeloy)**2    &
+                                                     +(VzPseuMolec - FracMassCent1*RanVeloz)**2)   &
+        + PartStateIntEn(React1Inx,1) + PartStateIntEn(React1Inx,2) + PartStateIntEn(React2Inx,1) + PartStateIntEn(React2Inx,2)&
+        + PartStateIntEn(React3Inx,1) + PartStateIntEn(React3Inx,2)
+    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(React1Inx,3) + PartStateIntEn(React2Inx,3) &
+                                                     + PartStateIntEn(React3Inx,3)
     ! New total momentum
     Momentum_new(1:3) = Momentum_new(1:3) &
                       + Species(PartSpecies(React1Inx))%MassIC * (/VxPseuMolec + FracMassCent2*RanVelox,  &
@@ -914,7 +916,7 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
     DSMC_RHS(React2Inx,3) = VzPseuMolec - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
 
 #ifdef CODE_ANALYZE
-    ! New total energy of remaining products (here, recombination: 2 producs)
+    ! New total energy of remaining products (here, recombination: 2 products)
     Energy_new=&
          0.5*Species(PartSpecies(React1Inx))%MassIC*((VxPseuMolec + FracMassCent2*RanVelox)**2  &
                                                     +(VyPseuMolec + FracMassCent2*RanVeloy)**2  &
@@ -922,8 +924,8 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
         +0.5*Species(PartSpecies(React2Inx))%MassIC*((VxPseuMolec - FracMassCent1*RanVelox)**2  &
                                                     +(VyPseuMolec - FracMassCent1*RanVeloy)**2  &
                                                     +(VzPseuMolec - FracMassCent1*RanVeloz)**2) &
-        +PartStateIntEn(React1Inx , 1)+PartStateIntEn(React1Inx , 2)+PartStateIntEn(React1Inx , 3)&
-        +PartStateIntEn(React2Inx , 1)+PartStateIntEn(React2Inx , 2)+PartStateIntEn(React2Inx , 3)
+        +PartStateIntEn(React1Inx,1) + PartStateIntEn(React1Inx,2) + PartStateIntEn(React2Inx,1) + PartStateIntEn(React2Inx,2)
+    IF(DSMC%ElectronicModel) Energy_new = Energy_new + PartStateIntEn(React1Inx,3) + PartStateIntEn(React2Inx,3)
     ! New total momentum
       Momentum_new(1:3) = Species(PartSpecies(React1Inx))%MassIC * (/VxPseuMolec + FracMassCent2*RanVelox,  &
                                                                      VyPseuMolec + FracMassCent2*RanVeloy,  &
@@ -1279,7 +1281,7 @@ SUBROUTINE CalcQKAnalyticRate(iReac,LocalTemp,ForwardRate)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,             ONLY : DSMC, ChemReac, QKAnalytic
+  USE MOD_DSMC_Vars,             ONLY : DSMC, QKAnalytic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
