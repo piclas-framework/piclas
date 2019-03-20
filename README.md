@@ -1,6 +1,16 @@
 # Welcome to PICLas
 
-[![build status](https://gitlab.com:piclas/piclas/badges/master/build.svg)](https://gitlab.com:piclas/piclas/builds/)
+## PICLas Documentation (PDF available)
+
+1. [Introduction](doc/userguide/000_userguide.md)
+1. [Getting Started](doc/userguide/010_installation.md)
+1. [Workflow](doc/userguide/020_workflow.md)
+1. [Features & Models](doc/userguide/030_features_models.md)
+1. [Tools](doc/userguide/040_tools.md)
+1. [Tutorials](doc/userguide/050_tutorials.md)
+1. [Unit Tests](doc/userguide/070_unittest.md)
+1. [Installation Guide for clusters](doc/userguide/080_install_guide.md)
+1. [Parameters](doc/userguide/099_parameter.md)
 
 ## Installation / Documentation
 
@@ -62,6 +72,5 @@ PICLas uses several external libraries as well as auxilliary functions from open
 * [Numerics Research Group](https://nrg.iag.uni-stuttgart.de/)
 * [IRS - Numerische Modellierung und Simulation](https://www.irs.uni-stuttgart.de/forschung/numerische_modellierung_und_simulation/index.html)
 * [HOPR (High Order Preprocessor)](https://hopr-project.org)
-* [Halowiki](https://wiki.iag.uni-stuttgart.de/halowiki/)
 
 

@@ -142,14 +142,22 @@ ELSE
   BGType=3
 END IF
 
-IF(NBG.EQ.N_IN)THEN
-  ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-  CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField)
-ELSE
-  ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
-  ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-  CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
-END IF
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      BGdatasize    => INT(BGdatasize,IK) ,&
+      N_in          => INT(N_in,IK)       ,&
+      PP_nElems     => INT(PP_nElems,IK)  ,&
+      NBG           => INT(NBG,IK)        ,&
+      OffsetElem    => INT(OffsetElem,IK) ) 
+  IF(NBG.EQ.N_IN)THEN
+    ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
+    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)
+  ELSE
+    ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
+    ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
+    CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
+  END IF
+END ASSOCIATE
 
 ALLOCATE(BGField_xGP(0:NBG), BGField_wGP(0:NBG), BGField_wBary(0:NBG))
 SELECT CASE(TRIM(NodeType_BGField))

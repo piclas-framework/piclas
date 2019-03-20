@@ -27,6 +27,7 @@ LOGICAL                       :: CalcNumSpec                         !< Calculat
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
+LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
@@ -41,6 +42,8 @@ LOGICAL                       :: ChargeCalcDone                      !< Check fl
 LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
 CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
 INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
+INTEGER                       :: FieldAnalyzeStep                    !< Analyze is performed each Nth time step
+LOGICAL                       :: DoPartAnalyze                       !< perform analyze
 INTEGER                       :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
@@ -65,6 +68,12 @@ LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute 
 LOGICAL                       :: CalcIonizationDegree                !< Compute the ionization degree and quasi neutrality
 !                                                                    !< in each cell
 LOGICAL                       :: CalcLaserInteraction                !<Compute laser-plasma interaction properties such as maximum
+REAL                          :: LaserInteractionEkinMaxRadius       !< maximum radius (x- and y-dir) of particle to be considered
+!                                                                    !< for Ekin maximum calculation (default is HUGE)
+!                                                                    !< OR LaserInteractionEkinMaxZPosMin
+REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum z-position of particle to be considered for Ekin
+!                                                                    !< maximum calculation (default is -1.*HUGE)
+!                                                                    !< OR LaserInteractionEkinMaxRadius
 !                                                                    !<particle energy per species. Default=.FALSE.
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
@@ -94,5 +103,6 @@ LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
+LOGICAL                       :: CalcPorousBCInfo                    !< Calculate output for porous BCs (averaged over whole BC)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

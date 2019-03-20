@@ -157,7 +157,7 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 ! MODULES
 USE MOD_Globals,        ONLY:Abort,CROSS
 USE MOD_PreProc
-USE MOD_Riemann,        ONLY:Riemann,RiemannPML
+USE MOD_Riemann,        ONLY:RiemannVacuum,RiemannPML
 USE MOD_Riemann,        ONLY:RiemannDielectric
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_Equation_vars,  ONLY:c,c_inv
@@ -215,7 +215,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
    END DO
@@ -247,7 +247,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -274,7 +274,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -304,7 +304,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -334,7 +334,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -354,7 +354,7 @@ DO iBC=1,nBCs
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
-      !CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+      !CALL RiemannVacuum(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
       SELECT CASE(InterfaceRiemann(SideID))
       CASE(RIEMANN_DIELECTRIC) 
         CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
@@ -363,7 +363,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -381,7 +381,7 @@ DO iBC=1,nBCs
       CASE(RIEMANN_PML) 
         CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
       CASE DEFAULT
-        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
+        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
         IF(DoPML) Flux(9:32,:,:,SideID) = 0.
       END SELECT
     END DO
@@ -469,7 +469,14 @@ ALLOCATE(U_N(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ! Read in state
 IF(.NOT. InterpolateSolution)THEN
   ! No interpolation needed, read solution directly from file
-  CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_N)
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        PP_NP1     => INT(PP_N,IK)       ,&
+        PP_nElems  => INT(PP_nElems,IK)  ,&
+        OffsetElem => INT(OffsetElem,IK) )
+    CALL ReadArray('DG_Solution',5,(/INT(PP_nVar,IK),PP_NP1,PP_NP1,PP_NP1,PP_nElems/),OffsetElem,5,RealArray=U_N)
+  END ASSOCIATE
   ! read additional data (e.g. indicators etc)                                                
 ELSE
   SWRITE(UNIT_stdOut,'(A)')' Interpolating BC-state...'
@@ -494,7 +501,14 @@ __STAMP__ &
   CALL InitializeVandermonde(N_HDF5,PP_N,wBary_tmp,xGP_tmp,xGP,Vdm_NHDF5_N)
 
   ALLOCATE(U_local(PP_nVar,0:N_HDF5,0:N_HDF5,0:N_HDF5,PP_nElems))
-  CALL ReadArray('DG_Solution',5,(/PP_nVar,N_HDF5+1,N_HDF5+1,N_HDF5+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        N_HDF5P1   => INT(N_HDF5+1,IK)       ,&
+        PP_nElems  => INT(PP_nElems,IK)  ,&
+        OffsetElem => INT(OffsetElem,IK) )
+    CALL ReadArray('DG_Solution',5,(/INT(PP_nVar,IK),N_HDF5P1,N_HDF5P1,N_HDF5P1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+  END ASSOCIATE
   SWRITE(UNIT_stdOut,*)'Interpolating base flow from restart grid with N=',N_HDF5,' to computational grid with N=',PP_N
   DO iElem=1,PP_nElems
     CALL ChangeBasis3D(PP_nVar,N_HDF5,PP_N,Vdm_NHDF5_N,U_local(:,:,:,:,iElem),U_N(:,:,:,:,iElem))

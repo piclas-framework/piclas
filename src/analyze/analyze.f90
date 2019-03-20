@@ -48,8 +48,16 @@ INTERFACE PerformAnalyze
   MODULE PROCEDURE PerformAnalyze
 END INTERFACE
 
+INTERFACE CalcErrorStateFiles
+  MODULE PROCEDURE CalcErrorStateFiles
+END INTERFACE
+
+INTERFACE CalcErrorStateFileSigma
+  MODULE PROCEDURE CalcErrorStateFileSigma
+END INTERFACE
+
 !===================================================================================================================================
-PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze 
+PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles, CalcErrorStateFileSigma
 !===================================================================================================================================
 PUBLIC::DefineParametersAnalyze
 
@@ -90,11 +98,8 @@ CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAve
 #ifdef CODE_ANALYZE
 CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
-#ifndef PARTICLES
-CALL prms%CreateIntOption(      'Part-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
+CALL prms%CreateIntOption(      'Field-AnalyzeStep'   , 'Analyze is performed each Nth time step','1') 
 CALL prms%CreateLogicalOption(  'CalcPotentialEnergy', 'Calculate Potential Energy. Output file is Database.csv','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTotalEnergy', 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
-#endif
 CALL prms%CreateLogicalOption(  'CalcPointsPerWavelength', 'Flag to compute the points per wavelength in each cell','.FALSE.')
 
 CALL prms%SetSection("Analyzefield")
@@ -122,15 +127,12 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
-USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
-#ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: doAnalyze,CalcEpot,CalcEtot
-#endif /*PARTICLES*/
+USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_LoadBalance_Vars      ,ONLY: nSkipAnalyze
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
@@ -177,16 +179,12 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed','-1.0')
 doCalcTimeAverage = GETLOGICAL('CalcTimeAverage'  ,'.FALSE.')
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
 
-#ifndef PARTICLES 
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1') 
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789 
-DoAnalyze       = .FALSE. 
-CalcEpot        = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
-IF(CalcEpot) DoAnalyze = .TRUE. 
-IF(DoAnalyze)THEN
-  CalcEtot        = GETLOGICAL('CalcTotalEnergy','.FALSE.') 
-END IF
-#endif /*PARTICLES*/ 
+FieldAnalyzeStep  = GETINT('Field-AnalyzeStep','1') 
+IF (FieldAnalyzeStep.EQ.0) FieldAnalyzeStep = HUGE(FieldAnalyzeStep) 
+DoFieldAnalyze    = .FALSE. 
+CalcEpot          = GETLOGICAL('CalcPotentialEnergy','.FALSE.') 
+IF(CalcEpot)        DoFieldAnalyze = .TRUE. 
+IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
 
 ! initialize time and counter for analyze measurement
 AnalyzeCount = 0
@@ -340,6 +338,231 @@ L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 
 END SUBROUTINE CalcError
 
+
+SUBROUTINE CalcErrorStateFiles(nVar,N1,N2,U1,U2)
+!===================================================================================================================================
+! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars     ,ONLY: sJ
+USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
+USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)           :: nVar
+INTEGER,INTENT(IN)           :: N1
+INTEGER,INTENT(IN)           :: N2
+REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
+REAL,INTENT(IN)              :: U2(1:nVar,0:N2,0:N2,0:N2,nElems)
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze2(:,:)    ! for interpolation to Analyze points
+INTEGER                       :: iElem,k,l,m
+REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: U2_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: Volume,IntegrationWeight
+#ifdef MPI
+REAL                          :: Volume2
+#endif
+CHARACTER(LEN=40)             :: formatStr
+REAL                          :: xGP1(0:N1),xGP2(0:N2),wGP1(0:N1),wGP2(0:N2),wBary1(0:N1),wBary2(0:N2)
+REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+!===================================================================================================================================
+L_Inf_Error(:)=-1.E10
+L_2_Error(:)=0.
+L_Inf_Error2(:)=-1.E10
+L_2_Error2(:)=0.
+Volume=0.
+
+CALL LegendreGaussNodesAndWeights(N1,xGP1,wGP1)
+CALL LegendreGaussNodesAndWeights(N2,xGP2,wGP2)
+
+CALL BarycentricWeights(N1,xGP1,wBary1)
+CALL BarycentricWeights(N2,xGP2,wBary2)
+
+ALLOCATE(wAnalyze(0:NAnalyze))
+ALLOCATE(Vdm_GaussN_NAnalyze1(0:NAnalyze,0:N1))
+ALLOCATE(Vdm_GaussN_NAnalyze2(0:NAnalyze,0:N2))
+
+CALL LegGaussLobNodesAndWeights(NAnalyze,XiAnalyze,wAnalyze)
+
+CALL InitializeVandermonde(N1,NAnalyze,wBary1,xGP1,XiAnalyze,Vdm_GaussN_NAnalyze1)
+CALL InitializeVandermonde(N2,NAnalyze,wBary2,xGP2,XiAnalyze,Vdm_GaussN_NAnalyze2)
+
+
+
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,nElems
+   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+   J_N(1,0:N1,0:N1,0:N1)=1./sJ(:,:,:,iElem)
+   CALL ChangeBasis3D(1,N1,NAnalyze,Vdm_GaussN_NAnalyze1,J_N(1:1,0:N1,0:N1,0:N1),J_NAnalyze(1:1,:,:,:))
+
+
+
+   ! Interpolate the solution to the analyze grid
+   CALL ChangeBasis3D(nVar,N1,NAnalyze,Vdm_GaussN_NAnalyze1,U1(1:nVar,:,:,:,iElem),U1_NAnalyze(1:nVar,:,:,:))
+   CALL ChangeBasis3D(nVar,N2,NAnalyze,Vdm_GaussN_NAnalyze2,U2(1:nVar,:,:,:,iElem),U2_NAnalyze(1:nVar,:,:,:))
+
+   DO m=0,NAnalyze
+     DO l=0,NAnalyze
+       DO k=0,NAnalyze
+         L_Inf_Error = MAX(L_Inf_Error,abs(U1_NAnalyze(:,k,l,m) - U2_NAnalyze(:,k,l,m)))
+         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+         ! To sum over the elements, We compute here the square of the L_2 error
+         L_2_Error = L_2_Error+ (U1_NAnalyze(:,k,l,m) - U2_NAnalyze(:,k,l,m))*&
+                                (U1_NAnalyze(:,k,l,m) - U2_NAnalyze(:,k,l,m))*IntegrationWeight
+         Volume = Volume + IntegrationWeight 
+       END DO ! k
+     END DO ! l
+   END DO ! m
+END DO ! iElem=1,nElems
+#ifdef MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+  ELSE
+    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    ! in this case the receive value is not relevant. 
+  END IF
+#endif /*MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_Error = SQRT(L_2_Error/Volume)
+
+! Graphical output
+IF(MPIroot) THEN
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',nVar,'ES16.7)'
+  WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
+  WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
+END IF
+END SUBROUTINE CalcErrorStateFiles
+
+
+SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
+!===================================================================================================================================
+! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars     ,ONLY: Elem_xGP,sJ
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+USE MOD_Analyze_Vars  ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Equation      ,ONLY: ExactFunc
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
+USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)           :: nVar
+INTEGER,INTENT(IN)           :: N1
+REAL,INTENT(IN)              :: U1(1:nVar,0:N1,0:N1,0:N1,nElems)
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
+INTEGER                       :: iElem,k,l,m
+REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: Volume,IntegrationWeight
+#ifdef MPI
+REAL                          :: Volume2
+#endif
+CHARACTER(LEN=40)             :: formatStr
+REAL                          :: xGP1(0:N1),wGP1(0:N1),wBary1(0:N1)
+REAL ,DIMENSION(0:Nanalyze)   :: XiAnalyze
+!===================================================================================================================================
+L_Inf_Error(:)=-1.E10
+L_2_Error(:)=0.
+L_Inf_Error2(:)=-1.E10
+L_2_Error2(:)=0.
+Volume=0.
+
+CALL LegendreGaussNodesAndWeights(N1,xGP1,wGP1)
+
+CALL BarycentricWeights(N1,xGP1,wBary1)
+
+ALLOCATE(Vdm_GaussN_NAnalyze1(0:NAnalyze,0:N1))
+
+CALL LegGaussLobNodesAndWeights(NAnalyze,XiAnalyze,wAnalyze)
+
+CALL InitializeVandermonde(N1,NAnalyze,wBary1,xGP1,XiAnalyze,Vdm_GaussN_NAnalyze1)
+
+
+
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,nElems
+   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+   J_N(1,0:N1,0:N1,0:N1)=1./sJ(:,:,:,iElem)
+   CALL ChangeBasis3D(1,N1,NAnalyze,Vdm_GaussN_NAnalyze1,J_N(1:1,0:N1,0:N1,0:N1),J_NAnalyze(1:1,:,:,:))
+
+
+
+   ! Interpolate the solution to the analyze grid
+   CALL ChangeBasis3D(nVar,N1,NAnalyze,Vdm_GaussN_NAnalyze1,U1(1:nVar,:,:,:,iElem),U1_NAnalyze(1:nVar,:,:,:))
+
+   DO m=0,NAnalyze
+     DO l=0,NAnalyze
+       DO k=0,NAnalyze
+         L_Inf_Error = MAX(L_Inf_Error,sqrt(abs(U1_NAnalyze(:,k,l,m))))
+         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+         ! To sum over the elements, We compute here the square of the L_2 error (sigma in state is already squared!!!)
+         L_2_Error = L_2_Error+ (U1_NAnalyze(:,k,l,m))*IntegrationWeight
+         Volume = Volume + IntegrationWeight 
+       END DO ! k
+     END DO ! l
+   END DO ! m
+END DO ! iElem=1,nElems
+#ifdef MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE,L_Inf_Error,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+  ELSE
+    CALL MPI_REDUCE(L_2_Error,L_2_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(volume,volume2,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
+    CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
+    ! in this case the receive value is not relevant. 
+  END IF
+#endif /*MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_Error = SQRT(L_2_Error/Volume)
+
+! Graphical output
+IF(MPIroot) THEN
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',nVar,'ES16.7)'
+  WRITE(UNIT_StdOut,formatStr)' L2_sigma  : ',L_2_Error
+  WRITE(UNIT_StdOut,formatStr)' Linf_sigma: ',L_Inf_Error
+END IF
+END SUBROUTINE CalcErrorStateFileSigma
+
+
 SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
 !===================================================================================================================================
 ! Writes the L2-error norms to file.
@@ -450,42 +673,67 @@ SDEALLOCATE(Vdm_GaussN_NAnalyze)
 SDEALLOCATE(wAnalyze)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
+SDEALLOCATE(PPWCell)
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
 
-SUBROUTINE PerformAnalyze(OutputTime,tenddiff,forceAnalyze,OutPut,LastIter_In)
+SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! Check if the analyze subroutines are called depending on the input parameters
+! Input parameters
+! 1) OutputTime
+!    * current time of analyze analze
+! 2) FirstOrLastIter
+!    * logical flag for first or last iteration
+!      This step is required for the correct opening and closing of a *.csv Database. Furthermore it is needed to prevent
+!      duplicates from the *.csv Database file
+! 3) OutPutHDF5
+!    * OutputHDF5 is ture if a state file is written
+! The perform-analyze routine is called four times within the timedisc 
+! 1) initialize before the first iteration. call is performed for an initial computation and a restart
+! 2) after the time update
+! 3) during an analyze step and writing of a state file
+! 4) during a load-balance step
+! This routine calls all other analyze-subroutines, which write data to a csv file 
+! Currently this are:
+! I)    AnalyzeField             ->  FieldAnalyze.csv
+! II)   AnalyzeParticles         ->  PartAnalyze.csv
+! III)  AnalyzeSurface           ->  SurfaceDatabase.csv
+! IV)   TrackParticlePosition    ->  ParticlePosition.csv
+! V)    AnalyticParticleMovement ->  ParticlePositionAnalytic.csv
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoAnalyze,DoCalcErrorNorms,OutputErrorNorms
-USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze,AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoFieldAnalyze,DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
-USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
+USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
 USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
-USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis
+USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
@@ -494,21 +742,17 @@ USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 USE MOD_LD_Vars                ,ONLY: useLD
 USE MOD_Particle_Vars          ,ONLY: DelayTime
 #endif /*PP_TimeDiscMethod!=42 && !defined(LSERK)*/
-#else /* no Particles*/
-USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
-USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#ifdef LSERK
-USE MOD_Recordpoints_Vars      ,ONLY: RPSkip
-#endif /*LSERK*/
-#if defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)
+#if defined(LSERK) ||  defined(IMPA) || defined(ROS)
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || (PP_TimeDiscMethod==110)*/
+#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Analyze       ,ONLY: AnalyticParticleMovement
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
@@ -518,13 +762,15 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: OutputTime
-REAL,INTENT(IN)               :: tenddiff
-LOGICAL,INTENT(IN)            :: forceAnalyze,output
-LOGICAL,INTENT(IN),OPTIONAL   :: LastIter_In
+LOGICAL,INTENT(IN)            :: FirstOrLastIter
+LOGICAL,INTENT(IN)            :: OutputHDF5
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef maxwell
+LOGICAL                       :: ProlongToFaceNeeded
+#endif /*Maxwell*/
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 INTEGER                       :: iSide
@@ -536,6 +782,9 @@ REAL                          :: RECR
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
+#ifdef PARTICLES
+REAL                          :: PartStateAnalytic(1:6)        !< analytic position and velocity in three dimensions
+#endif /*PARTICLES*/
 #endif /*CODE_ANALYZE*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -545,180 +794,172 @@ REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
+LOGICAL                       :: DoPerformFieldAnalyze
+LOGICAL                       :: DoPerformPartAnalyze
+LOGICAL                       :: DoPerformSurfaceAnalyze
+LOGICAL                       :: DoPerformErrorCalc
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
 
-! Not for first iteration (when analysis is called within RK steps)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
-#endif
 StartAnalyzeTime=PICLASTIME()
-!SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PERFORM ANALYZE ...'
 AnalyzeCount = AnalyzeCount + 1
 
+! check if final/last iteration iteration
 LastIter=.FALSE.
-IF(PRESENT(LastIter_in))THEN
-  IF(LastIter_in) LastIter=.TRUE.
+IF(OutputHDF5 .AND. FirstOrLastIter) LastIter=.TRUE.
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Determine if an analyze step has to be performed
+! selection is identical with/without particles
+!----------------------------------------------------------------------------------------------------------------------------------
+! The initial selection is performed for DoPerformAnalyze and copied to the other analyzes. 
+! The iteration dependent steps are performed later
+
+! Prolongtoface in CalcPoyntingIntegral is always needed, because analyze is not any more performed within the first
+! RK stage
+#ifdef maxwell
+ProlongToFaceNeeded=.TRUE.
+#endif /*maxwell*/
+
+! 1)
+! Initial start of computation before the first iteration
+! this check is identical for all time integration methods
+! analyze routines are not called for a restart
+! PO: not sure if it this check is any longer needed
+IF(FirstOrLastIter)THEN
+  DoPerformFieldAnalyze   =.TRUE.
+  DoPerformPartAnalyze    =.TRUE.
+  DoPerformSurfaceAnalyze =.TRUE.
+ELSE
+  ! nullify
+  DoPerformFieldAnalyze   =.FALSE.
+  DoPerformPartAnalyze    =.FALSE.
+  DoPerformSurfaceAnalyze =.FALSE.
+END IF
+
+
+! 2) check analyze with respect to iteration counter
+! selection criterion depending on iteration counter
+! * full stage Runge-Kutta schemes
+! * LSERK schemes (because analyze is not hidden in RK stage)
+! * DSMC
+
+! FieldAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,FieldAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformFieldAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,FieldAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformFieldAnalyze=.TRUE.
+! Remove analyze during restart or load-balance step 
+IF(DoRestart .AND. iter.EQ.0) DoPerformFieldAnalyze=.FALSE.
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformFieldAnalyze=.FALSE.
+
+#ifdef PARTICLES
+! PartAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformPartAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformPartAnalyze=.TRUE.
+! Remove analyze during restart or load-balance step 
+IF(DoRestart .AND. iter.EQ.0) DoPerformPartAnalyze=.FALSE.
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformPartAnalyze=.FALSE.
+
+! SurfaceAnalyzeStep
+! 2) normal analyze at analyze step 
+IF(MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPutHDF5) DoPerformSurfaceAnalyze=.TRUE.
+! 3) + 4) force analyze during a write-state information and prevent duplicates
+IF(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND. OutPutHDF5)       DoPerformSurfaceAnalyze=.TRUE.
+! Remove analyze during restart or load-balance step 
+IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
+! Finally, remove duplicates for last iteration
+! This step is needed, because PerformAnalyze is called twice within the iterations
+IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformSurfaceAnalyze=.FALSE.
+#endif /*PARTICLES*/
+
+! selection of error calculation for first iteration, output time but not lastiteration
+DoPerformErrorCalc=.FALSE.
+IF(FirstOrLastIter.OR.OutputHDF5)THEN
+  IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
-
 ! Calculate error norms
-IF(forceAnalyze.OR.Output)THEN
-  IF(DoCalcErrorNorms) THEN
+! This computes the error analysis during each dt_Analysis step
+IF(DoCalcErrorNorms) THEN
+  IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
   END IF
 END IF
 
-! poynting vector
-IF (CalcPoyntingInt) THEN
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-#if (PP_nVar>=6)
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! Initial analysis is only performed for NO restart
-    CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-  ELSE
-     ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-#if defined(LSERK)
-    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-      IF(iter.GT.1)THEN
-        ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-        ! is triggered with prolong-to-face, which would else be missing    
-        IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
-        IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter)  CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-      END IF
-    ELSE
-      ! For LSERK the analysis is performed in the next RK-stage, thus, if a dtAnalysis step is performed, the analysis
-      ! is triggered with prolong-to-face, which would else be missing    
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.FALSE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut .AND. .NOT.LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-    END IF
-#else
-    IF(.NOT.LastIter)THEN
-      IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-      IF(MOD(iter,PartAnalyzeStep).NE.0 .AND. OutPut)       CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-    END IF
-#endif
-  END IF ! ForceAnalyze
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL CalcPoyntingIntegral(OutputTime,doProlong=.TRUE.)
-#endif
-#endif
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
+! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Maxwell's equation: Compute Poynting Vector and field energies
+!----------------------------------------------------------------------------------------------------------------------------------
+IF (DoFieldAnalyze) THEN
+  IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF
 
-! fill recordpoints buffer
-#if defined(LSERK) || defined(IMPA) || (PP_TimeDiscMethod==110)
+!----------------------------------------------------------------------------------------------------------------------------------
+! Recordpoints buffer
+! Only usable with 
+! maxwell or poissan in combination with HDG
+!----------------------------------------------------------------------------------------------------------------------------------
+! remove duplicate analysis  due to double call of PerformAnalysis
 IF(RP_onProc) THEN
+  ! for a restart, an initial analysis at t=tRestart is necessary to
+  ! compute fill the HDF5 file correctly 
+  ! Information to time in HDF5-Format:
+  ! file1: 0 :t1
+  ! file2: t1:tend
+  ! Hence, t1 and the fields are stored in both files
+  IF(DoPerformFieldAnalyze.OR.iter.EQ.0)THEN
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
+    CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-#ifdef LSERK
-  IF(RPSkip)THEN
-    RPSkip=.FALSE.
-  ELSE
-    CALL RecordPoints(OutputTime,forceAnalyze,Output)
+    CALL RecordPoints(OutputTime,OutputHDF5)
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_DGANALYZE,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
-#else
-  CALL RecordPoints(OutputTime,forceAnalyze,Output)
-#endif /*LSERK*/
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 END IF
-#endif
+
+! end the analyzes for  all Runge-Kutta besed time-discs
+#endif /* LSERK && IMPA && ROS */
 
 !----------------------------------------------------------------------------------------------------------------------------------
-! PIC & DG-Solver
+! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
-IF (DoAnalyze.OR.DoSurfModelAnalyze)  THEN
-#ifdef PARTICLES 
-  ! Particle analyze
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! Initial analysis is only performed for NO restart
-    CALL AnalyzeParticles(OutputTime)
-    CALL AnalyzeSurface(OutputTime)
-  ELSE
-    ! Analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files) 
-    IF(DoRestart)THEN ! For a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-#if defined(IMPA) || defined(ROS)
-      IF(iter.GE.1)THEN
-#else
-      IF(iter.GT.1)THEN
-#endif
-        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeParticles(OutputTime)
-        IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeSurface(OutputTime)
-      END IF
-    ELSE
-      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeParticles(OutputTime)
-      IF(    (MOD(iter,SurfaceAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,SurfaceAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeSurface(OutputTime)
-   END IF
-  END IF
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeParticles(OutputTime)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeParticles(OutputTime)
-  IF(LastIter .AND.MOD(iter,SurfaceAnalyzeStep).NE.0) CALL AnalyzeSurface(OutputTime)
-#endif
-#else /*pure DGSEM */
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  ! analyze field
-  IF(forceAnalyze .AND. .NOT.DoRestart)THEN
-    ! initial analysis is only performed for NO restart
-    CALL AnalyzeField(OutputTime)
-  ELSE
-    IF(DoRestart)THEN ! for a restart, the analyze should NOT be performed in the first iteration, because it is the zero state
-      IF(iter.GT.1)THEN
-        ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-        IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-           .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-           CALL AnalyzeField(OutputTime)
-      END IF
-    ELSE
-      ! analysis s performed for if iter can be divided by PartAnalyzeStep or for the dtAnalysis steps (writing state files)
-      IF(    (MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut .AND. .NOT.LastIter) &
-         .OR.(MOD(iter,PartAnalyzeStep).NE.0 .AND.       OutPut .AND. .NOT.LastIter))&
-         CALL AnalyzeField(OutputTime)
-    END IF
-  END IF
-#if defined(LSERK)
-  ! for LSERK timediscs the analysis is shifted, hence, this last iteration is NOT performed
-  IF(LastIter) CALL AnalyzeField(OutputTime)
-#else
-  IF(LastIter .AND.MOD(iter,PartAnalyzeStep).NE.0) CALL AnalyzeField(OutputTime)
-#endif
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DGANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#endif /*PARTICLES*/
+#ifdef PARTICLES
+IF (DoPartAnalyze) THEN
+  IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
 END IF
+IF (DoSurfModelAnalyze) THEN
+  IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
+END IF
+IF(TrackParticlePosition) THEN
+  IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
+END IF
+#ifdef CODE_ANALYZE
+IF(DoInterpolationAnalytic)THEN
+  IF(DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
+END IF
+#endif /*CODE_ANALYZE*/
+#endif /*PARTICLES*/
 
 #ifdef PARTICLES
-IF(OutPut .OR. ForceAnalyze) CALL CalculatePartElemData()
+! OutPutHDF5 should be sufficient here
+IF(OutPutHDF5 .OR. FirstOrLastIter) CALL CalculatePartElemData()
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -726,12 +967,9 @@ IF(OutPut .OR. ForceAnalyze) CALL CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
 
 ! write volume data for DSMC macroscopic values 
-IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
+IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
 #if (PP_TimeDiscMethod==1000)
   CALL LD_data_sampling()  ! Data sampling for output
 #elif(PP_TimeDiscMethod==1001)
@@ -758,7 +996,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.Output))THEN
 END IF
 
 ! write surface data for DSMC macroscopic values 
-IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
+IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
   IF (iter.GT.0) iter_macsurfvalout = iter_macsurfvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macsurfvalout) THEN
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
@@ -769,6 +1007,9 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
         SampWall(iSide)%Adsorption=0.
         SampWall(iSide)%Accomodation=0.
         SampWall(iSide)%Reaction=0.
+      END IF
+      IF(nPorousBC.GT.0) THEN
+        SampWall(iSide)%PumpCapacity=0.
       END IF
     END DO
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
@@ -783,17 +1024,17 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.Output))THEN
   END IF
 END IF
 
-IF(OutPut)THEN
+IF(OutPutHDF5)THEN
 #if (PP_TimeDiscMethod==42)
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
+  IF((LastIter).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     IF (DSMC%NumOutput.GT.0) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
       IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     END IF
   END IF
-#elif defined(LSERK)
+#elif defined(LSERK) 
   !additional output after push of final dt (for LSERK output is normally before first stage-push, i.e. actually for previous dt)
-  IF(dt.EQ.tEndDiff)THEN
+  IF(LastIter)THEN
     ! volume data
     IF(WriteMacroVolumeValues)THEN
       iter_macvalout = iter_macvalout + 1
@@ -824,7 +1065,7 @@ IF(OutPut)THEN
     END IF
   END IF
 #else
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
+  IF((LastIter).AND.(useDSMC).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
     IF ((.NOT. useLD).AND.(DSMC%NumOutput.GT.0)) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),OutputTime)
     END IF
@@ -837,7 +1078,7 @@ END IF
 
 ! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
 ! Allows non-synchronous measurement of particle tracking
-IF(OutPut .AND. MeasureTrackTime)THEN
+IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
 #ifdef MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -859,9 +1100,6 @@ IF(OutPut .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -870,12 +1108,8 @@ CALL LBPauseTime(LB_PARTANALYZE,tLBStart)
 
 #ifdef CODE_ANALYZE
 ! particle analyze
-IF (DoAnalyze)  THEN
-  IF(forceAnalyze)THEN
-    CALL CodeAnalyzeOutput(OutputTime)
-  ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(OutputTime) 
-  END IF
+IF (DoPartAnalyze)  THEN
+  IF(DoPerformPartAnalyze) CALL CodeAnalyzeOutput(OutputTime) 
   IF(LastIter)THEN
     CALL CodeAnalyzeOutput(OutputTime) 
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
@@ -897,13 +1131,12 @@ END IF
 
 ! Time for analysis
 EndAnalyzeTime=PICLASTIME()
-!SWRITE(UNIT_stdOut,'(A,F14.2,A)',ADVANCE='YES')  ' DONE! [',EndAnalyzeTime-StartAnalyzeTime,' sec ]'
 AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
 !----------------------------------------------------------------------------------------------------------------------------------
-IF(forceAnalyze.OR.Output)THEN
+IF(DoPerformErrorCalc)THEN
   IF(DoCalcErrorNorms) THEN
     ! Graphical output
     IF(MPIroot) THEN
@@ -914,8 +1147,8 @@ IF(forceAnalyze.OR.Output)THEN
   END IF
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
-    WRITE(UNIT_StdOut,'(A13,ES16.7)')        ' Sim time  : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
     AnalyzeCount = 0
     AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
@@ -938,8 +1171,8 @@ SUBROUTINE CodeAnalyzeOutput(TIME)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY:DoAnalyze,DoCodeAnalyzeOutput
-USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
+USE MOD_Analyze_Vars            ,ONLY:DoCodeAnalyzeOutput
+USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart,DoPartAnalyze
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rTotalBezierNewton
@@ -962,7 +1195,7 @@ IF(.NOT.DoCodeAnalyzeOutput) RETURN ! check if the output is to be skipped and r
 IF ( DoRestart ) THEN
   isRestart = .true.
 END IF
-IF (DoAnalyze) THEN
+IF (DoPartAnalyze) THEN
   !SWRITE(UNIT_StdOut,'(132("-"))')
   !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
   OutputCounter = 2
@@ -981,7 +1214,7 @@ IF (DoAnalyze) THEN
         !CALL FLUSH (unit_index)
         !--- insert header
       
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-nBBChecks     '
           OutputCounter = OutputCounter + 1
@@ -1030,7 +1263,7 @@ IF (DoAnalyze) THEN
 ELSE
 !SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! DoAnalyze
+END IF ! DoPartAnalyze
 
 ! nullify and save total number
 rTotalBBChecks=rTotalBBChecks+REAL(rBoundingBoxChecks,16)

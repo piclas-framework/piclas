@@ -4,9 +4,20 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
 # TODO: eventually require CMake 3.0 in future releases
 # Advantages: Possible to split string
-IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
-  cmake_policy (SET CMP0045 OLD)
-  cmake_policy (SET CMP0046 OLD)
+IF ("${CMAKE_VERSION}" VERSION_GREATER 3.11)
+    # use the <PackageName>_ROOT for searching packages
+    cmake_policy (SET CMP0074 NEW)
+    # From the following TWO settings,  the OLD behavior is deprecated
+    # produces a "FATAL_ERROR" if "get_target_property()"is called with a
+    # non-existing argument
+    cmake_policy (SET CMP0045 NEW) 
+    # error in non-existing dependencies, NEW report error
+    cmake_policy (SET CMP0046 NEW)
+ELSE()
+  IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
+    cmake_policy (SET CMP0045 OLD)
+    cmake_policy (SET CMP0046 OLD)
+  ENDIF()
 ENDIF()
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -87,7 +98,27 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit Leapfrog RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR CN ImplicitO3 ImplicitO4 Ascher3 ROS2 ROS3 ROS4 ROS46 ROS6 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
+                                                          Leapfrog
+                                                          RK3
+                                                          RK4
+                                                          RK14
+                                                          ParticleEuler-FieldRK4
+                                                          DSMC
+                                                          RESERVOIR
+                                                          CN
+                                                          ImplicitO3
+                                                          ImplicitO4
+                                                          Ascher3
+                                                          ROS2
+                                                          ROS3
+                                                          ROS4
+                                                          ROS46
+                                                          ROS6
+                                                          FieldRelaxation
+                                                          FieldRelaxation-AdaptiveTimeStep
+                                                          LD
+                                                          LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
@@ -97,6 +128,10 @@ OPTION(PICLAS_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(PICLAS_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
 SET(PICLAS_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
 OPTION(PICLAS_HDF5F90 "enable old HDF5 interface" OFF)
+OPTION(PICLAS_INTKIND8 "enable enables particle numbers larger than 2E+9 (may NOT be compatible with HDF5 in combination with F90)" OFF)
+IF(PICLAS_HDF5F90 AND PICLAS_INTKIND8)
+  MESSAGE(ERROR " PICLAS_HDF5F90 and PICLAS_INTKIND8 may NOT be compatible with HDF5 in combination with F90")
+ENDIF(PICLAS_HDF5F90 AND PICLAS_INTKIND8)
 
 SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE PICLAS_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
@@ -437,19 +472,30 @@ MARK_AS_ADVANCED(PICLAS_EXTERNAL_LIB_DIR)
 # =========================================================================
 # HDF5 library
 # =========================================================================
+SET(LIB_TYPE STATIC) # OR SHARED
+STRING(TOLOWER ${LIB_TYPE} SEARCH_TYPE)
+
+# We support two methods for finding HDF5:
+# the version built using configure scripts and using CMake
+# Support for CMake-built HDF5 is limited to version >1.10.2
+# which require at CMake >3.10
+# Recommendations: use configure version if possible
 
 IF(NOT PICLAS_BUILD_HDF5)
-  FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET) #if built with configure script
+  SET(PICLAS_HDF5_CMAKE TRUE) # try to find the CMake version
+  FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake )
   IF (HDF5_FOUND)
-    SET(PICLAS_HDF5_CMAKE FALSE)
-  ELSE()
-    FIND_PACKAGE(HDF5 COMPONENTS C Fortran static NO_MODULE QUIET PATH_SUFFIXES share/cmake )
-    IF (HDF5_FOUND)
-      SET(PICLAS_HDF5_CMAKE TRUE)
-      MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
-      MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
+    IF(${CMAKE_VERSION} VERSION_LESS "3.10.0")
+      MESSAGE (WARNING "HDF5 built with CMake was found! This feature is only supported for CMake 3.10+ and HDF5 1.10.2+ !")
     ENDIF()
+    MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
+    MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
+    MESSAGE (STATUS "h5diff found:${HDF5_DIFF_EXECUTABLE}")
+  ELSE()
+    SET(PICLAS_HDF5_CMAKE FALSE) # try to find the configure version
+    FIND_PACKAGE(HDF5 COMPONENTS C Fortran)
   ENDIF()
+
 ELSE()
 
   SET(PICLAS_HDF5_DLDIR ${PICLAS_EXTERNAL_LIB_DIR}/HDF5)
@@ -473,6 +519,7 @@ ELSE()
       CONFIGURE_COMMAND FC=${PICLAS_HDF5FC} CC=${PICLAS_HDF5CC} ${PICLAS_HDF5_DIR}/src/HDF5/configure --prefix=${PICLAS_HDF5_DIR} --enable-fortran ${PICLAS_HDF5PARALLEL} --disable-shared --libdir=${PICLAS_HDF5_DIR}/lib
       BUILD_COMMAND ${MAKE}
     )
+    LIST(APPEND SELFBUILTEXTERNALS HDF5)
     # CMake HDF5 is fast but not that reliable
     #ExternalProject_Add(HDF5
     #  GIT_REPOSITORY ${HDF5DOWNLOAD}
@@ -483,6 +530,8 @@ ELSE()
     #  BUILD_COMMAND ${MAKE}
     #)
   ENDIF()
+  
+  SET(PICLAS_HDF5_CMAKE FALSE)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${PICLAS_HDF5_DIR}/lib/libhdf5.a)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${PICLAS_HDF5_DIR}/lib/libhdf5_fortran.a)
   SET(HDF5_C_INCLUDE_DIR                ${PICLAS_HDF5_DIR}/include)
@@ -500,16 +549,16 @@ ENDIF()
 IF (PICLAS_HDF5F90)
    ADD_DEFINITIONS(-DHDF5_F90)
 ENDIF()
+IF (PICLAS_INTKIND8)
+   ADD_DEFINITIONS(-DINTKIND8)
+ENDIF()
 MESSAGE (STATUS "h5diff: ${HDF5_DIFF_EXECUTABLE}")
 
 IF(PICLAS_HDF5_CMAKE)
-  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
-  LIST(APPEND linkedlibs ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
+  INCLUDE_DIRECTORIES(${HDF5_INCLUDE_DIR} ${HDF5_INCLUDE_DIR_FORTRAN})
+  LIST(APPEND linkedlibs ${HDF5_C_${LIB_TYPE}_LIBRARY} ${HDF5_FORTRAN_${LIB_TYPE}_LIBRARY} )
 ELSE()
-  #INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR}/static)
   INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
-  #LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
-  #LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
   MESSAGE(STATUS "Found HDF5 Libs: " ${HDF5_LIBRARIES})
   LIST(APPEND linkedlibs ${HDF5_LIBRARIES} )
 ENDIF()
@@ -705,7 +754,9 @@ ENDIF()
 ADD_LIBRARY(piclaslibF90 OBJECT ${piclasF90} )
 SET_TARGET_PROPERTIES(piclaslibF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}) 
 ADD_LIBRARY(piclaslib STATIC $<TARGET_OBJECTS:piclaslibF90>)
-ADD_DEPENDENCIES(piclaslibF90 HDF5)
+IF(SELFBUILTEXTERNALS)
+  ADD_DEPENDENCIES(piclaslibF90 ${SELFBUILTEXTERNALS})
+ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C)
@@ -716,7 +767,7 @@ SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES COMPILE_FLAGS "-fPIC")
 
 add_exec(piclas ./src/piclas.f90)
-ADD_DEPENDENCIES(piclas piclaslib userblocklib stacksizelib HDF5)
+ADD_DEPENDENCIES(piclas piclaslib userblocklib stacksizelib ${INTERNALLIBS})
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -737,7 +788,7 @@ ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 # Add H5piclas2VTK tool
 # =========================================================================
 add_exec(h5piclas2vtk ./src/h5piclas2vtk.f90)
-ADD_DEPENDENCIES(h5piclas2vtk piclaslib HDF5)
+ADD_DEPENDENCIES(h5piclas2vtk piclaslib)
 
 # =========================================================================
 # Posti

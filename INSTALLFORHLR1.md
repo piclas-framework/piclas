@@ -1,17 +1,24 @@
 ### Building with ccmake on forhlr1
 
-For building with *CMAKE* on the forhlr1-cluster, the following steps are needed:
-
-* include in .bashrc or .profile:
+For building with *CMAKE* on the forhlr1-cluster, the following modules (Intel compiler) should be loaded in the .bashrc or .profile:
   
-        module load devel/cmake/3.5
-        module swap compiler/intel compiler/intel/16.0
-        module swap mpi/openmpi mpi/impi/5.1
-        module load lib/hdf5/1.8_intel_16.0
-        export HDF5_DIR=/opt/hdf5/1.8.17_intel_16.0_impi_5.1
+    module load devel/cmake
+    module load compiler/intel/18.0
+    module load mpi/impi/2018
+    module load lib/hdf5/1.10
 
-* ccmake: as described above, but instead of building hdf5 include the following changes:
+Example submit script:
 
-        set HDF5F90 to TRUE
-        *IGNORE* possible error messages 
-
+    #!/bin/bash
+    #SBATCH --nodes=5
+    #SBATCH --ntasks-per-node=20
+    #SBATCH --time=04:00:00
+    #SBATCH --job-name=PLACEHOLDER
+    #SBATCH --partition multinode
+    #SBATCH --mail-user=your@mail.de
+    #SBATCH --mail-type=ALL
+    
+    module load mpi/impi/2018
+    module load lib/hdf5/1.10
+    
+    mpiexec.hydra -bootstrap slurm ./piclas parameter.ini DSMCSpecies.ini 1>log 2>log.err

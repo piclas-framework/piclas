@@ -54,14 +54,11 @@ PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt,CalcPotentialEnergy,CalcPotenti
 #if (PP_nVar>=6)
 PUBLIC:: CalcPoyntingIntegral
 #endif
-#ifndef PARTICLES
 PUBLIC:: AnalyzeField
-#endif /*NOT PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifndef PARTICLES
 SUBROUTINE AnalyzeField(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -69,10 +66,11 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars          ,ONLY: DoAnalyze,CalcEpot,CalcEtot
-USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
-USE MOD_Restart_Vars          ,ONLY: DoRestart
-USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
+USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt, &
+                                    Wel,Wmag
+USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
+USE MOD_Restart_Vars         ,ONLY: DoRestart
+USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -84,59 +82,66 @@ REAL,INTENT(IN)     :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, OutputCounter
-REAL                :: WEl, WMag
+INTEGER             :: unit_index, OutputCounter,iPlane
+REAL                :: PoyntingIntegral(1:nPoyntingIntPlanes)
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
 END IF
-IF (DoAnalyze) THEN
-!SWRITE(UNIT_StdOut,'(132("-"))')
-!SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
+IF (.NOT.DoFieldAnalyze) RETURN
 OutputCounter = 2
-unit_index = 535
+unit_index = 537
 #ifdef MPI
- IF(MPIROOT)THEN
+IF(MPIROOT)THEN
 #endif    /* MPI */
-    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-    IF (.NOT.isOpen) THEN
-      outfile = 'Database.csv'
-      IF (isRestart .and. FILEEXISTS(outfile)) THEN
-         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
-         !CALL FLUSH (unit_index)
-      ELSE
-         OPEN(unit_index,file=TRIM(outfile))
-         !CALL FLUSH (unit_index)
-         !--- insert header
-       
-         WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
-         IF (CalcEpot) THEN 
+  INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+  IF (.NOT.isOpen) THEN
+    outfile = 'FieldAnalyze.csv'
+    IF (isRestart .and. FILEEXISTS(outfile)) THEN
+       OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+       !CALL FLUSH (unit_index)
+    ELSE
+       OPEN(unit_index,file=TRIM(outfile))
+       !CALL FLUSH (unit_index)
+       !--- insert header
+     
+       WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
+       IF (CalcEpot) THEN 
+         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
+           OutputCounter = OutputCounter + 1
+         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
+           OutputCounter = OutputCounter + 1
+         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
+           OutputCounter = OutputCounter + 1
+       END IF
+       IF(CalcPoyntingInt)THEN
+         DO iPlane=1,nPoyntingIntPlanes
            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
-             OutputCounter = OutputCounter + 1
-           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
-             OutputCounter = OutputCounter + 1
-         END IF
-         IF(CalcEpot .AND. CalcEtot)THEN
-           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
-             OutputCounter = OutputCounter + 1
-         END IF
-         WRITE(unit_index,'(A14)') ' ' 
-      END IF
+           WRITE(unit_index,'(I3.3,A11,I0.3,A1,E14.7,A1)',ADVANCE='NO') &
+                                          OutputCounter,'-Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
+           OutputCounter = OutputCounter + 1
+         END DO              
+       END IF
+       WRITE(unit_index,'(A14)') ' ' 
     END IF
+  END IF
 #ifdef MPI
- END IF
+END IF
 #endif    /* MPI */
 
-
-!IF (CalcCharge.AND.(.NOT.ChargeCalcDone)) CALL CalcDepositedCharge()
-IF(DoDielectric)THEN
-  CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
-ELSE
-  CALL CalcPotentialEnergy(WEl,WMag)
+IF(CalcEpot)THEN
+  IF(DoDielectric)THEN
+    CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
+  ELSE
+    CALL CalcPotentialEnergy(WEl,WMag)
+  END IF
 END IF
+#if (PP_nVar>=6)
+IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
+#endif
 
 #ifdef MPI
  IF(MPIROOT)THEN
@@ -147,30 +152,25 @@ END IF
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
-   END IF
-   IF(CalcEpot .AND. CalcEtot) THEN
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag
+   END IF
+   IF(CalcPoyntingInt)THEN
+     DO iPlane=1,nPoyntingIntPlanes
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PoyntingIntegral(iPlane)
+     END DO
    END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
 #endif    /* MPI */
 
-!104    FORMAT (WRITEFORMAT)
-
-!SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
-!SWRITE(UNIT_StdOut,'(132("-"))')
-ELSE
-!SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
-!SWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! DoAnalyze
 
 END SUBROUTINE AnalyzeField
-#endif /*NOT PARTICLES*/
 
 #if (PP_nVar>=6)
-SUBROUTINE CalcPoyntingIntegral(t,doProlong)
+SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
@@ -189,17 +189,16 @@ USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: t
 LOGICAL,INTENT(IN),OPTIONAL :: doProlong
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)          :: PoyntingIntegral(1:nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: iElem, SideID,ilocSide,iPoyntingSide
 INTEGER          :: p,q,l
 REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
 REAL             :: SIP(0:PP_N,0:PP_N)
-REAL             :: Sabs(nPoyntingIntPlanes), STEMabs(nPoyntingIntPlanes)
 #ifdef MPI
 REAL             :: SumSabs(nPoyntingIntPlanes)
 #endif
@@ -212,13 +211,9 @@ IF(PRESENT(doProlong))THEN
 ELSE
   Prolong=.TRUE.
 ENDIF  
-! TEM coefficient
-!sresvac = 1./sqrt(mu0/eps0)
 
 S    = 0.
-!STEM = 0.
-Sabs = 0.
-STEMabs = 0.
+PoyntingIntegral = 0.
 
 iPoyntingSide = 0 ! only if all Poynting vectors are desired
 DO iELEM = 1, nElems
@@ -349,18 +344,15 @@ DO iELEM = 1, nElems
         SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
 
         ! total flux through each plane
-        Sabs(whichPoyntingPlane(SideID)) = Sabs(whichPoyntingPlane(SideID)) + smu0* SUM(SIP(:,:))
+        PoyntingIntegral(whichPoyntingPlane(SideID)) = PoyntingIntegral(whichPoyntingPlane(SideID)) + smu0* SUM(SIP(:,:))
     END IF ! flip =0
   END DO ! iSides
 END DO ! iElems
 
 #ifdef MPI
-  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
-  Sabs(:) = sumSabs(:)
+  CALL MPI_REDUCE   (PoyntingIntegral(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
+  PoyntingIntegral(:) = sumSabs(:)
 #endif /* MPI */
-
-! output callling
-CALL OutputPoyntingInt(t,Sabs(:)) 
 
 END SUBROUTINE CalcPoyntingIntegral
 #endif
@@ -437,74 +429,6 @@ END DO  ! p - PP_N
 END SUBROUTINE PoyntingVectorDielectric
 #endif
 
-
-#if (PP_nVar>=6)
-SUBROUTINE OutputPoyntingInt(t,Sabs)
-!===================================================================================================================================
-! Output of PoyntingVector Integral to *csv vile
-!===================================================================================================================================
-! MODULES
-USE MOD_Analyze_Vars ,ONLY: nPoyntingIntPlanes,PosPoyntingInt
-USE MOD_Restart_Vars ,ONLY: DoRestart
-USE MOD_Globals      ,ONLY: FILEEXISTS
-#ifdef MPI
-  USE MOD_Globals
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)     :: t, Sabs(nPoyntingIntPlanes)
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER             :: ioUnit,iPlane
-LOGICAL             :: isRestart, isOpen
-CHARACTER(LEN=64)   :: filename_PI
-!===================================================================================================================================
-isRestart=.FALSE.
-IF (DoRestart) THEN
-  isRestart=.TRUE.
-END IF
-
-filename_PI  = 'Power.csv'
-ioUnit=273
-
-#ifdef MPI
-IF(MPIRoot)THEN
-#endif    /* MPI */
-
-INQUIRE(UNIT=ioUnit,OPENED=isOpen)
-IF(.NOT.isOpen)THEN
-  IF(isRestart.AND.FILEEXISTS(filename_PI))THEN
-    OPEN(ioUnit,file=TRIM(filename_PI),position="APPEND",status="OLD")
-  ELSE
-    OPEN(ioUnit,file=TRIM(filename_PI))
-    ! --- insert header
-    WRITE(ioUnit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
-    DO iPlane=1,nPoyntingIntPlanes
-      WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
-      WRITE(ioUnit,'(A14,I0.3,A1,E14.7,A1)',ADVANCE='NO') 'Plane-Pos-',iPlane,'(', PosPoyntingInt(iPlane),')'
-    END DO              
-    WRITE(ioUnit,'(A1)') ''
-  END IF
-END IF
-! write data to file
-WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') t
-DO iPlane=1,nPoyntingIntPlanes
-  WRITE(ioUnit,'(A1)',ADVANCE='NO') ','
-  WRITE(ioUnit,WRITEFORMAT,ADVANCE='NO') Sabs(iPlane)
-END DO
-WRITE(ioUnit,'(A1)') ''
-
-#ifdef MPI
- END IF
-#endif    /* MPI */
-
-END SUBROUTINE OutputPoyntingInt
-#endif
-
 SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================
 !> Initializes Poynting vector integral variables and check every side: set "isPoyntingIntSide(SideID) = .TRUE." if a side coincides
@@ -513,7 +437,7 @@ SUBROUTINE GetPoyntingIntPlane()
 ! MODULES
 USE MOD_Mesh_Vars       ,ONLY: nPoyntingIntSides,isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
 USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec,PoyntingMainDir
-USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor,S,STEM
+USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM,PoyntingIntPlaneFactor
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
@@ -566,7 +490,6 @@ SELECT CASE (PoyntingMainDir)
     ,'Poynting vector itnegral currently only in x,y,z!')
 END SELECT
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
-ALLOCATE(PoyntingIntPlaneFactor(nPoyntingIntPlanes))
 ALLOCATE(whichPoyntingPlane(nSides))
 ALLOCATE(nFaces(nPoyntingIntPlanes))
 whichPoyntingPlane = -1
@@ -575,15 +498,15 @@ nFaces(:) = 0
 ! Get z-coordinates and factors for every Poynting plane
 DO iPlane=1,nPoyntingIntPlanes
  WRITE(UNIT=index_plane,FMT='(I2.2)') iPlane 
-  SELECT CASE (PoyntingMainDir)
+ SELECT CASE (PoyntingMainDir)
     CASE (1)
       PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-x-coord','0.')
     CASE (2)
       PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-y-coord','0.')
     CASE (3)
       PosPoyntingInt(iPlane)= GETREAL('Plane-'//TRIM(index_plane)//'-z-coord','0.')
-END SELECT
- PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
+  END SELECT
+  PoyntingIntPlaneFactor= GETREAL('Plane-'//TRIM(index_plane)//'-factor','1.')
 END DO
 PoyntingIntCoordErr=GETREAL('Plane-Tolerance','1E-5')
 
@@ -709,7 +632,7 @@ SUBROUTINE FinalizePoyntingInt()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars         ,ONLY:isPoyntingIntSide,whichPoyntingPlane
-USE MOD_Analyze_Vars      ,ONLY:PosPoyntingInt,PoyntingIntPlaneFactor, S, STEM
+USE MOD_Analyze_Vars      ,ONLY:PosPoyntingInt, S, STEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -722,7 +645,6 @@ IMPLICIT NONE
 ! DEALLOCATE ALL
 SDEALLOCATE(isPoyntingIntSide)
 SDEALLOCATE(PosPoyntingInt)
-SDEALLOCATE(PoyntingIntPlaneFactor)
 SDEALLOCATE(whichPoyntingPlane)
 SDEALLOCATE(S)
 SDEALLOCATE(STEM)

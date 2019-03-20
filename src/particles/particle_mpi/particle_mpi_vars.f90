@@ -132,6 +132,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! S
 TYPE(tMPIMessage),ALLOCATABLE  :: NodeRecvBuf(:)                             ! NodeRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: NodeSendBuf(:)                             ! NodeSendBuf with all requried types
 
+TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCRecvBuf(:)                         ! SurfRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCSendBuf(:)                         ! SurfSendBuf with all requried types
+
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! only mpi neighbors
