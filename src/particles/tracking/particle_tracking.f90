@@ -69,11 +69,15 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO!,ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem, Face_xGP
+USE MOD_Mesh_Vars,                   ONLY:BC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
+
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,7 +93,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i
+INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -97,7 +101,7 @@ INTEGER                          :: SideID,TempSideID,iLocSide
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6)
 INTEGER                          :: SecondNrOfThroughSides
 INTEGER                          :: DoneSideID(1:2)  ! 1 = Side, 2 = TriNum
-INTEGER                          :: DoneLastElem(1:3,1:2) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
+INTEGER                          :: DoneLastElem(1:3,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
 LOGICAL                          :: ThroughSide, InElementCheck,PartisDone
 LOGICAL                          :: dolocSide(1:6),crossedBC
 REAL                             :: det(6,2),detM,ratio,minRatio
@@ -130,16 +134,16 @@ DO i = 1,PDM%ParticleVecLength
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
-    TrackInfo%CurrElem = ElemID
     SideID = 0
     DoneSideID(:) = 0
     DoneLastElem(:,:) = 0
     DO WHILE (.NOT.PartisDone)
+      print*, i,LastPartPos(i,1:3), PartState(i,1:3), ElemID, DoneLastElem(1,1)
       !---- Check whether particle is in element
       CALL ParticleInsideQuad3D(PartState(i,1:3),ElemID,InElementCheck,det)
       !---- If it is, set new ElementNumber = lement and LocalizeOn = .FALSE. ->PartisDone
       IF (InElementCheck) THEN
-        PEM%Element(i) = TrackInfo%CurrElem !ElemID
+        PEM%Element(i) = ElemID
         PartisDone = .TRUE.
       !---- If it is not, check through which side it moved
       ELSE
@@ -158,20 +162,52 @@ DO i = 1,PDM%ParticleVecLength
         PartTrajectory=PartTrajectory/lengthPartTrajectory
         DO iLocSide=1,6
           TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-          DO TriNum = 1,2
-            IF (det(iLocSide,TriNum).le.-eps) THEN
-              IF((TempSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
-              ThroughSide = .FALSE.
-              CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,iLocSide,ElemID,ThroughSide,TriNum)
-              IF (ThroughSide) THEN
-                NrOfThroughSides = NrOfThroughSides + 1
-                LocSidesTemp(NrOfThroughSides) = iLocSide
-                TriNumTemp(NrOfThroughSides) = TriNum
-                SideID = TempSideID
-                LocalSide = iLocSide
-              END IF
+          IF ((TempSideID.GE.firstMortarInnerSide).AND.(TempSideID.LE.lastMortarInnerSide)) THEN     
+            SideIDMortar=MortarType(2,TempSideID)
+            IF (MortarType(1,TempSideID).EQ.1) THEN
+              nMortarElems = 4            
+            ELSE  
+              nMortarElems = 2
             END IF
-          END DO
+            DO ind = 1, nMortarElems
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              IF (SideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
+                NbElemID = SideToElem(S2E_ELEM_ID,nbSideID)
+                NblocSideID = SideToElem(S2E_LOC_SIDE_ID,nbSideID)
+              ELSE
+                NbElemID = SideToElem(S2E_NB_ELEM_ID,nbSideID)
+                NblocSideID = SideToElem(S2E_NB_LOC_SIDE_ID,nbSideID)
+              END IF
+              DO TriNum = 1,2
+                IF((nbSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
+                ThroughSide = .FALSE.
+!                print*,'globSide', nbSideID
+                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,NblocSideID,NbElemID,ThroughSide,TriNum, .TRUE.)
+                IF (ThroughSide) THEN
+                  NrOfThroughSides = NrOfThroughSides + 1
+                  LocSidesTemp(NrOfThroughSides) = NblocSideID
+                  TriNumTemp(NrOfThroughSides) = TriNum
+                  SideID = nbSideID
+                  LocalSide = NblocSideID
+                END IF
+              END DO
+            END DO
+          ELSE
+            DO TriNum = 1,2
+              IF (det(iLocSide,TriNum).le.-eps) THEN
+                IF((TempSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
+                ThroughSide = .FALSE.
+                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,iLocSide,ElemID,ThroughSide,TriNum)
+                IF (ThroughSide) THEN
+                  NrOfThroughSides = NrOfThroughSides + 1
+                  LocSidesTemp(NrOfThroughSides) = iLocSide
+                  TriNumTemp(NrOfThroughSides) = TriNum
+                  SideID = TempSideID
+                  LocalSide = iLocSide
+                END IF
+              END IF
+            END DO
+          END IF
         END DO
         TriNum = TriNumTemp(1)
         !--- if no side is found use the slower search method
@@ -217,30 +253,33 @@ DO i = 1,PDM%ParticleVecLength
             SecondNrOfThroughSides = 0
             minRatio = 0
             DO ind2 = 1, NrOfThroughSides
-              IF(.NOT.((DoneLastElem(1,2).EQ.ElemID).AND. &
-                       (DoneLastElem(2,2).EQ.LocSidesTemp(ind2)).AND. &
-                       (DoneLastElem(3,2).EQ.TriNumTemp(ind2)))) THEN
-                CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),ElemID,InElementCheck,TriNumTemp(ind2),detM)
-                IF (InElementCheck) THEN
-                  IF((detM.EQ.0).AND.(det(LocSidesTemp(ind2),TriNumTemp(ind2)).EQ.0)) CYCLE ! particle moves within side
-                  IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN !safety measure
-                    SecondNrOfThroughSides = SecondNrOfThroughSides + 1
-                    SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
-                    LocalSide = LocSidesTemp(ind2)
-                    TriNum = TriNumTemp(ind2)
-                  ELSE
-                    !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
-                    ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
-                    IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
-                      minRatio = ratio
+              DO indSide = 2, (NrOfThroughSides-1)*2,2
+                IF(.NOT.((DoneLastElem(1,indSide).EQ.ElemID).AND. &
+                         (DoneLastElem(2,indSide).EQ.LocSidesTemp(ind2)).AND. &
+                         (DoneLastElem(3,indSide).EQ.TriNumTemp(ind2)))) THEN
+                 IF (.NOT.)
+                  CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),ElemID,InElementCheck,TriNumTemp(ind2),detM)
+                  IF (InElementCheck) THEN
+                    IF((detM.EQ.0).AND.(det(LocSidesTemp(ind2),TriNumTemp(ind2)).EQ.0)) CYCLE ! particle moves within side
+                    IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN !safety measure
                       SecondNrOfThroughSides = SecondNrOfThroughSides + 1
                       SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
                       LocalSide = LocSidesTemp(ind2)
                       TriNum = TriNumTemp(ind2)
+                    ELSE
+                      !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
+                      ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
+                      IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
+                        minRatio = ratio
+                        SecondNrOfThroughSides = SecondNrOfThroughSides + 1
+                        SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+                        LocalSide = LocSidesTemp(ind2)
+                        TriNum = TriNumTemp(ind2)
+                      END IF
                     END IF
                   END IF
                 END IF
-              END IF
+              END DO
             END DO
             IF (SecondNrOfThroughSides.EQ.0) THEN
               WRITE(*,*) 'Warning in Boundary_treatment: Particle',i,'went through no Sides on second check'
@@ -278,24 +317,44 @@ DO i = 1,PDM%ParticleVecLength
         !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
         flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         TrackInfo%LocSide = LocalSide
-        OldElemID=ElemID
-        CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
-          ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
+        TrackInfo%CurrElem = ElemID
+        IF(BC(SideID).GT.0)THEN
+          OldElemID=ElemIDTriNum
+          CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
+            ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
 #if USE_LOADBALANCE
         IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-        IF(ElemID.NE.OldElemID)THEN
+          IF(ElemID.NE.OldElemID)THEN
+            DoneSideID(1) = SideID
+            IF(TriNum.EQ.1) DoneSideID(2) = 2
+            IF(TriNum.EQ.2) DoneSideID(2) = 1
+            DO ind2= 5, 1, -1
+              DoneLastElem(:,ind2+1) = DoneLastElem(:,ind2)
+            END DO
+            DoneLastElem(1,1) = OldElemID
+            DoneLastElem(2,1) = LocalSide
+            DoneLastElem(3,1) = TriNum
+          ELSE
+            DoneSideID(1) = SideID
+            DoneSideID(2) = TriNum
+            DoneLastElem(:,:) = 0
+          END IF
+        ELSE
           DoneSideID(1) = SideID
           IF(TriNum.EQ.1) DoneSideID(2) = 2
           IF(TriNum.EQ.2) DoneSideID(2) = 1
-          DoneLastElem(:,2) = DoneLastElem(:,1)
-          DoneLastElem(1,1) = OldElemID
+          DO ind2= 5, 1, -1
+            DoneLastElem(:,ind2+1) = DoneLastElem(:,ind2)
+          END DO
+          DoneLastElem(1,1) = ElemID
           DoneLastElem(2,1) = LocalSide
           DoneLastElem(3,1) = TriNum
-        ELSE
-          DoneSideID(1) = SideID
-          DoneSideID(2) = TriNum
-          DoneLastElem(:,:) = 0
+          IF (SideToElem(S2E_NB_ELEM_ID,SideID).EQ.ElemID) THEN
+           ElemID = SideToElem(S2E_ELEM_ID,SideID)
+          ELSE
+           ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
+          END IF
         END IF
       END IF
     END DO
@@ -2280,7 +2339,7 @@ END IF ! nInter>0
 END SUBROUTINE FallBackFaceIntersection
 
 
-SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element,ThroughSide,TriNum)                   !
+SUBROUTINE ParticleThroughSideCheck3DFast(PartID,PartTrajectory,iLocSide,Element,ThroughSide,TriNum, IsMortar)                   !
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -2298,6 +2357,7 @@ INTEGER,INTENT(IN)               :: Element
 INTEGER,INTENT(IN)               :: TriNum
 REAL,   INTENT(IN)               :: PartTrajectory(1:3)
 LOGICAL,INTENT(OUT)              :: ThroughSide
+LOGICAL, INTENT(IN), OPTIONAL    :: IsMortar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: n, m
@@ -2336,16 +2396,34 @@ Ax(1) = xNode(1) - Px
 Ay(1) = yNode(1) - Py
 Az(1) = zNode(1) - Pz
 
-DO n = 2,3
- m = n+TriNum-1       ! m = true node number of the sides
- xNode(n) = GEO%NodeCoords(1,GEO%ElemSideNodeID(m,iLocSide,Element))
- yNode(n) = GEO%NodeCoords(2,GEO%ElemSideNodeID(m,iLocSide,Element))
- zNode(n) = GEO%NodeCoords(3,GEO%ElemSideNodeID(m,iLocSide,Element))
+IF(PRESENT(IsMortar)) THEN
+   xNode(2) = GEO%NodeCoords(1,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+   yNode(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
+   zNode(2) = GEO%NodeCoords(3,GEO%ElemSideNodeID(2+TriNum,iLocSide,Element))
 
- Ax(n) = xNode(n) - Px
- Ay(n) = yNode(n) - Py
- Az(n) = zNode(n) - Pz
-END DO
+   Ax(2) = xNode(2) - Px
+   Ay(2) = yNode(2) - Py
+   Az(2) = zNode(2) - Pz
+
+   xNode(3) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+   yNode(3) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+   zNode(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1+TriNum,iLocSide,Element))
+
+   Ax(3) = xNode(3) - Px
+   Ay(3) = yNode(3) - Py
+   Az(3) = zNode(3) - Pz
+ELSE
+  DO n = 2,3
+   m = n+TriNum-1       ! m = true node number of the sides
+   xNode(n) = GEO%NodeCoords(1,GEO%ElemSideNodeID(m,iLocSide,Element))
+   yNode(n) = GEO%NodeCoords(2,GEO%ElemSideNodeID(m,iLocSide,Element))
+   zNode(n) = GEO%NodeCoords(3,GEO%ElemSideNodeID(m,iLocSide,Element))
+
+   Ax(n) = xNode(n) - Px
+   Ay(n) = yNode(n) - Py
+   Az(n) = zNode(n) - Pz
+  END DO
+END IF
 !--- check whether v and the vectors from the particle to the two edge nodes build
 !--- a right-hand-system. If yes for all edges: vector goes potentially through side
 det(1) = ((Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + &
@@ -2360,9 +2438,11 @@ det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
          (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
          (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
 
+
 IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
  ThroughSide = .TRUE.
 END IF
+
 
 RETURN
 

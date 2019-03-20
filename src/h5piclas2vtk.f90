@@ -706,8 +706,8 @@ DO iElem=1,nElems
   aElem=>Elems(iElem)%ep
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
-    IF(aSide%nMortars.GT.0) CALL abort(__STAMP__,&
-      'Surface results with connectivity on meshes with mortars are not supported!') 
+!    IF(aSide%nMortars.GT.0) CALL abort(__STAMP__,&
+!      'Surface results with connectivity on meshes with mortars are not supported!') 
     IF(aSide%sideID.EQ.-1)THEN
       IF(aSide%NbProc.EQ.-1)THEN ! no MPI Sides
         IF(ASSOCIATED(aSide%connection))THEN
@@ -724,7 +724,7 @@ DO iElem=1,nElems
     END IF !sideID NE -1
   END DO ! iLocSide=1,6
 END DO !iElem
-IF(iSide.NE.(nInnerSides+nBCSides)) CALL abort(__STAMP__,'not all SideIDs are set!')
+!IF(iSide.NE.(nInnerSides+nBCSides)) CALL abort(__STAMP__,'not all SideIDs are set!')
 
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(SideToElem)

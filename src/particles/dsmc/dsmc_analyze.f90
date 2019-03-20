@@ -1184,6 +1184,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
 #if USE_LOADBALANCE
@@ -1413,8 +1414,10 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
-            DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN              
+            DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
+              + PartStateIntEn(i,1) - SpecDSMC(iSpec)%EZeroPoint
+            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,2)
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
@@ -1652,21 +1655,22 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                 IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                   IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
                     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                      IF( (PartEvib/PartNum) .GT. SpecDSMC(iSpec)%EZeroPoint ) THEN
-                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum, iSpec)
+                      IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
+                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
                       ELSE
                         Macro_TempVib = 0.0
                       END IF
                     ELSE
                       TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                      IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      IF ((PartEvib /PartNum).LE.0.0) THEN
                         Macro_TempVib = 0.0
                       ELSE
-                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
                       END IF
                     END IF
                   ELSE                                            ! TSHO-model
-                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, &
+                      PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
                   Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
                   MolecPartNum = MolecPartNum + Macro_PartNum

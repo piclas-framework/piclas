@@ -763,6 +763,7 @@ DO iElem=1,nElems
       SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
+    IF (iELem.EQ.24) print*, aSide%SideID, LocSideID
     IF(aSide%sideID .LE. nBCSides)THEN
       BC(aSide%sideID)=aSide%BCIndex
     ELSE

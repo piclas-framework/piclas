@@ -1322,6 +1322,7 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1335,19 +1336,230 @@ REAL   ,INTENT(OUT)           :: Det(6,2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum
-LOGICAL                       :: PosCheck, NegCheck
+INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, nbSideID, ind, NbElemID, nNbMortars
+LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, BehindSide, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), cross(3)
 !===================================================================================================================================
   InElementCheck = .TRUE.
+  InElementCheckMortar = .TRUE.
   DO iLocSide = 1,6                 ! for all 6 sides of the element
-     !--- initialize flags for side checks
-     PosCheck = .FALSE.
-     NegCheck = .FALSE.
-     !--- A = vector from particle to node coords
      DO NodeNum = 1,4
        A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
      END DO
+     SideID =ElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
+     IF ((SideID.GE.firstMortarInnerSide).AND.(SideID.LE.lastMortarInnerSide)) THEN
+        !--- initialize flags for side checks
+        PosCheck = .FALSE.
+        NegCheck = .FALSE.
+        !--- A = vector from particle to node coords
+        IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+          Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+          IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+          IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+          !--- final determination whether particle is in element
+          IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
+        ELSE
+          Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+          IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+          IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+          !--- final determination whether particle is in element
+          IF (.NOT.PosCheck) InElementCheckMortar= .FALSE. 
+        END IF
+!        IF (ElemID.EQ.52) print*, 'concav', InElementCheckMortar
+        IF (.NOT.InElementCheckMortar) THEN
+          InElementCheckMortar = .TRUE.
+          ! Check convex element version
+          IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+            Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+            IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+            IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+            !--- final determination whether particle is in element
+            IF (NegCheck) InElementCheckMortar = .FALSE.
+          ELSE
+            Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+            IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+            IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+            !--- final determination whether particle is in element
+            IF (NegCheck) InElementCheckMortar= .FALSE. 
+          END IF
+          IF (InElementCheckMortar) THEN
+          !In convex mortar elem but not in concave, checking additional the mortar neighbors
+            SideIDMortar=MortarType(2,SideID)
+            IF (MortarType(1,SideID).EQ.1) THEN
+              nNbMortars = 4
+            ELSE
+              nNbMortars = 2
+            END IF
+            DO ind = 1, nNbMortars
+              InElementCheckMortarNb = .TRUE.
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              IF (SideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
+                NbElemID = SideToElem(S2E_ELEM_ID,nbSideID)
+              ELSE
+                NbElemID = SideToElem(S2E_NB_ELEM_ID,nbSideID)
+              END IF
+              CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
+              IF (InElementCheckMortarNb) THEN
+                InElementCheck = .FALSE.
+                EXIT
+              END IF
+            END DO               
+          ELSE 
+            InElementCheck = .FALSE.
+          END IF
+        END IF
+     ELSE
+       !--- initialize flags for side checks
+       PosCheck = .FALSE.
+       NegCheck = .FALSE.
+
+       !--- compute cross product for vector 1 and 3
+       cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+       cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+       cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+
+       !--- negative determinant of triangle 1 (points 1,3,2):
+       Det(iLocSide,1) = cross(1) * A(1,2) + &
+                         cross(2) * A(2,2) + &
+                         cross(3) * A(3,2)
+       Det(iLocSide,1) = -det(iLocSide,1)
+       !--- determinant of triangle 2 (points 1,3,4):
+       Det(iLocSide,2) = cross(1) * A(1,4) + &
+                         cross(2) * A(2,4) + &
+                         cross(3) * A(3,4)
+       IF (Det(iLocSide,1).LT.0) THEN
+         NegCheck = .TRUE.
+       ELSE
+         PosCheck = .TRUE.
+       END IF
+       IF (Det(iLocSide,2).LT.0) THEN
+         NegCheck = .TRUE.
+       ELSE
+         PosCheck = .TRUE.
+       END IF
+
+       !--- final determination whether particle is in element
+       IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+         IF (.NOT.PosCheck) InElementCheck = .FALSE.
+       ELSE
+         IF (NegCheck) InElementCheck = .FALSE.
+       END IF
+    END IF
+!    IF (ElemID.EQ.52) THEN
+!      print*, TempMortCheck(iLocSide), InElementCheck
+!    END IF
+  END DO
+!  IF (ElemID.EQ.52) read*
+  RETURN
+END SUBROUTINE ParticleInsideQuad3D
+
+FUNCTION CalcDetOfTrias(A,bending)
+!================================================================================================================================
+! check is the particles is inside the bounding box, return TRUE/FALSE
+!================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: A(3,4)
+INTEGER,INTENT(IN)                   :: bending
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                                  :: CalcDetOfTrias(2)
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: cross(3)
+!================================================================================================================================
+IF (bending.EQ.1) THEN
+  !--- compute cross product for vector 1 and 3
+  cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+  cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+  cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+
+  !--- negative determinant of triangle 1 (points 1,3,2):
+  CalcDetOfTrias(1) = cross(1) * A(1,2) + &
+                   cross(2) * A(2,2) + &
+                   cross(3) * A(3,2)
+  CalcDetOfTrias(1)  = -CalcDetOfTrias(1) 
+  !--- determinant of triangle 2 (points 1,3,4):
+  CalcDetOfTrias(2)  = cross(1) * A(1,4) + &
+                   cross(2) * A(2,4) + &
+                   cross(3) * A(3,4)
+ELSE 
+  !--- compute cross product for vector 2 and 4
+  cross(1) = A(2,2) * A(3,4) - A(3,2) * A(2,4)
+  cross(2) = A(3,2) * A(1,4) - A(1,2) * A(3,4)
+  cross(3) = A(1,2) * A(2,4) - A(2,2) * A(1,4)
+
+  !--- negative determinant of triangle 1 (points 2,4,1):
+  CalcDetOfTrias(1) = cross(1) * A(1,1) + &
+                   cross(2) * A(2,1) + &
+                   cross(3) * A(3,1)
+  !--- determinant of triangle 2 (points 2,4,3):
+  CalcDetOfTrias(2) = cross(1) * A(1,3) + &
+                   cross(2) * A(2,3) + &
+                   cross(3) * A(3,3)
+  CalcDetOfTrias(2) = -CalcDetOfTrias(2)
+END IF
+END FUNCTION CalcDetOfTrias
+
+SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+!===================================================================================================================================
+! checks if particle is inside of linear element with triangulated faces
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, NodeNum, SideID
+LOGICAL                       :: PosCheck, NegCheck
+REAL                          :: A(1:3,1:4), cross(3)
+REAL                          :: Det(2)
+!===================================================================================================================================
+  InElementCheck = .TRUE.
+  DO iLocSide = 1,6                 ! for all 6 sides of the element
+   DO NodeNum = 1,4
+     A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
+   END DO
+   SideID =ElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
+   IF ((SideID.GE.firstMortarInnerSide).AND.(SideID.LE.lastMortarInnerSide)) THEN
+      !--- initialize flags for side checks
+      PosCheck = .FALSE.
+      NegCheck = .FALSE.
+      !--- A = vector from particle to node coords
+      IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+        Det(1:2) = CalcDetOfTrias(A,2)
+        IF (Det(1).LT.0) NegCheck = .TRUE.
+        IF (Det(2).LT.0) NegCheck = .TRUE.
+        !--- final determination whether particle is in element
+        IF (NegCheck) THEN
+          InElementCheck = .FALSE.
+          RETURN
+        END IF
+      ELSE
+        Det(1:2) = CalcDetOfTrias(A,1)
+        IF (Det(1).LT.0) NegCheck = .TRUE.
+        IF (Det(2).LT.0) NegCheck = .TRUE.
+        !--- final determination whether particle is in element
+        IF (NegCheck) THEN
+          InElementCheck = .FALSE.
+          RETURN
+        END IF
+      END IF
+   ELSE  
+     PosCheck = .FALSE.
+     NegCheck = .FALSE.
 
      !--- compute cross product for vector 1 and 3
      cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
@@ -1355,20 +1567,20 @@ REAL                          :: A(1:3,1:4), cross(3)
      cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
 
      !--- negative determinant of triangle 1 (points 1,3,2):
-     Det(iLocSide,1) = cross(1) * A(1,2) + &
+     Det(1) = cross(1) * A(1,2) + &
                        cross(2) * A(2,2) + &
                        cross(3) * A(3,2)
-     Det(iLocSide,1) = -det(iLocSide,1)
+     Det(1) = -det(1)
      !--- determinant of triangle 2 (points 1,3,4):
-     Det(iLocSide,2) = cross(1) * A(1,4) + &
+     Det(2) = cross(1) * A(1,4) + &
                        cross(2) * A(2,4) + &
                        cross(3) * A(3,4)
-     IF (Det(iLocSide,1).LT.0) THEN
+     IF (Det(1).LT.0) THEN
        NegCheck = .TRUE.
      ELSE
        PosCheck = .TRUE.
      END IF
-     IF (Det(iLocSide,2).LT.0) THEN
+     IF (Det(2).LT.0) THEN
        NegCheck = .TRUE.
      ELSE
        PosCheck = .TRUE.
@@ -1376,13 +1588,21 @@ REAL                          :: A(1:3,1:4), cross(3)
 
      !--- final determination whether particle is in element
      IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
-       IF (.NOT.PosCheck) InElementCheck = .FALSE.
+       IF (.NOT.PosCheck) THEN
+         InElementCheck = .FALSE.
+         RETURN
+       END IF
      ELSE
-       IF (NegCheck) InElementCheck = .FALSE.
+       IF (NegCheck) THEN
+         InElementCheck = .FALSE.
+         RETURN
+       END IF
      END IF
+   END IF   
   END DO
   RETURN
-END SUBROUTINE ParticleInsideQuad3D
+END SUBROUTINE ParticleInsideNbMortar
+
 
 
 SUBROUTINE InitFIBGM()
