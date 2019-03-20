@@ -181,9 +181,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Powerfactor'&
 CALL prms%CreateRealOption(     'Part-Species[$]-SurfDiss[$]-Prefactor'&
                                          , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Powerfactor'&
-                                          , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                          , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surf-ER[$]-Prefactor'&
-                                          , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+                                          , 'TODO-DEFINE-PARAMETER','-1.', numberedmulti=.TRUE.)
 
 CALL prms%CreateIntOption(      'Surface-Nbr-DissocReactions'&
                                           , 'TODO-DEFINE-PARAMETER\n'//&

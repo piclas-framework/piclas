@@ -330,7 +330,6 @@ INTEGER                          :: ReactNum
 INTEGER                          :: MaxDissNum, MaxRecombNum, MaxReactNum
 INTEGER , ALLOCATABLE            :: SpecNRecombReact(:)
 INTEGER                          :: nDissoc, nExch
-INTEGER                          :: CalcTST_Case
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
@@ -341,14 +340,6 @@ Adsorption%NumOfExchReact = 0
 #if !(USE_LOADBALANCE)
 IF (SurfMesh%SurfOnProc .OR. MPIRoot) THEN
 #endif
-  ! Adsorption constants
-  ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
-            Adsorption%Ads_Prefactor(1:nSpecies))
-  DO iSpec = 1,nSpecies
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor')
-    Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor')
-  END DO
 
 #if (PP_TimeDiscMethod==42)
   ALLOCATE( Adsorption%AdsorpReactInfo(1:nSpecies))
@@ -359,9 +350,7 @@ IF (SurfMesh%SurfOnProc .OR. MPIRoot) THEN
 
   ! allocate and initialize dissociative and associative reactions species map
   IF ( (MaxDissNum.GT.0) .OR. (MaxRecombNum.GT.0) ) THEN
-    ALLOCATE( Adsorption%DissocReact(1:2,1:MaxDissNum,1:nSpecies),&
-              Adsorption%Diss_Powerfactor(1:MaxDissNum,1:nSpecies),&
-              Adsorption%Diss_Prefactor(1:MaxDissNum,1:nSpecies))
+    ALLOCATE( Adsorption%DissocReact(1:2,1:MaxDissNum,1:nSpecies))
     ! Read in dissociative reactions and respective dissociation bond energies
     DO iSpec = 1,nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -381,10 +370,6 @@ __STAMP__&
 __STAMP__&
 ,'Error in Init_SurfChem: Product species for reaction '//TRIM(hilf2)//' negative!')
         END IF
-        Adsorption%Diss_Powerfactor(iReactNum,iSpec) = &
-                                         GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Powerfactor')
-        Adsorption%Diss_Prefactor(iReactNum,iSpec) = &
-                                         GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Prefactor')
       END DO
     END DO
 
@@ -406,8 +391,6 @@ __STAMP__&
     ! fill recombination reactions species map from defined dissociative reactions
     MaxReactNum = MaxDissNum + MaxRecombNum
     ALLOCATE( Adsorption%RecombReact(1:2,1:MaxRecombNum,1:nSpecies),&
-              Adsorption%ER_Powerfactor(1:MaxRecombNum,1:nSpecies),&
-              Adsorption%ER_Prefactor(1:MaxRecombNum,1:nSpecies),&
               Adsorption%EDissBond(0:MaxReactNum,1:nSpecies),&
               Adsorption%EDissBondAdsorbPoly(0:1,1:nSpecies))
     Adsorption%EDissBond(0:MaxReactNum,1:nSpecies) = 0.
@@ -441,39 +424,26 @@ __STAMP__&
       END IF
     END DO
     DO iSpec = 1,nSpecies
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ReactNum = 1
       DO iSpec2 = 1,nSpecies
-      DO iReactNum2 = 1,MaxDissNum
-        IF (Adsorption%DissocReact(1,iReactNum2,iSpec2).EQ.iSpec) THEN
-          Adsorption%RecombReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,iReactNum2,iSpec2)
-          Adsorption%RecombReact(2,ReactNum,iSpec) = iSpec2
-          Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
-          WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
-          Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.')
-          Adsorption%ER_Prefactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
-          ReactNum = ReactNum + 1
-        ELSE IF (Adsorption%DissocReact(2,iReactNum2,iSpec2).EQ.iSpec) THEN
-          Adsorption%RecombReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
-          Adsorption%RecombReact(2,ReactNum,iSpec) = iSpec2
-          Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
-          WRITE(UNIT=hilf2,FMT='(I0)') ReactNum
-          Adsorption%ER_Powerfactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor','0.')
-          Adsorption%ER_Prefactor(ReactNum,iSpec) = &
-              GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor','0.')
-          ReactNum = ReactNum + 1
-        ELSE
-          CYCLE
-        END IF
-      END DO
+        DO iReactNum2 = 1,MaxDissNum
+          IF (Adsorption%DissocReact(1,iReactNum2,iSpec2).EQ.iSpec) THEN
+            Adsorption%RecombReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,iReactNum2,iSpec2)
+            Adsorption%RecombReact(2,ReactNum,iSpec) = iSpec2
+            Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
+            ReactNum = ReactNum + 1
+          ELSE IF (Adsorption%DissocReact(2,iReactNum2,iSpec2).EQ.iSpec) THEN
+            Adsorption%RecombReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,iReactNum2,iSpec2)
+            Adsorption%RecombReact(2,ReactNum,iSpec) = iSpec2
+            Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(iReactNum2,iSpec2)
+            ReactNum = ReactNum + 1
+          ELSE
+            CYCLE
+          END IF
+        END DO
       END DO
       IF (ReactNum.LE.(MaxRecombNum)) THEN
         Adsorption%RecombReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
-        Adsorption%ER_Powerfactor(ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0.
-        Adsorption%ER_Prefactor(ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0.
       END IF
     END DO
 
@@ -717,11 +687,7 @@ __STAMP__&
     Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(:)        = 0.
   END DO
 #endif
-
-  CalcTST_Case = GETINT('Surface-Adsorption-CalcTST')
-  ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
-  Adsorption%TST_Calc(:,:) = .FALSE.
-  IF (CalcTST_Case.GT.0) CALL Init_TST_Coeff(CalcTST_Case)
+  CALL Init_TST_Coeff()
 #if !(USE_LOADBALANCE)
 END IF ! SurfMesh%SurfOnProc .OR. MPIRoot
 #endif
@@ -731,7 +697,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY DONE!'
 END SUBROUTINE InitSMCR_Chem
 
 
-SUBROUTINE Init_TST_Coeff(TST_Case)
+SUBROUTINE Init_TST_Coeff()
 !===================================================================================================================================
 !> Initializion of the Transition state theory (TST) factors for surface chemistry
 !===================================================================================================================================
@@ -739,46 +705,74 @@ SUBROUTINE Init_TST_Coeff(TST_Case)
 USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
-USE MOD_ReadInTools            ,ONLY: GETREAL
+USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER , INTENT(IN)            :: TST_Case
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                            :: PartitionArraySize
-INTEGER                         :: iSpec, iReactNum, RecombNum
+CHARACTER(32)                   :: hilf, hilf2
+INTEGER                         :: TST_Case
+INTEGER                         :: iSpec, iReactNum, DissocID, RecombID
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS!'
 
-IF (SurfMesh%SurfOnProc) THEN
+ALLOCATE(Adsorption%TST_Calc(0:Adsorption%ReactNum,1:nSpecies))
+Adsorption%TST_Calc(:,:) = .FALSE.
+TST_Case = GETINT('Surface-Adsorption-CalcTST')
 
-IF (TST_Case.EQ.1) THEN
-  DO iSpec=1,nSpecies
+SELECT CASE (TST_Case)
+CASE (0,1)
+  ! reaction rate coefficients
+  ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
+            Adsorption%Ads_Prefactor(1:nSpecies),&
+            Adsorption%Diss_Powerfactor(1:Adsorption%DissNum,1:nSpecies),&
+            Adsorption%Diss_Prefactor(1:Adsorption%DissNum,1:nSpecies),&
+            Adsorption%ER_Powerfactor(1:Adsorption%RecombNum,1:nSpecies),&
+            Adsorption%ER_Prefactor(1:Adsorption%RecombNum,1:nSpecies))
+  DO iSpec = 1,nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
     DO iReactNum=0,Adsorption%ReactNum
-      IF ((iReactNum.EQ.0) .AND. (Adsorption%Ads_Prefactor(iSpec).EQ.0.) .AND. (Adsorption%Ads_Powerfactor(iSpec).EQ.0.)) THEN
-        Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
-      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LE.Adsorption%DissNum)) THEN
-        IF ((Adsorption%Diss_Prefactor(iReactNum,iSpec).EQ.0.) .AND. (Adsorption%Diss_Powerfactor(iReactNum,iSpec).EQ.0.)) THEN
+      IF (iReactNum.EQ.0) THEN
+        Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor')
+        Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor')
+        IF ((TST_Case.EQ.1) .AND. (Adsorption%Ads_Prefactor(iSpec).EQ.-1.) .AND. (Adsorption%Ads_Powerfactor(iSpec).EQ.-1.)) THEN
           Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
         END IF
+      ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.LE.Adsorption%DissNum)) THEN
+        DissocID = iReactNum
+        WRITE(UNIT=hilf2,FMT='(I0)') DissocID
+        Adsorption%Diss_Powerfactor(DissocID,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Powerfactor')
+        Adsorption%Diss_Prefactor(DissocID,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Prefactor')
+        IF (TST_Case.EQ.1) THEN
+          IF ((Adsorption%Diss_Prefactor(DissocID,iSpec).EQ.-1.) .AND. (Adsorption%Diss_Powerfactor(DissocID,iSpec).EQ.-1.)) THEN
+            Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+          END IF
+        END IF
       ELSE IF ((iReactNum.GT.0) .AND. (iReactNum.GT.Adsorption%DissNum)) THEN
-        RecombNum = iReactNum - Adsorption%DissNum
-        IF ((Adsorption%ER_Prefactor(RecombNum,iSpec).EQ.0.) .AND. (Adsorption%ER_Powerfactor(RecombNum,iSpec).EQ.0.)) THEN
-          Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+        RecombID = iReactNum-Adsorption%DissNum
+        WRITE(UNIT=hilf2,FMT='(I0)') RecombID
+        Adsorption%ER_Powerfactor(RecombID,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Powerfactor')
+        Adsorption%ER_Prefactor(RecombID,iSpec) =   GETREAL('Part-Species'//TRIM(hilf)//'-Surf-ER'//TRIM(hilf2)//'-Prefactor')
+        IF (TST_Case.EQ.1) THEN
+          IF ((Adsorption%ER_Prefactor(RecombID,iSpec).EQ.-1.) .AND. (Adsorption%ER_Powerfactor(RecombID,iSpec).EQ.-1.)) THEN
+            Adsorption%TST_Calc(iReactNum,iSpec) = .TRUE.
+          END IF
         END IF
       END IF
     END DO
   END DO
-ELSE
+CASE (2)
   Adsorption%TST_Calc(:,:) = .TRUE.
-END IF
-
-END IF ! SurfMesh%SurfOnProc
+CASE DEFAULT
+  CALL abort(&
+__STAMP__&
+,'Surface SMCR init ERROR: TST coefficient has to be 0,1 or 2:',TST_Case)
+END SELECT
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE TST REACTION COEFFICIENTS DONE!'
 END SUBROUTINE Init_TST_Coeff
