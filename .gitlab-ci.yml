@@ -327,6 +327,14 @@ gnu_DSMC_check:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
+gnu_SurfaceModel_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_SurfaceModel
+
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 # intel_PIC_gyrotron_variable_Bz:
@@ -580,6 +588,13 @@ gnu_integer_kind8:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
        
+gnu_feature_SurfaceModel:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
