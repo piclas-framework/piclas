@@ -360,10 +360,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
-  INTEGER               :: iInter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-  REAL                  :: Temp
-  REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
+  REAL                  :: BGGasEVib
   INTEGER               :: currentBC, ElemID, iSide, BCSideID
 #if ( PP_TimeDiscMethod ==42 )
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -1185,7 +1183,7 @@ SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
-USE MOD_DSMC_Vars            ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars            ,ONLY: SpecDSMC
 USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1272,7 +1270,7 @@ SUBROUTINE SetNextIonizationSpecies()
 ! MODULES                                                                                                                          !
 USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
