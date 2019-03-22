@@ -1575,7 +1575,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
-USE MOD_PICDepo              ,ONLY: InitializeDeposition
 USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
 USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
