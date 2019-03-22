@@ -38,6 +38,10 @@ INTERFACE FinalizeParticleMesh
   MODULE PROCEDURE FinalizeParticleMesh
 END INTERFACE
 
+INTERFACE GetMeshMinMax
+  MODULE PROCEDURE GetMeshMinMax
+END INTERFACE
+
 INTERFACE InitFIBGM
   MODULE PROCEDURE InitFIBGM
 END INTERFACE
@@ -108,6 +112,7 @@ PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
 PUBLIC::BoundsOfElement
+PUBLIC::GetMeshMinMax
 !===================================================================================================================================
 !
 PUBLIC::DefineParametersParticleMesh
@@ -1420,28 +1425,20 @@ REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:)
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(66("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT BASIS...' 
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
+StartT=PICLASTIME()
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-StartT=PICLASTIME()
+! build elem basis before halo region build
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-EndT=PICLASTIME()
-IF(PartMPI%MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
-END IF
 
-SWRITE(UNIT_StdOut,'(66("-"))')
-StartT=PICLASTIME()
-! get new min max
-SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
-CALL GetFIBGMminmax()
 ! sort elem in bgm cells
 SWRITE(UNIT_stdOut,'(A)')' Getting element range in FIBGM ...' 
 DO iElem=1,PP_nElems
@@ -1553,6 +1550,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
 SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
+! second build of elem basis after halo region build
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
@@ -1651,19 +1649,13 @@ kk=0
 
 
 #ifdef MPI
-  ! allocate and initialize MPINeighbor
-  ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
-  PartMPI%isMPINeighbor(:) = .FALSE.
-  PartMPI%nMPINeighbors=0
+! allocate and initialize MPINeighbor
+ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
+PartMPI%isMPINeighbor(:) = .FALSE.
+PartMPI%nMPINeighbors=0
 #endif   
 
-
-  CALL InitPeriodicBC()
-  ! reduce beziercontrolpoints to boundary sides
-  !IF(DoRefMapping) CALL ReshapeBezierSides()
-  !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
-  CALL InitializeDeposition()     ! has to remain here, because domain can have changed
-  !CALL InitPIC()                 ! does not depend on domain
+CALL InitPeriodicBC()
 
 ! deallocate stuff // required for dynamic load balance
 #ifdef MPI
@@ -5775,9 +5767,9 @@ ElemToBGM(6) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
 END SUBROUTINE BGMIndexOfElement
 
 
-SUBROUTINE GetFIBGMMinMax() 
+SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
-! computes the minimum and maximum value of the FIBGM mesh
+! computes the minimum and maximum value of the mesh
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5801,10 +5793,6 @@ INTEGER         :: iSide
 REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
 !===================================================================================================================================
 
-!#ifdef MPI
-!   !--- If this MPI process does not contain particles, step out
-!   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
-!#endif
 !--- calc min and max coordinates for mesh
 xmin = HUGE(1.0)
 xmax =-HUGE(1.0)
@@ -5859,7 +5847,7 @@ GEO%zmax=zmax
   GEO%zmaxglob=GEO%zmax
 #endif   
 
-END SUBROUTINE GetFIBGMMinMax
+END SUBROUTINE GetMeshMinMax
 
 
 SUBROUTINE GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)

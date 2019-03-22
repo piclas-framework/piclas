@@ -113,17 +113,17 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
 CALL prms%SetSection("PIC Deposition")
 
 CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Switch deposition on/off', '.TRUE.')
+                                                             'Switch deposition on/off', '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                              '(HALOWIKI:)\n'//&
-                                                                    'If Deposition-Type=shape_function\n'//&
+                                                             'If Deposition-Type=shape_function\n'//&
                                                              'Define:\n'//&
                                                              'PIC-shapefunction-radius\n'//&
                                                              'PIC-shapefunction-alpha.\n'//&
-                                                                    'If Deposition-Type =(cartmesh_volumeweighting/ cartmesh_splines)\n'//&
+                                                             'If Deposition-Type =(cartmesh_volumeweighting/ cartmesh_splines)\n'//&
                                                              'Define:\n'//&
                                                              'PIC-BGMdeltas\n'//&
-                                                             'PIC-FactorBGM', 'nearest-blurrycenter')
+                                                             'PIC-FactorBGM', 'nearest_blurrycenter')
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 
 CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
@@ -208,7 +208,7 @@ CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFIN
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateLogicalOption(  'PIC-SFResampleReducePartNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
+                                                                     'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
 CALL prms%CreateIntOption(      'PIC-PartNumThreshold'      ,              'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'Threshold for checking inserted '//&
                                                                            'parts per deposition (otherwise abort)', '0')
@@ -245,6 +245,8 @@ SUBROUTINE InitPIC()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars,  ONLY: externalField
+USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
+USE MOD_PICDepo                ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -261,6 +263,9 @@ IF(PICInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
+
+CALL InitializeInterpolation()
+CALL InitializeDeposition()
 
 ! So far, nothing to do here...
 IF (externalField(6).NE.0) PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))

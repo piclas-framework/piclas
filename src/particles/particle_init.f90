@@ -1109,9 +1109,8 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
-USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
 USE MOD_PICInit                ,ONLY: InitPIC
-USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_Particle_Mesh          ,ONLY: GetMeshMinMax,InitFIBGM,MapRegionToElem,MarkAuxBCElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -2501,20 +2500,6 @@ DelayTime = GETREAL('Part-DelayTime','0.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
-
-! init interpolation
-CALL InitializeInterpolation() ! not any more required ! has to be called earliear
-CALL InitPIC()
-! always, because you have to construct a halo_eps region around each bc element
-
-#ifdef MPI
-CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*MPI*/
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
-SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
-
 !-- AuxBCs
 nAuxBCs=GETINT('Part-nAuxBCs','0')
 IF (nAuxBCs.GT.0) THEN
@@ -2743,9 +2728,21 @@ ELSE
   UseAuxBCs=.FALSE.
 END IF
 
-!-- Finalizing InitializeVariables
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*MPI*/
+
+! get new min max
+SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
+CALL GetMeshMinMax()
+
+CALL InitPIC()
+
+!-- Build BGM and halo region
+SWRITE(UNIT_StdOut,'(132("-"))')
+SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
+halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 CALL InitFIBGM()
-!CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/
@@ -2754,8 +2751,6 @@ CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*MPI*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
-
-!-- Read parameters for particle-data on region mapping
 
 !-- Read parameters for region mapping
 NbrOfRegions = GETINT('NbrOfRegions','0')
