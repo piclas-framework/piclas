@@ -1550,7 +1550,7 @@ CASE('cell_volweight')
 CASE DEFAULT
  CALL abort(&
 __STAMP__&
-,'Unknown DepositionType in pic_depo.f90')
+,'Unknown SamplingType in dsmc_analyze.f90')
 END SELECT
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
