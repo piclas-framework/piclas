@@ -245,7 +245,7 @@ SUBROUTINE InitPIC()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars,  ONLY: externalField
-USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
+USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
 USE MOD_PICDepo                ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
 ! IMPLICIT VARIABLE HANDLING
@@ -264,7 +264,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
-CALL InitializeInterpolation()
+CALL InitializeParticleInterpolation()
 CALL InitializeDeposition()
 
 ! So far, nothing to do here...

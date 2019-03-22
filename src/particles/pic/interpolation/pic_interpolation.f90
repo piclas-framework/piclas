@@ -19,10 +19,13 @@ MODULE  MOD_PICInterpolation
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InterpolateFieldToParticle,InitializeInterpolation,InterpolateFieldToSingleParticle,InterpolateVariableExternalField
+PUBLIC :: InterpolateFieldToParticle
+PUBLIC :: InitializeParticleInterpolation
+PUBLIC :: InterpolateFieldToSingleParticle
+PUBLIC :: InterpolateVariableExternalField
 !===================================================================================================================================
-INTERFACE InitializeInterpolation
-  MODULE PROCEDURE InitializeInterpolation
+INTERFACE InitializeParticleInterpolation
+  MODULE PROCEDURE InitializeParticleInterpolation
 END INTERFACE
 
 INTERFACE InterpolateFieldToParticle
@@ -40,7 +43,7 @@ END INTERFACE
 
 CONTAINS
 
-SUBROUTINE InitializeInterpolation
+SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
 ! Initialize the interpolation variables first
 !===================================================================================================================================
@@ -131,7 +134,7 @@ CASE DEFAULT
 END SELECT
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
-END SUBROUTINE InitializeInterpolation
+END SUBROUTINE InitializeParticleInterpolation
 
 
 SUBROUTINE InterpolateFieldToParticle(doInnerParts)
