@@ -38,7 +38,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 
 * ``CTAGS_PATH``: This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
 
-* ``PICLAS_BUILD_HDF5``: This will be set to ON if no prebuilt HDF5 installation was found on your machine. In this case a HDF5 version will be build and used instead.
+* ``PICLAS_BUILD_HDF5``: This will be set to ON if no prebuilt HDF5 installation was found on your machine. In this case a HDF5 version will be build and used instead. For a detailed description of the installation of HDF5, please refer to Section \ref{sec:install_hdf5}.
 
 * ``HDF5_DIR``: If you want to use a prebuilt HDF5 library that has been build using the CMake system, this directory should contain the CMake configuration file for HDF5 (optional).
 
@@ -60,7 +60,7 @@ Before setting up a simulation, the code must be compiled with the desired param
 
 The options EQNSYSNAME, POLYNOMIAL_DEGREE and NODETYPE can be ignored for a DSMC simulation. For parallel computation the following flags should be configured:
 
-* ``PICLAS_MPI``: Enabling parallel computation
+* ``PICLAS_MPI``: Enabling parallel computation. For a detailed description of the installation of MPI, please refer to refer to Section \ref{sec:install_mpi}.
 * ``PICLAS_LOADBALANCE``: Enable load-balancing
 
 All other options are set in the parameter file.
