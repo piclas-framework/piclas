@@ -108,9 +108,9 @@ crossedBC    =.FALSE.
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
-    IF (.NOT.TriaTracking) THEN
+!----------------------------------------------------------------------------------------------------------------------------------
+  IF (.NOT.TriaTracking) THEN
+    IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid    
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
         n_loc=SideNormVec(1:3,SideID)

@@ -1445,11 +1445,8 @@ REAL                          :: A(1:3,1:4), cross(3)
          IF (NegCheck) InElementCheck = .FALSE.
        END IF
     END IF
-!    IF (ElemID.EQ.52) THEN
-!      print*, TempMortCheck(iLocSide), InElementCheck
-!    END IF
+
   END DO
-!  IF (ElemID.EQ.52) read*
   RETURN
 END SUBROUTINE ParticleInsideQuad3D
 
