@@ -14,7 +14,7 @@ After the successful completion of all regression checks (check-in, nightly, wee
 
 ### Collaborative Numerics Group
 
-The master branch of development group can be merged after the succesful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote
+The master branch of development group can be merged after the successful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote
 
        git remote add remote_name git@gitlab.com:collaborative-numerics-group/piclas/piclas.git
 
