@@ -73,7 +73,7 @@ INTEGER               :: iLoop, nRelax, fillMa1, fillMa2, iQuant, iQuaMax, iDOF,
 INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:),iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
 REAL, ALLOCATABLE     :: iRanPart(:,:), Xi_vib_DOF(:), VibEnergyDOF(:,:)
 REAL                  :: A(3,3), Work(1000), W(3), trace, CShak
-INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax, localBGKModel
+INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver
 #ifdef CODE_ANALYZE
@@ -113,7 +113,7 @@ DO iLoop = 1, nPart
       +PartState(iPartIndx_Node(iLoop),5)**2. + PartState(iPartIndx_Node(iLoop),6)**2.
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2
-  IF ((BGKCollModel.EQ.1).OR.(BGKCollModel.EQ.4).OR.(BGKCollModel.EQ.5)) THEN
+  IF ((BGKCollModel.EQ.1).OR.(BGKCollModel.EQ.4)) THEN
     DO fillMa1 =1, 3
       DO fillMa2 =fillMa1, 3
         u0ij(fillMa1, fillMa2)= u0ij(fillMa1, fillMa2) + V_rel(fillMa1)*V_rel(fillMa2)
@@ -121,7 +121,7 @@ DO iLoop = 1, nPart
     END DO
     u0i(1:3) = u0i(1:3) + V_rel(1:3)
   END IF  
-  IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4).OR.(BGKCollModel.EQ.5)) u2i(1:3) = u2i(1:3) + V_rel(1:3)*vmag2
+  IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4)) u2i(1:3) = u2i(1:3) + V_rel(1:3)*vmag2
   IF (SBGKEnergyConsMethod.NE.2) OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN 
     IF(BGKDoVibRelaxation) Evib = Evib + PartStateIntEn(iPartIndx_Node(iLoop),1) - SpecDSMC(1)%EZeroPoint
@@ -129,7 +129,7 @@ DO iLoop = 1, nPart
   END IF
 END DO
 
-IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4).OR.(BGKCollModel.EQ.5)) THEN
+IF ((BGKCollModel.EQ.2).OR.(BGKCollModel.EQ.4)) THEN
   IF(nPart.LE.2) RETURN
   u2i = u2i*nPart/((nPart-1.)*(nPart-2.))
 END IF
@@ -141,17 +141,6 @@ trace = u0ij(1,1)+u0ij(2,2)+u0ij(3,3)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst) *nPart/(nPart-1.)
 
 u2 = u2*nPart/(nPart-1.)
-IF (BGKCollModel.EQ.5) THEN
-!  IF ((MAX(ABS(u2i(1)),ABS(u2i(2)),ABS(u2i(3)))/(u2/3.)**(3./2.)).GT.4.) THEN
-!  IF ((ABS(u2i(1))/(u2/3.)**(3./2.)).GT.4.) THEN
-  IF (CellTemp.GT.3000.) THEN
-    localBGKModel = 1
-  ELSE
-    localBGKModel = 2
-  END IF
-ELSE
-  localBGKModel = BGKCollModel
-END IF
 
 dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
@@ -220,10 +209,10 @@ dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) 
         /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
-IF (localBGKModel.EQ.1) THEN
+IF (BGKCollModel.EQ.1) THEN
   relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
       /dynamicvis*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
-ELSE IF (localBGKModel.EQ.4) THEN
+ELSE IF (BGKCollModel.EQ.4) THEN
   relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
       /(dynamicvis*(1.-BGKUnifiedCes))*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
 ELSE
@@ -376,7 +365,7 @@ END IF
 
 IF (nRelax.GT.0) THEN
   ALLOCATE(iRanPart(3,nRelax))
-  SELECT CASE(localBGKModel)
+  SELECT CASE(BGKCollModel)
   CASE (1)
     IF (ESBGKModel.EQ.1) THEN
       !! Approximated Solution
@@ -472,7 +461,7 @@ IF (nRelax.GT.0) THEN
       CALL MetropolisUnified(nRelax, iRanPart,A, u2/3.,  u2i, CShak)
   END SELECT
   DO iLoop = 1, nRelax
-    IF ((localBGKModel.EQ.1).AND.(ESBGKModel.NE.3)) THEN
+    IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.NE.3)) THEN
       tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC)*iRanPart(1:3,iLoop)
       DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE 
