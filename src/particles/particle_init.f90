@@ -976,6 +976,17 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
+CALL prms%CreateIntOption(      'Part-nMacroParticle'  &
+                                , 'Number of macro particle, which are checked during tracing',  '0')
+CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
+                                , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
+
 END SUBROUTINE DefineParametersParticles
 
 SUBROUTINE InitParticles()
@@ -1152,6 +1163,7 @@ INTEGER               :: MacroRestartFileID
 LOGICAL,ALLOCATABLE   :: MacroRestartFileUsed(:)
 INTEGER               :: FileID, iElem
 REAL                  :: particlenumber_tmp, phimax_tmp
+INTEGER               :: iMP
 !===================================================================================================================================
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
@@ -2514,6 +2526,23 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+
+!-- MacroPart
+nMacroParticle = GETINT('Part-nMacroParticle')
+IF (nMacroparticle.GT.0) THEN
+  UseMacroPart=.TRUE.
+  ALLOCATE (MacroPart(1:nMacroParticle))
+  DO iMP = 1,nMacroParticle
+    WRITE(UNIT=hilf,FMT='(I0)') iMP
+    MacroPart(iMP)%center=GETREALARRAY('MacroPart'//TRIM(hilf)//'-center',3)
+    MacroPart(iMP)%velocity=GETREALARRAY('MacroPart'//TRIM(hilf)//'-velocity',3)
+    MacroPart(iMP)%radius=GETREAL('MacroPart'//TRIM(hilf)//'-radius')
+    MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
+  END DO
+  !CALL MarkMacroPartElems()
+ELSE
+  UseMacroPart=.FALSE.
+END IF
 
 !-- AuxBCs
 nAuxBCs=GETINT('Part-nAuxBCs','0')

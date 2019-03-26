@@ -466,5 +466,17 @@ TYPE tCollectCharges
 END TYPE
 TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
 
+TYPE tMacroParticle
+  REAL    :: center(3)
+  REAL    :: velocity(3)
+  REAL    :: radius
+  REAL    :: temp
+END TYPE
+
+TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
+INTEGER                           :: nMacroParticle
+LOGICAL                           :: UseMacroPart
+LOGICAL,ALLOCATABLE               :: ElemHasMacroPart(:,:)
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

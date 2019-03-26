@@ -41,6 +41,10 @@ INTERFACE ComputeAuxBCIntersection
   MODULE PROCEDURE ComputeAuxBCIntersection
 END INTERFACE
 
+INTERFACE ComputeMacropartIntersection
+  MODULE PROCEDURE ComputeMacroPartIntersection
+END INTERFACE
+
 #ifdef CODE_ANALYZE
 INTERFACE OutputTrajectory
   MODULE PROCEDURE OutputTrajectory
@@ -51,6 +55,7 @@ PUBLIC::ComputePlanarCurvedIntersection
 PUBLIC::ComputeBilinearIntersection
 PUBLIC::ComputeCurvedIntersection
 PUBLIC::ComputeAuxBCIntersection
+PUBLIC::ComputeMacroPartIntersection
 #ifdef CODE_ANALYZE
 PUBLIC::OutputTrajectory
 #endif /*CODE_ANALYZE*/
@@ -4446,6 +4451,134 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE ComputeAuxBCIntersection
+
+
+SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,macroPartID,alpha,partID)
+!===================================================================================================================================
+! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: LastPartPos,PartState, MacroPart
+USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
+#endif /*CODE_ANALYZE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: partID
+INTEGER,INTENT(IN)                :: macroPartID
+REAL,INTENT(IN)                   :: alphaDone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                              :: A,B,C,alphaNorm
+REAL                              :: t(2), scaleFac
+INTEGER                           :: InterType,nRoot
+LOGICAL                           :: ElemCheck
+REAL                              :: refPosSphere(1:3),refVeloPart(1:3), distance
+!===================================================================================================================================
+! set alpha to minus one // no intersection
+alpha=-1.0
+isHit=.FALSE.
+
+refPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3) + MacroPart(MacroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDone
+refVeloPart(1:3) = (PartState(PartID,4:6)-MacroPart(MacroPartId)%velocity(1:3))*dt*RKdtFrac
+
+A = refVeloPart(1)**2 + refVeloPart(2)**2 + refVeloPart(3)**2
+B = 2 * ( (LastPartPos(PartID,1)-refPosSphere(1))*refVeloPart(1) + (LastPartPos(PartID,2)-refPosSphere(2))*refVeloPart(2) &
+    + (LastPartPos(PartID,3)-refPosSphere(3))*refVeloPart(3))
+C = (LastPartPos(PartID,1)-refPosSphere(1))**2 + (LastPartPos(PartID,2)-refPosSphere(2))**2 &
+    + (LastPartPos(PartID,3)-refPosSphere(3))**2 - MacroPart(MacroPartID)%radius**2
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') '     | Quadratic equation constants in MacroParticle intersection: '
+      WRITE(UNIT_stdout,'(3(A,G0))') '     | A: ',A,' | B: ',B,' | C: ',C
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+scaleFac = LengthPartTrajectory * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
+scaleFac = 1./scaleFac
+A = A * scaleFac
+B = B * scaleFac
+C = C * scaleFac
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(A)') '     | Quadratic equation constants in MacroParticle intersection (after scaling): '
+      WRITE(UNIT_stdout,'(3(A,G0))') '     | A: ',A,' | B: ',B,' | C: ',C
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
+CALL QuadraticSolver(A,B,C,nRoot,t(1),t(2))
+
+distance=SQRT(DOT_PRODUCT((PartState(PartID,1:3)-refPosSphere(1:3)),(PartState(PartID,1:3)-refPosSphere(1:3))))
+!if (distance.LE.MacroPart(MacroPartID)%radius*1.01) THEN
+!  print*,'part is almost there',distance,PartID,refPosSphere(1:3)
+!WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
+!END IF
+
+IF(nRoot.EQ.0)THEN
+  RETURN
+END IF
+
+IF (nRoot.EQ.1) THEN
+  IF(t(1).LE.1.0 .AND. t(1).GT.0.) THEN
+    alpha=t(1)*lengthPartTrajectory
+    isHit=.TRUE.
+    RETURN
+  ELSE
+    RETURN
+  END IF
+ELSE
+  InterType=0
+
+  IF(t(1).LE.1.0 .AND. t(1).GT.0.) THEN
+    InterType=InterType+1
+    isHit=.TRUE.
+  ELSE
+    t(1)=-1.
+  END IF
+
+  IF(t(2).LE.1.0 .AND. t(2).GT.0.) THEN
+    InterType=InterType+2
+    isHit=.TRUE.
+  ELSE
+    t(2)=-1.
+  END IF
+
+  IF(InterType.EQ.0) THEN
+    RETURN
+  END IF
+  isHit=.TRUE.
+  SELECT CASE(InterType)
+  CASE(1)
+    alpha=t(1)*lengthPartTrajectory
+  CASE(2)
+     alpha=t(2)*lengthPartTrajectory
+  CASE DEFAULT
+   ! two intersections
+    IF(t(1).LT.t(2))THEN
+      alpha=t(1)*lengthPartTrajectory
+    ELSE
+      alpha=t(2)*lengthPartTrajectory
+    END IF
+  END SELECT
+  RETURN
+END IF
+
+END SUBROUTINE ComputeMacroPartIntersection
 
 
 END MODULE MOD_Particle_Intersection

@@ -38,11 +38,15 @@ INTERFACE GetBoundaryInteractionAuxBC
   MODULE PROCEDURE GetBoundaryInteractionAuxBC
 END INTERFACE
 
+INTERFACE GetInteractionWithMacroPart
+  MODULE PROCEDURE GetInteractionWithMacroPart
+END INTERFACE
+
 INTERFACE PartSwitchElement
   MODULE PROCEDURE PartSwitchElement
 END INTERFACE
 
-PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,GetBoundaryInteractionAuxBC,PartSwitchElement
+PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef,GetBoundaryInteractionAuxBC,PartSwitchElement,GetInteractionWithMacroPart
 !===================================================================================================================================
 
 CONTAINS
@@ -622,6 +626,131 @@ IF(1.EQ.2)THEN
 END IF
 
 END SUBROUTINE GetBoundaryInteractionAuxBC
+
+
+SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alpha,alphaDoneRel,macroPartID,partID,opt_Reflected)
+!===================================================================================================================================
+! Computes the post boundary state of a particle that interacts with an spherical macro particle
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
+USE MOD_Globals_Vars,           ONLY:PI, BoltzmannConst
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,MacroPart
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species
+USE MOD_TimeDisc_Vars,          ONLY:dt,RKdtFrac
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                   :: PartID,macroPartID
+REAL   ,INTENT(IN)                   :: alpha,alphaDoneRel
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                   :: PartTrajectory(1:3),lengthPartTrajectory
+LOGICAL,INTENT(OUT),OPTIONAL         :: opt_Reflected
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: intersectPoint(1:3),nLoc(1:3),refVeloPart(1:3)
+REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
+REAL                                 :: EtraWall, EtraNew
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
+REAL                                 :: POI_fak,TildTrajectory(3)
+REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+!===================================================================================================================================
+intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
+WallVelo = MacroPart(macroPartID)%velocity
+refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
+nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center+alphaDoneRel*dt*RKdtFrac*MacroPart(macroPartID)%velocity))
+! nLoc points outwards of sphere
+IF(DOT_PRODUCT(nLoc,PartTrajectory).GE.0.)  THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  RETURN
+  !CALL abort(&
+  !  __STAMP__&
+  !  ,'Error in macro particle reflection: Particle coming from inside!')
+ELSE IF(DOT_PRODUCT(nLoc,PartTrajectory).LT.0.) THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+ELSE
+  CALL abort(&
+    __STAMP__&
+    ,'Error in macro particle reflection: n_vec is perpendicular to PartTrajectory for macro particle',macroPartID)
+END IF
+nLoc=-nLoc
+
+IF (nLoc(3).NE.0.) THEN
+  tang1(1) = 1.0
+  tang1(2) = 1.0
+  tang1(3) = -(nLoc(1)+nLoc(2))/nLoc(3)
+ELSE
+  IF (nLoc(2).NE.0.) THEN
+    tang1(1) = 1.0
+    tang1(3) = 1.0
+    tang1(2) = -(nLoc(1)+nLoc(3))/nLoc(2)
+  ELSE
+    IF (nLoc(1).NE.0.) THEN
+      tang1(2) = 1.0
+      tang1(3) = 1.0
+      tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
+    ELSE
+      CALL abort(&
+__STAMP__&
+,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+    END IF
+  END IF
+END IF
+tang1=UNITVECTOR(tang1)
+tang2=CROSSNORM(nLoc,tang1)
+WallTemp=MacroPart(macroPartID)%temp
+TransACC=0.
+VibACC=1.
+RotACC=1.
+
+! calculate new velocity vector (Extended Maxwellian Model)
+VeloReal = SQRT(refVeloPart(1) * refVeloPart(1) + &
+                refVeloPart(2) * refVeloPart(2) + &
+                refVeloPart(3) * refVeloPart(3))
+
+EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+CALL RANDOM_NUMBER(RanNum)
+VeloCrad    = SQRT(-LOG(RanNum))
+CALL RANDOM_NUMBER(RanNum)
+VeloCz      = SQRT(-LOG(RanNum))
+Fak_D       = VeloCrad**2 + VeloCz**2
+
+EtraWall    = BoltzmannConst * WallTemp * Fak_D
+EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
+Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
+CALL RANDOM_NUMBER(RanNum)
+Phi     = 2.0 * PI * RanNum
+VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
+VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
+VeloCz  = Cmr * VeloCz
+
+NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
+
+! intersection point with surface
+LastPartPos(PartID,1:3) = intersectPoint(1:3)
+
+! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+TildTrajectory=dt*RKdtFrac*refVeloPart(1:3)
+POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+! travel rest of particle vector
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
+
+!----  saving new particle velocity
+PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+
+! recompute trajectory etc
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+
+END SUBROUTINE GetInteractionWithMacroPart
 
 
 SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
