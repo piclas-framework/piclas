@@ -61,9 +61,13 @@ CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables oct
                                                                     'directions (x,y,z)','.FALSE.')
 CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define minimum number of particles per cell for octree cell'//&
                                                                     'refinement', '10')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'TODO-DEFINE-PARAMETER', '5')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'Enable moving average of variables for the calculation of'//&
+                                                                    'the cell temperature for the rotational and vibrational'//&
+                                                                    'relaxation frequency for molecules','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','Enable reset of the moving average after a certain number'//&
+                                                                    'of iterations, defined by -AveragingLength','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'Number of iterations after which the moving average is reset',&
+                                                                    '5')
 CALL prms%CreateRealOption(   'Particles-BGK-Acceleration',         'TODO-DEFINE-PARAMETER', '-9.81')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'TODO-DEFINE-PARAMETER', '0.0')
 CALL prms%CreateLogicalOption('Particles-BGK-SampAdapFac',          'TODO-DEFINE-PARAMETER','.FALSE.')
