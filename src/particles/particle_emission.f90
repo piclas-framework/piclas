@@ -722,7 +722,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 ! modules
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
-USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow,UseMacroPart
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
@@ -744,6 +744,7 @@ USE MOD_LD                     ,ONLY: LD_SetParticlePosition
 USE MOD_Timedisc_Vars          ,ONLY: DoDisplayIter, iter, IterDisplayStep
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_part_tools,            ONLY : INSIDEMACROPART
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'                                                                               
@@ -1401,6 +1402,12 @@ __STAMP__&
            Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
 #endif
          END IF
+         IF (UseMacroPart) THEN
+           IF (INSIDEMACROPART(Particle_pos)) THEN
+             i=i+1
+             CYCLE !particle is inside MacroParticle
+           END IF
+         END IF
          IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
            CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
            IF (insideExcludeRegion) THEN
@@ -1456,6 +1463,12 @@ __STAMP__&
 #else
            Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
 #endif
+         END IF
+         IF (UseMacroPart) THEN
+           IF (INSIDEMACROPART(Particle_pos)) THEN
+             i=i+1
+             CYCLE !particle is inside MacroParticle
+           END IF
          END IF
          IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
            CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -1566,6 +1579,12 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
+        IF (UseMacroPart) THEN
+          IF (INSIDEMACROPART(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -1641,6 +1660,12 @@ __STAMP__&
 __STAMP__&
 ,'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
+        IF (UseMacroPart) THEN
+          IF (INSIDEMACROPART(Particle_pos)) THEN
+            i=i+1
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
           IF (insideExcludeRegion) THEN
@@ -4673,7 +4698,7 @@ USE MOD_Timedisc_Vars         , ONLY : iter
 #endif
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
+USE MOD_part_tools             ,ONLY : UpdateNextFreePosition,INSIDEMACROPART
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn
 USE MOD_SurfaceModel_Vars      ,ONLY : Adsorption, Liquid
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
@@ -5115,7 +5140,7 @@ __STAMP__&
         END IF !VeloIsNormal
         !-- put particles in subside (rejections are used if contraint reduces actual inserted number)
         iPart=1
-        nReject=0
+        !nReject=0
         allowedRejections=0
         DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
           IF (TriaSurfaceFlux) THEN
@@ -5209,6 +5234,12 @@ __STAMP__&
             AcceptPos=.TRUE.
           END IF ! CircularInflow
 
+          IF (UseMacroPart) THEN
+            IF (INSIDEMACROPART(Particle_pos)) THEN
+              AcceptPos=.FALSE.
+            END IF
+          END IF
+
           !-- save position if accepted:
           IF (AcceptPos) THEN
             particle_positions(iPart*3-2) = Particle_pos(1)
@@ -5220,8 +5251,8 @@ __STAMP__&
             END IF !VeloIsNormal
             iPart=iPart+1
           ELSE
-            nReject=nReject+1
-            IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+            !nReject=nReject+1
+            IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow .OR. UseMacroPart) THEN !check rmax-rejection
               allowedRejections=allowedRejections+1
             END IF
           END IF
@@ -6112,12 +6143,13 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
+USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM, UseMacroPart
 USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,             ONLY : nElems
 USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
+USE MOD_part_tools,            ONLY : INSIDEMACROPART
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6193,6 +6225,11 @@ __STAMP__,&
             END IF
           END IF
         END DO
+        IF (UseMacroPart) THEN
+          IF (INSIDEMACROPART(RandomPos)) THEN
+            CYCLE !particle is inside MacroParticle
+          END IF
+        END IF
         PartState(ParticleIndexNbr,1:3) = RandomPos(1:3)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         PDM%IsNewPart(ParticleIndexNbr)=.TRUE.

@@ -976,7 +976,9 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
-CALL prms%CreateIntOption(      'Part-nMacroParticle'  &
+CALL prms%SetSection("MacroParticle")
+
+CALL prms%CreateIntOption(      'MacroPart-nMacroParticle'  &
                                 , 'Number of macro particle, which are checked during tracing',  '0')
 CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
@@ -986,6 +988,14 @@ CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
                                 , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-momentumACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-transACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-vibACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-rotACC'  &
+                                , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -2528,7 +2538,7 @@ SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
 !-- MacroPart
-nMacroParticle = GETINT('Part-nMacroParticle')
+nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
   UseMacroPart=.TRUE.
   ALLOCATE (MacroPart(1:nMacroParticle))
@@ -2538,6 +2548,10 @@ IF (nMacroparticle.GT.0) THEN
     MacroPart(iMP)%velocity=GETREALARRAY('MacroPart'//TRIM(hilf)//'-velocity',3)
     MacroPart(iMP)%radius=GETREAL('MacroPart'//TRIM(hilf)//'-radius')
     MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
+    MacroPart(iMP)%momentumACC=GETREAL('MacroPart'//TRIM(hilf)//'-momentumACC')
+    MacroPart(iMP)%transAcc=GETREAL('MacroPart'//TRIM(hilf)//'-transACC')
+    MacroPart(iMP)%vibAcc=GETREAL('MacroPart'//TRIM(hilf)//'-vibACC')
+    MacroPart(iMP)%rotACC=GETREAL('MacroPart'//TRIM(hilf)//'-rotACC')
   END DO
   !CALL MarkMacroPartElems()
 ELSE

@@ -4453,7 +4453,7 @@ END SELECT
 END SUBROUTINE ComputeAuxBCIntersection
 
 
-SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,macroPartID,alpha,partID)
+SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,macroPartID,alpha,partID,alpha2)
 !===================================================================================================================================
 ! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
 !===================================================================================================================================
@@ -4472,6 +4472,7 @@ REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: partID
 INTEGER,INTENT(IN)                :: macroPartID
 REAL,INTENT(IN)                   :: alphaDone
+REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha
@@ -4482,14 +4483,17 @@ REAL                              :: A,B,C,alphaNorm
 REAL                              :: t(2), scaleFac
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
-REAL                              :: refPosSphere(1:3),refVeloPart(1:3), distance
+REAL                              :: refPosSphere(1:3),refVeloPart(1:3)
+#ifdef CODE_ANALYZE
+REAL                              :: distance, distance2,center(1:3)
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! set alpha to minus one // no intersection
 alpha=-1.0
 isHit=.FALSE.
 
-refPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3) + MacroPart(MacroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDone
-refVeloPart(1:3) = (PartState(PartID,4:6)-MacroPart(MacroPartId)%velocity(1:3))*dt*RKdtFrac
+refPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)
+refVeloPart(1:3) = (PartTrajectory*lengthPartTrajectory) - (MacroPart(MacroPartId)%velocity(1:3)*dt*RKdtFrac)
 
 A = refVeloPart(1)**2 + refVeloPart(2)**2 + refVeloPart(3)**2
 B = 2 * ( (LastPartPos(PartID,1)-refPosSphere(1))*refVeloPart(1) + (LastPartPos(PartID,2)-refPosSphere(2))*refVeloPart(2) &
@@ -4523,19 +4527,34 @@ C = C * scaleFac
 
 CALL QuadraticSolver(A,B,C,nRoot,t(1),t(2))
 
-distance=SQRT(DOT_PRODUCT((PartState(PartID,1:3)-refPosSphere(1:3)),(PartState(PartID,1:3)-refPosSphere(1:3))))
-!if (distance.LE.MacroPart(MacroPartID)%radius*1.01) THEN
-!  print*,'part is almost there',distance,PartID,refPosSphere(1:3)
-!WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
-!END IF
+#ifdef CODE_ANALYZE
+center(1:3)=MacroPart(MacroPartID)%center(1:3)
+distance=SQRT(DOT_PRODUCT((LastPartPos(PartID,1:3)-center(1:3)),(LastPartPos(PartID,1:3)-center(1:3))))
+distance2=SQRT(DOT_PRODUCT((PartState(PartID,1:3)-center(1:3)),(PartState(PartID,1:3)-center(1:3))))
+if (distance.LE.MacroPart(MacroPartID)%radius .AND. distance2.LE.MacroPart(MacroPartID)%radius) THEN
+  WRITE(UNIT_stdout,'(A)') '     | Particle is inside of Macro particle (sphere): '
+  WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
+  WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+  WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
+  WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
+END IF
+#endif /*CODE_ANALYZE*/
 
 IF(nRoot.EQ.0)THEN
   RETURN
 END IF
 
 IF (nRoot.EQ.1) THEN
-  IF(t(1).LE.1.0 .AND. t(1).GT.0.) THEN
+  IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
     alpha=t(1)*lengthPartTrajectory
+    IF (PRESENT(alpha2)) THEN
+      IF (alpha2.GT.-1.0) THEN
+        IF (ALMOSTEQUAL(alpha,alpha2)) THEN
+          alpha=-1.0
+          RETURN
+        END IF
+      END IF
+    END IF
     isHit=.TRUE.
     RETURN
   ELSE
@@ -4544,16 +4563,30 @@ IF (nRoot.EQ.1) THEN
 ELSE
   InterType=0
 
-  IF(t(1).LE.1.0 .AND. t(1).GT.0.) THEN
+  IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
     InterType=InterType+1
-    isHit=.TRUE.
+    IF (PRESENT(alpha2)) THEN
+      IF (alpha2.GT.-1.0) THEN
+        IF (ALMOSTEQUAL(t(1)*lengthPartTrajectory,alpha2)) THEN
+          t(1)=-1.0
+          InterType=InterType-1
+        END IF
+      END IF
+    END IF
   ELSE
     t(1)=-1.
   END IF
 
-  IF(t(2).LE.1.0 .AND. t(2).GT.0.) THEN
+  IF(t(2).LE.1.0 .AND. t(2).GE.0.) THEN
     InterType=InterType+2
-    isHit=.TRUE.
+    IF (PRESENT(alpha2)) THEN
+      IF (alpha2.GT.-1.0) THEN
+        IF (ALMOSTEQUAL(t(2)*lengthPartTrajectory,alpha2)) THEN
+          t(2)=-1.0
+          InterType=InterType-2
+        END IF
+      END IF
+    END IF
   ELSE
     t(2)=-1.
   END IF

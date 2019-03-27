@@ -662,26 +662,28 @@ REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, Ve
 intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
 WallVelo = MacroPart(macroPartID)%velocity
 refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
+!if (alphadonerel.GT.0) print*,alphaDonerel
 nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center+alphaDoneRel*dt*RKdtFrac*MacroPart(macroPartID)%velocity))
 ! nLoc points outwards of sphere
-IF(DOT_PRODUCT(nLoc,PartTrajectory).GE.0.)  THEN
+IF(DOT_PRODUCT(nLoc,refVeloPart).GT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
   RETURN
-  !CALL abort(&
-  !  __STAMP__&
-  !  ,'Error in macro particle reflection: Particle coming from inside!')
-ELSE IF(DOT_PRODUCT(nLoc,PartTrajectory).LT.0.) THEN
+ELSE IF(DOT_PRODUCT(nLoc,refVeloPart).LT.0.) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'Error in macro particle reflection: n_vec is perpendicular to PartTrajectory for macro particle',macroPartID)
 END IF
 nLoc=-nLoc
 
-IF (nLoc(3).NE.0.) THEN
-  tang1(1) = 1.0
-  tang1(2) = 1.0
+! perfect reflection on sphere
+CALL RANDOM_NUMBER(RanNum)
+IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
+  PartState(PartID,4:6) = refVeloPart(1:3) - 2.*DOT_PRODUCT(refVeloPart(1:3),n_loc)*n_loc + WallVelo
+  ! set particle position on face
+  LastPartPos(PartID,1:3) = intersectPoint(1:3)
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + dt*RKdtFrac * (PartState(PartID,4:6))
+ELSE !diffuse reflection on sphere
+  IF (nLoc(3).NE.0.) THEN
+    tang1(1) = 1.0
+    tang1(2) = 1.0
   tang1(3) = -(nLoc(1)+nLoc(2))/nLoc(3)
 ELSE
   IF (nLoc(2).NE.0.) THEN
@@ -700,55 +702,55 @@ __STAMP__&
     END IF
   END IF
 END IF
-tang1=UNITVECTOR(tang1)
-tang2=CROSSNORM(nLoc,tang1)
-WallTemp=MacroPart(macroPartID)%temp
-TransACC=0.
-VibACC=1.
-RotACC=1.
+  tang1=UNITVECTOR(tang1)
+  tang2=CROSSNORM(nLoc,tang1)
 
-! calculate new velocity vector (Extended Maxwellian Model)
-VeloReal = SQRT(refVeloPart(1) * refVeloPart(1) + &
-                refVeloPart(2) * refVeloPart(2) + &
-                refVeloPart(3) * refVeloPart(3))
+  WallTemp=MacroPart(macroPartID)%temp
+  TransACC=MacroPart(macroPartID)%transAcc
+  VibACC=MacroPart(macroPartID)%vibACC
+  RotACC=MacroPart(macroPartID)%rotACC
 
-EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
-CALL RANDOM_NUMBER(RanNum)
-VeloCrad    = SQRT(-LOG(RanNum))
-CALL RANDOM_NUMBER(RanNum)
-VeloCz      = SQRT(-LOG(RanNum))
-Fak_D       = VeloCrad**2 + VeloCz**2
+  ! calculate new velocity vector (Extended Maxwellian Model)
+  VeloReal = SQRT(refVeloPart(1) * refVeloPart(1) + &
+                  refVeloPart(2) * refVeloPart(2) + &
+                  refVeloPart(3) * refVeloPart(3))
 
-EtraWall    = BoltzmannConst * WallTemp * Fak_D
-EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
-CALL RANDOM_NUMBER(RanNum)
-Phi     = 2.0 * PI * RanNum
-VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
-VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
-VeloCz  = Cmr * VeloCz
+  EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+  CALL RANDOM_NUMBER(RanNum)
+  VeloCrad    = SQRT(-LOG(RanNum))
+  CALL RANDOM_NUMBER(RanNum)
+  VeloCz      = SQRT(-LOG(RanNum))
+  Fak_D       = VeloCrad**2 + VeloCz**2
 
-NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
+  EtraWall    = BoltzmannConst * WallTemp * Fak_D
+  EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
+  Cmr         = SQRT(2.0 * EtraNew / (Species(PartSpecies(PartID))%MassIC * Fak_D))
+  CALL RANDOM_NUMBER(RanNum)
+  Phi     = 2.0 * PI * RanNum
+  VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
+  VeloCy  = Cmr * VeloCrad * SIN(Phi) ! tang2
+  VeloCz  = Cmr * VeloCz
 
-! intersection point with surface
-LastPartPos(PartID,1:3) = intersectPoint(1:3)
+  NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*nLoc
 
-! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-TildTrajectory=dt*RKdtFrac*refVeloPart(1:3)
-POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-! travel rest of particle vector
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
+  ! set particle position on face
+  LastPartPos(PartID,1:3) = intersectPoint(1:3)
 
-!----  saving new particle velocity
-PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+  !TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6) !refVeloPart(1:3)
+  POI_fak=0. !1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+  ! travel rest of particle vector
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
 
-! recompute trajectory etc
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-PartTrajectory=PartTrajectory/lengthPartTrajectory
-
+  !----  saving new particle velocity
+  PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
+END IF
+  ! recompute trajectory etc
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 END SUBROUTINE GetInteractionWithMacroPart
 

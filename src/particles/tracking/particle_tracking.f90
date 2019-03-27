@@ -715,9 +715,13 @@ DO iPart=1,PDM%ParticleVecLength
           locListAll(6+nAuxBCs+iMP)=6+nAuxBCs+iMP
           !IF (ElemHasMacroPart(ElemID,iMP)) THEN
             alphaDone=lengthPartTrajectoryDone/lengthPartTrajectoryBegin
-            CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,iMP&
-                                             ,locAlphaAll(6+nAuxBCs+iMP),iPart)
-                                           !print*,'Intersected',isHit,locAlphaAll(6+nAuxBCs+iMP),alphaDone
+            IF (PartDoubleCheck.EQ.1) THEN
+              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,iMP&
+                                               ,locAlphaAll(6+nAuxBCs+iMP),iPart,alpha2=alphaOld)
+            ELSE
+              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,iMP&
+                                               ,locAlphaAll(6+nAuxBCs+iMP),iPart)
+            END IF
           !ELSE
           !  isHit=.FALSE.
           !END IF

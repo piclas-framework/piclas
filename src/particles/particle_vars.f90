@@ -471,6 +471,10 @@ TYPE tMacroParticle
   REAL    :: velocity(3)
   REAL    :: radius
   REAL    :: temp
+  REAL    :: momentumAcc
+  REAL    :: transAcc
+  REAL    :: vibAcc
+  REAL    :: rotAcc
 END TYPE
 
 TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
