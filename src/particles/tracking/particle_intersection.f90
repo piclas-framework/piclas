@@ -4483,6 +4483,7 @@ REAL                              :: t(2), scaleFac
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
 REAL                              :: refPosSphere(1:3),refVeloPart(1:3)
+REAL                              :: relLengthPartTrajectory
 #ifdef CODE_ANALYZE
 REAL                              :: distance, distance2,center(1:3)
 #endif /*CODE_ANALYZE*/
@@ -4493,6 +4494,10 @@ isHit=.FALSE.
 
 refPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)
 refVeloPart(1:3) = (PartTrajectory*lengthPartTrajectory) - (MacroPart(MacroPartId)%velocity(1:3)*dt*RKdtFrac)
+relLengthPartTrajectory=SQRT(refVeloPart(1)*refVeloPart(1) &
+                         +refVeloPart(2)*refVeloPart(2) &
+                         +refVeloPart(3)*refVeloPart(3) )
+IF (relLengthPartTrajectory.EQ.0) RETURN
 
 A = refVeloPart(1)**2 + refVeloPart(2)**2 + refVeloPart(3)**2
 B = 2 * ( (LastPartPos(PartID,1)-refPosSphere(1))*refVeloPart(1) + (LastPartPos(PartID,2)-refPosSphere(2))*refVeloPart(2) &
@@ -4509,7 +4514,7 @@ C = (LastPartPos(PartID,1)-refPosSphere(1))**2 + (LastPartPos(PartID,2)-refPosSp
   END IF
 #endif /*CODE_ANALYZE*/
 
-scaleFac = LengthPartTrajectory * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
+scaleFac = relLengthPartTrajectory * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
 scaleFac = 1./scaleFac
 A = A * scaleFac
 B = B * scaleFac
@@ -4545,7 +4550,7 @@ END IF
 
 IF (nRoot.EQ.1) THEN
   IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
-    alpha=t(1)*lengthPartTrajectory
+    alpha=t(1)*relLengthPartTrajectory
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
         IF (ALMOSTEQUAL(alpha,alpha2)) THEN
@@ -4566,7 +4571,7 @@ ELSE
     InterType=InterType+1
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(1)*lengthPartTrajectory,alpha2)) THEN
+        IF (ALMOSTEQUAL(t(1)*relLengthPartTrajectory,alpha2)) THEN
           t(1)=-1.0
           InterType=InterType-1
         END IF
@@ -4580,7 +4585,7 @@ ELSE
     InterType=InterType+2
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(2)*lengthPartTrajectory,alpha2)) THEN
+        IF (ALMOSTEQUAL(t(2)*relLengthPartTrajectory,alpha2)) THEN
           t(2)=-1.0
           InterType=InterType-2
         END IF
@@ -4596,15 +4601,15 @@ ELSE
   isHit=.TRUE.
   SELECT CASE(InterType)
   CASE(1)
-    alpha=t(1)*lengthPartTrajectory
+    alpha=t(1)*relLengthPartTrajectory
   CASE(2)
-     alpha=t(2)*lengthPartTrajectory
+     alpha=t(2)*relLengthPartTrajectory
   CASE DEFAULT
    ! two intersections
     IF(t(1).LT.t(2))THEN
-      alpha=t(1)*lengthPartTrajectory
+      alpha=t(1)*relLengthPartTrajectory
     ELSE
-      alpha=t(2)*lengthPartTrajectory
+      alpha=t(2)*relLengthPartTrajectory
     END IF
   END SELECT
   RETURN

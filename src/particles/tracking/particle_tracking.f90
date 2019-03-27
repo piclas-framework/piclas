@@ -384,7 +384,7 @@ INTEGER,ALLOCATABLE           :: locListAll(:)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                          :: lengthPartTrajectoryBegin,lengthPartTrajectoryDone
 INTEGER                       :: macroPartsToCheck
-LOGICAL                       :: HasMacroPart,isMacroPart
+LOGICAL                       :: HasMacroPart,isMacroPart, onlyMacroPart
 INTEGER                       :: iMP
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
@@ -453,16 +453,29 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
 #endif /*CODE_ANALYZE*/
+    IF (UseMacroPart) THEN
+      !IF (ANY(ElemHasMacroPart(ElemID,:))) THEN
+        HasMacroPart=.TRUE.
+      !END IF
+    END IF
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)))THEN
-      PEM%Element(iPart)=ElemID
-      PartisDone=.TRUE.
-      CYCLE
+    OnlyMacroPart=.FALSE.
+    IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)) .OR. LengthPartTrajectory.EQ.0)THEN
+      ! if Macroparticle are in element, they might move and consequently have to be treated although lengthparttrajectory is 0
+      ! partvelo - macropartvelo might be > 0 --> Relative lengthPartTrajectory > 0
+      IF (HasMacroPart) THEN
+        onlyMacroPart=.TRUE.
+      ELSE
+        PEM%Element(iPart)=ElemID
+        PartisDone=.TRUE.
+        CYCLE
+      END IF
+    ELSE
+      PartTrajectory=PartTrajectory/lengthPartTrajectory
     END IF
-    PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(iPart.EQ.PARTOUT)THEN
@@ -526,11 +539,6 @@ DO iPart=1,PDM%ParticleVecLength
         HasAuxBC=.TRUE.
       END IF
     END IF
-    IF (UseMacroPart) THEN
-      !IF (ANY(ElemHasMacroPart(ElemID,:))) THEN
-        HasMacroPart=.TRUE.
-      !END IF
-    END IF
 !    IF (ElemType(ElemID).EQ.1) THEN
 !      !removed CheckPlanarInside since it can be inconsistent for planar-assumed sides:
 !      !they can still be planar-nonrect for which the bilin-algorithm will be used which might give a different result
@@ -563,6 +571,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF (HasAuxBC.OR.HasMacroPart) THEN
           locListAll(ilocSide)=ilocSide
           !IF (OnlyAuxBC) CYCLE
+          IF (OnlyMacroPart) CYCLE
         END IF
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
@@ -670,6 +679,9 @@ DO iPart=1,PDM%ParticleVecLength
         locAlphaAll=-1.
         DO iAuxBC=1,nAuxBCs
           locListAll(6+iAuxBC)=6+iAuxBC
+          IF (HasMacroPart) THEN
+            IF (OnlyMacroPart) CYCLE
+          END IF
           isCriticalParallelInFace=.FALSE.
           IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
             CALL ComputeAuxBCIntersection(isHit,PartTrajectory,lengthPartTrajectory &
@@ -782,6 +794,7 @@ DO iPart=1,PDM%ParticleVecLength
               CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,locAlphaAll(6+iAuxBC),iPart,iAuxBC,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
               dolocSide=.TRUE. !important when before there was an elemchange !
+              OnlyAuxBC=.FALSE. !important, since a new elem could have been reached now !
 #if USE_LOADBALANCE
               IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -800,6 +813,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                ,locAlphaAll(6+nAuxBCs+iMP),iMP,iPart,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
               dolocSide=.TRUE. !important when before there was an elemchange !
+              OnlyMacroPart=.FALSE. !important, since a new elem could have been reached now !
 #if USE_LOADBALANCE
               IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -920,6 +934,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                  ,locListAll(ilocSide)-6-nAuxBCs,iPart,crossedBC)
                 IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
                 dolocSide=.TRUE. !important when before there was an elemchange !
+                OnlyMacroPart=.FALSE. !important, since a new elem could have been reached now !
 #if USE_LOADBALANCE
                 IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/

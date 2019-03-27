@@ -658,12 +658,21 @@ REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibAC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                                 :: alphaDoneRel
+REAL                                 :: alphaDoneRel,refPartTrajectory(1:3),relLengthPartTrajectory
 !===================================================================================================================================
-intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
 WallVelo = MacroPart(macroPartID)%velocity
 refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
-alphaDoneRel = alpha/lengthPartTrajectory
+!refNewPartPos(1:3) = LastPartPos(PartID,1:3) + dt*RKdtFrac*refVeloPart(1:3)
+refPartTrajectory(1:3) = dt*RKdtFrac*refVeloPart(1:3)
+intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*refPartTrajectory(1:3)
+relLengthPartTrajectory=SQRT(refVeloPart(1)*refVeloPart(1) &
+                         +refVeloPart(2)*refVeloPart(2) &
+                         +refVeloPart(3)*refVeloPart(3) )
+IF (relLengthPartTrajectory.EQ.0) THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  RETURN
+END IF
+alphaDoneRel = alpha/relLengthPartTrajectory
 nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center+alphaDoneRel*dt*RKdtFrac*MacroPart(macroPartID)%velocity))
 ! nLoc points outwards of sphere
 IF(DOT_PRODUCT(nLoc,refVeloPart).GT.0.)  THEN
