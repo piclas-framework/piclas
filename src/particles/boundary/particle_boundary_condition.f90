@@ -662,7 +662,6 @@ REAL                                 :: alphaDoneRel,refPartTrajectory(1:3),relL
 !===================================================================================================================================
 WallVelo = MacroPart(macroPartID)%velocity
 refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
-!refNewPartPos(1:3) = LastPartPos(PartID,1:3) + dt*RKdtFrac*refVeloPart(1:3)
 refPartTrajectory(1:3) = dt*RKdtFrac*refVeloPart(1:3)
 intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*refPartTrajectory(1:3)
 relLengthPartTrajectory=SQRT(refVeloPart(1)*refVeloPart(1) &
@@ -745,22 +744,17 @@ ELSE !diffuse reflection on sphere
 
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
-
-  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-  !TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6) !refVeloPart(1:3)
-  POI_fak=0. !1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
   ! travel rest of particle vector
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
-
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alphaDoneRel) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
   !----  saving new particle velocity
   PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 END IF
-  ! recompute trajectory etc
-  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
-  PartTrajectory=PartTrajectory/lengthPartTrajectory
+! recompute trajectory etc
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 END SUBROUTINE GetInteractionWithMacroPart
 
