@@ -173,36 +173,36 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   TRot = 2.*ERot/(Xi_rot*nPart*BoltzmannConst)
 !  TEquiV = CalcTEquilibVib(nPart, CellTemp,TVib, Xi_Vib)
 !  TEquiR = (3.*CellTemp* (nPart-1.)/nPart+Xi_rot*TRot)/(3.* (nPart-1.)/nPart+Xi_rot)
-
-  IF (BGKDoAveraging) THEN
-    IF (BGKDoAveragingCorrect) THEN
-      CorrectStep = CorrectStep + 1
-      IF (CorrectStep.GT.BGKAveragingLength) CorrectStep = 1
-      AveragingPara(1:3,CorrectStep) = vBulkAll(1:3)*nPart
-      AveragingPara(4,CorrectStep) = u2Aver
-      AveragingPara(5,CorrectStep) = nPart
-      vBulkAver(1) = SUM(AveragingPara(1,:))
-      vBulkAver(2) = SUM(AveragingPara(2,:))
-      vBulkAver(3) = SUM(AveragingPara(3,:))
-      u2Aver = SUM(AveragingPara(4,:))
-      nPartAver = SUM(AveragingPara(5,:))
-      CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
-                    * 1./(nPartAver-1.)*(u2Aver - (vBulkAver(1)**2. &
-                    + vBulkAver(2)**2. + vBulkAver(3)**2.)/nPartAver)
-    ELSE
-      AveragingPara(1:3,1) = AveragingPara(1:3,1) + vBulkAll(1:3)*nPart
-      AveragingPara(4,1) = AveragingPara(4,1) + u2Aver
-      AveragingPara(5,1) = AveragingPara(5,1) + nPart
-      CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
-                    * 1./(AveragingPara(5,1)-1.)*(AveragingPara(4,1) - (AveragingPara(1,1)**2. &
-                    + AveragingPara(2,1)**2. + AveragingPara(3,1)**2.)/AveragingPara(5,1))
-    END IF
-  ELSE
-    CellTempRelax = CellTemp
-  END IF
   InnerDOF = Xi_rot + Xi_Vib
 ELSE
   InnerDOF = 0.
+END IF
+
+IF (BGKDoAveraging) THEN
+  IF (BGKDoAveragingCorrect) THEN
+    CorrectStep = CorrectStep + 1
+    IF (CorrectStep.GT.BGKAveragingLength) CorrectStep = 1
+    AveragingPara(1:3,CorrectStep) = vBulkAll(1:3)*nPart
+    AveragingPara(4,CorrectStep) = u2Aver
+    AveragingPara(5,CorrectStep) = nPart
+    vBulkAver(1) = SUM(AveragingPara(1,:))
+    vBulkAver(2) = SUM(AveragingPara(2,:))
+    vBulkAver(3) = SUM(AveragingPara(3,:))
+    u2Aver = SUM(AveragingPara(4,:))
+    nPartAver = SUM(AveragingPara(5,:))
+    CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
+                  * 1./(nPartAver-1.)*(u2Aver - (vBulkAver(1)**2. &
+                  + vBulkAver(2)**2. + vBulkAver(3)**2.)/nPartAver)
+  ELSE
+    AveragingPara(1:3,1) = AveragingPara(1:3,1) + vBulkAll(1:3)*nPart
+    AveragingPara(4,1) = AveragingPara(4,1) + u2Aver
+    AveragingPara(5,1) = AveragingPara(5,1) + nPart
+    CellTempRelax = Species(1)%MassIC / (3.*BoltzmannConst) &
+                  * 1./(AveragingPara(5,1)-1.)*(AveragingPara(4,1) - (AveragingPara(1,1)**2. &
+                  + AveragingPara(2,1)**2. + AveragingPara(3,1)**2.)/AveragingPara(5,1))
+  END IF
+ELSE
+  CellTempRelax = CellTemp
 END IF
 
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
@@ -211,13 +211,13 @@ Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CShak= Prandtl*(1.-BGKUnifiedCes)
 IF (BGKCollModel.EQ.1) THEN
   relaxfreq = Prandtl*dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
 ELSE IF (BGKCollModel.EQ.4) THEN
   relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /(dynamicvis*(1.-BGKUnifiedCes))*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+      /(dynamicvis*(1.-BGKUnifiedCes))*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
 ELSE
   relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
-      /dynamicvis*CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)
+      /dynamicvis*CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
