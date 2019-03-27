@@ -2064,8 +2064,8 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(BGKInitDone) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
     StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'
-    StrVarNames(nVarCount+3) ='BGK_DSMC_Ratio'
-    StrVarNames(nVarCount+4) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+3) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+4) ='BGK_DSMC_Ratio'
     nVarCount=nVarCount+4
   END IF
 END IF
