@@ -25,40 +25,6 @@ The suggested packages in this section can be replaced by self compiled versions
 Table: Debian/Ubuntu packages.\label{tab:installation_prereqs_ubuntu}
 x: required, o: optional, -: not available
 
-The required packages for OpenSUSE and CentOS are listed in table \ref{tab:installation_prereqs_redhat}.
-
-Under OpenSUSE, packages are installed by the following command.
-
-    sudo zypper install git
-
-The `PATH` variable must be extended by the openmpi path
-
-    export PATH=$PATH:/usr/lib64/mpi/gcc/openmpi/bin
-
-Under CentOS, packages are installed by the following command.
-
-    sudo yum install git
-
-Additionally, the `PATH` variable must be extended by the openmpi path
-
-    export PATH=$PATH:/usr/lib64/openmpi/bin
-
-| Package          | OpenSUSE 42.1 | CentOS 7 |
-|:----------------:|:-------------:|:--------:|
-| git              |      x        |    x     |
-| cmake            |      x        |    x     |
-| lapack-devel     |      x        |    x     |
-| openmpi          |      x        |    x     |
-| openmpi-devel    |      x        |    x     |
-| zlib-devel       |      x        |    x     |
-| gcc-fortran      |      x        |    x     |
-| gcc              |      x        |    -     |
-| gcc-c++          |      x        |    x     |
-| ctags-etags      |      -        |    o     |
-
-Table: OpenSUSE/CentOS packages.\label{tab:installation_prereqs_redhat}
-x: required, o: optional, -: not available
-
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active subroutines) in order to execute **PICLas** correctly. This is done using the command
 
 ~~~~~~~
@@ -69,17 +35,19 @@ from the command line. For convenience, you can add this line to your `.bashrc`.
 
 ### Installing/setting up OpenMPI \label{sec:install_mpi}
 
-work in progress
+PICLas requires an installtion of MPI with properly setup environment variables for parallel computations. The recommended MPI version to use with PICLas is *OpenMPI 2.1.5*. An example of properly set environment variable are given below
+
+    export MPI_DIR=/opt/openmpi/2.1.5
+    export PATH="/opt/openmpi/2.1.5/bin:$PATH"
+    export LD_LIBRARY_PATH="/opt/openmpi/2.1.5/lib:$LD_LIBRARY_PATH"
+
+For convenience, you can add these lines to your `.bashrc`.
 
 ### Installing/setting up HDF5 \label{sec:install_hdf5}
 
-An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the PICLas compile option:
+An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the compilation of HDF5 during the PICLas compilation has to be turned off (`PICLAS_BUILD_HDF5 = OFF`). If this option is enabled, HDF5 will be downloaded and compiled. However, this means that everytime a clean compilation of PICLas is performed, HDF5 will be recompiled. It is prefered to either install HDF5 on your system locally or utilize the packages provided on your cluster.
 
-    PICLAS_BUILD_HDF5 = OFF
-
-If this option is enabled, HDF5 will be downloaded and compiled. However, since this means that everytime a clean compilation of PICLas is performed, HDF5 will be recompiled. It is prefered to either install HDF5 on your system locally or utilize the packages provided on your cluster.
-
-The recommended HDF5 version to use with PICLas is **HDF5 1.10.0-patch1**. In the following a manual installation of HDF5 is described, if HDF5 is already available on your system you can skip to the next Section \ref{sec:hdf5_env}.
+The recommended HDF5 version to use with PICLas is **1.10.0-patch1**. In the following a manual installation of HDF5 is described, if HDF5 is already available on your system you can skip to the next Section \ref{sec:hdf5_env}.
 
 #### Manual HDF5 installation
 
@@ -99,7 +67,7 @@ Make and install (if you chosen a folder required root access)
 
     make && make install
 
-#### Setting environment variables \ref{sec:hdf5_env}
+#### Setting environment variables \label{sec:hdf5_env}
 
 Depending whether HDF5 was installed using *configure* or *CMake*, different settings for the HDF5_DIR variable are required
 
