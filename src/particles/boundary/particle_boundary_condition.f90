@@ -655,7 +655,7 @@ REAL                                 :: intersectPoint(1:3),nLoc(1:3),refVeloPar
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
-REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
+REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: alphaDoneRel
@@ -677,7 +677,7 @@ nLoc=-nLoc
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
 IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
-  PartState(PartID,4:6) = refVeloPart(1:3) - 2.*DOT_PRODUCT(refVeloPart(1:3),n_loc)*n_loc + WallVelo
+  PartState(PartID,4:6) = refVeloPart(1:3) - 2.*DOT_PRODUCT(refVeloPart(1:3),nLoc)*nLoc + WallVelo
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
   PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + dt*RKdtFrac * (PartState(PartID,4:6))
