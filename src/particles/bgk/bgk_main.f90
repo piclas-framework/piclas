@@ -49,6 +49,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
 USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, BGKDSMCSwitchDens
 USE MOD_BGK_Vars,               ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
+USE MOD_BGK_Vars,               ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator,       ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
 USE MOD_DSMC,                   ONLY: DSMC_main
@@ -97,6 +98,7 @@ DO iElem = 1, nElems
       BGK_MeanRelaxFactorCounter = 0
       BGK_MeanRelaxFactor = 0.
       BGK_MaxRelaxFactor = 0.
+      BGK_MaxRotRelaxFactor = 0.
     END IF
     IF (BGKDoAveraging) THEN
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
@@ -111,6 +113,7 @@ DO iElem = 1, nElems
         BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
         BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
         BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
+        BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)
@@ -137,6 +140,7 @@ USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteM
 USE MOD_Restart_Vars       ,ONLY: RestartTime
 USE MOD_BGK_Vars           ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
 USE MOD_BGK_Vars           ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
+USE MOD_BGK_Vars           ,ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator   ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
 ! IMPLICIT VARIABLE HANDLING
@@ -177,6 +181,7 @@ ELSE
       BGK_MeanRelaxFactorCounter = 0
       BGK_MeanRelaxFactor = 0.
       BGK_MaxRelaxFactor = 0.
+      BGK_MaxRotRelaxFactor = 0.
     END IF
 
     IF (BGKDoAveraging) THEN
@@ -192,6 +197,7 @@ ELSE
         BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
         BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
         BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
+        BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
       END IF
     END IF
     DEALLOCATE(iPartIndx_Node)

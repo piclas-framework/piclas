@@ -51,7 +51,7 @@ USE MOD_BGK_Vars               ,ONLY: BGKMinPartPerCell, BGKDoAveraging, ElemNod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperatorOctree
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars               ,ONLY: BGK_QualityFacSamp
+USE MOD_BGK_Vars               ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -71,6 +71,7 @@ IF(DSMC%CalcQualityFactors) THEN
     BGK_MeanRelaxFactorCounter = 0
     BGK_MeanRelaxFactor = 0.
     BGK_MaxRelaxFactor = 0.
+    BGK_MaxRotRelaxFactor = 0.
   END IF
 END IF
 
@@ -146,6 +147,7 @@ IF(DSMC%CalcQualityFactors) THEN
       BGK_QualityFacSamp(2,iElem) = BGK_QualityFacSamp(2,iElem) + REAL(BGK_MeanRelaxFactorCounter)
       BGK_QualityFacSamp(3,iElem) = BGK_QualityFacSamp(3,iElem) + BGK_MaxRelaxFactor
       BGK_QualityFacSamp(4,iElem) = BGK_QualityFacSamp(4,iElem) + 1.
+      BGK_QualityFacSamp(5,iElem) = BGK_QualityFacSamp(5,iElem) + BGK_MaxRotRelaxFactor
     END IF
   END IF
 END IF

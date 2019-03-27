@@ -1738,9 +1738,10 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
           ! Max relaxation factor (maximal value of all octree subcells)
           DSMC_MacroVal(nVar+5,kk,ll,mm,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+          DSMC_MacroVal(nVar+6,kk,ll,mm,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
         END IF
         ! Ratio between BGK and DSMC usage per cell
-        DSMC_MacroVal(nVar+6,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+        DSMC_MacroVal(nVar+7,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
       END IF
     END DO
   END IF
@@ -2017,7 +2018,7 @@ END IF
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
-  IF(BGKInitDone) nVar_quality = nVar_quality + 3
+  IF(BGKInitDone) nVar_quality = nVar_quality + 4
 ELSE
   nVar_quality=0
 END IF
@@ -2064,7 +2065,8 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
     StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'
     StrVarNames(nVarCount+3) ='BGK_DSMC_Ratio'
-    nVarCount=nVarCount+3
+    StrVarNames(nVarCount+4) ='BGK_MaxRotationRelaxFactor'
+    nVarCount=nVarCount+4
   END IF
 END IF
 

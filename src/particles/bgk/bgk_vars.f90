@@ -48,6 +48,7 @@ REAL, ALLOCATABLE                              :: BGK_QualityFacSamp(:,:)
 INTEGER                                        :: BGK_MeanRelaxFactorCounter
 REAL                                           :: BGK_MeanRelaxFactor
 REAL                                           :: BGK_MaxRelaxFactor
+REAL                                           :: BGK_MaxRotRelaxFactor
 
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()

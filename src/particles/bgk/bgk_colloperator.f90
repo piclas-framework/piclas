@@ -47,7 +47,7 @@ USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
 USE MOD_BGK_Vars              ,ONLY: BGKAveragingLength, BGKDoAveraging
 USE MOD_BGK_Vars              ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
-USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor
+USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
 #endif /* CODE_ANALYZE */
@@ -238,6 +238,11 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   ELSE
     CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
       TEqui, rotrelaxfreq, vibrelaxfreq)
+  END IF
+  IF(DSMC%CalcQualityFactors) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
+    END IF
   END IF
 END IF
 
