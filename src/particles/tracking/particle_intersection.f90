@@ -4453,7 +4453,7 @@ END SELECT
 END SUBROUTINE ComputeAuxBCIntersection
 
 
-SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,macroPartID,alpha,partID,alpha2)
+SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID,alpha,partID,alpha2)
 !===================================================================================================================================
 ! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
 !===================================================================================================================================
@@ -4471,7 +4471,6 @@ REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: partID
 INTEGER,INTENT(IN)                :: macroPartID
-REAL,INTENT(IN)                   :: alphaDone
 REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

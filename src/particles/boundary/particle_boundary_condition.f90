@@ -628,7 +628,7 @@ END IF
 END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
-SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alpha,alphaDoneRel,macroPartID,partID,opt_Reflected)
+SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alpha,macroPartID,partID,opt_Reflected)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with an spherical macro particle
 !===================================================================================================================================
@@ -644,7 +644,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                   :: PartID,macroPartID
-REAL   ,INTENT(IN)                   :: alpha,alphaDoneRel
+REAL   ,INTENT(IN)                   :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: PartTrajectory(1:3),lengthPartTrajectory
@@ -658,11 +658,12 @@ REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibAC
 REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                                 :: alphaDoneRel
 !===================================================================================================================================
 intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
 WallVelo = MacroPart(macroPartID)%velocity
 refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
-!if (alphadonerel.GT.0) print*,alphaDonerel
+alphaDoneRel = alpha/lengthPartTrajectory
 nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center+alphaDoneRel*dt*RKdtFrac*MacroPart(macroPartID)%velocity))
 ! nLoc points outwards of sphere
 IF(DOT_PRODUCT(nLoc,refVeloPart).GT.0.)  THEN
@@ -684,24 +685,24 @@ ELSE !diffuse reflection on sphere
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
     tang1(2) = 1.0
-  tang1(3) = -(nLoc(1)+nLoc(2))/nLoc(3)
-ELSE
-  IF (nLoc(2).NE.0.) THEN
-    tang1(1) = 1.0
-    tang1(3) = 1.0
-    tang1(2) = -(nLoc(1)+nLoc(3))/nLoc(2)
+    tang1(3) = -(nLoc(1)+nLoc(2))/nLoc(3)
   ELSE
-    IF (nLoc(1).NE.0.) THEN
-      tang1(2) = 1.0
+    IF (nLoc(2).NE.0.) THEN
+      tang1(1) = 1.0
       tang1(3) = 1.0
-      tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
+      tang1(2) = -(nLoc(1)+nLoc(3))/nLoc(2)
     ELSE
-      CALL abort(&
-__STAMP__&
-,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+      IF (nLoc(1).NE.0.) THEN
+        tang1(2) = 1.0
+        tang1(3) = 1.0
+        tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
+      ELSE
+        CALL abort(&
+  __STAMP__&
+  ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+      END IF
     END IF
   END IF
-END IF
   tang1=UNITVECTOR(tang1)
   tang2=CROSSNORM(nLoc,tang1)
 

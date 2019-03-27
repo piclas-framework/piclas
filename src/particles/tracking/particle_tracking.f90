@@ -382,7 +382,7 @@ REAL,ALLOCATABLE              :: locAlphaAll(:)
 INTEGER,ALLOCATABLE           :: locListAll(:)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
-REAL                          :: lengthPartTrajectoryBegin,lengthPartTrajectoryDone,alphaDone
+REAL                          :: lengthPartTrajectoryBegin,lengthPartTrajectoryDone
 INTEGER                       :: macroPartsToCheck
 LOGICAL                       :: HasMacroPart,isMacroPart
 INTEGER                       :: iMP
@@ -457,9 +457,6 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    lengthPartTrajectoryBegin=lengthPartTrajectory
-    lengthPartTrajectoryDone=0.
-    
     IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)))THEN
       PEM%Element(iPart)=ElemID
       PartisDone=.TRUE.
@@ -714,12 +711,11 @@ DO iPart=1,PDM%ParticleVecLength
         DO iMP=1,nMacroParticle
           locListAll(6+nAuxBCs+iMP)=6+nAuxBCs+iMP
           !IF (ElemHasMacroPart(ElemID,iMP)) THEN
-            alphaDone=lengthPartTrajectoryDone/lengthPartTrajectoryBegin
             IF (PartDoubleCheck.EQ.1) THEN
-              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,iMP&
+              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlphaAll(6+nAuxBCs+iMP),iPart,alpha2=alphaOld)
             ELSE
-              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,alphaDone,iMP&
+              CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlphaAll(6+nAuxBCs+iMP),iPart)
             END IF
           !ELSE
@@ -775,7 +771,6 @@ DO iPart=1,PDM%ParticleVecLength
             END IF
             IF(crossedBC) THEN
               firstElem=ElemID
-              lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlpha(iLocSide)
               EXIT
             END IF
           END IF
@@ -792,7 +787,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
               IF(crossedBC) THEN
                 firstElem=ElemID
-                lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlphaAll(6+iAuxBC)
                 EXIT
               END IF
             END IF
@@ -802,9 +796,8 @@ DO iPart=1,PDM%ParticleVecLength
         IF (HasMacroPart) THEN
           DO iMP=1,nMacroParticle
             IF(locAlphaAll(6+nAuxBCs+iMP).GT.-1.0) THEN
-              alphaDone=lengthPartTrajectoryDone/lengthPartTrajectoryBegin
               CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory &
-                                               ,locAlphaAll(6+nAuxBCs+iMP),alphaDone,iMP,iPart,crossedBC)
+                                               ,locAlphaAll(6+nAuxBCs+iMP),iMP,iPart,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
               dolocSide=.TRUE. !important when before there was an elemchange !
 #if USE_LOADBALANCE
@@ -812,7 +805,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
               IF(crossedBC) THEN
                 firstElem=ElemID
-                lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlphaAll(6+nAuxBCs+iMP)
                 EXIT
               END IF
             END IF
@@ -908,11 +900,6 @@ DO iPart=1,PDM%ParticleVecLength
                 IF(SwitchedElement) EXIT
                 IF(crossedBC) THEN
                   firstElem=ElemID
-                  IF (HasAuxBC.OR.HasMacroPart) THEN
-                    lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlphaAll(iLocSide)
-                  ELSE
-                    lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlpha(iLocSide)
-                  END IF
                   EXIT
                 END IF
               ELSE IF (IsAuxBC) THEN !IsAuxBC=.TRUE.
@@ -926,12 +913,10 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
                 IF(crossedBC) THEN
                   firstElem=ElemID
-                  lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlphaAll(iLocSide)
                   EXIT
                 END IF
               ELSE
-                alphaDone=lengthPartTrajectoryDone/lengthPartTrajectoryBegin
-                CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,locAlphaAll(iLocSide),alphaDone&
+                CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,locAlphaAll(iLocSide)&
                                                  ,locListAll(ilocSide)-6-nAuxBCs,iPart,crossedBC)
                 IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
                 dolocSide=.TRUE. !important when before there was an elemchange !
@@ -940,7 +925,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
                 IF(crossedBC) THEN
                   firstElem=ElemID
-                  lengthPartTrajectoryDone=lengthPartTrajectoryDone+locAlphaAll(iLocSide)
                   EXIT
                 END IF
               END IF !IsAuxBC
