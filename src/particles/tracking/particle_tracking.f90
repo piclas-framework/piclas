@@ -453,6 +453,8 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
 #endif /*CODE_ANALYZE*/
+    HasMacroPart=.FALSE.
+    OnlyMacroPart=.FALSE.
     IF (UseMacroPart) THEN
       !IF (ANY(ElemHasMacroPart(ElemID,:))) THEN
         HasMacroPart=.TRUE.
@@ -462,7 +464,6 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    OnlyMacroPart=.FALSE.
     IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)) .OR. LengthPartTrajectory.EQ.0)THEN
       ! if Macroparticle are in element, they might move and consequently have to be treated although lengthparttrajectory is 0
       ! partvelo - macropartvelo might be > 0 --> Relative lengthPartTrajectory > 0
