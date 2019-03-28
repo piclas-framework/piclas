@@ -634,7 +634,7 @@ SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alpha
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
+USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR,CROSS
 USE MOD_Globals_Vars,           ONLY:PI, BoltzmannConst
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,MacroPart
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species
@@ -654,15 +654,16 @@ LOGICAL,INTENT(OUT),OPTIONAL         :: opt_Reflected
 REAL                                 :: intersectPoint(1:3),nLoc(1:3),relVeloPart(1:3)
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: macropartVelo(1:3), WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: relPartTrajectory(1:3),relLengthPartTrajectory
+REAL                                 :: force(1:3), moment(1:3), inertiaMoment
 !===================================================================================================================================
-WallVelo = MacroPart(macroPartID)%velocity
-relVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
-relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (WallVelo*dt*RKdtFrac)
+macroPartVelo = MacroPart(macroPartID)%velocity(1:3)
+relVeloPart(1:3) = (PartState(PartID,4:6)-macroPartVelo(1:3))
+relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (macroPartVelo*dt*RKdtFrac)
 relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
                          +relPartTrajectory(2)*relPartTrajectory(2) &
                          +relPartTrajectory(3)*relPartTrajectory(3) )
@@ -673,6 +674,7 @@ IF (relLengthPartTrajectory.EQ.0) THEN
 END IF
 relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
 nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center))
+WallVelo = MacroPart(macroPartID)%velocity(1:3) + CROSS(MacroPart(macroPartID)%velocity(4:6),nLoc*Macropart(macroPartID)%radius)
 ! nLoc points outwards of sphere
 IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
@@ -680,6 +682,7 @@ IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN
 ELSE IF(DOT_PRODUCT(nLoc,relPartTrajectory).LT.0.) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
 END IF
+! change nLoc to point inwards of sphere
 nLoc=-nLoc
 
 ! perfect reflection on sphere
@@ -707,8 +710,8 @@ ELSE !diffuse reflection on sphere
         tang1(1) = -(nLoc(2)+nLoc(3))/nLoc(1)
       ELSE
         CALL abort(&
-  __STAMP__&
-  ,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
+__STAMP__&
+,'Error in GetInteractionWithMacroPart, n_vec is zero for macro particle',macroPartID)
       END IF
     END IF
   END IF
@@ -754,6 +757,18 @@ ELSE !diffuse reflection on sphere
   !----  saving new particle velocity
   PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 END IF
+!----  Sampling Forces at MacroPart and calculating velocity change of macroparticle due to impule change
+force(1:3) = Species(PartSpecies(PartID))%MassIC &
+           * (relVeloPart(1:3) - NewVelo(1:3)) * Species(PartSpecies(PartID))%MacroParticleFactor
+! delta velocity
+MacroPart(macroPartID)%RHS(1:3) = MacroPart(macroPartID)%RHS(1:3) + force(1:3)*dt/MacroPart(macroPartID)%mass
+
+! moment and moment of inertia
+moment(1:3) = CROSS(-nLoc*macroPart(macroPartID)%radius,Force(1:3))
+inertiaMoment = 2./5.*MacroPart(macroPartID)%mass*MacroPart(macroPartID)%radius**2
+! delta rot velo
+MacroPart(macroPartID)%RHS(4:6) = MacroPart(macroPartID)%RHS(4:6) + moment(1:3)*dt/inertiaMoment
+
 ! recompute trajectory etc
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &

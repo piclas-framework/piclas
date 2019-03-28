@@ -984,10 +984,14 @@ CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('MacroPart[$]-rotation'  &
+                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
                                 , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'MacroPart[$]-density'  &
+                                , 'TODO-DEFINE-PARAMETER',  '7874', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-momentumACC'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-transACC'  &
@@ -2545,13 +2549,17 @@ IF (nMacroparticle.GT.0) THEN
   DO iMP = 1,nMacroParticle
     WRITE(UNIT=hilf,FMT='(I0)') iMP
     MacroPart(iMP)%center=GETREALARRAY('MacroPart'//TRIM(hilf)//'-center',3)
-    MacroPart(iMP)%velocity=GETREALARRAY('MacroPart'//TRIM(hilf)//'-velocity',3)
+    MacroPart(iMP)%velocity(1:3)=GETREALARRAY('MacroPart'//TRIM(hilf)//'-velocity',3)
+    MacroPart(iMP)%velocity(4:6)=GETREALARRAY('MacroPart'//TRIM(hilf)//'-rotation',3)
     MacroPart(iMP)%radius=GETREAL('MacroPart'//TRIM(hilf)//'-radius')
     MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
+    MacroPart(iMP)%density=GETREAL('MacroPart'//TRIM(hilf)//'-density')
+    MacroPart(iMP)%mass=4./3.*MacroPart(iMP)%radius**3*PI
     MacroPart(iMP)%momentumACC=GETREAL('MacroPart'//TRIM(hilf)//'-momentumACC')
     MacroPart(iMP)%transAcc=GETREAL('MacroPart'//TRIM(hilf)//'-transACC')
     MacroPart(iMP)%vibAcc=GETREAL('MacroPart'//TRIM(hilf)//'-vibACC')
     MacroPart(iMP)%rotACC=GETREAL('MacroPart'//TRIM(hilf)//'-rotACC')
+    MacroPart(iMP)%RHS(:)=0.
   END DO
   !CALL MarkMacroPartElems()
 ELSE

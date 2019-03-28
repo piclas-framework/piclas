@@ -468,9 +468,12 @@ TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
 
 TYPE tMacroParticle
   REAL    :: center(3)
-  REAL    :: velocity(3)
+  REAL    :: velocity(6)
   REAL    :: radius
   REAL    :: temp
+  REAL    :: density
+  REAL    :: mass
+  REAL    :: RHS(1:9)
   REAL    :: momentumAcc
   REAL    :: transAcc
   REAL    :: vibAcc

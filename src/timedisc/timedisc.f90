@@ -1378,7 +1378,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
-                               , WriteMacroSurfaceValues, MacroPart, UseMacroPart
+                               , WriteMacroSurfaceValues, MacroPart, UseMacroPart, nMacroParticle
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1402,7 +1402,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
-INTEGER :: iPart
+INTEGER :: iPart, iMP
 REAL    :: RandVal, dtFrac
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
@@ -1458,6 +1458,18 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  END IF
+  IF (UseMacroPart) THEN
+    MacroPart(:)%center(1) = MacroPart(:)%center(1) + MacroPart(:)%velocity(1)*dt
+    MacroPart(:)%center(2) = MacroPart(:)%center(2) + MacroPart(:)%velocity(2)*dt
+    MacroPart(:)%center(3) = MacroPart(:)%center(3) + MacroPart(:)%velocity(3)*dt
+    MacroPart(:)%radius = MacroPart(:)%radius + MacroPart(:)%RHS(7)
+    MacroPart(:)%temp = MacroPart(:)%temp + MacroPart(:)%RHS(8)
+    MacroPart(:)%mass = MacroPart(:)%mass + MacroPart(:)%RHS(9)
+    DO iMP=1,nMacroParticle
+      MacroPart(iMP)%velocity(1:6) = MacroPart(iMP)%velocity(1:6) + MacroPart(iMP)%RHS(1:6)
+      MacroPart(iMP)%RHS(:)=0.
+    END DO
   END IF
 
 #ifdef MPI
@@ -1537,11 +1549,6 @@ REAL                  :: tLBStart
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
-  IF (UseMacroPart) THEN
-    MacroPart(:)%center(1) = MacroPart(:)%center(1) + MacroPart(:)%velocity(1)*dt
-    MacroPart(:)%center(2) = MacroPart(:)%center(2) + MacroPart(:)%velocity(2)*dt
-    MacroPart(:)%center(3) = MacroPart(:)%center(3) + MacroPart(:)%velocity(3)*dt
-  END IF
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
