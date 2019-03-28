@@ -309,7 +309,7 @@ END SUBROUTINE ParticleTriaTracking
 
 
 #ifdef IMPA
-SUBROUTINE ParticleTracing(doParticle_In,nInnerNewton_In)
+SUBROUTINE ParticleTracing(doParticle_In)
 #else
 SUBROUTINE ParticleTracing()
 #endif /*NOT IMPA*/
@@ -363,7 +363,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 #ifdef IMPA
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
-INTEGER,INTENT(IN),OPTIONAL   :: nInnerNewton_In
 #endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -438,9 +437,6 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef IMPA
         IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
         IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
-        IF(PRESENT(nInnerNewton_In))THEN
-          IPWRITE(UNIt_stdOut,'(I0,A18,I0)')                           ' nInnerNewton_In ', nInnerNewton_In
-        END IF
 #endif /*IMPA*/
         IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
         IPWRITE(UNIt_stdOut,'(I0,A18,x,A18,x,A18)')                  '    min ', ' value ', ' max '
@@ -1151,9 +1147,6 @@ DO iPart=1,PDM%ParticleVecLength
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' DoParticle ', DoParticle
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
-      IF(PRESENT(nInnerNewton_In))THEN
-        IPWRITE(UNIt_stdOut,'(I0,A18,I0)')                           ' nInnerNewton_In ', nInnerNewton_In
-      END IF
 #endif /*IMPA*/
       IPWRITE(UNIt_stdOut,'(I0,A18,L)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,3(X,E27.16))')                  ' LastPosition   ', LastPartPos(iPart,1:3)
@@ -1192,14 +1185,6 @@ DO iPart=1,PDM%ParticleVecLength
   END IF ! Part inside
 END  DO ! iPart=1,PDM%ParticleVecLength
 #endif
-
-#ifdef IMPA
-IF(PRESENT(nInnerNewton_In))THEN
-  IF(nInnerNewton_In.EQ.-3)THEN
-    IPWRITE(UNIt_stdOut,'(I0,A18,I0)') ' nInnerNewton_In ', nInnerNewton_In
-  END IF
-END IF
-#endif /*IMPA*/
 
 END SUBROUTINE ParticleTracing
 
