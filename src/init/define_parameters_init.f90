@@ -119,8 +119,12 @@ CALL DefineParametersPIC()
 CALL DefineParametersParticleEmission()
 CALL DefineParametersDSMC()
 CALL DefineParametersLD()
-CALL DefineParametersBGK()
+#if (PP_TimeDiscMethod==300)
 CALL DefineParametersFPFlow()
+#endif
+#if (PP_TimeDiscMethod==400)
+CALL DefineParametersBGK()
+#endif
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
 #endif

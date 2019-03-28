@@ -39,7 +39,6 @@ LOGICAL                                        :: BGKDoAveraging
 LOGICAL                                        :: BGKDoAveragingCorrect
 LOGICAL                                        :: BGKUseQuantVibEn
 INTEGER                                        :: SBGKEnergyConsMethod
-REAL                                           :: BGKAcceleration
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
 REAL                                           :: BGKDSMCSwitchDens

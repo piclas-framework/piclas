@@ -45,39 +45,44 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("BGK")
 
-CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'TODO-DEFINE-PARAMETER. Define BGK method used.\n'//&
-                                                                    '1: Ellipsoidal statistical\n'//&
-                                                                    '2: Shakov\n'//&
+CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'Select the BGK method:\n'//&
+                                                                    '1: Ellipsoidal statistical (ESBGK)\n'//&
+                                                                    '2: Shakov (SBGK)\n'//&
                                                                     '3: Standard BGK\n'//&
-                                                                    '4: Unified\n')
-CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'TODO-DEFINE-PARAMETER.\n'//&
+                                                                    '4: Unified \n')
+CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select sampling method for the ESBGK target distribution '//&
+                                                                    'function:\n'//&
                                                                     '1: Approximative\n'//&
                                                                     '2: Exact\n'//&
-                                                                    '3: MetropolisHastings', '1')
-CALL prms%CreateIntOption(    'Particles-SBGK-EnergyConsMethod',    'SBGK energy conservation scheme', '1')
-CALL prms%CreateRealOption(   'Particles-UnifiedBGK-Ces',           'TODO-DEFINE-PARAMETER', '1000.0')
-CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables octree cell refinement until the given number of'//&
-                                                                    'particles is reached. Equal refinement in all three'//&
+                                                                    '3: Metropolis-Hastings', '1')
+CALL prms%CreateIntOption(    'Particles-SBGK-EnergyConsMethod',    'Select the SBGK energy conservation scheme:\n'//&
+                                                                    '1: Method includes all particles for energy conservation\n'//&
+                                                                    '2: Number of particles included in the conservation scheme '//&
+                                                                    'depends on the number of relaxing particles', '1')
+CALL prms%CreateRealOption(   'Particles-UnifiedBGK-Ces',           'Parameter C_ES for the Unified BGK scheme. The default '//&
+                                                                    'value 1000 enables the automatic calculation to reproduce '//&
+                                                                    'the correct Prandtl number for equilibrium gas flows','1000.0')
+CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables octree cell refinement until the given number of '//&
+                                                                    'particles is reached. Equal refinement in all three '//&
                                                                     'directions (x,y,z)','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define minimum number of particles per cell for octree cell'//&
-                                                                    'refinement', '10')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'Enable moving average of variables for the calculation of'//&
-                                                                    'the cell temperature for the rotational and vibrational'//&
-                                                                    'relaxation frequency for molecules','.FALSE.')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','Enable reset of the moving average after a certain number'//&
-                                                                    'of iterations, defined by -AveragingLength','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'Number of iterations after which the moving average is reset',&
-                                                                    '5')
-CALL prms%CreateRealOption(   'Particles-BGK-Acceleration',         'TODO-DEFINE-PARAMETER', '-9.81')
-CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'TODO-DEFINE-PARAMETER', '0.0')
-CALL prms%CreateLogicalOption('Particles-BGK-SampAdapFac',          'TODO-DEFINE-PARAMETER','.FALSE.')
-CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define minimum number of particles per cell for octree '//&
+                                                                    'cell refinement')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'Enable a moving average of variables for the calculation '//&
+                                                                    'of the cell temperature for relaxation frequencies','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','Use the moving average with a fixed array length, where '//&
+                                                                    'the first values are dismissed and the last values updated '//&
+                                                                    'with current iteration, for unsteady flows','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'Length of the moving average array, required for the '//&
+                                                                    '-DoAveragingCorrection option')
+CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
+                                                                    'density', '0.0')
+CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
 CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quantized treatment of vibrational energy levels',  &
-                                                                    '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number'//&
+                                                                    '.TRUE.')
+CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number '//&
                                                                     'density as a switch parameter','.FALSE.')
-CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number density [1/m3] above which the FP method is used'//&
-                                                                    'below which DSMC is performed.','0.0')
+CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number density [1/m3], above which the BGK method is used, '//&
+                                                                    'below which DSMC is performed','0.0')
 
 END SUBROUTINE DefineParametersBGK
 
@@ -115,13 +120,13 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 
-DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
-BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
+DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
+IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
-BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens','0.')
-CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC','.FALSE.')
+CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
+IF(CoupledBGKDSMC) BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 IF (BGKCollModel.EQ.2) THEN
   SBGKEnergyConsMethod = GETINT('Particles-SBGK-EnergyConsMethod')
 ELSE
@@ -135,7 +140,6 @@ BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')
 BGKDoAveragingCorrect = GETLOGICAL('Particles-BGK-DoAveragingCorrection')
 BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF (BGKDoAveraging) CALL BGK_init_Averaging()
-BGKAcceleration = GETREAL('Particles-BGK-Acceleration')
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 
