@@ -52,8 +52,13 @@ CALL prms%CreateIntOption(    'Particles-FP-CollModel',       'TODO-DEFINE-PARAM
 CALL prms%CreateIntOption(    'Particles-ESFP-Model',         'TODO-DEFINE-PARAMETER.\n'//&
                                                               '1: ...\n'//&
                                                               '2: ...\n', '1')
-CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation', 'Enable modelling of vibrational excitation','.FALSE.')
-CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',   'Enable quantized modelling of vibrational energy levels','.FALSE.')
+CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation', 'Enable modelling of vibrational excitation','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',   'Enable quantized modelling of vibrational energy levels','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation','Enables octree cell refinement until the given number of '//&
+                                                              'particles is reached. Equal refinement in all three '//&
+                                                              'directions (x,y,z)','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell', 'Define minimum number of particles per cell for octree '//&
+                                                              'cell refinement')
 CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',      'Perform a coupled DSMC-FP simulation with a given number density'//&
                                                               'as a switch parameter','.FALSE.')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens', 'Number density [1/m3] above which the FP method is used, below'//&
@@ -97,13 +102,13 @@ DO iSpec = 1, nSpecies
 END DO
 
 FPCollModel = GETINT('Particles-FP-CollModel')
-ESFPModel = GETINT('Particles-ESFP-Model','1')
-DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation','.FALSE.')
-BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell','10')
-FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation','.TRUE.')
-FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn','.TRUE.')
-CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC','.FALSE.')
-FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens','0.')
+ESFPModel = GETINT('Particles-ESFP-Model')
+DoBGKCellAdaptation = GETLOGICAL('Particles-FP-DoCellAdaptation')
+IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-FP-MinPartsPerCell')
+FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
+FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
+CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
+IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 
 END SUBROUTINE InitFPFlow
 

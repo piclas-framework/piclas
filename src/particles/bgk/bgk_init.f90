@@ -135,9 +135,9 @@ END IF
 IF (BGKUnifiedCes.EQ.1000.) THEN
   BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
 END IF
-BGKAveragingLength = GETINT('Particles-BGK-AveragingLength')
 BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')
 BGKDoAveragingCorrect = GETLOGICAL('Particles-BGK-DoAveragingCorrection')
+IF(BGKDoAveragingCorrect) BGKAveragingLength = GETINT('Particles-BGK-AveragingLength')
 BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF (BGKDoAveraging) CALL BGK_init_Averaging()
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
