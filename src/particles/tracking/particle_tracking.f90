@@ -766,6 +766,13 @@ DO iPart=1,PDM%ParticleVecLength
             IF (PartDoubleCheck.EQ.0) THEN
               alphaOld = locAlpha(ilocSide)
             END IF
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A)') '     intersection on side: '
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
             hitlocSide=ilocSide
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
             flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
@@ -783,6 +790,13 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
               EXIT
             END IF
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(iPart.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A,L)') '     intersection on side with reflection: ',crossedBC
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
             IF(crossedBC) THEN
               firstElem=ElemID
               EXIT
@@ -811,6 +825,13 @@ DO iPart=1,PDM%ParticleVecLength
         IF (HasMacroPart) THEN
           DO iMP=1,nMacroParticle
             IF(locAlphaAll(6+nAuxBCs+iMP).GT.-1.0) THEN
+#ifdef CODE_ANALYZE
+              IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                IF(iPart.EQ.PARTOUT)THEN
+                  WRITE(UNIT_stdout,'(A)') '     intersection on MacroPart: '
+                END IF
+              END IF
+#endif /*CODE_ANALYZE*/
               CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory &
                                                ,locAlphaAll(6+nAuxBCs+iMP),iMP,iPart,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
@@ -819,6 +840,13 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
               IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef CODE_ANALYZE
+              IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                IF(iPart.EQ.PARTOUT)THEN
+                  WRITE(UNIT_stdout,'(A,L)') '     intersection on MacroPart with reflection: ',crossedBC
+                END IF
+              END IF
+#endif /*CODE_ANALYZE*/
               IF(crossedBC) THEN
                 firstElem=ElemID
                 EXIT
@@ -889,6 +917,13 @@ DO iPart=1,PDM%ParticleVecLength
             END IF
             IF(IsIntersec)THEN
               IF (.NOT.IsAuxBC .AND. .NOT.IsMacroPart) THEN
+#ifdef CODE_ANALYZE
+                IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                  IF(iPart.EQ.PARTOUT)THEN
+                    WRITE(UNIT_stdout,'(A)') '     intersection on side: '
+                  END IF
+                END IF
+#endif /*CODE_ANALYZE*/
                 IF (HasAuxBC.OR.HasMacroPart) THEN
                   hitlocSide=locListAll(ilocSide)
                 ELSE
@@ -914,6 +949,13 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
                 END IF
                 IF(SwitchedElement) EXIT
+#ifdef CODE_ANALYZE
+                IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                  IF(iPart.EQ.PARTOUT)THEN
+                    WRITE(UNIT_stdout,'(A,L)') '     intersection on side with reflection: ',crossedBC
+                  END IF
+                END IF
+#endif /*CODE_ANALYZE*/
                 IF(crossedBC) THEN
                   firstElem=ElemID
                   EXIT
@@ -932,6 +974,13 @@ DO iPart=1,PDM%ParticleVecLength
                   EXIT
                 END IF
               ELSE
+#ifdef CODE_ANALYZE
+              IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                IF(iPart.EQ.PARTOUT)THEN
+                  WRITE(UNIT_stdout,'(A)') '     intersection on MacroPart: '
+                END IF
+              END IF
+#endif /*CODE_ANALYZE*/
                 CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,locAlphaAll(iLocSide)&
                                                  ,locListAll(ilocSide)-6-nAuxBCs,iPart,crossedBC)
                 IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
@@ -940,6 +989,13 @@ DO iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
                 IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef CODE_ANALYZE
+                IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+                  IF(iPart.EQ.PARTOUT)THEN
+                    WRITE(UNIT_stdout,'(A,L)') '     intersection on MacroPart with reflection: ',crossedBC
+                  END IF
+                END IF
+#endif /*CODE_ANALYZE*/
                 IF(crossedBC) THEN
                   firstElem=ElemID
                   EXIT
