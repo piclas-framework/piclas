@@ -651,33 +651,33 @@ REAL,INTENT(INOUT)                   :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL,INTENT(OUT),OPTIONAL         :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: intersectPoint(1:3),nLoc(1:3),refVeloPart(1:3)
+REAL                                 :: intersectPoint(1:3),nLoc(1:3),relVeloPart(1:3)
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: POI_fak,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                                 :: alphaDoneRel,refPartTrajectory(1:3),relLengthPartTrajectory
+REAL                                 :: relPartTrajectory(1:3),relLengthPartTrajectory
 !===================================================================================================================================
 WallVelo = MacroPart(macroPartID)%velocity
-refVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
-refPartTrajectory(1:3) = dt*RKdtFrac*refVeloPart(1:3)
-intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*refPartTrajectory(1:3)
-relLengthPartTrajectory=SQRT(refVeloPart(1)*refVeloPart(1) &
-                         +refVeloPart(2)*refVeloPart(2) &
-                         +refVeloPart(3)*refVeloPart(3) )
+relVeloPart(1:3) = (PartState(PartID,4:6)-WallVelo(1:3))
+relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (WallVelo*dt*RKdtFrac)
+relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
+                         +relPartTrajectory(2)*relPartTrajectory(2) &
+                         +relPartTrajectory(3)*relPartTrajectory(3) )
+intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*relPartTrajectory(1:3)
 IF (relLengthPartTrajectory.EQ.0) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
   RETURN
 END IF
-alphaDoneRel = alpha/relLengthPartTrajectory
-nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center+alphaDoneRel*dt*RKdtFrac*MacroPart(macroPartID)%velocity))
+relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
+nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center))
 ! nLoc points outwards of sphere
-IF(DOT_PRODUCT(nLoc,refVeloPart).GT.0.)  THEN
+IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
   RETURN
-ELSE IF(DOT_PRODUCT(nLoc,refVeloPart).LT.0.) THEN
+ELSE IF(DOT_PRODUCT(nLoc,relPartTrajectory).LT.0.) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
 END IF
 nLoc=-nLoc
@@ -685,10 +685,11 @@ nLoc=-nLoc
 ! perfect reflection on sphere
 CALL RANDOM_NUMBER(RanNum)
 IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
-  PartState(PartID,4:6) = refVeloPart(1:3) - 2.*DOT_PRODUCT(refVeloPart(1:3),nLoc)*nLoc + WallVelo
+  PartState(PartID,4:6) = relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc + WallVelo
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + dt*RKdtFrac * (PartState(PartID,4:6))
+  !PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + dt*RKdtFrac * (PartState(PartID,4:6))
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + relPartTrajectory(1:3)*(relLengthPartTrajectory - alpha)
 ELSE !diffuse reflection on sphere
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
@@ -720,9 +721,9 @@ ELSE !diffuse reflection on sphere
   RotACC=MacroPart(macroPartID)%rotACC
 
   ! calculate new velocity vector (Extended Maxwellian Model)
-  VeloReal = SQRT(refVeloPart(1) * refVeloPart(1) + &
-                  refVeloPart(2) * refVeloPart(2) + &
-                  refVeloPart(3) * refVeloPart(3))
+  VeloReal = SQRT(relVeloPart(1) * relVeloPart(1) + &
+                  relVeloPart(2) * relVeloPart(2) + &
+                  relVeloPart(3) * relVeloPart(3))
 
   EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
   CALL RANDOM_NUMBER(RanNum)
@@ -745,7 +746,11 @@ ELSE !diffuse reflection on sphere
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
   ! travel rest of particle vector
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alphaDoneRel) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
+  !TildTrajectory=dt*RKdtFrac*relVeloPart !PartState(PartID,4:6)
+  !POI_fak=1.- (relLengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+  !same but should be faster (less operations)
+  POI_fak = (alpha/relLengthPartTrajectory)
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
   !----  saving new particle velocity
   PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 END IF

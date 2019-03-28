@@ -654,6 +654,7 @@ DO iPart=1,PDM%ParticleVecLength
             WRITE(UNIT_stdout,'(A)') '     | Output after compute intersection (particle tracing): '
             WRITE(UNIT_stdout,'(2(A,I0),A,L)') '     | SideType: ',SideType(SideID),' | SideID: ',SideID,' | Hit: ',isHit
             WRITE(UNIT_stdout,'(2(A,G0))') '     | Alpha: ',locAlpha(ilocSide),' | LengthPartTrajectory: ', lengthPartTrajectory
+            WRITE(UNIT_stdout,'((A,G0))') '     | RelAlpha: ',locAlpha(ilocSide)/lengthpartTrajectory
             WRITE(UNIT_stdout,'(A,2(X,G0))') '     | Intersection xi/eta: ',xi(ilocSide),eta(ilocSide)
           END IF
         END IF

@@ -181,7 +181,7 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
                                         ,PartID                       &
                                         ,flip                        &
                                         ,SideID                      &
-                                        ,opt_CriticalParllelInSide   )  
+                                        ,opt_CriticalParllelInSide)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -4482,28 +4482,30 @@ REAL                              :: A,B,C,alphaNorm
 REAL                              :: t(2), scaleFac
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
-REAL                              :: refPosSphere(1:3),refVeloPart(1:3)
+REAL                              :: relPosSphere(1:3),relPartTrajectory(1:3)
 REAL                              :: relLengthPartTrajectory
 #ifdef CODE_ANALYZE
-REAL                              :: distance, distance2,center(1:3)
+REAL                              :: distance, distance2, center(1:3)
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! set alpha to minus one // no intersection
 alpha=-1.0
 isHit=.FALSE.
 
-refPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)
-refVeloPart(1:3) = (PartTrajectory*lengthPartTrajectory) - (MacroPart(MacroPartId)%velocity(1:3)*dt*RKdtFrac)
-relLengthPartTrajectory=SQRT(refVeloPart(1)*refVeloPart(1) &
-                         +refVeloPart(2)*refVeloPart(2) &
-                         +refVeloPart(3)*refVeloPart(3) )
+relPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)
+relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (MacroPart(MacroPartId)%velocity(1:3)*dt*RKdtFrac)!*(1.-alphaDoneRel))
+relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
+                         +relPartTrajectory(2)*relPartTrajectory(2) &
+                         +relPartTrajectory(3)*relPartTrajectory(3) )
 IF (relLengthPartTrajectory.EQ.0) RETURN
+!relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
 
-A = refVeloPart(1)**2 + refVeloPart(2)**2 + refVeloPart(3)**2
-B = 2 * ( (LastPartPos(PartID,1)-refPosSphere(1))*refVeloPart(1) + (LastPartPos(PartID,2)-refPosSphere(2))*refVeloPart(2) &
-    + (LastPartPos(PartID,3)-refPosSphere(3))*refVeloPart(3))
-C = (LastPartPos(PartID,1)-refPosSphere(1))**2 + (LastPartPos(PartID,2)-refPosSphere(2))**2 &
-    + (LastPartPos(PartID,3)-refPosSphere(3))**2 - MacroPart(MacroPartID)%radius**2
+A = relPartTrajectory(1)**2 + relPartTrajectory(2)**2 + relPartTrajectory(3)**2
+B = 2 * ( (LastPartPos(PartID,1)-relPosSphere(1))*relPartTrajectory(1) &
+    + (LastPartPos(PartID,2)-relPosSphere(2))*relPartTrajectory(2) &
+    + (LastPartPos(PartID,3)-relPosSphere(3))*relPartTrajectory(3))
+C = (LastPartPos(PartID,1)-relPosSphere(1))**2 + (LastPartPos(PartID,2)-relPosSphere(2))**2 &
+    + (LastPartPos(PartID,3)-relPosSphere(3))**2 - MacroPart(MacroPartID)%radius**2
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -4534,13 +4536,28 @@ CALL QuadraticSolver(A,B,C,nRoot,t(1),t(2))
 #ifdef CODE_ANALYZE
 center(1:3)=MacroPart(MacroPartID)%center(1:3)
 distance=SQRT(DOT_PRODUCT((LastPartPos(PartID,1:3)-center(1:3)),(LastPartPos(PartID,1:3)-center(1:3))))
-distance2=SQRT(DOT_PRODUCT((PartState(PartID,1:3)-center(1:3)),(PartState(PartID,1:3)-center(1:3))))
-if (distance.LE.MacroPart(MacroPartID)%radius .AND. distance2.LE.MacroPart(MacroPartID)%radius) THEN
+distance2=SQRT(DOT_PRODUCT((LastPartPos(PartID,1:3)+relPartTrajectory(1:3)-center(1:3)) &
+                           ,(LastPartPos(PartID,1:3)+relPartTrajectory(1:3)-center(1:3))))
+IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+  IF(PartID.EQ.PARTOUT)THEN
+    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart center Pos:       ', center(1:3)
+    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(PartID,1:3)
+    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' PartPos:       ', PartState(PartID,1:3)
+    WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
+    WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+    WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
+    WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
+    WRITE(UNIT_stdout,'(2(A,G0))') '     | alpha(1): ',t(1)*relLengthPartTrajectory,' | alpha(2): ',t(2)*relLengthPartTrajectory
+  END IF
+END IF
+IF (distance.LE.MacroPart(MacroPartID)%radius*1.01 .AND. distance2.LE.MacroPart(MacroPartID)%radius*1.01) THEN
   WRITE(UNIT_stdout,'(A)') '     | Particle is inside of Macro particle (sphere): '
   WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
   WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
   WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
-  WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
+  CALL abort(&
+  __STAMP__&
+  ,'Particle is inside of Macro particle (sphere)')
 END IF
 #endif /*CODE_ANALYZE*/
 
