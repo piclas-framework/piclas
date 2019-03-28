@@ -2988,14 +2988,14 @@ __STAMP__&
     IF (N_HDF5.NE.1) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: N!=1 !')
-    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
-    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
-    IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
-__STAMP__&
-,'Error in Macrofile read in: wrong Nodetype !')
+!    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
+!    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
+!     IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
+! __STAMP__&
+! ,'Error in Macrofile read in: wrong nVar_HDF5 !')
     IF (NodeType_HDF5.NE.'VISU') CALL abort(&
 __STAMP__&
-,'Error in Macrofile read in: wrong nVar_HDF5 !')
+,'Error in Macrofile read in: wrong Nodetype !')
     SDEALLOCATE(State_HDF5)
     ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
 
