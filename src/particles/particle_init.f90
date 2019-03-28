@@ -2933,7 +2933,6 @@ CHARACTER(32)                    :: hilf
 REAL , ALLOCATABLE               :: State_HDF5(:,:)
 LOGICAL                          :: exists
 INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5, N_HDF5
-INTEGER                          :: nVarAdditional
 INTEGER                          :: iFile, iSpec, iElem, iVar
 !===================================================================================================================================
 DO iFile = 1, nMacroRestartFiles
@@ -2988,11 +2987,6 @@ __STAMP__&
     IF (N_HDF5.NE.1) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: N!=1 !')
-!    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
-!    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
-!     IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
-! __STAMP__&
-! ,'Error in Macrofile read in: wrong nVar_HDF5 !')
     IF (NodeType_HDF5.NE.'VISU') CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: wrong Nodetype !')

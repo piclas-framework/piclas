@@ -121,27 +121,41 @@ DO iSpec=1, nSpecies
 END DO
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
+! ESBGK options
 ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
-DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
-IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
-BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
-CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
-IF(CoupledBGKDSMC) BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+! Shakov BGK options
 IF (BGKCollModel.EQ.2) THEN
   SBGKEnergyConsMethod = GETINT('Particles-SBGK-EnergyConsMethod')
+  IF(SBGKEnergyConsMethod.EQ.2) THEN
+    IF(ANY(SpecDSMC(:)%InterID.GT.1)) THEN
+      CALL abort(&
+__STAMP__&
+,' ERROR SBGK: The chosen energy conservation method for SBGK was not tested with molecules!')
+    END IF
+  END IF
 ELSE
   SBGKEnergyConsMethod = 1
 END IF
+! Unified BGK options
+BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
   BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
 END IF
+! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
+CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
+IF(CoupledBGKDSMC) BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+! Octree-based cell refinement, up to a certain number of particles
+DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
+IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
+BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
+! Moving Averaging
 BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')
 BGKDoAveragingCorrect = GETLOGICAL('Particles-BGK-DoAveragingCorrection')
 IF(BGKDoAveragingCorrect) BGKAveragingLength = GETINT('Particles-BGK-AveragingLength')
-BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
-IF (BGKDoAveraging) CALL BGK_init_Averaging()
+IF(BGKDoAveraging) CALL BGK_init_Averaging()
+! Vibrational modelling
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
-BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
+BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 
 IF(DSMC%CalcQualityFactors) THEN
   ALLOCATE(BGK_QualityFacSamp(1:5,nElems))
