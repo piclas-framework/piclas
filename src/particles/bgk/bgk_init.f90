@@ -92,13 +92,15 @@ SUBROUTINE InitBGK()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Vars      ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC
-USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
+USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
+USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_BGK_Vars
-USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
+USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,7 +152,16 @@ CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ! Octree-based cell refinement, up to a certain number of particles
 DoBGKCellAdaptation = GETLOGICAL('Particles-BGK-DoCellAdaptation')
-IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
+IF(DoBGKCellAdaptation) THEN
+  BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
+  IF(.NOT.DSMC%UseOctree) THEN
+    DSMC%UseOctree = .TRUE.
+    IF(NGeo.GT.PP_N) CALL abort(&
+__STAMP__&
+,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+    CALL DSMC_init_octree()
+  END IF
+END IF
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Averaging
 BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')

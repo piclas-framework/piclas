@@ -221,11 +221,9 @@ ELSE
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
-    BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
-    BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
-  END IF
+  BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dt
+  BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
+  BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
 END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
@@ -240,9 +238,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       TEqui, rotrelaxfreq, vibrelaxfreq)
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
-    END IF
+    BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,rotrelaxfreq*dt)
   END IF
 END IF
 

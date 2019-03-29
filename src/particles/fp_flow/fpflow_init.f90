@@ -72,12 +72,15 @@ SUBROUTINE InitFPFlow()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,         ONLY: PI, BoltzmannConst
+USE MOD_Preproc               ,ONLY: PP_N
+USE MOD_Mesh_Vars             ,ONLY: NGeo
+USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,            ONLY: SpecDSMC
-USE MOD_PARTICLE_Vars,        ONLY: nSpecies, Species
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
 USE MOD_FPFlow_Vars
-USE MOD_BGK_Vars,             ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
+USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -104,7 +107,16 @@ END DO
 FPCollModel = GETINT('Particles-FP-CollModel')
 ESFPModel = GETINT('Particles-ESFP-Model')
 DoBGKCellAdaptation = GETLOGICAL('Particles-FP-DoCellAdaptation')
-IF(DoBGKCellAdaptation) BGKMinPartPerCell = GETINT('Particles-FP-MinPartsPerCell')
+IF(DoBGKCellAdaptation) THEN
+  BGKMinPartPerCell = GETINT('Particles-FP-MinPartsPerCell')
+  IF(.NOT.DSMC%UseOctree) THEN
+    DSMC%UseOctree = .TRUE.
+    IF(NGeo.GT.PP_N) CALL abort(&
+__STAMP__&
+,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+    CALL DSMC_init_octree()
+  END IF
+END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
