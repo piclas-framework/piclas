@@ -505,7 +505,7 @@ USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
 #if (PP_TimeDiscMethod==400)
-USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
+USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -828,6 +828,9 @@ INTEGER             :: dir
 #if (PP_TimeDiscMethod==400)
         IF(DSMC%CalcQualityFactors) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MeanRelaxFactor',' '
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MaxRelaxFactor',' '
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -969,6 +972,9 @@ INTEGER             :: dir
     END IF
 #if (PP_TimeDiscMethod==400)
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+      IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
       ! Determining the maximal (MPI_MAX) relaxation factors
       CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -994,6 +1000,8 @@ INTEGER             :: dir
     END IF
 #if (PP_TimeDiscMethod==400)
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+      CALL MPI_REDUCE(BGK_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(BGK_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(BGK_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
     END IF
@@ -1208,6 +1216,8 @@ IF (PartMPI%MPIROOT) THEN
 #endif
 #if (PP_TimeDiscMethod==400)
     IF(DSMC%CalcQualityFactors) THEN
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MeanRelaxFactor
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MaxRelaxFactor
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
