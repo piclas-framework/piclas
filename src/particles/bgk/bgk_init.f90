@@ -140,6 +140,10 @@ END IF
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
   BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
+ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
+  CALL abort(&
+__STAMP__&
+,' ERROR Unified BGK: The parameter C_ES has to be in the range of -0.5 <= C_ES < 1 !')
 END IF
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
