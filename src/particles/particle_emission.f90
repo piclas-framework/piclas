@@ -722,11 +722,11 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 ! modules
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
-USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow,UseMacroPart
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
+USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile,UseMacroPart
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
