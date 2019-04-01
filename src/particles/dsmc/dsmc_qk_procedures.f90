@@ -67,7 +67,7 @@ LOGICAL, INTENT(INOUT)        :: RelaxToDo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                       :: iQuaMax, iQuaDiss, PartToExec, PartReac2
+INTEGER                       :: iQuaMax, PartToExec, PartReac2
 !===================================================================================================================================
 ! Determining, which collision partner is the dissociating particle (always the first molecule in the DefinedReact array)
 IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
