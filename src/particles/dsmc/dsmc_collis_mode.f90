@@ -2776,13 +2776,10 @@ __STAMP__&
           ENDIF
         ELSE
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-              ReacToDo = iReac
-            ELSE
-              ReacToDo = iReac2
-            END IF
+          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+            ReacToDo = iReac
+          ELSE
+            ReacToDo = iReac2
           END IF
         END IF
         IF(ReacToDo.NE.0) THEN
