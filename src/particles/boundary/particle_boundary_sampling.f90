@@ -1201,9 +1201,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
-  Str2DVarNames(nVarCount+1) ='PressureX'
-  Str2DVarNames(nVarCount+2) ='PressureY'
-  Str2DVarNames(nVarCount+3) ='PressureZ'
+  Str2DVarNames(nVarCount+1) ='ForcePerAreaX'
+  Str2DVarNames(nVarCount+2) ='ForcePerAreaY'
+  Str2DVarNames(nVarCount+3) ='ForcePerAreaZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
   nVarCount = nVarCount + 5
