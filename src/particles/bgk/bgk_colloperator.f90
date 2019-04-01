@@ -39,10 +39,10 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, Av
 !> description
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, Species, WriteMacroVolumeValues
+USE MOD_Particle_Vars         ,ONLY: PartState, Species
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
-USE MOD_TimeDisc_Vars         ,ONLY: dt, TEnd, Time
+USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
 USE MOD_BGK_Vars              ,ONLY: BGKAveragingLength, BGKDoAveraging

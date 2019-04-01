@@ -1207,7 +1207,7 @@ SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
-USE MOD_DSMC_Vars            ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars            ,ONLY: SpecDSMC
 USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1294,7 +1294,7 @@ SUBROUTINE SetNextIonizationSpecies()
 ! MODULES                                                                                                                          !
 USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

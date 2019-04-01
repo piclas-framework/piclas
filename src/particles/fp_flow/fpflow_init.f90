@@ -45,13 +45,12 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("FP-Flow")
 
-CALL prms%CreateIntOption(    'Particles-FP-CollModel',       'TODO-DEFINE-PARAMETER. Define FP method used.\n'//&
-                                                              '1: ...\n'//&
-                                                              '2: ...\n'//&
-                                                              '3: ...\n')
-CALL prms%CreateIntOption(    'Particles-ESFP-Model',         'TODO-DEFINE-PARAMETER.\n'//&
-                                                              '1: ...\n'//&
-                                                              '2: ...\n', '1')
+CALL prms%CreateIntOption(    'Particles-FP-CollModel',       'Select the Fokker-Planck method:\n'//&
+                                                              '1: Cubic (only atomic species)\n'//&
+                                                              '2: Ellipsoidal Statistical (ESFP)')
+CALL prms%CreateIntOption(    'Particles-ESFP-Model',         'Select the ESFP model:\n'//&
+                                                              '1: Exact\n'//&
+                                                              '2: Approximative', '1')
 CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation', 'Enable modelling of vibrational excitation','.TRUE.')
 CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',   'Enable quantized modelling of vibrational energy levels','.TRUE.')
 CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation','Enables octree cell refinement until the given number of '//&
@@ -73,7 +72,7 @@ SUBROUTINE InitFPFlow()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc               ,ONLY: PP_N
-USE MOD_Mesh_Vars             ,ONLY: NGeo
+USE MOD_Mesh_Vars             ,ONLY: NGeo, nElems
 USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
@@ -117,10 +116,19 @@ __STAMP__&
     CALL DSMC_init_octree()
   END IF
 END IF
+
+IF(DSMC%CalcQualityFactors) THEN
+  ALLOCATE(FP_QualityFacSamp(1:6,nElems))
+  FP_QualityFacSamp(1:6,1:nElems) = 0.0
+END IF
+
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
+
+FPInitDone = .TRUE.
+SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
 
 END SUBROUTINE InitFPFlow
 

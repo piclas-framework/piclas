@@ -44,9 +44,10 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Mesh_Vars,              ONLY: nElems
-USE MOD_Particle_Vars,          ONLY: PEM, PartState, Species
+USE MOD_Particle_Vars,          ONLY: PEM, PartState, Species, WriteMacroVolumeValues
 USE MOD_FP_CollOperator,        ONLY: FP_CollisionOperatorOctree
-USE MOD_FPFlow_Vars,            ONLY: FPDSMCSwitchDens
+USE MOD_FPFlow_Vars,            ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
 USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
@@ -79,7 +80,7 @@ DO iElem = 1, nElems
 
   IF (DoBGKCellAdaptation) THEN
     CALL BGK_octree_adapt(iElem)
-  ELSE  
+  ELSE
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 1.
     END IF
@@ -95,8 +96,22 @@ DO iElem = 1, nElems
     END DO
     vBulk = vBulk / nPart
 
+    IF(DSMC%CalcQualityFactors) THEN
+      FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
+    END IF
+
     CALL FP_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
+    IF(DSMC%CalcQualityFactors) THEN
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+        FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
+        FP_QualityFacSamp(2,iElem) = FP_QualityFacSamp(2,iElem) + REAL(FP_MeanRelaxFactorCounter)
+        FP_QualityFacSamp(3,iElem) = FP_QualityFacSamp(3,iElem) + FP_MaxRelaxFactor
+        FP_QualityFacSamp(4,iElem) = FP_QualityFacSamp(4,iElem) + 1.
+        FP_QualityFacSamp(5,iElem) = FP_QualityFacSamp(5,iElem) + FP_MaxRotRelaxFactor
+        FP_QualityFacSamp(6,iElem) = FP_QualityFacSamp(6,iElem) + FP_PrandtlNumber
+      END IF
+    END IF
   END IF
 END DO
 
@@ -121,6 +136,8 @@ USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
 USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
 USE MOD_Restart_Vars,           ONLY: RestartTime
+USE MOD_FPFlow_Vars,            ONLY: FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,8 +172,22 @@ ELSE
     END DO
     vBulk = vBulk / nPart
 
+    IF(DSMC%CalcQualityFactors) THEN
+      FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
+    END IF
+
     CALL FP_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
+    IF(DSMC%CalcQualityFactors) THEN
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+        FP_QualityFacSamp(1,iElem) = FP_QualityFacSamp(1,iElem) + FP_MeanRelaxFactor
+        FP_QualityFacSamp(2,iElem) = FP_QualityFacSamp(2,iElem) + REAL(FP_MeanRelaxFactorCounter)
+        FP_QualityFacSamp(3,iElem) = FP_QualityFacSamp(3,iElem) + FP_MaxRelaxFactor
+        FP_QualityFacSamp(4,iElem) = FP_QualityFacSamp(4,iElem) + 1.
+        FP_QualityFacSamp(5,iElem) = FP_QualityFacSamp(5,iElem) + FP_MaxRotRelaxFactor
+        FP_QualityFacSamp(6,iElem) = FP_QualityFacSamp(6,iElem) + FP_PrandtlNumber
+      END IF
+    END IF
   END DO
 END IF
 

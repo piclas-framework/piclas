@@ -95,10 +95,7 @@ DO iElem = 1, nElems
     vBulk = vBulk / TotalMass
 
     IF(DSMC%CalcQualityFactors) THEN
-      BGK_MeanRelaxFactorCounter = 0
-      BGK_MeanRelaxFactor = 0.
-      BGK_MaxRelaxFactor = 0.
-      BGK_MaxRotRelaxFactor = 0.
+      BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
     END IF
     IF (BGKDoAveraging) THEN
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &

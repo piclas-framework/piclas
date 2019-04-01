@@ -40,7 +40,8 @@ SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,           ONLY: Pi, BoltzmannConst
-USE MOD_FPFlow_Vars,            ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation
+USE MOD_FPFlow_Vars,            ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
+USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars,          ONLY: Species, PartState
 USE MOD_TimeDisc_Vars,          ONLY: dt
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
@@ -216,6 +217,15 @@ ELSE
   relaxtime = 2.0/relaxfreq
 END IF
 
+IF(DSMC%CalcQualityFactors) THEN
+  FP_MeanRelaxFactor         = FP_MeanRelaxFactor + dt / relaxtime
+  FP_MeanRelaxFactorCounter  = FP_MeanRelaxFactorCounter + 1
+  FP_MaxRelaxFactor          = MAX(FP_MaxRelaxFactor,dt / relaxtime)
+  IF(FPCollModel.EQ.2) THEN
+    FP_PrandtlNumber = FP_PrandtlNumber + (3./2.) / (1.-nu)
+  END IF
+END IF
+
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-SpecDSMC(1)%omegaVHS +0.5)  
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
@@ -226,6 +236,9 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   ELSE
     CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
       TEqui, rotrelaxfreq, vibrelaxfreq, FPDoVibRelaxation)
+  END IF
+  IF(DSMC%CalcQualityFactors) THEN
+    FP_MaxRotRelaxFactor          = MAX(FP_MaxRotRelaxFactor,rotrelaxfreq*dt)
   END IF
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart

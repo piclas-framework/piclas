@@ -1572,6 +1572,7 @@ USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
+USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1730,18 +1731,38 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / DSMC%QualityFacSamp(iElem,4)
         DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / DSMC%QualityFacSamp(iElem,4)
       END IF
+      nVarCount = nVar + 3
+      IF(FPInitDone) THEN
+        IF(FP_QualityFacSamp(2,iElem).GT.0) THEN
+          ! Mean relaxation factor (mean over all octree subcells)
+          DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = FP_QualityFacSamp(1,iElem) / FP_QualityFacSamp(2,iElem)
+          ! Mean Prandtl number
+          DSMC_MacroVal(nVarCount+2,kk,ll,mm,iElem) = FP_QualityFacSamp(6,iElem) / FP_QualityFacSamp(2,iElem)
+        END IF
+        IF(FP_QualityFacSamp(4,iElem).GT.0) THEN
+          ! Max relaxation factor (maximal value of all octree subcells)
+          DSMC_MacroVal(nVarCount+3,kk,ll,mm,iElem) = FP_QualityFacSamp(3,iElem) / FP_QualityFacSamp(4,iElem)
+          ! Max rotational relaxation factor
+          DSMC_MacroVal(nVarCount+4,kk,ll,mm,iElem) = FP_QualityFacSamp(5,iElem) / FP_QualityFacSamp(4,iElem)
+        END IF
+        ! Ratio between FP and DSMC usage per cell
+        DSMC_MacroVal(nVarCount+5,kk,ll,mm,iElem) = FP_QualityFacSamp(4,iElem) / iter_loc
+        nVarCount = nVarCount + 5
+      END IF
       IF(BGKInitDone) THEN
         IF(BGK_QualityFacSamp(2,iElem).GT.0) THEN
           ! Mean relaxation factor (mean over all octree subcells)
-          DSMC_MacroVal(nVar+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(1,iElem) / BGK_QualityFacSamp(2,iElem)
+          DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = BGK_QualityFacSamp(1,iElem) / BGK_QualityFacSamp(2,iElem)
         END IF
         IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
           ! Max relaxation factor (maximal value of all octree subcells)
-          DSMC_MacroVal(nVar+5,kk,ll,mm,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
-          DSMC_MacroVal(nVar+6,kk,ll,mm,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
+          DSMC_MacroVal(nVarCount+2,kk,ll,mm,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+          ! Max rotational relaxation factor
+          DSMC_MacroVal(nVarCount+3,kk,ll,mm,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
         END IF
         ! Ratio between BGK and DSMC usage per cell
-        DSMC_MacroVal(nVar+7,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+        DSMC_MacroVal(nVarCount+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+        nVarCount = nVarCount + 4
       END IF
     END DO
   END IF
@@ -1983,6 +2004,7 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
+USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2019,6 +2041,7 @@ END IF
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(BGKInitDone) nVar_quality = nVar_quality + 4
+  IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
 END IF
@@ -2067,6 +2090,14 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+3) ='BGK_MaxRotationRelaxFactor'
     StrVarNames(nVarCount+4) ='BGK_DSMC_Ratio'
     nVarCount=nVarCount+4
+  END IF
+  IF(FPInitDone) THEN
+    StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'
+    StrVarNames(nVarCount+2) ='FP_MeanPrandtlNumber'
+    StrVarNames(nVarCount+3) ='FP_MaxRelaxationFactor'
+    StrVarNames(nVarCount+4) ='FP_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+5) ='FP_DSMC_Ratio'
+    nVarCount=nVarCount+5
   END IF
 END IF
 

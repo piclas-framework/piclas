@@ -22,17 +22,27 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL               :: FPInitDone = .FALSE.
+
 INTEGER               :: FPCollModel
 INTEGER               :: ESFPModel
 LOGICAL               :: FPDoVibRelaxation
 LOGICAL               :: FPUseQuantVibEn
 REAL                  :: FPDSMCSwitchDens
 LOGICAL               :: CoupledFPDSMC
+
 TYPE tSpecFP
   REAL, ALLOCATABLE          ::  CollFreqPreFactor(:)
 END TYPE
 
 TYPE(tSpecFP), ALLOCATABLE :: SpecFP(:)
+
+REAL, ALLOCATABLE     :: FP_QualityFacSamp(:,:)
+INTEGER               :: FP_MeanRelaxFactorCounter
+REAL                  :: FP_MeanRelaxFactor
+REAL                  :: FP_MaxRelaxFactor
+REAL                  :: FP_MaxRotRelaxFactor
+REAL                  :: FP_PrandtlNumber
 
 !===================================================================================================================================
 END MODULE MOD_FPFlow_Vars
