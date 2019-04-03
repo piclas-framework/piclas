@@ -1,35 +1,30 @@
 # Welcome to PICLas
 
-## PICLas Documentation (PDF available)
+## PICLas Documentation
+
+The documentation is a work in progress, where everybody can contribute. A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder.
 
 1. [Introduction](doc/userguide/000_userguide.md)
-1. [Getting Started](doc/userguide/010_installation.md)
-1. [Workflow](doc/userguide/020_workflow.md)
-1. [Features & Models](doc/userguide/030_features_models.md)
-1. [Tools](doc/userguide/040_tools.md)
-1. [Tutorials](doc/userguide/050_tutorials.md)
-1. [Unit Tests](doc/userguide/070_unittest.md)
-1. [Installation Guide for clusters](doc/userguide/080_install_guide.md)
-1. [Parameters](doc/userguide/099_parameter.md)
+2. [Installation](doc/userguide/010_installation.md)
+3. [Workflow](doc/userguide/020_workflow.md)
+4. [Features & Models](doc/userguide/030_features_models.md)
+5. [Tools](doc/userguide/040_tools.md)
+6. [Tutorials](doc/userguide/050_tutorials.md)
+7. [Unit Tests](doc/userguide/070_unittest.md)
+8. [Development Guide](doc/userguide/080_develop_guide.md)
+9. [Parameters](doc/userguide/099_parameter.md)
 
-## Installation / Documentation
+## Recommended Configuration
 
-For installation instruction see [Install.md](INSTALL.md).
-
-The tools are known to work with the following software versions:
+For an installation guide please refer to the documentation. The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
 * HDF5 > 1.8.13
+* CMake > 3.0.0
 
 A list of successful build combinations can be found in [BuildConfigurations.md](BuildConfigurations.md).
 
-### Manual HDF5 Installation
-
-For installation instruction see [InstallHDF5.md](INSTALLHDF5.md).
-
-
 ### Installation on Cluster using CMake
-
 
 For installation instruction on forhlr1 see [Install-on-FORHLR1.md](INSTALLFORHLR1.md).
 

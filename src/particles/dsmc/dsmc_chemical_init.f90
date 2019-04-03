@@ -39,13 +39,13 @@ SUBROUTINE DSMC_chemical_init()
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,             ONLY : ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-  USE MOD_PARTICLE_Vars,         ONLY : nSpecies
-  USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
-  USE MOD_DSMC_ChemReact         ,ONLY: CalcPartitionFunction
+  USE MOD_Globals_Vars,           ONLY: BoltzmannConst
+  USE MOD_PARTICLE_Vars,          ONLY: nSpecies
+  USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
+  USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -250,7 +250,7 @@ __STAMP__&
       ELSE
         CALL abort(&
 __STAMP__&
-,'ERROR: Partition temperature limit must be multiple of partition interval!')
+,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
       END IF
       DO iSpec = 1, nSpecies
         ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
@@ -264,12 +264,22 @@ __STAMP__&
     ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
     ! during a single collision, e.g. N2+e -> ionization or dissociation)
     IF(ANY(ChemReac%QKProcedure)) THEN
+      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+        PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+      END IF
       ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
       DO iReac = 1, ChemReac%NumOfReact
         IF(ChemReac%QKProcedure(iReac)) THEN
           ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
-          ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:NINT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval)))
-          CALL InitQKAnalyticRate(iReac)
+          ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
+          DO iInter = 1, PartitionArraySize
+            Temp = iInter * DSMC%PartitionInterval
+            QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
+          END DO
         END IF
       END DO
     END IF
@@ -1138,72 +1148,6 @@ SUBROUTINE Calc_Arrhenius_Factors()
 
 END SUBROUTINE Calc_Arrhenius_Factors
 
-
-SUBROUTINE InitQKAnalyticRate(iReac)
-!===================================================================================================================================
-! Calculation of the forward reaction rate through the analytical expression for the backward reaction probability for QK
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars   ,ONLY: Pi, BoltzmannConst
-USE MOD_DSMC_Vars      ,ONLY: DSMC, SpecDSMC, QKAnalytic, ChemReac, CollInf
-USE MOD_DSMC_ChemReact ,ONLY: gammainc
-USE MOD_Globals        ,ONLY: abort
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iSpec1, iSpec2, MaxElecQua
-INTEGER                       :: iInter, iQua
-REAL                          :: z ! contribution of the relevant mode to the electronic or vibrational partition function
-REAL                          :: Q ! incomplete gamma function
-INTEGER                       :: MaxVibQuant ! highest vibrational quantum state
-REAL                          :: Temp, ForwardRate, Rcoll, TrefVHS
-!===================================================================================================================================
-
-iSpec1 = ChemReac%DefinedReact(iReac,1,1)
-iSpec2 = ChemReac%DefinedReact(iReac,1,2)
-TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
-Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
-    * (SpecDSMC(iSpec1)%DrefVHS/2. + SpecDSMC(iSpec2)%DrefVHS/2.)**2 &
-    * SQRT(2. * BoltzmannConst * TrefVHS &
-    / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
-
-SELECT CASE (ChemReac%ReactType(iReac))
-CASE('iQK')
-  MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
-  DO iInter = 1, NINT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval)
-    Temp = iInter * DSMC%PartitionInterval
-    z = 0.
-    ForwardRate = 0.0
-    DO iQua = 0, MaxElecQua
-      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
-          SpecDSMC(iSpec1)%ElectronicState(2,iQua))/Temp])
-      ForwardRate= ForwardRate + Q * SpecDSMC(iSpec1)%ElectronicState(1,iQua) &
-          * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-      z = z + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-    END DO
-    QKAnalytic(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
-  END DO
-CASE('D')
-  MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
-  DO iInter = 1, NINT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval)
-    Temp = iInter * DSMC%PartitionInterval
-    ForwardRate = 0.0
-    DO iQua = 0, MaxVibQuant - 1
-      Q = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
-      ForwardRate= ForwardRate + Q * EXP(- iQua*SpecDSMC(iSpec1)%CharaTVib / Temp)
-    END DO
-    z = 1. / (1. - EXP(-SpecDSMC(iSpec1)%CharaTVib / Temp))
-    QKAnalytic(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/z
-  END DO
-END SELECT
-END SUBROUTINE InitQKAnalyticRate
 
 SUBROUTINE Init_TLU_Data
 !===================================================================================================================================
