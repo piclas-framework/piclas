@@ -37,8 +37,12 @@ CONTAINS
 SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll)
 !===================================================================================================================================
 ! Performs FP Momentum Evaluation
+! Siehe paper: An efficient particle Fokker–Planck algorithm for rarefied gas flows, Gorji, JCP 2014
 !===================================================================================================================================
 ! MODULES
+#ifdef CODE_ANALYZE
+USE MOD_Globals,                ONLY: abort,unit_stdout,myrank
+#endif /* CODE_ANALYZE */
 USE MOD_Globals_Vars,           ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars,            ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
 USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
@@ -75,11 +79,24 @@ REAL                  :: betaV
 REAL                  :: A(3,3), Work(1000), W(3), trace, nu, Theta, iRan, NewEnRot, NewEnVib, OldEnRot
 REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old
 INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
-! === DEBUG ===
-! REAL                  :: testEnNew, testEnOld, testMomNew(3), testMomOld(3)
+#ifdef CODE_ANALYZE
+REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
+INTEGER               :: iMom
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
-!siehe paper An efficient particle Fokker–Planck algorithm for rarefied gas flows, Gorji, JCP 2014  
-!testMomNew = 0.0; testMomOld = 0.0; testEnNew = 0.0; testEnOld = 0.0
+#ifdef CODE_ANALYZE
+! Momentum and energy conservation check: summing up old values
+Momentum_new = 0.0; Momentum_old = 0.0; Energy_new = 0.0; Energy_old = 0.0
+DO iLoop = 1, nPart
+  Momentum_old(1:3) = Momentum_old(1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Energy_old = Energy_old + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
+           + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
+  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+    Energy_old = Energy_old + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+  END IF
+END DO
+#endif
+
 FPCoeffMatr= 0.0
 dens = 0.0
 u0ij=0.0
@@ -102,9 +119,6 @@ nRotRelax = 0
 nVibRelax = 0
 
 DO iLoop2 = 1, nPart
-!  testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop2),4:6) 
-!  testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop2),4)**2. + PartState(iPartIndx_Node(iLoop2),5)**2. &
-!          + PartState(iPartIndx_Node(iLoop2),6)**2.)*0.5*Species(1)%MassIC
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop2),4:6)-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2
@@ -242,9 +256,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   END IF
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart
-!    testMomOld(1:3) = testMomOld(1:3) + PartState(iPartIndx_Node(iLoop),4:6) 
-!    testEnOld = testEnOld + (PartState(iPartIndx_Node(iLoop),4)**2. + PartState(iPartIndx_Node(iLoop),5)**2. &
-!            + PartState(iPartIndx_Node(iLoop),6)**2.)*0.5*Species(1)%MassIC
     !Rotation
     CALL RANDOM_NUMBER(iRan)
     ProbAddPart = 1.-RotExp
@@ -252,7 +263,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       nRotRelax = nRotRelax + 1
       iPartIndx_NodeRelaxRot(nRotRelax) = iPartIndx_Node(iLoop)          
       OldEnRot = OldEnRot + PartStateIntEn(iPartIndx_Node(iLoop),2) 
-!      testEnOld = testEnOld + PartStateIntEn(iPartIndx_Node(iLoop),2)
     END IF
     ! Vibration
     IF(FPDoVibRelaxation) THEN
@@ -262,7 +272,6 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
         nVibRelax = nVibRelax + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPartIndx_Node(iLoop) 
         OldEn = OldEn + PartStateIntEn(iPartIndx_NodeRelaxVib(nVibRelax),1) - SpecDSMC(1)%EZeroPoint
-  !      testEnOld = testEnOld + PartStateIntEn(iPartIndx_NodeRelaxVib(nVibRelax),1)
       END IF
     END IF
   END DO
@@ -552,7 +561,6 @@ IF(FPDoVibRelaxation) THEN
             PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = (iQuant + DSMC%GammaQuant)*SpecDSMC(1)%CharaTVib*BoltzmannConst  
           END IF
           OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
-        !  testEnNew = testEnNew + PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop),1)
         END DO
       END IF
     ELSE
@@ -612,25 +620,63 @@ alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nPart
   DSMC_RHS(iPartIndx_Node(iLoop),1:3) = alpha*(DSMC_RHS(iPartIndx_Node(iLoop),1:3)-vBulk(1:3)) + vBulkAll(1:3) &
     - PartState(iPartIndx_Node(iLoop),4:6) 
-!  testMomNew(1:3) = testMomNew(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
-!  testEnNew = testEnNew &
-!          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
-!          + (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
-!          + (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
 END DO
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
   PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) 
-!   testEnNew = testEnNew + PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop),2)
 END DO
-!print*, nPart, alpha
-!print*, testEnOld, testEnNew, testEnOld-testEnNew
-!print*, testMomOld
-!print*, testMomNew
-!print*, testMomOld-testMomNew
-!read*
- 
+
 DEALLOCATE(Ni)
+
+#ifdef CODE_ANALYZE
+DO iLoop = 1, nPart
+  Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)
+  Energy_new = Energy_new &
+          + ((DSMC_RHS(iPartIndx_Node(iLoop),1) + PartState(iPartIndx_Node(iLoop),4))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),2) + PartState(iPartIndx_Node(iLoop),5))**2. &
+          +  (DSMC_RHS(iPartIndx_Node(iLoop),3) + PartState(iPartIndx_Node(iLoop),6))**2.)*0.5*Species(1)%MassIC
+  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+    Energy_new = Energy_new + PartStateIntEn(iPartIndx_Node(iLoop),1) + PartStateIntEn(iPartIndx_Node(iLoop),2)
+  END IF
+END DO
+! Check for energy difference
+IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
+  WRITE(UNIT_StdOut,*) '\n'
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
+  ASSOCIATE( energy => MAX(ABS(Energy_old),ABS(Energy_new)) )
+    IF(energy.GT.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_old-Energy_new)/energy
+    END IF
+  END ASSOCIATE
+  IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
+  IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha, nPart    : ", OldEn, alpha, nPart
+  CALL abort(&
+      __STAMP__&
+      ,'CODE_ANALYZE: FP_CollisionOperator is not energy conserving!')
+END IF
+! Check for momentum difference
+DO iMom=1,3
+  IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-8)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_new             : ",Momentum_new(iMom)
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Momentum difference : ",Momentum_old(iMom)-Momentum_new(iMom)
+    ASSOCIATE( Momentum => MAX(ABS(Momentum_old(iMom)),ABS(Momentum_new(iMom))) )
+      IF(Momentum.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_old(iMom)-Momentum_new(iMom))/Momentum
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance        : ",1.0e-8
+    IPWRITE(UNIT_StdOut,*)                     " OldEn, alpha, nPart      : ", OldEn, alpha, nPart
+    CALL abort(&
+        __STAMP__&
+        ,'CODE_ANALYZE: FP_CollisionOperator is not momentum conserving!')
+  END IF
+END DO
+#endif /* CODE_ANALYZE */
 
 END SUBROUTINE FP_CollisionOperator
 

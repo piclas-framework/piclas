@@ -77,7 +77,7 @@ INTEGER               :: INFO, nNotRelax, nRotRelax, nVibRelax
 REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnVib, vBulkRelaxOld(3),vBulkRelax(3)
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver
 #ifdef CODE_ANALYZE
-REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3), testVar(3)
+REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
 INTEGER               :: iMom
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
