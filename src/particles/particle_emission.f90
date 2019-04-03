@@ -2056,11 +2056,12 @@ ELSE ! mode.NE.1:
        DEALLOCATE( PartMPIInsert%send_message(0)%content )      
        DEALLOCATE( PartMPIInsert%send_message )
     END IF
-    IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
+    !IF( (Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) .OR. &
+    !    (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) ) THEN
       CALL MPI_BCAST(chunkSize, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
-    ELSE
-      chunkSize=NbrOfParticle
-    END IF
+    !ELSE
+    !  chunkSize=NbrOfParticle
+    !END IF
     IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
       ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
     END IF
