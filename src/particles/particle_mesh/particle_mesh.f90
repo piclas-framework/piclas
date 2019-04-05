@@ -107,6 +107,7 @@ PUBLIC::PartInElemCheck
 PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
+PUBLIC::MarkMacroPartElems
 PUBLIC::BoundsOfElement
 !===================================================================================================================================
 !
@@ -5854,6 +5855,95 @@ DO iAuxBC=1,nAuxBCs
 END DO
 
 END SUBROUTINE MarkAuxBCElems
+
+
+SUBROUTINE MarkMacroPartElems()
+!===================================================================================================================================
+!> check if MacroParticle are inside BoundingBox of Elems
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
+USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,iMP,ElemID,kBGM,jBGM,iBGM,ii,jj,kk
+REAL    :: MPBounds(1:2,1:3),ElemBounds(1:2,1:3), DistVec(1:3)
+!INTEGER :: BGMCellXmax,BGMCellXmin
+!INTEGER :: BGMCellYmax,BGMCellYmin
+!INTEGER :: BGMCellZmax,BGMCellZmin
+!INTEGER                  :: MacroPartToBGM(:,:)
+!===================================================================================================================================
+!ALLOCATE(MacroPartToBGM(1:6,1:nMacroParticle))
+
+!DO iMP=1,nMacroParticle
+!  ! loop over all elements
+!  MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-MacroPart(iMP)%radius
+!  MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+MacroPart(iMP)%radius
+!
+!  !MacroPartToBGM(1) = CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+!  !MacroPartToBGM(2) = CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+!  !MacroPartToBGM(3) = CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+!  !MacroPartToBGM(4) = CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+!  !MacroPartToBGM(5) = CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+!  !MacroPartToBGM(6) = CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+!
+!  ! here fancy stuff, because element could be wide out of element range
+!  BGMCellXmin = CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+!  BGMCellXmax = CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+!  BGMCellYmin = CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+!  BGMCellYmax = CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+!  BGMCellZmin = CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+!  BGMCellZmax = CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+!  ! add current Element to BGM-Elem
+!  DO kBGM = BGMCellZmin,BGMCellZmax
+!    DO jBGM = BGMCellYmin,BGMCellYmax
+!      DO iBGM = BGMCellXmin,BGMCellXmax
+!        DO iElem = 1,GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
+!          ElemHasMacroPart(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
+!        END DO
+!      END DO ! kBGM
+!    END DO ! jBGM
+!  END DO ! iBGM
+!END DO ! nMacroParticle
+
+DO iMP=1,nMacroParticle
+  DO iElem=1,nTotalElems
+    !IF (ElemHasMacroPart(iElem,iMP)) THEN
+      ElemHasMacroPart(iElem,iMP)=.FALSE.
+      DO kk = 0,NGeo
+        IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
+          DO ii=0,NGeo
+            IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
+              DO jj=0,NGeo
+                IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
+                  DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
+                  IF (SQRT(DOT_PRODUCT(DistVec,DistVec)).LE.MacroPart(iMP)%radius) THEN
+                    ElemHasMacroPart(iElem,iMP)=.TRUE.
+                  END IF
+                END IF
+              END DO
+            END IF
+          END DO
+        END IF
+      END DO
+    !END IF
+  END DO
+END DO
+
+END SUBROUTINE MarkMacroPartElems
 
 SUBROUTINE BoundsOfElement(ElemID,Bounds)
 !===================================================================================================================================

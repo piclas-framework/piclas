@@ -1126,9 +1126,10 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO, nTotalElems
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
@@ -1136,7 +1137,7 @@ USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
 USE MOD_PICInit                ,ONLY: InitPIC
-USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems
+USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems,MarkMacroPartElems
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
@@ -2561,7 +2562,6 @@ IF (nMacroparticle.GT.0) THEN
     MacroPart(iMP)%rotACC=GETREAL('MacroPart'//TRIM(hilf)//'-rotACC')
     MacroPart(iMP)%RHS(:)=0.
   END DO
-  !CALL MarkMacroPartElems()
 ELSE
   UseMacroPart=.FALSE.
 END IF
@@ -2796,6 +2796,12 @@ END IF
 
 !-- Finalizing InitializeVariables
 CALL InitFIBGM()
+IF (UseMacropart) THEN
+  ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
+  ElemHasMacroPart(:,:)=.FALSE.
+  CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
+  CALL MarkMacroPartElems()
+END IF
 !CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
