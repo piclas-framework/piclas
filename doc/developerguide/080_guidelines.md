@@ -2,7 +2,7 @@
 
 # Development guidelines \label{chap:guidelines}
 
-This chapter contains information about the development process and other issues concerning Git (GitLab/GitHub).
+This chapter contains information regarding the development process and other issues concerning Git (GitLab/GitHub).
 
 ## Development process
 
@@ -204,7 +204,7 @@ More information on using the queue system can be found in the [HLRS wiki](https
 
 Section last updated: 27.03.2019
 
-### Profiling with Craypad
+### Profiling with Craypat
 
 * Compile PICLas with 
        module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile

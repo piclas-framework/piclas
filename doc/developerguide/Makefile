@@ -4,7 +4,7 @@
 BUILDALL=
 
 SRC=000_developerguide.md 
-SRC +=  080_guidelines.md
+SRC +=  080_guidelines.md 150_pic.md
 # SRC +=  050_tutorials.md tutorials/*/*.md 070_unittest.md 080_develop_guide.md 099_parameter.md 
 ifneq ($(BUILDALL),)
   SRC += missing.md
