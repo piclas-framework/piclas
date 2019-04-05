@@ -667,12 +667,12 @@ relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (macroPartVelo*dt
 relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
                          +relPartTrajectory(2)*relPartTrajectory(2) &
                          +relPartTrajectory(3)*relPartTrajectory(3) )
-intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*relPartTrajectory(1:3)
 IF (relLengthPartTrajectory.EQ.0) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
   RETURN
 END IF
 relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
+intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*relPartTrajectory(1:3)
 nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center))
 WallVelo = MacroPart(macroPartID)%velocity(1:3) + CROSS(MacroPart(macroPartID)%velocity(4:6),nLoc*Macropart(macroPartID)%radius)
 ! nLoc points outwards of sphere
