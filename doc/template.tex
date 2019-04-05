@@ -316,12 +316,41 @@ $for(bibliography)$
 $endfor$
 $endif$
 
-$if(title)$
-\title{$title$$if(thanks)$\thanks{$thanks$}$endif$}
+\usepackage{graphicx}
+\usepackage{titling}
+
+% set up \maketitle to accept a new item
+\predate{\begin{center}\placetitlepicture\large}
+\postdate{\par\end{center}}
+
+% commands for including the picture
+\newcommand{\titlepicture}[2][]{%
+  \renewcommand\placetitlepicture{%
+    \vfill
+    \includegraphics[#1]{#2}\par\medskip
+    \vfill
+  }%
+}
+\newcommand{\placetitlepicture}{} % initialization
+
+
+
+$if(logo)$
+\titlepicture[width=4in]{$logo$}
 $endif$
-$if(subtitle)$
+$if(title)$
+\font\myfont=cmr12 at 40pt
+\title{\myfont $title$$if(thanks)$\thanks{$thanks$}$endif$\\
+       \vspace*{1cm}\Huge $subtitle$\\
+     \vspace*{0.2cm}\Large $version$}
+$endif$
+$if(version)$
 \providecommand{\subtitle}[1]{}
-\subtitle{$subtitle$}
+\subtitle{$version$}
+$endif$
+$if(subsubtitle)$
+\providecommand{\subtitle}[1]{}
+\subtitle{$subsubtitle$}
 $endif$
 $if(author)$
 \author{$for(author)$$author$$sep$ \and $endfor$}
@@ -330,6 +359,7 @@ $if(institute)$
 \providecommand{\institute}[1]{}
 \institute{$for(institute)$$institute$$sep$ \and $endfor$}
 $endif$
+\vfill
 \date{$date$}
 $if(beamer)$
 $if(titlegraphic)$
@@ -339,6 +369,10 @@ $if(logo)$
 \logo{\includegraphics{$logo$}}
 $endif$
 $endif$
+
+
+
+
 
 \begin{document}
 $if(title)$

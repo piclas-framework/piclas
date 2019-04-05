@@ -1,9 +1,13 @@
 ---
-title: PICLas Documentation
+title: PICLas
+logo: ../logo.png
+subtitle: User Guide
+version: version 1
 author: 
+  - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
-  - University of Stuttgart, Germany
+institute: IAG IRS
 date: \today
 documentclass: scrreprt
 lang: en-US
