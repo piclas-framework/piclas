@@ -1106,6 +1106,7 @@ INTEGER                        :: PartDataSize       !number of entries in each 
 INTEGER(KIND=IK)               :: locnPart_max
 !===================================================================================================================================
 locnPart =   0_IK
+IF (PartMPI%MPIRoot) THEN
 IF (UseMacroPart .AND. nMacroParticle.GT.0) THEN
   DO pcount = 1,nMacroParticle
     !IF(MacroParticle(pcount)%particleLocal) THEN
@@ -1113,23 +1114,27 @@ IF (UseMacroPart .AND. nMacroParticle.GT.0) THEN
     !END IF
   END DO
 END IF
-#ifdef MPI
-sendbuf(1)=locnPart
-recvbuf=0_IK
-CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
-offsetnPart=recvbuf(1)
-sendbuf(1)=recvbuf(1)+locnPart
-CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
-!global numbers
-nPart_glob=sendbuf(1)
-CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
-LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
-#else
+END IF
+!#ifdef MPI
+!sendbuf(1)=locnPart
+!recvbuf=0_IK
+!CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
+!offsetnPart=recvbuf(1)
+!sendbuf(1)=recvbuf(1)+locnPart
+!CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+!!global numbers
+!nPart_glob=sendbuf(1)
+!CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
+!LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
+!CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
+!#else
+!offsetnPart=0_IK
+!nPart_glob=locnPart
+!locnPart_max=locnPart
+!#endif
 offsetnPart=0_IK
 nPart_glob=locnPart
 locnPart_max=locnPart
-#endif
 PartDataSize=13
 ALLOCATE(PartData(offsetnPart+1_IK:offsetnPart+locnPart,INT(PartDataSize,IK)))
 
@@ -1168,14 +1173,14 @@ ASSOCIATE (PartDataSize => INT(PartDataSize,IK))
   StrVarNames(12)='Density'
   StrVarNames(13)='Mass'
 
-  IF(MPIRoot)THEN
+  IF(PartMPI%MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesMacroParticles',INT(PartDataSize,4),StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
 
   IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
-    IF(MPIRoot)THEN ! only root writes the container
+    IF(PartMPI%MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='MacroPartData'   , rank=2           , &
                             nValGlobal=(/nPart_glob  , INT(PartDataSize,IK)/)   , &
