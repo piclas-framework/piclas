@@ -17,8 +17,8 @@ output:
   pdf_document:
     pandoc_args: ["--natbib"]
 biblio-style: unsrt
-bibliography: developerguide.bib
-csl: ieee.csl
+bibliography: ../references.bib
+csl: ../ieee.csl
 link-citations: true
 ---
 

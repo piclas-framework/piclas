@@ -12,7 +12,9 @@ colorlinks: yes
 toc: yes
 header-includes:
   - \input{header}
-
+bibliography: ../references.bib
+csl: ../ieee.csl
+link-citations: true
 ---
 
 \hypertarget{introduction}{}
@@ -30,13 +32,15 @@ header-includes:
  It is licensed under GPLv3, written in Fortran and parallelized with MPI. Implemented features are
  
  * Coupled Particle-in-Cell with Direct Simulation Monte Carlo methods
- * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and electromagnetic solvers
- * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org)
- * Non-conforming interfaces based on the mortar approach (electromagnetic solver)
- * Non-reflecting boundary conditions via CFS-PMLs (electromagnetic solver)
+ * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
+   points for electrostatic and electromagnetic solvers
+ * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 
+   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@HOPR]
+ * Non-conforming interfaces [@Sonntag2017] based on the mortar approach [@Kopriva2001;@Bui2012] (electromagnetic solver)
+ * Non-reflecting boundary conditions via [**CFS-PMLs**](https://doi.org/10.1109/TPS.2016.2637061) [@Copplestone2017] (electromagnetic solver)
  * Automatic domain decomposition for parallel simulations based on a space filling curve
- * High order low-storage explicit Runge-Kutta time integration
- * I/O using the HDF5 library optimized for massively parallel jobs
+ * High order low-storage explicit Runge-Kutta time integration [@Carpenter1994]
+ * I/O using the [**HDF5**](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
 
 ## How this documentation is organized
 
