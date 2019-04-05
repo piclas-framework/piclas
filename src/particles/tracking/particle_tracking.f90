@@ -320,7 +320,7 @@ SUBROUTINE ParticleTracing()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars,               ONLY:PEM,PDM,nMacroParticle,useMacropart
+USE MOD_Particle_Vars,               ONLY:PEM,PDM, nMacroParticle, useMacropart, ElemHasMacroPart
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,ElemType,ElemRadiusNGeo,ElemHasAuxBCs
@@ -375,7 +375,7 @@ LOGICAL                       :: doPartInExists
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem,iAuxBC,AuxBCsToCheck
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
-LOGICAL                       :: HasAuxBC,OnlyAuxBC,IsIntersec,IsAuxBC
+LOGICAL                       :: IsIntersec,IsAuxBC
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 REAL,ALLOCATABLE              :: locAlphaAll(:)
 INTEGER,ALLOCATABLE           :: locListAll(:)
@@ -383,7 +383,7 @@ INTEGER,ALLOCATABLE           :: locListAll(:)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                          :: lengthPartTrajectoryBegin,lengthPartTrajectoryDone
 INTEGER                       :: macroPartsToCheck
-LOGICAL                       :: HasMacroPart,isMacroPart, onlyMacroPart
+LOGICAL                       :: isMacroPart, onlyMacroPart
 INTEGER                       :: iMP
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
@@ -449,13 +449,6 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
 #endif /*CODE_ANALYZE*/
-    HasMacroPart=.FALSE.
-    OnlyMacroPart=.FALSE.
-    IF (UseMacroPart) THEN
-      !IF (ANY(ElemHasMacroPart(ElemID,:))) THEN
-        HasMacroPart=.TRUE.
-      !END IF
-    END IF
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
@@ -463,7 +456,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)) .OR. LengthPartTrajectory.EQ.0)THEN
       ! if Macroparticle are in element, they might move and consequently have to be treated although lengthparttrajectory is 0
       ! partvelo - macropartvelo might be > 0 --> Relative lengthPartTrajectory > 0
-      IF (HasMacroPart) THEN
+      IF (UseMacroPart) THEN
         onlyMacroPart=.TRUE.
       ELSE
         PEM%Element(iPart)=ElemID
@@ -472,6 +465,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     ELSE
       PartTrajectory=PartTrajectory/lengthPartTrajectory
+      OnlyMacroPart=.FALSE.
     END IF
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -529,45 +523,18 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     firstElem=ElemID
-    !OnlyAuxBC=.FALSE.
-    HasAuxBC=.FALSE.
-    IF (UseAuxBCs) THEN
-      IF (ANY(ElemHasAuxBCs(ElemID,:))) THEN
-        HasAuxBC=.TRUE.
-      END IF
-    END IF
 !    IF (ElemType(ElemID).EQ.1) THEN
 !      !removed CheckPlanarInside since it can be inconsistent for planar-assumed sides:
 !      !they can still be planar-nonrect for which the bilin-algorithm will be used which might give a different result
 !      !(anyway, this was a speed-up for completely planar meshes only, but those should be now calculated with triatracking)
-!      !CALL CheckPlanarInside(iPart,ElemID,lengthPartTrajectory,PartisDone)
-!#ifdef CODE_ANALYZE
-!      IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
-!        IF(iPart.EQ.PARTOUT)THEN
-!          WRITE(UNIT_stdout,'(110("="))')
-!          WRITE(UNIT_stdout,'(A,L)')    '     | Elem has AuxBC: ',HasAuxBC
-!        END IF
-!      END IF
-!#endif /*CODE_ANALYZE*/
-!      IF (PartisDone) THEN
-!        IF (HasAuxBC) THEN
-!          OnlyAuxBC=.TRUE.
-!          PartisDone=.FALSE.
-!        ELSE
-!          PEM%Element(iPart) = ElemID
-!          CYCLE
-!        END IF !HasAuxBC
-!      END IF !inside
-!    END IF !planar elem
     markTol =.FALSE.
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
       DO ilocSide=1,6
-        IF (HasAuxBC.OR.HasMacroPart) THEN
+        IF (UseAuxBCs.OR.UseMacroPart) THEN
           locListAll(ilocSide)=ilocSide
-          !IF (OnlyAuxBC) CYCLE
           IF (OnlyMacroPart) CYCLE
         END IF
         locSideList(ilocSide)=ilocSide
@@ -673,11 +640,11 @@ DO iPart=1,PDM%ParticleVecLength
           IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
-      IF (HasAuxBC) THEN
+      IF (UseAuxBCs) THEN
         locAlphaAll=-1.
         DO iAuxBC=1,nAuxBCs
           locListAll(6+iAuxBC)=6+iAuxBC
-          IF (HasMacroPart) THEN
+          IF (UseMacroPart) THEN
             IF (OnlyMacroPart) CYCLE
           END IF
           isCriticalParallelInFace=.FALSE.
@@ -715,12 +682,13 @@ DO iPart=1,PDM%ParticleVecLength
             IF(ALMOSTZERO(locAlphaAll(6+iAuxBC))) markTol=.TRUE.
           END IF
         END DO !iAuxBC
-      END IF !HasAuxBC
-      IF (HasMacroPart) THEN
-        locAlphaAll=-1.
+      END IF !UseAuxBCs
+      IF (UseMacroPart) THEN
+        locAlphaAll(6+nAuxBCs+1:6+nAuxBCs+nMacroParticle)=-1.
+        !locAlphaAll=-1.
         DO iMP=1,nMacroParticle
           locListAll(6+nAuxBCs+iMP)=6+nAuxBCs+iMP
-          !IF (ElemHasMacroPart(ElemID,iMP)) THEN
+          IF (ElemHasMacroPart(ElemID,iMP)) THEN
             IF (PartDoubleCheck.EQ.1) THEN
               CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlphaAll(6+nAuxBCs+iMP),iPart,alpha2=alphaOld)
@@ -728,9 +696,9 @@ DO iPart=1,PDM%ParticleVecLength
               CALL ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,iMP&
                                                ,locAlphaAll(6+nAuxBCs+iMP),iPart)
             END IF
-          !ELSE
-          !  isHit=.FALSE.
-          !END IF
+          ELSE
+            isHit=.FALSE.
+          END IF
           IF(isHit) THEN
             nInterSections=nInterSections+1
           END IF
@@ -800,13 +768,12 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END DO ! ilocSide
         !-- check for AuxBC interactions (if one exists, ilocSide-loop could not have found one, since nInterSections=1)
-        IF (HasAuxBC) THEN
+        IF (UseAuxBCs) THEN
           DO iAuxBC=1,nAuxBCs
             IF(locAlphaAll(6+iAuxBC).GT.-1.0) THEN
               CALL GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,locAlphaAll(6+iAuxBC),iPart,iAuxBC,crossedBC)
               IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
               dolocSide=.TRUE. !important when before there was an elemchange !
-              OnlyAuxBC=.FALSE. !important, since a new elem could have been reached now !
 #if USE_LOADBALANCE
               IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -816,9 +783,9 @@ DO iPart=1,PDM%ParticleVecLength
               END IF
             END IF
           END DO !iAuxBC
-        END IF !HasAuxBC
+        END IF !UseAuxBCs
         !-- check for MacroPart interactions (if one exists, ilocSide-loop could not have found one, since nInterSections=1)
-        IF (HasMacroPart) THEN
+        IF (UseMacroPart) THEN
           DO iMP=1,nMacroParticle
             IF(locAlphaAll(6+nAuxBCs+iMP).GT.-1.0) THEN
 #ifdef CODE_ANALYZE
@@ -849,7 +816,7 @@ DO iPart=1,PDM%ParticleVecLength
               END IF
             END IF
           END DO !iAuxBC
-        END IF !HasAuxBC
+        END IF !UseAuxBCs
 
         IF((.NOT.crossedBC).AND.(.NOT.SwitchedElement)) THEN
           IF (PartDoubleCheck.EQ.0) THEN
@@ -873,7 +840,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*IMPA*/
       CASE DEFAULT ! two or more hits
         ! more careful witEh bc elems
-          IF (HasAuxBC.OR.HasMacroPart) THEN
+          IF (UseAuxBCs.OR.UseMacroPart) THEN
             locAlphaAll(1:6)=locAlpha
             CALL InsertionSort(locAlphaAll,locListAll,6+nAuxBCs+nMacroParticle)
             AuxBCsToCheck=nAuxBCs
@@ -885,7 +852,7 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
           IF (PartDoubleCheck.EQ.0) THEN
             DO iLocSide=1,6+nAuxBCs+nMacroParticle
-              IF (HasAuxBC.OR.HasMacroPart) THEN
+              IF (UseAuxBCs.OR.UseMacroPart) THEN
                 IF (locAlphaAll(ilocSide).GT.-1.0) THEN
                   alphaOld = locAlphaAll(ilocSide)
                   EXIT
@@ -904,7 +871,7 @@ DO iPart=1,PDM%ParticleVecLength
             IsIntersec=.FALSE.
             IsAuxBC=.FALSE.
             IsMacroPart=.FALSE.
-            IF (HasAuxBC.OR.HasMacroPart) THEN
+            IF (UseAuxBCs.OR.UseMacroPart) THEN
               IF (locAlphaAll(ilocSide).GT.-1.0) IsIntersec=.TRUE.
               IF (locListAll(ilocSide).GT.6 .AND. locListAll(iLocSide).LE.(6+nAuxBCs) .AND. nAuxBCs.GT.0) IsAuxBC=.TRUE.
               IF (locListAll(ilocSide).GT.(6+nAuxBCs) .AND. nMacroParticle.GT.0) IsMacroPart=.TRUE.
@@ -920,7 +887,7 @@ DO iPart=1,PDM%ParticleVecLength
                   END IF
                 END IF
 #endif /*CODE_ANALYZE*/
-                IF (HasAuxBC.OR.HasMacroPart) THEN
+                IF (UseAuxBCs.OR.UseMacroPart) THEN
                   hitlocSide=locListAll(ilocSide)
                 ELSE
                   hitlocSide=locSideList(ilocSide)
@@ -928,7 +895,7 @@ DO iPart=1,PDM%ParticleVecLength
                 SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
                 flip  =PartElemToSide(E2S_FLIP,hitlocSide,ElemID)
                 OldElemID=ElemID
-                IF (HasAuxBC.OR.HasMacroPart) THEN
+                IF (UseAuxBCs.OR.UseMacroPart) THEN
                   CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
                     ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),locAlphaAll(ilocSide),iPart,SideID,SideType(SideID),ElemID)
                 ELSE
@@ -961,7 +928,6 @@ DO iPart=1,PDM%ParticleVecLength
                   PartTrajectory,lengthPartTrajectory,locAlphaAll(ilocSide),iPart,locListAll(ilocSide)-6,crossedBC)
                 IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
                 dolocSide=.TRUE. !important when before there was an elemchange !
-                OnlyAuxBC=.FALSE. !important, since a new elem could have been reached now !
 #if USE_LOADBALANCE
                 IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
