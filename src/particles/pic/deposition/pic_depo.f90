@@ -1170,12 +1170,12 @@ END SUBROUTINE InitializeDeposition
 
 SUBROUTINE Deposition(doInnerParts,doParticle_In)
 !============================================================================================================================
-! This subroutine performes the deposition of the particle charge and current density to the grid
-! following list of distribution methods are implemted
+! This subroutine performs the deposition of the particle charge and current density to the grid
+! following list of distribution methods are implemented
 ! - nearest blurrycenter (barycenter of hexahedra)
 ! - nearest Gauss Point  (only volome of IP - higher resolution than nearest blurrycenter )
 ! - shape function       (only one type implemented)
-! - delta distributio
+! - delta distribution
 ! useVMPF added, therefore, this routine contains automatically the use of variable mpfs
 !============================================================================================================================
 ! use MODULES
@@ -3150,36 +3150,35 @@ SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)
 ! recursive function for evaluating a b-spline basis function
 !============================================================================================================================
 ! use MODULES 
-   USE MOD_PICDepo_Vars                                                          
+USE MOD_PICDepo_Vars                                                          
 !-----------------------------------------------------------------------------------------------------------------------------------
-   IMPLICIT NONE                                                                                   
+IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-   INTEGER, INTENT(IN)                          :: PosInd, dir  
-   REAL, INTENT(IN)                             :: coord                                              
-   REAL, INTENT(INOUT)                          :: aux(0:3), results                     
+INTEGER, INTENT(IN)                          :: PosInd, dir  
+REAL, INTENT(IN)                             :: coord                                              
+REAL, INTENT(INOUT)                          :: aux(0:3), results                     
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES  
-   INTEGER                          :: i,k,jL,jR                                                  
-   REAL                              :: hlp1,hlp2                                                   
+INTEGER                          :: i,k,jL,jR                                                  
+REAL                              :: hlp1,hlp2                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
-    DO i = 0, 2
-       DO k = 0, 2-i
-          jL = PosInd - k
-          jR = jL + 3 - i
-          
-          hlp1 = jR * BGMdeltas(dir) - coord
-          hlp2 = coord - jL * BGMdeltas(dir)
-         
-          aux(k) = (hlp1 * aux(k+1) + hlp2 * aux(k)) / (hlp1+hlp2)
-       ENDDO
-    ENDDO
-    results = aux(0)
+DO i = 0, 2
+   DO k = 0, 2-i
+      jL = PosInd - k
+      jR = jL + 3 - i
+      
+      hlp1 = jR * BGMdeltas(dir) - coord
+      hlp2 = coord - jL * BGMdeltas(dir)
+     
+      aux(k) = (hlp1 * aux(k+1) + hlp2 * aux(k)) / (hlp1+hlp2)
+   ENDDO
+ENDDO
+results = aux(0)
 
-    RETURN
 END SUBROUTINE DeBoor
 
 

@@ -362,11 +362,8 @@ IF(DoRestart) CALL EvalGradient()
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && defined(MPI)
-IF ((TRIM(DepositionType).EQ."shape_function")             &
-.OR.(TRIM(DepositionType).EQ."shape_function_1d")          &
-.OR.(TRIM(DepositionType).EQ."shape_function_spherical")   &
-.OR.(TRIM(DepositionType).EQ."shape_function_simple")      &
-.OR.(TRIM(DepositionType).EQ."shape_function_cylindrical"))THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
