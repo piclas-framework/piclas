@@ -1138,7 +1138,7 @@ USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems,MarkMacroPartElems
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, Triatracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
@@ -2545,6 +2545,10 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- MacroPart
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
+  IF (DoRefMapping.OR.TriaTracking) CALL abort(&
+__STAMP__&
+,'Macroparticle not possible with triatracking or dorefmapping')
+  ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
   UseMacroPart=.TRUE.
   ALLOCATE (MacroPart(1:nMacroParticle))
   DO iMP = 1,nMacroParticle
@@ -2800,7 +2804,6 @@ IF (UseMacropart) THEN
   ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
   ElemHasMacroPart(:,:)=.FALSE.
   CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
-  CALL MarkMacroPartElems()
 END IF
 !CALL InitSFIBGM()
 #ifdef MPI
