@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
 USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
-USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength, BGKDSMCSwitchDens
+USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength, BGKDSMCSwitchDens
 USE MOD_BGK_Vars,               ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
 USE MOD_BGK_Vars,               ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator,       ONLY: BGK_CollisionOperator
@@ -97,9 +97,9 @@ DO iElem = 1, nElems
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
     END IF
-    IF (BGKDoAveraging) THEN
+    IF (BGKMovingAverage) THEN
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
-          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
+          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE 
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
@@ -135,7 +135,7 @@ USE MOD_BGK_Adaptation     ,ONLY: BGK_octree_adapt
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_BGK_Vars           ,ONLY: DoBGKCellAdaptation, BGKDoAveraging, ElemNodeAveraging, BGKAveragingLength
+USE MOD_BGK_Vars           ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars           ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars           ,ONLY: BGK_MaxRotRelaxFactor
 USE MOD_BGK_CollOperator   ,ONLY: BGK_CollisionOperator
@@ -181,9 +181,9 @@ ELSE
       BGK_MaxRotRelaxFactor = 0.
     END IF
 
-    IF (BGKDoAveraging) THEN
+    IF (BGKMovingAverage) THEN
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
-          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKAveragingLength), &
+          ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)

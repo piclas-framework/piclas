@@ -45,8 +45,8 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
-USE MOD_BGK_Vars              ,ONLY: BGKAveragingLength, BGKDoAveraging
-USE MOD_BGK_Vars              ,ONLY: BGKDoAveragingCorrect, BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
+USE MOD_BGK_Vars              ,ONLY: BGKMovingAverageLength, BGKMovingAverage
+USE MOD_BGK_Vars              ,ONLY: BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
@@ -59,7 +59,7 @@ REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(INOUT)                  :: nPart
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 REAL, INTENT(IN)                        :: vBulkAll(3)
-REAL, INTENT(INOUT), OPTIONAL           :: AveragingPara(5,BGKAveragingLength)
+REAL, INTENT(INOUT), OPTIONAL           :: AveragingPara(5,BGKMovingAverageLength)
 INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -109,7 +109,7 @@ vBulkRelax = 0.0
 vBulkRelaxOld = 0.0
 DO iLoop = 1, nPart
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
-  IF (BGKDoAveraging) u2Aver = u2Aver + PartState(iPartIndx_Node(iLoop),4)**2. &
+  IF (BGKMovingAverage) u2Aver = u2Aver + PartState(iPartIndx_Node(iLoop),4)**2. &
       +PartState(iPartIndx_Node(iLoop),5)**2. + PartState(iPartIndx_Node(iLoop),6)**2.
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   u2= u2 + vmag2
@@ -178,10 +178,10 @@ ELSE
   InnerDOF = 0.
 END IF
 
-IF (BGKDoAveraging) THEN
-  IF (BGKDoAveragingCorrect) THEN
+IF (BGKMovingAverage) THEN
+  IF (BGKMovingAverageLength.GT.1) THEN
     CorrectStep = CorrectStep + 1
-    IF (CorrectStep.GT.BGKAveragingLength) CorrectStep = 1
+    IF (CorrectStep.GT.BGKMovingAverageLength) CorrectStep = 1
     AveragingPara(1:3,CorrectStep) = vBulkAll(1:3)*nPart
     AveragingPara(4,CorrectStep) = u2Aver
     AveragingPara(5,CorrectStep) = nPart

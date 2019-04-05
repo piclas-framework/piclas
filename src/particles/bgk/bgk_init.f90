@@ -67,13 +67,11 @@ CALL prms%CreateLogicalOption('Particles-BGK-DoCellAdaptation',     'Enables oct
                                                                     'directions (x,y,z)','.FALSE.')
 CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define minimum number of particles per cell for octree '//&
                                                                     'cell refinement')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveraging',          'Enable a moving average of variables for the calculation '//&
+CALL prms%CreateLogicalOption('Particles-BGK-MovingAverage',        'Enable a moving average of variables for the calculation '//&
                                                                     'of the cell temperature for relaxation frequencies','.FALSE.')
-CALL prms%CreateLogicalOption('Particles-BGK-DoAveragingCorrection','Use the moving average with a fixed array length, where '//&
+CALL prms%CreateIntOption(    'Particles-BGK-MovingAverageLength',  'Use the moving average with a fixed array length, where '//&
                                                                     'the first values are dismissed and the last values updated '//&
-                                                                    'with current iteration, for unsteady flows','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-AveragingLength',      'Length of the moving average array, required for the '//&
-                                                                    '-DoAveragingCorrection option')
+                                                                    'with current iteration to account for for unsteady flows','1')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
                                                                     'density', '0.0')
 CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
@@ -163,11 +161,12 @@ __STAMP__&
   END IF
 END IF
 BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
-! Moving Averaging
-BGKDoAveraging = GETLOGICAL('Particles-BGK-DoAveraging')
-BGKDoAveragingCorrect = GETLOGICAL('Particles-BGK-DoAveragingCorrection')
-IF(BGKDoAveragingCorrect) BGKAveragingLength = GETINT('Particles-BGK-AveragingLength')
-IF(BGKDoAveraging) CALL BGK_init_Averaging()
+! Moving Average
+BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
+IF(BGKMovingAverage) THEN
+  BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
+  CALL BGK_init_MovingAverage()
+END IF
 ! Vibrational modelling
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
 BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
@@ -184,12 +183,12 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 END SUBROUTINE InitBGK
 
 
-SUBROUTINE BGK_init_Averaging()
+SUBROUTINE BGK_init_MovingAverage()
 !===================================================================================================================================
 !> Building of the octree for a node depth of 2 during the initialization
 !===================================================================================================================================
 ! MODULES
-USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKAveragingLength, BGKDoAveragingCorrect
+USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_Mesh_Vars  ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -204,17 +203,16 @@ INTEGER                       :: iElem
 ALLOCATE(ElemNodeAveraging(nElems))
 DO iElem = 1, nElems
   ALLOCATE(ElemNodeAveraging(iElem)%Root)
-  IF (BGKDoAveragingCorrect) THEN
-    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,BGKAveragingLength))
+  IF (BGKMovingAverageLength.GT.1) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,BGKMovingAverageLength))
      ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
   ELSE
-    BGKAveragingLength = 1
     ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,1))
     ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
   END IF
   ElemNodeAveraging(iElem)%Root%CorrectStep = 0
 END DO
 
-END SUBROUTINE BGK_init_Averaging
+END SUBROUTINE BGK_init_MovingAverage
 
 END MODULE MOD_BGK_Init

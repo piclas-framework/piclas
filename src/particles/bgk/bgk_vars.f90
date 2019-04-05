@@ -34,9 +34,8 @@ INTEGER                                        :: BGKCollModel                  
 INTEGER                                        :: ESBGKModel                    ! 1 Approx Levin; 2 Exact Solution A; 3 Metropolis
 REAL                                           :: BGKUnifiedCes
 INTEGER                                        :: BGKMinPartPerCell
-INTEGER                                        :: BGKAveragingLength
-LOGICAL                                        :: BGKDoAveraging
-LOGICAL                                        :: BGKDoAveragingCorrect
+LOGICAL                                        :: BGKMovingAverage
+INTEGER                                        :: BGKMovingAverageLength
 LOGICAL                                        :: BGKUseQuantVibEn
 INTEGER                                        :: SBGKEnergyConsMethod
 LOGICAL                                        :: BGKDoVibRelaxation
