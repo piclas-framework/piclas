@@ -17,12 +17,12 @@ all: developerguide
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
 developerguide:
-	pandoc $(SRC)   -o developerguide.pdf -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=template.tex
+	pandoc $(SRC)   -o developerguide.pdf -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=../template.tex
 
 # utility targets
 
 tests:
-	pandoc tests.md -o test.pdf      -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=template.tex
+	pandoc tests.md -o test.pdf      -s -N --filter pandoc-citeproc --from markdown+implicit_figures --listings --template=../template.tex
 
 .PHONY: developerguide
 
