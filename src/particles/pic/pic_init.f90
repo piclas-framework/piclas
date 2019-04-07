@@ -99,10 +99,11 @@ CALL prms%CreateRealOption(     'PIC-CollectCharges[$]-ChargeDist'  , 'TODO-DEFI
 
 CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Normal vector for pushTimeStep', '1. , 0. , 0.')
-CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Flag ', '1')
-CALL prms%CreateIntOption(      'PIC-DeltaType-N'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Polynomial degree of delta distribution', '1')
+CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'Basis function type.\n'//&
+                                                       '1: Lagrange-Polynomial\n'//&
+                                                       '2: Bernstein-Polynomial\n'//&
+                                                       '3: Uniform B-Spline', '1')
+CALL prms%CreateIntOption(      'PIC-DeltaType-N'    , 'Polynomial degree of the delta distribution basis function', '1')
 CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Dimensions of PIC background mesh', '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
@@ -112,30 +113,37 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
 
 CALL prms%SetSection("PIC Deposition")
 
-CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Switch deposition on/off', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                             '(HALOWIKI:)\n'//&
-                                                                    'If Deposition-Type=shape_function\n'//&
-                                                             'Define:\n'//&
-                                                             'PIC-shapefunction-radius\n'//&
-                                                             'PIC-shapefunction-alpha.\n'//&
-                                                                    'If Deposition-Type =(cartmesh_volumeweighting/ cartmesh_splines)\n'//&
-                                                             'Define:\n'//&
-                                                             'PIC-BGMdeltas\n'//&
-                                                             'PIC-FactorBGM', 'nearest-blurrycenter')
+CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_function\n'                   //&
+                                                             '1.2)  shape_function_1d\n'                //&
+                                                             '1.3)  shape_function_2d\n'                //&
+                                                             '1.4)  shape_function_cylindrical\n'       //&
+                                                             '1.5)  shape_function_spherical\n'         //&
+                                                             '1.6)  shape_function_simple\n'            //&
+                                                             '      requires PIC-shapefunction-radius\n'//& 
+                                                             '               PIC-shapefunction-alpha\n' //&
+                                                             '      1.2) and 1.3) require\n'            //&
+                                                             '      PIC-shapefunction1d-direction)\n'   //&
+                                                             '2.)   cell_volweight\n'                   //&
+                                                             '3.)   epanechnikov\n'                     //&
+                                                             '4.)   nearest_gausspoint\n'               //&
+                                                             '5.)   delta_distri\n'                     //&
+                                                             '      requires PIC-DeltaType\n'           //& 
+                                                             '               PIC-DeltaType-N\n'         //& 
+                                                             '6.1)  cartmesh_volumeweighting\n'         //&
+                                                             '6.2)  cartmesh_splines\n'                 //&
+                                                             '      requires PIC-BGMdeltas\n'           //&
+                                                             '               PIC-FactorBGM\n'           //&
+                                                             '7.)   nearest-blurrycenter'                 &
+                                                           , 'nearest-blurrycenter') ! Default
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 
 CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Radius of shape function', '1.')
-CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Exponent of shape function', '2')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Use equidistant points for shapefunction'&
-                                                           , '.FALSE.')
-CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Direction of 1D shape function', '1')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
+CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
+CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
+                                                                 '2D shape function: Perpendicular deposition')
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'TODO-DEFINE-PARAMETER\n'//&
                                                                     'Minimal shape function radius', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'TODO-DEFINE-PARAMETER\n'//&
