@@ -5894,25 +5894,26 @@ IF (.NOT.UseMacroPart) RETURN
 DO iMP=1,nMacroParticle
   MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dt*RKdtFrac
   LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
-!  !MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
-!  !MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
-!
-!  !BGMCellXmin = MAX( MAX(0,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xminglob/GEO%FIBGMdeltas(1)))
-!  !BGMCellXmax = MIN( MAX(0,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xmaxglob/GEO%FIBGMdeltas(1)))
-!  !BGMCellYmin = MAX( MAX(0,CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%yminglob/GEO%FIBGMdeltas(2)))
-!  !BGMCellYmax = MIN( MAX(0,CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%ymaxglob/GEO%FIBGMdeltas(2)))
-!  !BGMCellZmin = MAX( MAX(0,CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zminglob/GEO%FIBGMdeltas(3)))
-!  !BGMCellZmax = MIN( MAX(0,CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zmaxglob/GEO%FIBGMdeltas(3)))
-!  !! add current Element to BGM-Elem
-!  !DO kBGM = BGMCellZmin,BGMCellZmax
-!  !  DO jBGM = BGMCellYmin,BGMCellYmax
-!  !    DO iBGM = BGMCellXmin,BGMCellXmax
-!  !      DO iElem = 1,GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
-!  !        ElemHasMacroPart(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
-!  !      END DO
-!  !    END DO ! kBGM
-!  !  END DO ! jBGM
-!  !END DO ! iBGM
+  IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
+  !MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
+  !MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
+
+  !BGMCellXmin = MAX( MAX(0,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xminglob/GEO%FIBGMdeltas(1)))
+  !BGMCellXmax = MIN( MAX(0,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xmaxglob/GEO%FIBGMdeltas(1)))
+  !BGMCellYmin = MAX( MAX(0,CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%yminglob/GEO%FIBGMdeltas(2)))
+  !BGMCellYmax = MIN( MAX(0,CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%ymaxglob/GEO%FIBGMdeltas(2)))
+  !BGMCellZmin = MAX( MAX(0,CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zminglob/GEO%FIBGMdeltas(3)))
+  !BGMCellZmax = MIN( MAX(0,CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zmaxglob/GEO%FIBGMdeltas(3)))
+  !! add current Element to BGM-Elem
+  !DO kBGM = BGMCellZmin,BGMCellZmax
+  !  DO jBGM = BGMCellYmin,BGMCellYmax
+  !    DO iBGM = BGMCellXmin,BGMCellXmax
+  !      DO iElem = 1,GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
+  !        ElemHasMacroPart(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
+  !      END DO
+  !    END DO ! kBGM
+  !  END DO ! jBGM
+  !END DO ! iBGM
 
   ! loop over all elements
   DO iElem=1,nTotalElems
@@ -5920,7 +5921,7 @@ DO iMP=1,nMacroParticle
       ! check with all 3 element diagonals wether macroparticle is smaller than element
       CALL BoundsOfElement(iElem,ElemBounds)
       BoundsDiagonalVec(1:3)=ElemBounds(2,1:3)-ElemBounds(1,1:3)
-      BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius*2)
+      BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius*1.1)
       ElemHasMacroPart(iElem,iMP)=.FALSE.
       DO kk = 0,NGeo
         IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
@@ -5930,7 +5931,7 @@ DO iMP=1,nMacroParticle
                 IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
                   DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
                   DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
-                  eps=LengthMacroPartTrajectory+epsMach
+                  eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec/DistVecLength,MacroPartTrajectory)+epsMach
                   IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
                     ElemHasMacroPart(iElem,iMP)=.TRUE.
                   END IF
