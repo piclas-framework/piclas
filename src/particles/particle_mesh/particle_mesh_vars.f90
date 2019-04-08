@@ -168,6 +168,7 @@ TYPE tGeometry
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
+  REAL, ALLOCATABLE                      :: MPVolumePortion(:)                ! portion of Volume(nElems) filled by macroPart
   REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
   REAL                                   :: MeshVolume                        ! Total Volume of mesh
   REAL                                   :: LocalVolume                       ! Volume of proc 

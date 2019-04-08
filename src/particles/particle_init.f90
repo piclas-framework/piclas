@@ -2566,8 +2566,10 @@ __STAMP__&
     MacroPart(iMP)%rotACC=GETREAL('MacroPart'//TRIM(hilf)//'-rotACC')
     MacroPart(iMP)%RHS(:)=0.
   END DO
+  CalcMPVolumePortion=.TRUE.
 ELSE
   UseMacroPart=.FALSE.
+  CalcMPVolumePortion=.FALSE.
 END IF
 
 !-- AuxBCs

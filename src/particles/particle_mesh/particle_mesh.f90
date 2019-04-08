@@ -691,6 +691,7 @@ SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectorsLength)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
+SDEALLOCATE(GEO%MPVolumePortion)
 SDEALLOCATE(GEO%CharLength)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(GEO%ElemToFIBGM)
@@ -5859,20 +5860,23 @@ END SUBROUTINE MarkAuxBCElems
 
 SUBROUTINE MarkMacroPartElems()
 !===================================================================================================================================
-!> check if MacroParticle are inside BoundingBox of Elems
+!> 1: check if MacroParticle are inside of Elements and add a safetyfactor to guarantee waterproof tracing
+!> 2: calcualte volume portion of each cell, which is occupied with macroparticles
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
 USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart
-USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO
-USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO, epsOneCell
+USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo
-USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_part_tools             ,ONLY: INSIDEMACROPART
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
+USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
+USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -5881,73 +5885,140 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,iMP,ElemID,kBGM,jBGM,iBGM,ii,jj,kk
-REAL    :: MPBounds(1:2,1:3),ElemBounds(1:2,1:3), DistVec(1:3)
-REAL    :: MacroPartTrajectory(1:3), LengthMacroPartTrajectory, eps
-REAL    :: DistVecLength, BoundsDiagonal, BoundsDiagonalVec(1:3)
+INTEGER :: iElem,iMP,ElemID,ii,jj,kk
+INTEGER :: kBGM,jBGM,iBGM
+REAL    :: MPBounds(1:2,1:3)
 INTEGER :: BGMCellXmax,BGMCellXmin
 INTEGER :: BGMCellYmax,BGMCellYmin
 INTEGER :: BGMCellZmax,BGMCellZmin
+REAL    :: ElemBounds(1:2,1:3), DistVec(1:3)
+REAL    :: MacroPartTrajectory(1:3), LengthMacroPartTrajectory, eps, safetyFac
+REAL    :: DistVecLength, BoundsDiagonal, BoundsDiagonalVec(1:3)
+INTEGER :: nodesInside, matchedParts
+INTEGER :: nInsertPartsX,nInsertPartsY,nInsertPartsZ
+!INTEGER :: xref,yref,zref
+INTEGER :: iPart
+REAL    :: refPos(1:3),physPos(1:3)
 !===================================================================================================================================
 IF (.NOT.UseMacroPart) RETURN
 
-DO iMP=1,nMacroParticle
-  MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dt*RKdtFrac
-  LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
-  IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
-  !MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
-  !MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*2+LengthMacroPartTrajectory+epsMach)
+!set a factor for volume around spheres to be marked (necessary for tracking)
+safetyFac=1.1
 
-  !BGMCellXmin = MAX( MAX(0,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xminglob/GEO%FIBGMdeltas(1)))
-  !BGMCellXmax = MIN( MAX(0,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))),CEILING(GEO%xmaxglob/GEO%FIBGMdeltas(1)))
-  !BGMCellYmin = MAX( MAX(0,CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%yminglob/GEO%FIBGMdeltas(2)))
-  !BGMCellYmax = MIN( MAX(0,CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))),CEILING(GEO%ymaxglob/GEO%FIBGMdeltas(2)))
-  !BGMCellZmin = MAX( MAX(0,CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zminglob/GEO%FIBGMdeltas(3)))
-  !BGMCellZmax = MIN( MAX(0,CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))),CEILING(GEO%zmaxglob/GEO%FIBGMdeltas(3)))
-  !! add current Element to BGM-Elem
-  !DO kBGM = BGMCellZmin,BGMCellZmax
-  !  DO jBGM = BGMCellYmin,BGMCellYmax
-  !    DO iBGM = BGMCellXmin,BGMCellXmax
-  !      DO iElem = 1,GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
-  !        ElemHasMacroPart(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
-  !      END DO
-  !    END DO ! kBGM
-  !  END DO ! jBGM
-  !END DO ! iBGM
+! only if macroparticles are moving or volume portion has to be calculated
+! also done in initial iteration
+IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velocity(2))).GT.0. &
+    .OR. MAXVAL(ABS(MacroPart(:)%velocity(3))).GT.0. .OR. CalcMPVolumePortion) THEN
+  CalcMPVolumePortion=.TRUE.
+  GEO%MPVolumePortion(:)=0.
+  !--- 1: first coarse check if element has MP via BGM with Halo cells included
+  DO iMP=1,nMacroParticle
+    MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dt*RKdtFrac
+    LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
+    IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
+    MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
+    MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
 
-  ! loop over all elements
-  DO iElem=1,nTotalElems
-    !IF (ElemHasMacroPart(iElem,iMP)) THEN
-      ! check with all 3 element diagonals wether macroparticle is smaller than element
-      CALL BoundsOfElement(iElem,ElemBounds)
-      BoundsDiagonalVec(1:3)=ElemBounds(2,1:3)-ElemBounds(1,1:3)
-      BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius*1.1)
-      ElemHasMacroPart(iElem,iMP)=.FALSE.
-      DO kk = 0,NGeo
-        IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
-          DO ii=0,NGeo
-            IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
-              DO jj=0,NGeo
-                IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
-                  DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
-                  DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
-                  eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec/DistVecLength,MacroPartTrajectory)+epsMach
-                  IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
-                    ElemHasMacroPart(iElem,iMP)=.TRUE.
-                  END IF
-                END IF
-              END DO
-            END IF
+    BGMCellXmin = 1
+    BGMCellXmax = 0
+    BGMCellYmin = 1
+    BGMCellYmax = 0
+    BGMCellZmin = 1
+    BGMCellZmax = 0
+
+    IF (MPBounds(1,1)-GEO%xminglob.GT.0.) BGMCellXmin = CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    IF (MPBounds(2,1)-GEO%xminglob.GT.0.) BGMCellXmax = CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    IF (MPBounds(1,2)-GEO%yminglob.GT.0.) BGMCellYmin = CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    IF (MPBounds(2,2)-GEO%yminglob.GT.0.) BGMCellYmax = CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    IF (MPBounds(1,3)-GEO%zminglob.GT.0.) BGMCellZmin = CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    IF (MPBounds(2,3)-GEO%zminglob.GT.0.) BGMCellZmax = CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    ! add current Element to BGM-Elem
+    DO kBGM = BGMCellZmin,BGMCellZmax
+      DO jBGM = BGMCellYmin,BGMCellYmax
+        DO iBGM = BGMCellXmin,BGMCellXmax
+          DO iElem = 1,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem
+            ElemHasMacroPart(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(iElem),iMP) = .TRUE.
           END DO
-        END IF
-      END DO
-      !IF (.NOT.ElemHasMacroPart(iElem,iMP)) THEN
-      !  CALL PointToExactElement(MacroPart(iMP)%center(1:3),iElem,ElemHasMacroPart(iElem,iMP),.TRUE.)
-      !END IF
-    !END IF
+        END DO ! kBGM
+      END DO ! jBGM
+    END DO ! iBGM
+
+    ! loop over all elements that have a MP in BGM and find those which are in a certain safety radius
+    DO iElem=1,nTotalElems
+      IF (ElemHasMacroPart(iElem,iMP)) THEN
+        ! check with all 3 element diagonals wether macroparticle is smaller than element
+        CALL BoundsOfElement(iElem,ElemBounds)
+        BoundsDiagonalVec(1:3)=ElemBounds(2,1:3)-ElemBounds(1,1:3)
+        BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius)*safetyFac
+        ElemHasMacroPart(iElem,iMP)=.FALSE.
+        nodesInside=0
+        DO kk = 0,NGeo
+          IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
+            DO ii=0,NGeo
+              IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
+                DO jj=0,NGeo
+                  IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
+                    DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
+                    DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
+                    eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec/DistVecLength,MacroPartTrajectory)+epsMach
+                    IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
+                      ElemHasMacroPart(iElem,iMP)=.TRUE.
+                    END IF
+                    IF (DistVecLength.LE.MacroPart(iMP)%radius) THEN
+                      nodesInside=nodesInside+1
+                    END IF
+                  END IF
+                END DO
+              END IF
+            END DO
+          END IF
+        END DO
+        IF (CalcMPVolumePortion .AND. nodesInside.EQ.(NGeo+1)**3 .AND. iElem.LE.nElems) GEO%MPVolumePortion(iElem)=1.0
+      END IF
+    END DO
   END DO
-END DO
-!ElemHasMacroPart(:,:)=.TRUE.
+
+!--- 2: calculate volume portions using monte carlo inserting and rejections
+  IF (CalcMPVolumePortion) THEN
+    nInsertPartsX=10
+    nInsertPartsY=10
+    nInsertPartsZ=10
+    DO iElem=1,nElems
+      IF (ANY(ElemHasMacroPart(iElem,:)) .AND. GEO%MPVolumePortion(iElem).LT.1.0) THEN
+        matchedParts=0
+        !! if element is a cube equidistant inserting in reference space
+        !DO xref=1,nInsertPartsX
+        !  DO yref=1,nInsertPartsY
+        !    DO zref=1,nInsertPartsZ
+        !      ! refpos needs to be between -1:+1 not 0:1
+        !      refPos(1) = (REAL(xref)-0.5) * 1./REAL(nInsertPartsX)
+        !      refPos(2) = (REAL(yref)-0.5) * 1./REAL(nInsertPartsY)
+        !      refPos(3) = (REAL(zref)-0.5) * 1./REAL(nInsertPartsZ)
+        !      CALL TensorProductInterpolation(refPos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)&
+        !                ,physPos(1:3)) !Map into phys. space
+        !      IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
+        !    END DO
+        !  END DO
+        !END DO
+        ! for arbitrary elements, positions are chosen randomly and checked if they are in element first
+        CALL BoundsOfElement(iElem,ElemBounds)
+        DO iPart=1,nInsertPartsX*nInsertPartsY*nInsertPartsZ
+          DO
+            CALL RANDOM_NUMBER(physPos)
+            PhysPos = ElemBounds(1,:) + physPos*(ElemBounds(2,:)-ElemBounds(1,:))
+            CALL GetPositionInRefElem(physPos,refPos,iElem)
+            IF(ALL(ABS(refPos).LE.epsOneCell(iElem))) EXIT ! particle inside of element
+          END DO
+          IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
+        END DO
+        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nInsertPartsX*nInsertPartsY*nInsertPartsZ)
+      END IF
+    END DO
+  END IF
+
+END IF
+
+CalcMPVolumePortion=.FALSE.
 
 END SUBROUTINE MarkMacroPartElems
 

@@ -484,6 +484,7 @@ TYPE(tMacroParticle), ALLOCATABLE :: MacroPart(:)
 INTEGER                           :: nMacroParticle
 LOGICAL                           :: UseMacroPart
 LOGICAL,ALLOCATABLE               :: ElemHasMacroPart(:,:)
+LOGICAL                           :: CalcMPVolumePortion
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
