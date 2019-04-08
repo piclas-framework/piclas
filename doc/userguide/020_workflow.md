@@ -161,7 +161,35 @@ General parameters such the name of project (used for filenames), the mesh file 
     MeshFile=test_mesh.h5
     TEnd=1e-3
 
-An overview of the parameters is also given in Chapter \ref{chap:parameterfile}. The options and underlying models are discussed in Chapter \ref{chap:features_models}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file.
+Generally following types are used:
+
+~~~~~~~
+INTEGER = 1
+REAL    = 1.23456
+LOGICAL = T         ! True
+LOGICAL =           ! False
+STRING  = PICLAS
+VECTOR  = (/1.0,2.0,3.0/)
+~~~~~~~
+
+The concept of the parameter file is described as followed:
+
+* Each single line is saved and examined for specific variable names
+* The examination is case-insensitive
+* Comments can be set with symbol "!" in front of the text
+* Numbers can also be set by using "pi"
+
+    vector = (/1,2Pi,3Pi/)
+
+* The order of defined variables is with one exception generally indifferent, but it is preferable to group similar variables
+* The order becomes important only by modifying boundary conditions, if you want to modify a specific boundary by addressing its name, the related boundary type has to be defined
+
+    BoundaryName=inflow         ! BC_Name defined in mesh file
+    BoundaryType=(/2,0,0,0/)
+    BoundaryName=outflow        ! BC_Name defined in mesh file
+    BoundaryType=(/2,0,0,0/)
+
+The options and underlying models are discussed in Chapter \ref{chap:features_models}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials in Chapter \ref{chap:tutorials}.
 
 ## Simulation
 

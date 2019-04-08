@@ -2,11 +2,11 @@
 title: PICLas
 logo: ../logo.png
 subtitle: User Guide
-version: version 1
+version: Version 1
 author: 
-  - University of Stuttgart, Germany
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
+  - University of Stuttgart, Germany
 institute: IAG IRS
 date: \today
 documentclass: scrreprt
@@ -41,7 +41,7 @@ link-citations: true
  * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 
    simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@HOPR]
  * Non-conforming interfaces [@Sonntag2017] based on the mortar approach [@Kopriva2001;@Bui2012] (electromagnetic solver)
- * Non-reflecting boundary conditions via [**CFS-PMLs**](https://doi.org/10.1109/TPS.2016.2637061) [@Copplestone2017] (electromagnetic solver)
+ * Non-reflecting boundary conditions via CFS-PMLs [@Copplestone2017] (electromagnetic solver)
  * Automatic domain decomposition for parallel simulations based on a space filling curve
  * High order low-storage explicit Runge-Kutta time integration [@Carpenter1994]
  * I/O using the [**HDF5**](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
@@ -58,6 +58,6 @@ the simulation code's features from a user and a developer point of view.
 * Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.
 * Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. 
 * Simulation tutorials are contained in Chapter \ref{chap:tutorials}.
-* Development guidelines, git-specific and cluster-specific issues are given in Chapter \ref{chap:develop_guide}.
-* A complete list of all parameters is given in Chapter \ref{chap:parameterfile}.
+* Cluster-specific user guidelines are given in Chapter \ref{chap:cluster_guide}.
+<!-- * A complete list of all parameters is given in Chapter \ref{chap:parameterfile}. -->
 <!-- * The unit test system used to test key routines with CTest is described in Chapter \ref{chap:unittest}. -->

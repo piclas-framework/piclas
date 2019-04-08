@@ -1,6 +1,6 @@
 \hypertarget{installation}{}
 
-# Installation
+# Installation \label{chap:installation}
 
 ## Prerequisites
 **PICLas** has been tested for various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, OpenSUSE 42.1 and CentOS 7. For **tested combinations** of prerequisities (HDF5, OpenMPI, CMake etc.) and known problems that may occur, see BuildConfigurations.md located in the main folder.
@@ -9,18 +9,18 @@ The suggested packages in this section can be replaced by self compiled versions
 
     sudo apt-get install git
 
-| Package          | Ubuntu 14.04    | Ubuntu 16.04    | Ubuntu 18.04    |
-|:----------------:|:---------------:|:---------------:|:---------------:|
-| git              | x               |      x          |      x          |
-| cmake            | x               |      x          |      x          |
-| cmake-curses-gui | o               |      o          |      o          |
-| liblapack3       | x               |      x          |      x          |
-| liblapack-dev    | x               |      x          |      x          |
-| gfortran         | x               |      x          |      x          |
-| g++              | x               |      x          |      x          |
-| mpi-default-dev  | x               |      x          |      x          |
-| zlib1g-dev       | -               |      x          |      x          |
-| exuberant-ctags  | o               |      o          |      o          |
+|     Package      | Ubuntu 14.04 | Ubuntu 16.04 | Ubuntu 18.04 |
+| :--------------: | :----------: | :----------: | :----------: |
+|       git        |      x       |      x       |      x       |
+|      cmake       |      x       |      x       |      x       |
+| cmake-curses-gui |      o       |      o       |      o       |
+|    liblapack3    |      x       |      x       |      x       |
+|  liblapack-dev   |      x       |      x       |      x       |
+|     gfortran     |      x       |      x       |      x       |
+|       g++        |      x       |      x       |      x       |
+| mpi-default-dev  |      x       |      x       |      x       |
+|    zlib1g-dev    |      -       |      x       |      x       |
+| exuberant-ctags  |      o       |      o       |      o       |
 
 Table: Debian/Ubuntu packages.\label{tab:installation_prereqs_ubuntu}
 x: required, o: optional, -: not available
@@ -32,6 +32,27 @@ ulimit -s unlimited
 ~~~~~~~
 
 from the command line. For convenience, you can add this line to your `.bashrc`.
+
+### Validated compiler combinations
+
+| User |  System  |    Compiler     |  HDF5  |       MPI        |  CMake   |                       Notes                       |
+| ---- | :------: | :-------------: | :----: | :--------------: | :------: | :-----------------------------------------------: |
+| PO   |  Laptop  |    gnu4.9.2     | 1.8.16 |  openmpi-1.8.4   |  3.4.3   | gnu-sanitizer not working with DSMC, memory leak. |
+|      | giganto  |    intel15.0    | 1.8.16 |  openmpi-1.8.2   | 2.8.12.2 |                    no autolist                    |
+|      | hazelhen | intel15.0.4.223 | 1.8.14 | cray-mpich-7.3.1 |  3.4.2   |                   manual tecio                    |
+|      |          | cray-libsci13.3 |  cray  |                  |          |                                                   |
+|      |  Laptop  |    gnu5.2.0     | 1.8.16 |  openmpi-1.10.1  |  3.4.3   | gnu-sanitizer not working with DSMC, memory leak. |
+|      |  Laptop  |    gnu7.3.+     | patch1 |  openmpi-3.0.0   |  3.10.+  |       Requires HDF_ROOT instead of HDF5_DIR       |
+| SC   |  Laptop  |    gnu4.8.4     | 1.8.16 |  openmpi-1.6.5   |  3.2.2   |                                                   |
+|      |  Laptop  |    gnu5.4.0     | 1.8.18 |  openmpi-1.8.8   |  3.5.1   |                                                   |
+|      | hazelhen | intel15.0.4.223 | 1.8.14 | cray-mpich-7.3.1 |  3.4.2   |   set tecio path by hand (copy from old PICLas)   |
+| WR   |  Laptop  |    gnu5.2.0     | 1.8.16 |  openmpi-1.10.0  |  3.4.3   |  linking only works with gnu5.2.0    --> solved   |
+|      |  Laptop  |    gnu4.8.4     | 1.8.16 |  openmpi-1.10.0  |  3.4.3   |                                                   |
+|      |  Laptop  |    gnu4.8.4     | 1.8.14 |  openmpi-1.6.5   |  3.4.3   |                                                   |
+|      |  Laptop  |    gnu4.8.4     | 1.8.16 |  openmpi-1.6.5   |  3.4.3   |                                                   |
+|      |  Laptop  |    gnu5.2.0     | 1.8.16 |  openmpi-1.6.5   |  3.4.3   |                                                   |
+|      |  Laptop  |   intel15.0.4   | 1.8.16 |  openmpi-1.10.0  |  3.4.3   |                                                   |
+
 
 ### Installing/setting up OpenMPI \label{sec:install_mpi}
 

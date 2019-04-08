@@ -143,100 +143,30 @@ If a tag has also been created, it should be pushed separately.
 
 Upon completion of a milestone leading to tagged version, the tag should be deployed to GitHub.
 
-## Simulating at the HLRS \label{sec:cloninghlrs}
-
-Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hazelhen, due to restricted internet access. The workaround is to use ssh tunneling and remote forwarding to access the repositories.
-
-### Cloning with the SSH protocol
-
-You can use the SSH protocol to clone the repository. You have to connect to the cluster with the `RemoteForward` option
-
-    ssh -R 7777:github.com:22 username@hazelhen.hww.de
-
-To avoid using the above command every time, you can add the following to your `.ssh/config` file:
-
-    host hlrs
-       hostname hazelhen.hww.de
-       user username
-       RemoteForward 7777 gitlab.com:22
-
-and login with `ssh hlrs`. Now you can clone the repository when logged onto the cluster by
-
-    git clone ssh://git@localhost:7777/piclas/piclas.git
-
-### Cloning with the HTTPS protocol
-
-The HLRS provides a tutorial for this case in their [https://wickie.hlrs.de](https://wickie.hlrs.de/platforms/index.php/Secure_Shell_ssh#Git). However, this method has not been verified.
-
-### Compiling and executing PICLas
-
-For building on the hazelhen cluster, certain modules have to be loaded and included in the .bashrc or .profile:
-
-    module unload PrgEnv-cray
-    module load PrgEnv-intel
-    module load cray-hdf5-parallel
-
-An example submit script for the test queue is then
-
-    #!/bin/bash
-    #PBS -N Testcase
-    #PBS -M email@university.de
-    #PBS -m abe
-    #PBS -l nodes=4:ppn=24
-    #PBS -l walltime=00:24:59
-    #PBS -q test
-
-    # number of cores per node
-    nodecores=24
-
-    # switch to submit dir
-    cd $PBS_O_WORKDIR
-
-    # get number of total cores
-    ncores=$(cat $PBS_NODEFILE | wc -l)
-
-    module unload craype-hugepages16M
-
-    # restart
-    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMCSpecies.ini restart.h5 1>log 2>log.err 
-
-More information on using the queue system can be found in the [HLRS wiki](https://wickie.hlrs.de/platforms/index.php/CRAY_XC40_Using_the_Batch_System).
-
-Section last updated: 27.03.2019
-
-### Profiling with Craypat
-
-* Compile PICLas with 
-       module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile
-* Run PICLas with normal submit script
-* Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, the testqueue is maybe too short. 
-* Visualize the *.app2 files 
-
-## Simulating at the forHLR \label{sec:forhlr}
-
-For building with *CMake* on the forhlr1 cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
+## Compiler flags
+  * RELEASE: optimized with -O3 for execution runs
+  * DEBUG: debugger options
+  * SANI: GNU sanitizer for further debugging
   
-    module load devel/cmake
-    module load compiler/intel/18.0
-    module load mpi/impi/2018
-    module load lib/hdf5/1.10
-
-Example submit script:
-
-    #!/bin/bash
-    #SBATCH --nodes=5
-    #SBATCH --ntasks-per-node=20
-    #SBATCH --time=04:00:00
-    #SBATCH --job-name=PLACEHOLDER
-    #SBATCH --partition multinode
-    #SBATCH --mail-user=your@mail.de
-    #SBATCH --mail-type=ALL
-    
-    module load mpi/impi/2018
-    module load lib/hdf5/1.10
-    
-    mpiexec.hydra -bootstrap slurm ./piclas parameter.ini DSMCSpecies.ini 1>log 2>log.err
-
-More information about the cluster and the batch system can be found at the [ForHLR wiki](https://wiki.scc.kit.edu/hpc/index.php/Category:ForHLR).
-
-Section last updated: 27.03.2019
+    | Compiler-Flag           | Options,List  | What does it do?                                                                                                                                                                                                                                                                                                                                                                                                   |
+    |-------------------------|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+    |     --ffpe-trap=list    |  *invalid*    | invalid floating point operation, such as SQRT(-1.0)                                                                                                                                                                                                                                                                                                                                                               |
+    |                         |     *zero*    | division by zero                                                                                                                                                                                                                                                                                                                                                                                                   |
+    |                         |   *overflow*  | overflow in a floating point operation                                                                                                                                                                                                                                                                                                                                                                             |
+    |                         |  *underflow*  | underflow in a floating point. **DO NOT USE**. Because a small value can occure, such as exp(-766.2). operation                                                                                                                                                                                                                                                                                                      |
+    |                         |  *precision*  | loss of precision during operation                                                                                                                                                                                                                                                                                                                                                                                 |
+    |                         |               | Some of the routines in the Fortran runtime library, like **CPU_TIME**, are likely to trigger floating point exceptions when ffpe-trap=precision is used. For this reason, the use of ffpe-trap=precision is not recommended.                                                                                                                                                                                        |
+    |                         |   *denormal*  | operation produced a denormal value                                                                                                                                                                                                                                                                                                                                                                                |
+    | -fbacktrace             |               | runtime error should lead to a backtrace of the error                                                                                                                                                                                                                                                                                                                                                              |
+    | -fcheck=keyword         |     *all*     | enable all run-time check                                                                                                                                                                                                                                                                                                                                                                                          |
+    |                         | *array-temps* | Warns at run time when for passing an actual argument a temporary array had to be generated. The information generated by this warning is sometimes useful in optimization, in order to avoid such temporaries.                                                                                                                                                                                                    |
+    |                         |    *bounds*   | Enable generation of run-time checks for array subscripts and against the declared minimum and maximum values. It also checks array indices for assumed and deferred shape arrays against the actual allocated bounds and ensures that all string lengths are equal for character array constructors without an explicit typespec.                                                                                 |
+    |                         |      *do*     | Enable generation of run-time checks for invalid modification of loop iteration variables                                                                                                                                                                                                                                                                                                                          |
+    |                         |     *mem*     | Enable generation of run-time checks for memory allocation. Note: This option does not affect explicit allocations using theALLOCATE statement, which will be always checked.                                                                                                                                                                                                                                      |
+    |                         |   *pointer*   | Enable generation of run-time checks for pointers and allocatables.                                                                                                                                                                                                                                                                                                                                                |
+    |                         | *recursion*   | Enable generation of run-time checks for recursively called subroutines and functions which are not marked as recursive. See also -frecursive. Note: This check does not work for OpenMP programs and is disabled if used together with -frecursiveand -fopenmp.                                                                                                                                                   |
+    | -fdump-core             |               | Request that a core-dump file is written to disk when a runtime error is encountered on systems that support core dumps. This option is only effective for the compilation of the Fortran main program                                                                                                                                                                                                             |
+    | -fstack-arrays          |               | Adding this option will make the Fortran compiler put all local arrays, even those of unknown size onto stack memory. If your program uses very large local arrays it is possible that you will have to extend your runtime limits for stack memory on some operating systems. This flag is enabled by default at optimization level -Ofast.                                                                       |
+    | -frepack-arrays         |               | In some circumstances GNU Fortran may pass assumed shape array sections via a descriptor describing a noncontiguous area of memory. This option adds code to the function prologue to repack the data into a contiguous block at runtime.This should result in faster accesses to the array. However it can introduce significant overhead to the function call, especially when the passed data is noncontiguous. |
+    | -finline-matmul-limit=n |               |                                                                                                                                                                                                                                                                                                                                                                                                                    |
+    | -finit-local-zero       |               | The -finit-local-zero option instructs the compiler to initialize local INTEGER, REAL, and COMPLEX variables to zero, LOGICALvariables to false, and CHARACTER variables to a string of null bytes                                                                                                                                                                                                                 |
