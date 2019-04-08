@@ -628,7 +628,8 @@ END IF
 END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
-SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alpha,macroPartID,partID,opt_Reflected)
+SUBROUTINE GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory &
+                                      ,alpha,alphaSphere,alphaDoneRel,macroPartID,partID,opt_Reflected)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with an spherical macro particle
 !===================================================================================================================================
@@ -645,43 +646,60 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                   :: PartID,macroPartID
 REAL   ,INTENT(IN)                   :: alpha
+REAL   ,INTENT(IN)                   :: alphaSphere
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                   :: alphaDoneRel
 REAL,INTENT(INOUT)                   :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL,INTENT(OUT),OPTIONAL         :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: intersectPoint(1:3),nLoc(1:3),relVeloPart(1:3)
+REAL                                 :: intersectPoint(1:3),nLoc(1:3),relVeloPart(1:3),sphereIntersectionPos(1:3)
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
-REAL                                 :: macropartVelo(1:3), WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
+REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
 REAL                                 :: tang1(1:3),tang2(1:3), NewVelo(3)
-REAL                                 :: POI_fak,TildTrajectory(3)
+REAL                                 :: POI_fak!,TildTrajectory(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                                 :: relPartTrajectory(1:3),relLengthPartTrajectory
+REAL                                 :: relPartTrajectory(1:3)!,relLengthPartTrajectory
+REAL                                 :: PosSphere(1:3)!,P2_rel(1:3)
+REAL                                 :: MacroPartTrajectory(1:3)
 REAL                                 :: force(1:3), moment(1:3), inertiaMoment
 !===================================================================================================================================
-macroPartVelo = MacroPart(macroPartID)%velocity(1:3)
-relVeloPart(1:3) = (PartState(PartID,4:6)-macroPartVelo(1:3))
-relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (macroPartVelo*dt*RKdtFrac)
-relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
-                         +relPartTrajectory(2)*relPartTrajectory(2) &
-                         +relPartTrajectory(3)*relPartTrajectory(3) )
-IF (relLengthPartTrajectory.EQ.0) THEN
-  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
-  RETURN
-END IF
-relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
-intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*relPartTrajectory(1:3)
-nLoc = UNITVECTOR(intersectPoint - (MacroPart(macroPartID)%center))
-WallVelo = MacroPart(macroPartID)%velocity(1:3) + CROSS(MacroPart(macroPartID)%velocity(4:6),nLoc*Macropart(macroPartID)%radius)
+! transform particle trajectory to sphere system v2_rel=v2-v1
+MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+relPartTrajectory(1:3)=PartTrajectory(1:3)*lengthPartTrajectory-MacroPartTrajectory(1:3)
+! Transform particle posiiton to sphere system
+PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
+!P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
+
+! already checked during intersection
+!IF (DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0) THEN
+!  ! particle moves away from sphere in reference system
+!  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+!  RETURN
+!END IF
+! calculate lenght of v2_rel (already checked in intersection)
+!relLengthPartTrajectory=SQRT(DOT_PRODUCT(relPartTrajectory,relPartTrajectory))
+!IF (relLengthPartTrajectory.EQ.0) THEN
+!  ! particle and sphere move in the same direction with same velocities
+!  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+!  RETURN
+!END IF
+!relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
+
+intersectPoint(1:3) = LastPartPos(PartID,1:3) + alpha*PartTrajectory(1:3)
+sphereIntersectionPos(1:3) = PosSphere(1:3) + alphaSphere*MacroPartTrajectory(1:3)
+nLoc = UNITVECTOR(intersectPoint - sphereIntersectionPos)
 ! nLoc points outwards of sphere
 IF(DOT_PRODUCT(nLoc,relPartTrajectory).GT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
   RETURN
-ELSE IF(DOT_PRODUCT(nLoc,relPartTrajectory).LT.0.) THEN
+ELSE IF(DOT_PRODUCT(nLoc,relPartTrajectory).LE.0.) THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
 END IF
+WallVelo = MacroPart(macroPartID)%velocity(1:3) + CROSS(MacroPart(macroPartID)%velocity(4:6),nLoc*Macropart(macroPartID)%radius)
+relVeloPart(1:3)=PartState(PartID,4:6)-MacroPart(macroPartID)%velocity(1:3)
 ! change nLoc to point inwards of sphere
 nLoc=-nLoc
 
@@ -691,8 +709,7 @@ IF (RanNum.GE.MacroPart(macroPartID)%momentumACC) THEN
   PartState(PartID,4:6) = relVeloPart(1:3) - 2.*DOT_PRODUCT(relVeloPart(1:3),nLoc)*nLoc + WallVelo
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
-  !PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + dt*RKdtFrac * (PartState(PartID,4:6))
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + relPartTrajectory(1:3)*(relLengthPartTrajectory - alpha)
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(LengthPartTrajectory - alpha)
 ELSE !diffuse reflection on sphere
   IF (nLoc(3).NE.0.) THEN
     tang1(1) = 1.0
@@ -749,10 +766,7 @@ __STAMP__&
   ! set particle position on face
   LastPartPos(PartID,1:3) = intersectPoint(1:3)
   ! travel rest of particle vector
-  !TildTrajectory=dt*RKdtFrac*relVeloPart !PartState(PartID,4:6)
-  !POI_fak=1.- (relLengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-  !same but should be faster (less operations)
-  POI_fak = (alpha/relLengthPartTrajectory)
+  POI_fak = alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
   PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * (NewVelo(1:3)+WallVelo(1:3))
   !----  saving new particle velocity
   PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
@@ -775,6 +789,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
+alphaDoneRel=alphaDoneRel+(1.-alphaDoneRel)*alphaSphere
 
 END SUBROUTINE GetInteractionWithMacroPart
 

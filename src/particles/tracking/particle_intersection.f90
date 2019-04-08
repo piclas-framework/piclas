@@ -4453,7 +4453,8 @@ END SELECT
 END SUBROUTINE ComputeAuxBCIntersection
 
 
-SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID,alpha,partID,alpha2)
+SUBROUTINE ComputeMacroPartIntersection(isHit,PartTrajectory,lengthPartTrajectory,macroPartID &
+                                       ,alpha,alphaSphere,alphaDoneRel,partID,alpha2)
 !===================================================================================================================================
 ! Calculates intersection of particle path with defined spherical, solid, moving macroparticle
 !===================================================================================================================================
@@ -4471,10 +4472,12 @@ REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 INTEGER,INTENT(IN)                :: partID
 INTEGER,INTENT(IN)                :: macroPartID
+REAL,INTENT(IN)                   :: alphaDoneRel
 REAL,INTENT(IN),OPTIONAL          :: alpha2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha
+REAL,INTENT(OUT)                  :: alphaSphere
 LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -4482,30 +4485,33 @@ REAL                              :: A,B,C,alphaNorm
 REAL                              :: t(2), scaleFac
 INTEGER                           :: InterType,nRoot
 LOGICAL                           :: ElemCheck
-REAL                              :: relPosSphere(1:3),relPartTrajectory(1:3)
+REAL                              :: PosSphere(1:3),P2_rel(1:3),relPartTrajectory(1:3)
 REAL                              :: relLengthPartTrajectory
+REAL                              :: MacroPartTrajectory(1:3)
+REAL                              :: LengthMacroPartTrajectory
 #ifdef CODE_ANALYZE
-REAL                              :: distance, distance2, center(1:3)
+REAL                              :: distance, distance2
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 ! set alpha to minus one // no intersection
 alpha=-1.0
 isHit=.FALSE.
 
-relPosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)
-relPartTrajectory(1:3)=(PartTrajectory*lengthPartTrajectory) - (MacroPart(MacroPartId)%velocity(1:3)*dt*RKdtFrac)!*(1.-alphaDoneRel))
-relLengthPartTrajectory=SQRT(relPartTrajectory(1)*relPartTrajectory(1) &
-                         +relPartTrajectory(2)*relPartTrajectory(2) &
-                         +relPartTrajectory(3)*relPartTrajectory(3) )
+! transform particle trajectory to sphere system v2_rel=v2-v1
+MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
+relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroPartTrajectory(1:3)
+! Transform particle position to sphere system
+PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
+P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
+! particle moves away from sphere in reference system
+IF (DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0) RETURN
+! calculate lenght of v2_rel
+relLengthPartTrajectory=SQRT(DOT_PRODUCT(relPartTrajectory,relPartTrajectory))
 IF (relLengthPartTrajectory.EQ.0) RETURN
-!relPartTrajectory=relPartTrajectory/relLengthPartTrajectory
 
-A = relPartTrajectory(1)**2 + relPartTrajectory(2)**2 + relPartTrajectory(3)**2
-B = 2 * ( (LastPartPos(PartID,1)-relPosSphere(1))*relPartTrajectory(1) &
-    + (LastPartPos(PartID,2)-relPosSphere(2))*relPartTrajectory(2) &
-    + (LastPartPos(PartID,3)-relPosSphere(3))*relPartTrajectory(3))
-C = (LastPartPos(PartID,1)-relPosSphere(1))**2 + (LastPartPos(PartID,2)-relPosSphere(2))**2 &
-    + (LastPartPos(PartID,3)-relPosSphere(3))**2 - MacroPart(MacroPartID)%radius**2
+A = DOT_PRODUCT(relPartTrajectory,relPartTrajectory)
+B = 2*DOT_PRODUCT(P2_rel,relPartTrajectory)
+C = DOT_PRODUCT(P2_rel,P2_rel) - MacroPart(MacroPartID)%radius**2
 
 #ifdef CODE_ANALYZE
   IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
@@ -4516,7 +4522,7 @@ C = (LastPartPos(PartID,1)-relPosSphere(1))**2 + (LastPartPos(PartID,2)-relPosSp
   END IF
 #endif /*CODE_ANALYZE*/
 
-scaleFac = relLengthPartTrajectory * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
+scaleFac = relLengthPartTrajectory**2 ! * MacroPart(MacroPartID)%radius !<...>^2 * cell-scale
 scaleFac = 1./scaleFac
 A = A * scaleFac
 B = B * scaleFac
@@ -4534,23 +4540,23 @@ C = C * scaleFac
 CALL QuadraticSolver(A,B,C,nRoot,t(1),t(2))
 
 #ifdef CODE_ANALYZE
-center(1:3)=MacroPart(MacroPartID)%center(1:3)
-distance=SQRT(DOT_PRODUCT((LastPartPos(PartID,1:3)-center(1:3)),(LastPartPos(PartID,1:3)-center(1:3))))
-distance2=SQRT(DOT_PRODUCT((LastPartPos(PartID,1:3)+relPartTrajectory(1:3)-center(1:3)) &
-                           ,(LastPartPos(PartID,1:3)+relPartTrajectory(1:3)-center(1:3))))
+distance = SQRT(DOT_PRODUCT(P2_rel,P2_rel))
+distance2 = SQRT(DOT_PRODUCT(P2_rel+relPartTrajectory,P2_rel+relParttrajectory))
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart center Pos:       ', center(1:3)
+    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart center Pos:       ', PosSphere(1:3)
+    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart Trajectory:       ', MacroPartTrajectory(1:3)
     WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(PartID,1:3)
     WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' PartPos:       ', PartState(PartID,1:3)
     WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
     WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+    WRITE(UNIT_stdout,'((A,G0))')  '     | alphaDoneRel: ',alphaDoneRel
     WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
     WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
-    WRITE(UNIT_stdout,'(2(A,G0))') '     | alpha(1): ',t(1)*relLengthPartTrajectory,' | alpha(2): ',t(2)*relLengthPartTrajectory
+    WRITE(UNIT_stdout,'(2(A,G0))') '     | alpha(1): ',t(1)*LengthPartTrajectory,' | alpha(2): ',t(2)*LengthPartTrajectory
   END IF
 END IF
-IF (distance.LE.MacroPart(MacroPartID)%radius*1.01 .AND. distance2.LE.MacroPart(MacroPartID)%radius*1.01) THEN
+IF (distance.LE.MacroPart(MacroPartID)%radius*0.99 .AND. distance2.LE.MacroPart(MacroPartID)%radius*0.99) THEN
   WRITE(UNIT_stdout,'(A)') '     | Particle is inside of Macro particle (sphere): '
   WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
   WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
@@ -4567,7 +4573,8 @@ END IF
 
 IF (nRoot.EQ.1) THEN
   IF(t(1).LE.1.0 .AND. t(1).GE.0.) THEN
-    alpha=t(1)*relLengthPartTrajectory
+    alpha=t(1)*LengthPartTrajectory
+    alphaSphere=t(1)
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
         IF (ALMOSTEQUAL(alpha,alpha2)) THEN
@@ -4588,7 +4595,7 @@ ELSE
     InterType=InterType+1
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(1)*relLengthPartTrajectory,alpha2)) THEN
+        IF (ALMOSTEQUAL(t(1)*LengthPartTrajectory,alpha2)) THEN
           t(1)=-1.0
           InterType=InterType-1
         END IF
@@ -4602,7 +4609,7 @@ ELSE
     InterType=InterType+2
     IF (PRESENT(alpha2)) THEN
       IF (alpha2.GT.-1.0) THEN
-        IF (ALMOSTEQUAL(t(2)*relLengthPartTrajectory,alpha2)) THEN
+        IF (ALMOSTEQUAL(t(2)*LengthPartTrajectory,alpha2)) THEN
           t(2)=-1.0
           InterType=InterType-2
         END IF
@@ -4618,15 +4625,19 @@ ELSE
   isHit=.TRUE.
   SELECT CASE(InterType)
   CASE(1)
-    alpha=t(1)*relLengthPartTrajectory
+    alpha=t(1)*LengthPartTrajectory
+    alphaSphere=t(1)
   CASE(2)
-     alpha=t(2)*relLengthPartTrajectory
+    alpha=t(2)*LengthPartTrajectory
+    alphaSphere=t(2)
   CASE DEFAULT
    ! two intersections
     IF(t(1).LT.t(2))THEN
-      alpha=t(1)*relLengthPartTrajectory
+      alpha=t(1)*LengthPartTrajectory
+      alphaSphere=t(1)
     ELSE
-      alpha=t(2)*relLengthPartTrajectory
+      alpha=t(2)*LengthPartTrajectory
+      alphaSphere=t(2)
     END IF
   END SELECT
   RETURN
