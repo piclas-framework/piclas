@@ -6214,15 +6214,11 @@ __STAMP__,&
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
-          IF (DoRefMapping) THEN
-            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
-            IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+          IF (TriaTracking) THEN
+            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
           ELSE
-            IF (TriaTracking) THEN
-              CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
-            ELSE
-              CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
-            END IF
+            CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+            IF(ALL(ABS(RefPos).LE.epsOneCell(iElem))) InsideFlag=.TRUE. ! particle inside of element
           END IF
         END DO
         IF (UseMacroPart) THEN
