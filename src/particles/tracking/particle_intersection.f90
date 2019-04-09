@@ -3949,11 +3949,11 @@ REAL, INTENT(IN)                 :: PartPos(1:3)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos = [ ',LastpartPos(PartID,1), ','  &
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' LastPartPos    = [ ',LastpartPos(PartID,1), ','  &
                                                         ,LastpartPos(PartID,2), ','  &
                                                         ,LastpartPos(PartID,3), '];'
 
-WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition = [ ',PartPos(1), ','  &
+WRITE(UNIT_stdout,'(A,3(E24.12,A))') ' PartPosition   = [ ',PartPos(1), ','  &
                                                          ,PartPos(2), ','  &
                                                          ,PartPos(3), '];'
 
@@ -4496,6 +4496,16 @@ REAL                              :: distance, distance2
 ! set alpha to minus one // no intersection
 alpha=-1.0
 isHit=.FALSE.
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      WRITE(UNIT_stdout,'(64("-"))')
+      WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
+      WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
+      WRITE(UNIT_stdout,'((A,G0))')  '     | alphaDoneRel: ',alphaDoneRel
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
 
 ! transform particle trajectory to sphere system v2_rel=v2-v1
 MacroPartTrajectory(1:3)=MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*(1.-alphaDoneRel)
@@ -4503,6 +4513,21 @@ relPartTrajectory(1:3)=PartTrajectory(1:3)*LengthPartTrajectory-MacroPartTraject
 ! Transform particle position to sphere system
 PosSphere(1:3) = MacroPart(MacroPartID)%center(1:3)+MacroPart(macroPartID)%velocity(1:3)*dt*RKdtFrac*alphaDoneRel
 P2_rel(1:3)=LastPartPos(PartID,1:3)-PosSphere(1:3)
+
+#ifdef CODE_ANALYZE
+  IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+    IF(PartID.EQ.PARTOUT)THEN
+      CALL OutputTrajectory(PartID,PartState(PartID,1:3),PartTrajectory,lengthPartTrajectory)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart center Pos:       ', PosSphere(1:3)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | Macropart Trajectory:       ', MacroPartTrajectory(1:3)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Position:       ', P2_rel(1:3)
+      WRITE(UNIT_stdOut,'(A,3(X,E15.8))') '     | relative Trajectory:       ', relPartTrajectory(1:3)
+      WRITE(UNIT_stdOut,'(A,L)') '     | particle moves away from sphere:  ',(DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0)
+      WRITE(UNIT_stdout,'(12("-"))')
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
+
 ! particle moves away from sphere in reference system
 IF (DOT_PRODUCT(P2_rel,relPartTrajectory).GT.0) RETURN
 ! calculate lenght of v2_rel
@@ -4544,16 +4569,10 @@ distance = SQRT(DOT_PRODUCT(P2_rel,P2_rel))
 distance2 = SQRT(DOT_PRODUCT(P2_rel+relPartTrajectory,P2_rel+relParttrajectory))
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart center Pos:       ', PosSphere(1:3)
-    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' Macropart Trajectory:       ', MacroPartTrajectory(1:3)
-    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' LastPartPos:       ', LastPartPos(PartID,1:3)
-    WRITE(UNIT_stdOut,'(A,3(X,E15.8))') ' PartPos:       ', PartState(PartID,1:3)
-    WRITE(UNIT_stdout,'((A,G0))')  '     | partID: ',PartID
-    WRITE(UNIT_stdout,'((A,G0))')  '     | MacroPartID: ',macroPartID
-    WRITE(UNIT_stdout,'((A,G0))')  '     | alphaDoneRel: ',alphaDoneRel
     WRITE(UNIT_stdout,'(2(A,G0))') '     | distance last partpos: ',distance,' | distance partstate: ',distance2
-    WRITE(UNIT_stdout,'(2(A,G0))') '     | t(1): ',t(1),' | t(2): ',t(2)
+    WRITE(UNIT_stdout,'(2(A,G0))') '     | rel_alpha1 [t(1)]: ',t(1),' | rel_alpha2 [t(2)]: ',t(2)
     WRITE(UNIT_stdout,'(2(A,G0))') '     | alpha(1): ',t(1)*LengthPartTrajectory,' | alpha(2): ',t(2)*LengthPartTrajectory
+    WRITE(UNIT_stdout,'(64("-"))')
   END IF
 END IF
 IF (distance.LE.MacroPart(MacroPartID)%radius*0.99 .AND. distance2.LE.MacroPart(MacroPartID)%radius*0.99) THEN

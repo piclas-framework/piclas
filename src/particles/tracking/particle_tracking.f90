@@ -820,6 +820,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
               IF(crossedBC) THEN
                 firstElem=ElemID
+                oldLengthPartTrajectory=LengthPartTrajectory
                 EXIT
               END IF
             END IF
@@ -972,6 +973,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*CODE_ANALYZE*/
                 IF(crossedBC) THEN
                   firstElem=ElemID
+                  oldLengthPartTrajectory=LengthPartTrajectory
                   EXIT
                 END IF
               END IF !IsAuxBC
@@ -1002,8 +1004,8 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(30("-"))') 
-          WRITE(UNIT_stdout,'(A)') '     | Output of new Element after intersections number check: '
+          WRITE(UNIT_stdout,'(128("="))')
+          WRITE(UNIT_stdout,'(A)') '     | Output of tracking information after the check of number of intersections: '
           WRITE(UNIT_stdout,'(A,L,A,L,A,L)') '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
                   ' Particle tracking done: ',PartisDone
           IF(SwitchedElement) THEN
@@ -1037,6 +1039,7 @@ DO iPart=1,PDM%ParticleVecLength
             WRITE(UNIT_stdout,'(A,3(X,G0))') '     | PartTrajectory:        ',PartTrajectory(1:3)
             WRITE(UNIT_stdout,'(A,(G0))')    '     | Length PartTrajectory: ',lengthPartTrajectory
           END IF
+          WRITE(UNIT_stdout,'(128("="))')
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
