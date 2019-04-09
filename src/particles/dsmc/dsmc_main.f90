@@ -159,8 +159,8 @@ SUBROUTINE DSMC_main()
         IF(DSMC%CalcQualityFactors) THEN
           IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
             ! Calculation of the mean free path
-            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(nPart), GEO%Volume(iElem), &
-                                                  SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+            DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(nPart)&
+                        ,GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)),SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
             ! Determination of the MCS/MFP for the case without octree
             IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                             / DSMC%MeanFreePath

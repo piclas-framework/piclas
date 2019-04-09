@@ -1413,8 +1413,6 @@ REAL                  :: tLBStart
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  CALL MarkMacroPartElems()
-
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
     CALL SurfaceModel_main()
@@ -1543,6 +1541,8 @@ REAL                  :: tLBStart
       MacroPart(iMP)%RHS(:)=0.
     END DO
   END IF
+  CALL MarkMacroPartElems()
+
 
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)

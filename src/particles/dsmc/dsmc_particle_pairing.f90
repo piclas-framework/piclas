@@ -388,7 +388,7 @@ IF (nPart.GT.1) THEN
               SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + 1
   END DO
 
-  DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem))
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
@@ -414,11 +414,11 @@ IF (nPart.GT.1) THEN
       DEALLOCATE(TreeNode%MappedPartStates)
     ELSE
       CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart &
-                                , iElem, GEO%Volume(iElem))
+                                , iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
     END IF
   ELSE  IF (nPart.GT.1) THEN
     CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart &
-                              , iElem, GEO%Volume(iElem))
+                              , iElem, GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem)))
   END IF
 
   DEALLOCATE(TreeNode%iPartIndx_Node) 

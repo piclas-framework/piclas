@@ -1020,7 +1020,7 @@ USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
+USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution, HODSMC, DSMC_VolumeSample
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
@@ -1074,11 +1074,13 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
     HODSMC%nOutputDSMC = 1
     SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
     ALLOCATE(DSMC_HOSolution(1:11,1,1,1,1:nElems,1:nSpecies))
+    ALLOCATE(DSMC_VolumeSample(1:nElems))
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
     ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))
   END IF
   DSMC_HOSolution = 0.0
+  DSMC_VolumeSample = 0.0
   CALL InitHODSMC()
 END IF
 
@@ -2807,6 +2809,7 @@ IF (UseMacropart) THEN
   ElemHasMacroPart(:,:)=.FALSE.
   CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
 END IF
+CALL MarkMacroPartElems()
 !CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()

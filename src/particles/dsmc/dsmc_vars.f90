@@ -553,6 +553,7 @@ END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_VolumeSample(:)         !sampnum samples of volume in element
 
 TYPE tElemNodeVolumes
     TYPE (tNodeVolume), POINTER             :: Root => null()
