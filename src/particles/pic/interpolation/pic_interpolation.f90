@@ -955,8 +955,6 @@ __STAMP__&
   END SELECT
 END IF
     
-
-RETURN
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
