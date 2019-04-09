@@ -87,6 +87,8 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
+CALL prms%CreateIntOption(      'Particles-nPointsMCVolumeEstimate'  &
+                                , 'Number of points used to calcuate volume with Monte carlo',  '1000')
 CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
                                 'Define Model used for particle surface interaction. If >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -2545,6 +2547,7 @@ SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
 !-- MacroPart
+nPointsMCVolumeEstimate = GETINT('Particles-nPointsMCVolumeEstimate')
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
   IF (DoRefMapping.OR.TriaTracking) CALL abort(&

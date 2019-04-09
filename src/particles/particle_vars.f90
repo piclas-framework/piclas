@@ -350,6 +350,7 @@ REAL, ALLOCATABLE                        :: Adaptive_MacroVal(:,:,:)         ! M
 REAL,ALLOCATABLE                         :: MacroRestartData_tmp(:,:,:,:)    ! Array of macrovalues read from macrorestartfile
 
 INTEGER                                  :: nSpecies                         ! number of species
+INTEGER                                  :: nPointsMCVolumeEstimate          !
 INTEGER                                  :: nMacroRestartFiles                ! number of macroscopic restart files used for particles
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 

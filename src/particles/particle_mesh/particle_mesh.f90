@@ -5867,7 +5867,7 @@ SUBROUTINE MarkMacroPartElems()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
-USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart
+USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart, nPointsMCVolumeEstimate
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO, epsOneCell
 USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
@@ -5895,7 +5895,7 @@ REAL    :: ElemBounds(1:2,1:3), DistVec(1:3)
 REAL    :: MacroPartTrajectory(1:3), LengthMacroPartTrajectory, eps, safetyFac
 REAL    :: DistVecLength, BoundsDiagonal, BoundsDiagonalVec(1:3)
 INTEGER :: nodesInside, matchedParts
-INTEGER :: nInsertPartsX,nInsertPartsY,nInsertPartsZ
+INTEGER :: nInsertPartsX!,nInsertPartsY,nInsertPartsZ
 !INTEGER :: xref,yref,zref
 INTEGER :: iPart
 REAL    :: refPos(1:3),physPos(1:3)
@@ -5980,9 +5980,9 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
 
 !--- 2: calculate volume portions using monte carlo inserting and rejections
   IF (CalcMPVolumePortion) THEN
-    nInsertPartsX=10
-    nInsertPartsY=10
-    nInsertPartsZ=10
+    nInsertPartsX=INT(nPointsMCVolumeEstimate)**(1./3.)
+    !nInsertPartsY=nInsertPartsX
+    !nInsertPartsZ=nInsertPartsX
     DO iElem=1,nElems
       IF (ANY(ElemHasMacroPart(iElem,:)) .AND. GEO%MPVolumePortion(iElem).LT.1.0) THEN
         matchedParts=0
@@ -6002,7 +6002,7 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
         !END DO
         ! for arbitrary elements, positions are chosen randomly and checked if they are in element first
         CALL BoundsOfElement(iElem,ElemBounds)
-        DO iPart=1,nInsertPartsX*nInsertPartsY*nInsertPartsZ
+        DO iPart=1,nInsertPartsX**3 !nInsertPartsY*nInsertPartsZ
           DO
             CALL RANDOM_NUMBER(physPos)
             PhysPos = ElemBounds(1,:) + physPos*(ElemBounds(2,:)-ElemBounds(1,:))
@@ -6011,12 +6011,11 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
           END DO
           IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
         END DO
-        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nInsertPartsX*nInsertPartsY*nInsertPartsZ)
+        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nInsertPartsX**3)
       END IF
     END DO
-  END IF
-
-END IF
+  END IF ! CalcMPVolumePortion
+END IF ! Velo_Macropart > 0 | CalcMPVolumePortion
 
 CalcMPVolumePortion=.FALSE.
 
