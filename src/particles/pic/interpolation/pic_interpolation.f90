@@ -89,8 +89,6 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   CALL ReadVariableExternalField()
 END IF
 
-
-
 #ifdef CODE_ANALYZE
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic','.FALSE.')
 IF(DoInterpolationAnalytic)THEN
@@ -216,7 +214,6 @@ END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
 
-
 IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -224,7 +221,6 @@ IF (.NOT.InterpolationElemLoop) THEN
   END DO
   RETURN
 END IF
-
 
 FieldAtParticle(firstPart:lastPart,:) = 0. ! initialize
 #ifdef CODE_ANALYZE
