@@ -5869,13 +5869,13 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: epsMach
 USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart, nPointsMCVolumeEstimate
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO, epsOneCell
-USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion
+USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion, ManualTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
 USE MOD_part_tools             ,ONLY: INSIDEMACROPART
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-USE MOD_TimeDisc_Vars          ,ONLY: dt,RKdtFrac
+USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac, iter
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -5899,6 +5899,7 @@ INTEGER :: nInsertPartsX!,nInsertPartsY,nInsertPartsZ
 !INTEGER :: xref,yref,zref
 INTEGER :: iPart
 REAL    :: refPos(1:3),physPos(1:3)
+REAL    :: dtLocal
 !===================================================================================================================================
 IF (.NOT.UseMacroPart) RETURN
 
@@ -5913,7 +5914,19 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
   GEO%MPVolumePortion(:)=0.
   !--- 1: first coarse check if element has MP via BGM with Halo cells included
   DO iMP=1,nMacroParticle
-    MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dt*RKdtFrac
+    IF (iter.EQ.0) THEN
+      IF (ManualTimeStep.EQ.0.0) THEN
+         CALL abort(&
+__STAMP__&
+, 'ManualTimeStep.EQ.0.0 -> ManualTimeStep needs to be defined for Macorparticles! & 
+Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
+      ELSE
+        dtLocal=ManualTimeStep
+      END IF
+    ELSE
+      dtLocal=dt*RKdtfrac
+    END IF
+    MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dtLocal
     LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
     IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
     MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
@@ -5960,7 +5973,8 @@ IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velo
                   IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
                     DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
                     DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
-                    eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec/DistVecLength,MacroPartTrajectory)+epsMach
+                    IF (DistVecLength.GT.0) DistVec=DistVec/DistVecLength
+                    eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec,MacroPartTrajectory)+epsMach
                     IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
                       ElemHasMacroPart(iElem,iMP)=.TRUE.
                     END IF

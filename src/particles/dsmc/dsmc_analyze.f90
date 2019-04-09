@@ -749,7 +749,7 @@ REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
 DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
-IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.)) RETURN
+IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
 
 DO iSpec = 1, nSpecies
@@ -765,11 +765,9 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            IF (Volume.GT.0) THEN
-              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                    * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                    * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-            END IF
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
         CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
@@ -781,10 +779,8 @@ ELSE
     IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          IF (Volume.GT.0) THEN
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-          END IF
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
