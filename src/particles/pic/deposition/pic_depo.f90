@@ -85,6 +85,9 @@ REAL                      :: dimFactorSF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
+#ifdef MPI
+  DoExternalParts=.FALSE. ! Initialize
+#endif /*MPI*/
 
 DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
 IF(.NOT.DoDeposition) THEN
@@ -203,6 +206,9 @@ CASE('nearest_gausspoint')
     END IF
   END IF
 CASE('shape_function','shape_function_simple')
+#ifdef MPI
+  DoExternalParts=.TRUE.
+#endif /*MPI*/
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -707,11 +713,10 @@ CASE('shape_function','shape_function_simple')
     ElemDepo_xGP=Elem_xGP
   END IF
 
+CASE('shape_function_1d','shape_function_2d')
 #ifdef MPI
   DoExternalParts=.TRUE.
 #endif /*MPI*/
-
-CASE('shape_function_1d','shape_function_2d')
   ! Get deposition direction for 1D or perpendicular direction for 2D
   sf1d_dir = GETINT ('PIC-shapefunction1d-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
@@ -826,11 +831,10 @@ CASE('shape_function_1d','shape_function_2d')
     ElemDepo_xGP=Elem_xGP
   END IF
 
+CASE('shape_function_cylindrical','shape_function_spherical')
 #ifdef MPI
   DoExternalParts=.TRUE.
 #endif /*MPI*/
-
-CASE('shape_function_cylindrical','shape_function_spherical')
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')
@@ -890,10 +894,6 @@ CASE('shape_function_cylindrical','shape_function_spherical')
   ELSE
     ElemDepo_xGP=Elem_xGP
   END IF
-
-#ifdef MPI
-  DoExternalParts=.TRUE.
-#endif /*MPI*/
 
 CASE('delta_distri')
   ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
@@ -1242,32 +1242,31 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
-USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Interpolation_Vars,     ONLY:wGP
-USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
-USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
-USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
-!USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Mesh_Vars              ,ONLY: nElems, Elem_xGP, sJ
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars     ,ONLY: wGP
+USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolynomial
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases
 #ifdef MPI
-! only required for shape function??
-USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 #endif  /*MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,      ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration                                                                       
-LOGICAL,INTENT(IN)               :: doInnerParts
-LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
+LOGICAL,INTENT(IN)               :: doInnerParts                           ! TODO: definition of this variable
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration                                                                       
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1303,16 +1302,20 @@ REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !============================================================================================================================
 doPartInExists=.FALSE.
-IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
+
+!WRITE (*,*) "doInnerParts,doPartInExists =", doInnerParts,doPartInExists
+!WRITE (*,*) "DoExternalParts =", DoExternalParts
+
+! Return, if no deposition is required
+IF(.NOT.DoDeposition) RETURN
 
 IF(doInnerParts)THEN
-  IF(.NOT.DoDeposition) RETURN
   PartSource=0.0
   firstPart=1
   lastPart =PDM%ParticleVecLength
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
-  IF(.NOT.DoDeposition) RETURN
 #ifdef MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
@@ -1327,6 +1330,7 @@ END IF
 
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   ElemSource=0.0
 #if USE_LOADBALANCE
@@ -1334,8 +1338,9 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
+      ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
-        IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+        IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
@@ -1386,8 +1391,9 @@ CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-  IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
+    IF(doPartInExists)THEN
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -1476,8 +1482,9 @@ CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
   IF(DoInnerParts)  tempcharge= 0.0
   DO iPart = firstPart, lastPart
+  ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -1558,6 +1565,7 @@ CASE('epanechnikov')
 
 CASE('shape_function','shape_function_simple')
   !-- "normal" particles
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -1576,8 +1584,9 @@ CASE('shape_function','shape_function_simple')
   END IF
   IF (usevMPF) THEN
     DO iPart=firstPart,LastPart
+      ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
-        IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+        IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
@@ -1586,8 +1595,9 @@ CASE('shape_function','shape_function_simple')
     END DO ! iPart
   ELSE
     DO iPart=firstPart,LastPart
+      ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
-        IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+        IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
@@ -1744,6 +1754,7 @@ CASE('shape_function','shape_function_simple')
   END IF
 
 CASE('shape_function_1d')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -1761,8 +1772,9 @@ CASE('shape_function_1d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -1970,6 +1982,7 @@ CASE('shape_function_1d')
   END IF
 
 CASE('shape_function_2d')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -1987,8 +2000,9 @@ CASE('shape_function_2d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -2250,6 +2264,7 @@ CASE('shape_function_2d')
   END IF
 
 CASE('shape_function_cylindrical','shape_function_spherical')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -2267,8 +2282,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -2461,14 +2477,16 @@ CASE('shape_function_cylindrical','shape_function_spherical')
   END IF
 
 CASE('delta_distri')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
+      ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
-        IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+        IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
@@ -2546,6 +2564,7 @@ CASE('delta_distri')
     END DO ! loop over all elems
   END IF ! DoInnerParts
 CASE('nearest_gausspoint')
+  ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   SAVE_GAUSS = .FALSE.
   IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
@@ -2561,8 +2580,9 @@ CASE('nearest_gausspoint')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
+      ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
-        IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+        IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
       ELSE
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
@@ -2647,8 +2667,9 @@ CASE('cartmesh_volumeweighting')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
@@ -2747,8 +2768,9 @@ CASE('cartmesh_splines')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
+    ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF

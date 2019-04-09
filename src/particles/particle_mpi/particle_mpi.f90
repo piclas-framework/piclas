@@ -580,9 +580,9 @@ SUBROUTINE MPIParticleSend()
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is send
+! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is sent
 !          and after the build and wait for number of particles reused to build array with external parts
-!          informations in PartState,.. can be reused, because they are not overwritten
+!          information in PartState,.. can be reused, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
