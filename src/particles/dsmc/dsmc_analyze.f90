@@ -437,9 +437,12 @@ END IF
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 #ifdef MPI
-IF(SurfMesh%nInnerSides.GT.0) THEN ! there are inner reflective BCs
-  CALL MapInnerSurfData()
-END IF
+!IF(SurfMesh%nInnerSides.GT.0) THEN ! there are inner reflective BCs
+!  CALL MapInnerSurfData()
+!  CALL ExchangeSurfData()
+!END IF
+CALL ExchangeSurfData()
+CALL MapInnerSurfData()
 CALL ExchangeSurfData()
 #endif
 
