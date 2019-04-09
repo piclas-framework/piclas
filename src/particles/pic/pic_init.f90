@@ -123,7 +123,10 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '      requires PIC-shapefunction-radius\n'//& 
                                                              '               PIC-shapefunction-alpha\n' //&
                                                              '      1.2) and 1.3) require\n'            //&
-                                                             '      PIC-shapefunction1d-direction)\n'   //&
+                                                             '        PIC-shapefunction1d-direction\n'  //&
+                                                             '      1.4) and 1.5) require\n'            //&
+                                                             '        PIC-shapefunction-radius0\n'      //&
+                                                             '        PIC-shapefunction-scale\n'        //&
                                                              '2.)   cell_volweight\n'                   //&
                                                              '3.)   epanechnikov\n'                     //&
                                                              '4.)   nearest_gausspoint\n'               //&
@@ -144,17 +147,21 @@ CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape 
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
 CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
                                                                  '2D shape function: Perpendicular deposition')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Minimal shape function radius', '1.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Scaling factor of shape function radius', '0.')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the charge over volume (3D)\n'//&
+                                                                   ' or over a line (1D)/area(2D)\n'//&
+                                                                   '1D shape function: volume or line\n'//&
+                                                                   '2D shape function: volume or area', '.TRUE.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
+                                                             '(for cylindrical and spherical)', '0.')
+! Shape Function Deposition Fixes
 CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoFixes'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Number of fixes for shape func depo at'//&
+                                                             'Number of fixes for shape func depo at'//&
                                                              ' planar BCs', '0')
 CALL prms%CreateLogicalOption(  'PrintSFDepoWarnings'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Print the shapefunction warnings', '.FALSE.')
+                                                             'Print the shapefunction warnings', '.FALSE.')
 CALL prms%CreateRealOption(     'PIC-SFdepoFixesEps'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Epsilon for defined planes', '0.')
+                                                             'Epsilon for defined planes', '0.')
 CALL prms%CreateRealArrayOption('PIC-SFdepoFixes[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER\n', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PIC-SFdepoFixes[$]-Normal','TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PIC-SFdepoFixes[$]-ChargeMult'  , 'TODO-DEFINE-PARAMETER\n'//&

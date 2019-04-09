@@ -712,7 +712,12 @@ CASE('shape_function','shape_function_simple')
 #endif /*MPI*/
 
 CASE('shape_function_1d','shape_function_2d')
+  ! Get deposition direction for 1D or perpendicular direction for 2D
   sf1d_dir = GETINT ('PIC-shapefunction1d-direction')
+  ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
+  sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
+  hilf2='volume'
+
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_1d')
     ! Set perpendicular directions
@@ -725,10 +730,18 @@ CASE('shape_function_1d','shape_function_2d')
     ELSE
       w_sf=2*GEO%MeshVolume
     END IF
-    ! Set prefix factor
-    w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
-    ! Set shape function length (1D volume)
-    VolumeShapeFunction=2*r_sf
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      ! Set prefix factor
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1))*dimFactorSF)
+    ELSE ! Distribute the charge over the line (1D)
+      ! Set prefix factor
+      w_sf = GAMMA(REAL(alpha_sf)+1.5)/(SQRT(PI)*r_sf*GAMMA(REAL(alpha_sf+1)))
+      ! Set shape function length (1D volume)
+      !VolumeShapeFunction=2*r_sf
+      hilf2='line'
+    END IF
+    ! Set shape function length (3D volume)
+    VolumeShapeFunction=2*r_sf*dimFactorSF
     ! Calculate number of 1D DOF (assume second and third direction with 1 cell layer and area given by dimFactorSF)
     nTotalDOF=nGlobalElems*(PP_N+1)
     hilf='1D'
@@ -743,29 +756,48 @@ CASE('shape_function_1d','shape_function_2d')
     ELSE
       w_sf=2*GEO%MeshVolume
     END IF
-    ! Set prefix factor 
-    w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
-    ! Shape function area (2D volume)
-    VolumeShapeFunction = PI*(r_sf**2)
+    IF(sfDepo3D)THEN ! Distribute the charge over the volume (3D)
+      ! Set prefix factor 
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf*dimFactorSF)
+    ELSE ! Distribute the charge over the area (2D)
+      ! Set prefix factor 
+      w_sf = (REAL(alpha_sf)+1.0)/(PI*r2_sf)
+      ! Set shape function length (2D volume)
+      !VolumeShapeFunction=PI*(r_sf**2)
+      hilf2='area'
+    END IF
+    ! Set shape function length (3D volume)
+    VolumeShapeFunction=PI*(r_sf**2)*dimFactorSF
     ! Calculate number of 2D DOF (assume third direction with 1 cell layer and width dimFactorSF)
     nTotalDOF=nGlobalElems*(PP_N+1)**2
     hilf='2D'
   END SELECT
 
-  ASSOCIATE(MeshVol               => GEO%MeshVolume/dimFactorSF ,&
-            nTotalDOFin3D         => nGlobalElems*(PP_N+1)**3   ,&
-            VolumeShapeFunction3D => 4./3.*PI*r_sf**3           )
+  ASSOCIATE(nTotalDOFin3D             => nGlobalElems*(PP_N+1)**3   ,&
+            VolumeShapeFunctionSphere => 4./3.*PI*r_sf**3           )
+    SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf2)//' distributed (deposition function is '//TRIM(hilf)//')'
+    IF(.NOT.sfDepo3D)THEN
+      SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the volume is larger than the complete charge!'
+    END IF
+    IF(TRIM(DepositionType).EQ.'shape_function_1d')THEN
+      CALL PrintOption('Shape function volume (3D box)', 'CALCUL.', RealOpt=VolumeShapeFunction)
+    ELSE
+      CALL PrintOption('Shape function volume (3D cylinder)', 'CALCUL.', RealOpt=VolumeShapeFunction)
+    END IF
+    !CALL PrintOption('Shape function volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=VolumeShapeFunction)
     IF(MPIRoot)THEN
-      IF(VolumeShapeFunction.GT.MeshVol) &
+      IF(VolumeShapeFunction.GT.GEO%MeshVolume)THEN
+        CALL PrintOption('Mesh volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=GEO%MeshVolume)
+        WRITE(UNIT_stdOut,'(A)') ' Maybe wrong perpendicular direction (PIC-shapefunction1d-direction)?'
         CALL abort(&
         __STAMP__&
         ,'ShapeFunctionVolume > MeshVolume ('//TRIM(hilf)//' shape function)')
+      END IF
     END IF
-    CALL PrintOption('Shape function volume ('//TRIM(hilf)//')'                , 'CALCUL.' , RealOpt=VolumeShapeFunction)
-    CALL PrintOption('Average DOFs in Shape-Function ('//TRIM(hilf)//')'       , 'CALCUL.' , RealOpt=&
-         REAL(nTotalDOF)*VolumeShapeFunction/MeshVol)
-    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D value)' , 'CALCUL.' , RealOpt=&
-         REAL(nTotalDOFin3D)*VolumeShapeFunction3D/GEO%MeshVolume)
+    CALL PrintOption('Average DOFs in Shape-Function '//TRIM(hilf2)//' ('//TRIM(hilf)//')'       , 'CALCUL.' , RealOpt=&
+         REAL(nTotalDOF)*VolumeShapeFunction/GEO%MeshVolume)
+    CALL PrintOption('Average DOFs in Shape-Function (corresponding 3D sphere)' , 'CALCUL.' , RealOpt=&
+         REAL(nTotalDOFin3D)*VolumeShapeFunctionSphere/GEO%MeshVolume)
   END ASSOCIATE
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
