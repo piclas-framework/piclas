@@ -1,25 +1,30 @@
 # Welcome to PICLas
 
-[![build status](https://gitlab.com:piclas/piclas/badges/master/build.svg)](https://gitlab.com:piclas/piclas/builds/)
+## PICLas Documentation
 
-## Installation / Documentation
+The documentation is a work in progress, where everybody can contribute. A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder.
 
-For installation instruction see [Install.md](INSTALL.md).
+1. [Introduction](doc/userguide/000_userguide.md)
+2. [Installation](doc/userguide/010_installation.md)
+3. [Workflow](doc/userguide/020_workflow.md)
+4. [Features & Models](doc/userguide/030_features_models.md)
+5. [Tools](doc/userguide/040_tools.md)
+6. [Tutorials](doc/userguide/050_tutorials.md)
+7. [Unit Tests](doc/userguide/070_unittest.md)
+8. [Development Guide](doc/userguide/080_develop_guide.md)
+9. [Parameters](doc/userguide/099_parameter.md)
 
-The tools are known to work with the following software versions:
+## Recommended Configuration
+
+For an installation guide please refer to the documentation. The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
 * HDF5 > 1.8.13
+* CMake > 3.0.0
 
 A list of successful build combinations can be found in [BuildConfigurations.md](BuildConfigurations.md).
 
-### Manual HDF5 Installation
-
-For installation instruction see [InstallHDF5.md](INSTALLHDF5.md).
-
-
 ### Installation on Cluster using CMake
-
 
 For installation instruction on forhlr1 see [Install-on-FORHLR1.md](INSTALLFORHLR1.md).
 

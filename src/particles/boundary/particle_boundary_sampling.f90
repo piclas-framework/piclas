@@ -74,7 +74,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,SideToElem
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis
+USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
 USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
@@ -247,11 +247,11 @@ END DO
 DEALLOCATE(ElemOfInnerBC)
 DEALLOCATE(NBElemOfHalo)
 
-ALLOCATE(SurfMesh%SurfSideToGlobSideMap(1:SurfMesh%nTotalSides))
-SurfMesh%SurfSideToGlobSideMap(:) = -1
+ALLOCATE(SurfMesh%SurfIDToSideID(1:SurfMesh%nTotalSides))
+SurfMesh%SurfIDToSideID(:) = -1
 DO iSide = 1,nTotalSides
   IF (SurfMesh%SideIDToSurfID(iSide).LE.0) CYCLE
-  SurfMesh%SurfSideToGlobSideMap(SurfMesh%SideIDToSurfID(iSide)) = iSide
+  SurfMesh%SurfIDToSideID(SurfMesh%SideIDToSurfID(iSide)) = iSide
 END DO
 
 SurfMesh%SurfOnProc=.FALSE.
@@ -365,6 +365,7 @@ ALLOCATE(SampWall(1:SurfMesh%nTotalSides))
 DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
+  IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
   !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
   !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
@@ -457,7 +458,7 @@ END DO ! iSide=1,nTotalSides
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
 #endif /*MPI*/
 
-SWRITE(UNIT_stdOut,'(A,E25.14E3)') ' Surface-Area: ', Area
+SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
@@ -624,7 +625,7 @@ offsetInnerSurfSide=offsetInnerSurfSideMPI(SurfCOMM%MyOutputRank)
 END SUBROUTINE InitSurfCommunicator
 
 
-SUBROUTINE GetHaloSurfMapping() 
+SUBROUTINE GetHaloSurfMapping()
 !===================================================================================================================================
 ! build all missing stuff for surface-sampling communicator, like
 ! offSetMPI
@@ -640,9 +641,10 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars 
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
-USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide, PartElemToElemAndSide
+USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide,PartElemToElemAndSide
+USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1038,6 +1040,22 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfRecvBuf(iProc)%content=0.
   END IF
 END DO ! iProc
+
+IF(nPorousBC.GT.0) THEN
+  ALLOCATE(PorousBCSendBuf(SurfCOMM%nMPINeighbors))
+  ALLOCATE(PorousBCRecvBuf(SurfCOMM%nMPINeighbors))
+  DO iProc=1,SurfCOMM%nMPINeighbors
+    IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
+      ALLOCATE(PorousBCSendBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
+      PorousBCSendBuf(iProc)%content_int=0
+    END IF
+    IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
+      ALLOCATE(PorousBCRecvBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
+      PorousBCRecvBuf(iProc)%content_int=0
+    END IF
+  END DO ! iProc
+END IF
+
 DEALLOCATE(recv_status_list)
 
 CALL MPI_BARRIER(SurfCOMM%Comm,iError)
@@ -1255,7 +1273,7 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars,               ONLY:ProjectName
-USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide
+USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide,nPorousBC
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies,PartSurfaceModel
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
@@ -1273,9 +1291,9 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID
+CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec,nOutputSides
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, nOutputSides
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
@@ -1300,6 +1318,9 @@ ELSE
   nVar2D = 5
   nVar2D_Spec=1
 END IF
+
+IF(nPorousBC.GT.0)  nVar2D = nVar2D + nPorousBC
+
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -1335,13 +1356,23 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   END DO ! iSpec=1,nSpecies
 
   ! fill varnames for total values
-  Str2DVarNames(nVarCount+1) ='ForceX'
-  Str2DVarNames(nVarCount+2) ='ForceY'
-  Str2DVarNames(nVarCount+3) ='ForceZ'
+  Str2DVarNames(nVarCount+1) ='ForcePerAreaX'
+  Str2DVarNames(nVarCount+2) ='ForcePerAreaY'
+  Str2DVarNames(nVarCount+3) ='ForcePerAreaZ'
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
+  nVarCount = nVarCount + 5
   IF (PartSurfaceModel.GT.0) THEN
-    Str2DVarNames(nVarCount+6) ='HeatFlux_Portion_Cat'
+    Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_Cat'
+    nVarCount = nVarCount + 1
+  END IF
+
+  IF(nPorousBC.GT.0) THEN
+    DO iPBC = 1, nPorousBC
+      WRITE(PBCID,'(I2.2)') iPBC
+      Str2DVarNames(nVarCount+iPBC) = 'PorousBC'//TRIM(PBCID)//'_PumpCapacity'
+    END DO
+    nVarCount = nVarCount + nPorousBC
   END IF
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
@@ -1656,7 +1687,7 @@ INTEGER :: iProc,iSurfSide
 SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
-SDEALLOCATE(SurfMesh%SurfSideToGlobSideMap)
+SDEALLOCATE(SurfMesh%SurfIDToSideID)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
