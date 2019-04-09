@@ -69,6 +69,7 @@ TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
   LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
+  INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
   INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)

@@ -830,9 +830,6 @@ IF (.NOT.IsAuxBC) THEN
 IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-    IF(SurfSideID.EQ.-2) THEN ! Surface is on SlaveSide => Map to MasterSide/MasterHaloSide
-      SurfSideID=SurfMesh%SideIDToSurfID(SurfMesh%innerBCSideToHaloMap(SideID))
-    END IF
     ! compute p and q
     ! correction of xi and eta, can only be applied if xi & eta are not used later!
     IF (TriaTracking) THEN
@@ -1166,9 +1163,6 @@ IF (.NOT.IsAuxBC) THEN
     !----  Sampling for energy (translation) accommodation at walls
     ! has to be corrected to new scheme
     SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-    IF(SurfSideID.EQ.-2) THEN ! Surface is on SlaveSide => Map to MasterSide/MasterHaloSide
-      SurfSideID=SurfMesh%SideIDToSurfID(SurfMesh%innerBCSideToHaloMap(SideID))
-    END IF
     ! compute p and q
     ! correction of xi and eta, can only be applied if xi & eta are not used later!
     IF (TriaTracking) THEN

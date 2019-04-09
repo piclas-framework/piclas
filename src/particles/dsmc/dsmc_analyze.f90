@@ -387,7 +387,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
-USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel
@@ -437,6 +437,9 @@ END IF
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 #ifdef MPI
+IF(SurfMesh%nInnerSides.GT.0) THEN ! there are inner reflective BCs
+  CALL MapInnerSurfData()
+END IF
 CALL ExchangeSurfData()
 #endif
 
