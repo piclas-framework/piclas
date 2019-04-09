@@ -261,6 +261,9 @@ USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+#if (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Init,               ONLY:FinalizeFPFlow
+#endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init,                  ONLY:FinalizeBGK
 #endif
@@ -317,6 +320,9 @@ CALL FinalizeDeposition()
 CALL FinalizeParticleMPI()
 #endif /*MPI*/
 CALL FinalizeDSMC()
+#if (PP_TimeDiscMethod==300)
+CALL FinalizeFPFlow()
+#endif
 #if (PP_TimeDiscMethod==400)
 CALL FinalizeBGK()
 #endif
