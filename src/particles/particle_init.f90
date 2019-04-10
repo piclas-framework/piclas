@@ -2069,7 +2069,7 @@ __STAMP__&
       ELSE
         CALL abort(&
 __STAMP__&
-        ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+        ,'ERROR: Unknown SpaceIC for species: ', iSpec)
       END IF
     END IF
     !--- determine if cell_local macro restart with density distribution
