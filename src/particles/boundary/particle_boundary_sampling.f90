@@ -1420,22 +1420,24 @@ ASSOCIATE (&
                         collective =.TRUE.         ,&
                         RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
 ! Output of InnerSurfSide Array
-nVarCount=0
-  DO iSpec = 1,nSpecies
-      CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
-                    nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
-                    nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
-                    offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
-                    collective =.TRUE.,&
-                    RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
-  nVarCount = nVarCount + INT(nVar2D_Spec)
-  END DO
-  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-                        nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
-                        nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
-                        offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
-                        collective =.TRUE.         ,&
-                        RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
+IF(nInnerSides.GT.0) THEN
+  nVarCount=0
+    DO iSpec = 1,nSpecies
+        CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
+                      nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
+                      nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
+                      offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
+                      collective =.TRUE.,&
+                      RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
+    nVarCount = nVarCount + INT(nVar2D_Spec)
+    END DO
+    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
+                          nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
+                          nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
+                          offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
+                          collective =.TRUE.         ,&
+                          RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
+END IF
 END ASSOCIATE
 CALL CloseDataFile()
 
