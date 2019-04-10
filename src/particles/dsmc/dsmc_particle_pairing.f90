@@ -448,7 +448,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies)
+  INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies), childNodeID
   INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
   REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
   INTEGER                       :: PartNumChildNode(8)
@@ -478,44 +478,10 @@ __STAMP__&
   ! particle to Octree ChildNode sorting
   DO iPart=1,TreeNode%PNum_Node
     iPartIndx = TreeNode%iPartIndx_Node(iPart)
-    IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-        .AND.(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) &
-        .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
-      PartNumChildNode(1) = PartNumChildNode(1) + 1
-      iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-      MappedPart_ChildNode(1,PartNumChildNode(1),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-        .AND.(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2))) THEN
-      PartNumChildNode(2) = PartNumChildNode(2) + 1
-      iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-      MappedPart_ChildNode(2,PartNumChildNode(2),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-        .AND.(TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3))) THEN
-      PartNumChildNode(3) = PartNumChildNode(3) + 1
-      iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-      MappedPart_ChildNode(3,PartNumChildNode(3),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF (TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
-      PartNumChildNode(4) = PartNumChildNode(4) + 1
-      iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-      MappedPart_ChildNode(4,PartNumChildNode(4),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF((TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) &
-        .AND.(TreeNode%MappedPartStates(iPart,3).LE.TreeNode%MidPoint(3))) THEN
-      PartNumChildNode(5) = PartNumChildNode(5) + 1
-      iPartIndx_ChildNode(5,PartNumChildNode(5)) = iPartIndx
-      MappedPart_ChildNode(5,PartNumChildNode(5),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF (TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
-      PartNumChildNode(6) = PartNumChildNode(6) + 1
-      iPartIndx_ChildNode(6,PartNumChildNode(6)) = iPartIndx
-      MappedPart_ChildNode(6,PartNumChildNode(6),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE IF (TreeNode%MappedPartStates(iPart,3).GE.TreeNode%MidPoint(3)) THEN
-      PartNumChildNode(7) = PartNumChildNode(7) + 1
-      iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
-      MappedPart_ChildNode(7,PartNumChildNode(7),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE 
-      PartNumChildNode(8) = PartNumChildNode(8) + 1
-      iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
-      MappedPart_ChildNode(8,PartNumChildNode(8),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    END IF
+    ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(iPart,:))
+    PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
+    iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
+    MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(iPart,1:3)
   END DO
 
   IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
@@ -523,14 +489,16 @@ __STAMP__&
     CALL DSMC_CalcSubNodeVolumes(iElem, localDepth, ElemNodeVol(iElem)%Root)
   END IF
 
-  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-  NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
-  NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
-  NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
-  NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
+  CALL CalcSubNodeMPVolumePortions(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
+
+  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume *(1.-NodeVol%SubNode1%MPVolumePortion)
+  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume *(1.-NodeVol%SubNode2%MPVolumePortion)
+  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume *(1.-NodeVol%SubNode3%MPVolumePortion)
+  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume *(1.-NodeVol%SubNode4%MPVolumePortion)
+  NodeVolumeTemp(5) = NodeVol%SubNode5%Volume *(1.-NodeVol%SubNode5%MPVolumePortion)
+  NodeVolumeTemp(6) = NodeVol%SubNode6%Volume *(1.-NodeVol%SubNode6%MPVolumePortion)
+  NodeVolumeTemp(7) = NodeVol%SubNode7%Volume *(1.-NodeVol%SubNode7%MPVolumePortion)
+  NodeVolumeTemp(8) = NodeVol%SubNode8%Volume *(1.-NodeVol%SubNode8%MPVolumePortion)
 
   DO iLoop = 1, 8
     IF (PartNumChildNode(iLoop).GT.1) THEN
@@ -556,28 +524,7 @@ __STAMP__&
         TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
         TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:3)= &
               MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:3)
-        IF (iLoop.LT.5) THEN
-          TreeNode%ChildNode%MidPoint(1) = 1.0
-          IF (iLoop.LT.3) THEN
-            TreeNode%ChildNode%MidPoint(2) = 1.0
-          ELSE
-            TreeNode%ChildNode%MidPoint(2) = -1.0
-          END IF
-        ELSE
-          TreeNode%ChildNode%MidPoint(1) = -1.0
-          IF (iLoop.LT.7) THEN
-            TreeNode%ChildNode%MidPoint(2) = 1.0
-          ELSE
-            TreeNode%ChildNode%MidPoint(2) = -1.0
-          END IF
-        END IF
-        IF ((iLoop.EQ.1).OR.(iLoop.EQ.4).OR.(iLoop.EQ.5).OR.(iLoop.EQ.8)) THEN
-          TreeNode%ChildNode%MidPoint(3) = -1.0
-        ELSE
-          TreeNode%ChildNode%MidPoint(3) = 1.0
-        END IF
-        TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/REAL(2.0**(TreeNode%NodeDepth+1))
+        TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iLoop,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
         IF (iLoop.EQ.1) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
@@ -624,9 +571,10 @@ SUBROUTINE DSMC_init_octree()
 
   !Calculate recursive Volumes  
   DO iElem = 1, nElems
-    ALLOCATE(ElemNodeVol(iElem)%Root)    
+    ALLOCATE(ElemNodeVol(iElem)%Root)
     DO NodeDepth = 1, 2
-      CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
+      CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+      CALL CalcSubNodeMPVolumePortions(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
     END DO
   END DO
 
@@ -728,8 +676,8 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 ! INPUT VARIABLES
   INTEGER, INTENT(INOUT)                    :: NodeDepth
   INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node     
-  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)  
+  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
   TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -743,7 +691,7 @@ IF (PRESENT(SubNodesIn)) THEN
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
   SubNodesOut(1:OldNodeNum) = SubNodesIn(1:OldNodeNum)
-ELSE 
+ELSE
   OldNodeNum = 0
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
@@ -821,6 +769,229 @@ ELSE
 END IF
 
 END SUBROUTINE AddNodeVolumes
+
+
+SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
+!===================================================================================================================================
+! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
+USE MOD_Particle_Mesh      ,ONLY: BoundsOfElement
+USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
+USE MOD_part_tools         ,ONLY: INSIDEMACROPART
+USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                        :: iElem
+INTEGER, INTENT(IN)                        :: NodeDepth
+TYPE (tNodeVolume), INTENT(INOUT), POINTER :: Node
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iPart, LocalNodeDepth
+REAL                     :: refPos(1:3),physPos(1:3)
+REAL                     :: ElemBounds(1:2,1:3)
+TYPE(tTreeNode), POINTER :: TreeNode
+!===================================================================================================================================
+IF (GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
+  NULLIFY(TreeNode)
+  ALLOCATE(TreeNode)
+  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**NodeDepth)
+  ALLOCATE(TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node)) ! List of particles in the cell neccessary for stat pairing
+  ALLOCATE(TreeNode%MappedPartStates(1:TreeNode%PNum_Node,1:3))
+  ALLOCATE(TreeNode%MatchedPart(1:TreeNode%PNum_Node))
+  TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node) = 0
+  TreeNode%MatchedPart(1:TreeNode%PNum_Node) = .FALSE.
+  TreeNode%NodeDepth = 1
+  TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+
+  CALL BoundsOfElement(iElem,ElemBounds)
+  DO iPart=1,TreeNode%PNum_Node
+    DO
+      CALL RANDOM_NUMBER(physPos)
+      physPos = ElemBounds(1,:) + physPos*(ElemBounds(2,:)-ElemBounds(1,:))
+      CALL GetPositionInRefElem(physPos,refPos,iElem)
+      IF(ALL(ABS(refPos).LE.epsOneCell(iElem))) EXIT ! particle inside of element
+    END DO
+    TreeNode%iPartIndx_Node(iPart) = iPart
+    TreeNode%MappedPartStates(iPart,1:3)= refPos(1:3)
+    IF (INSIDEMACROPART(physPos)) THEN
+      TreeNode%MatchedPart(iPart) = .TRUE.
+    END IF
+  END DO
+  CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode=TreeNode)
+  DEALLOCATE(TreeNode%MatchedPart)
+  DEALLOCATE(TreeNode%MappedPartStates)
+  DEALLOCATE(TreeNode%iPartIndx_Node)
+  DEALLOCATE(TreeNode)
+ELSE
+  LocalNodeDepth=1
+  CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node, LocalNodeDepth=LocalNodeDepth)
+END IF
+
+END SUBROUTINE CalcSubNodeMPVolumePortions
+
+
+RECURSIVE SUBROUTINE AddNodeMPVolumePortions(iElem, NodeDepth, Node, TreeNode, LocalNodeDepth)
+!===================================================================================================================================
+!> suboutine, which adds the volume portion that is occupied by macro particles to node-leaves of the octree
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: iELem
+INTEGER, INTENT(IN) :: NodeDepth
+INTEGER, INTENT(IN),OPTIONAL :: LocalNodeDepth
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+TYPE (tNodeVolume), INTENT(OUT), POINTER           :: Node
+TYPE (tTreeNode), INTENT(INOUT), OPTIONAL, POINTER :: TreeNode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iOctant, childNodeID, iPart, iPartIndx, CurrentDepth
+INTEGER              :: nMatchedPart
+INTEGER              :: PartNumChildNode(8)
+INTEGER, ALLOCATABLE :: iPartIndx_ChildNode(:,:)
+REAL, ALLOCATABLE    :: MappedPart_ChildNode(:,:,:)
+LOGICAL, ALLOCATABLE :: MatchedPart_ChildNode(:,:)
+!===================================================================================================================================
+IF (PRESENT(TreeNode)) THEN
+  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
+    PartNumChildNode(:) = 0
+    ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
+    ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
+    ALLOCATE(MatchedPart_ChildNode(8,TreeNode%PNum_Node))
+    MatchedPart_ChildNode(1:8,1:TreeNode%PNum_Node)=.FALSE.
+    DO iPart=1,TreeNode%PNum_Node
+      ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(iPart,1:3))
+      iPartIndx = TreeNode%iPartIndx_Node(iPart)
+      iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
+      PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
+      MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(iPart,1:3)
+      IF (TreeNode%MatchedPart(iPart)) THEN
+        MatchedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = .TRUE.
+      END IF
+    END DO
+
+    DO iOctant=1,8
+      NULLIFY(TreeNode%ChildNode)
+      ALLOCATE(TreeNode%ChildNode)
+      ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iOctant)))
+      !ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iOctant),1:3))
+      ALLOCATE(TreeNode%ChildNode%MatchedPart(PartNumChildNode(iOctant)))
+      TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iOctant)) = iPartIndx_ChildNode(iOctant, 1:PartNumChildNode(iOctant))
+      TreeNode%ChildNode%PNum_Node = PartNumChildNode(iOctant)
+      !TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iOctant),1:3)= &
+      !      MappedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant),1:3)
+      TreeNode%ChildNode%MatchedPart(1:PartNumChildNode(iOctant)) =  MatchedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant))
+      TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iOctant,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
+      TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
+      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
+      SELECT CASE (iOctant)
+      CASE(1)
+        IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode1, TreeNode=TreeNode%ChildNode)
+      CASE(2)
+        IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode2, TreeNode=TreeNode%ChildNode)
+      CASE(3)
+        IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode3, TreeNode=TreeNode%ChildNode)
+      CASE(4)
+        IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode4, TreeNode=TreeNode%ChildNode)
+      CASE(5)
+        IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode5, TreeNode=TreeNode%ChildNode)
+      CASE(6)
+        IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode6, TreeNode=TreeNode%ChildNode)
+      CASE(7)
+        IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode7, TreeNode=TreeNode%ChildNode)
+      CASE(8)
+        IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode8, TreeNode=TreeNode%ChildNode)
+      END SELECT
+      DEALLOCATE(TreeNode%ChildNode%MatchedPart)
+      DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
+      DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
+      DEALLOCATE(TreeNode%ChildNode)
+    END DO
+    DEALLOCATE(iPartIndx_ChildNode)
+    DEALLOCATE(MappedPart_ChildNode)
+    DEALLOCATE(MatchedPart_ChildNode)
+  ELSE
+    IF (GEO%MPVolumePortion(iElem).EQ.0. .OR. TreeNode%PNum_Node.EQ.0) THEN
+      Node%MPVolumePortion = 0.
+    ELSE IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
+      Node%MPVolumePortion = 1.
+    ELSE
+      nMatchedPart = 0
+      DO iPart=1,TreeNode%PNum_Node
+        IF (TreeNode%MatchedPart(iPart)) THEN
+          nMatchedPart = nMatchedPart + 1
+        END IF
+      END DO
+      Node%MPVolumePortion = REAL(nMatchedPart)/REAL(TreeNode%PNum_Node)
+    END IF
+  END IF
+ELSE IF (PRESENT(LocalNodeDepth)) THEN
+  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
+    DO iOctant=1,8
+      CurrentDepth = LocalNodeDepth + 1
+      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
+      SELECT CASE (iOctant)
+      CASE(1)
+        IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode1, LocalNodeDepth=CurrentDepth)
+      CASE(2)
+        IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode2, LocalNodeDepth=CurrentDepth)
+      CASE(3)
+        IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode3, LocalNodeDepth=CurrentDepth)
+      CASE(4)
+        IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode4, LocalNodeDepth=CurrentDepth)
+      CASE(5)
+        IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode5, LocalNodeDepth=CurrentDepth)
+      CASE(6)
+        IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode6, LocalNodeDepth=CurrentDepth)
+      CASE(7)
+        IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode7, LocalNodeDepth=CurrentDepth)
+      CASE(8)
+        IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
+        CALL AddNodeMPVolumePortions(iElem, NodeDepth, Node%SubNode8, LocalNodeDepth=CurrentDepth)
+      END SELECT
+    END DO
+  ELSE
+    IF (GEO%MPVolumePortion(iElem).EQ.1.) THEN
+      Node%MPVolumePortion = 1.
+    ELSE
+      Node%MPVolumePortion = 0.
+    END IF
+  END IF
+ELSE
+  CALL abort(&
+__STAMP__&
+,'ERROR in AddNodeMPVolumePortions: function call needs TreeNode pointer or localNodeDepth parameter')
+END IF
+
+END SUBROUTINE AddNodeMPVolumePortions
 
 
 #ifdef DONTCOMPILETHIS
@@ -958,5 +1129,90 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 END SUBROUTINE FindStatisticalNeigh
 #endif /*DONTCOMPILETHIS,NOOOW*/
 
+INTEGER FUNCTION OCTANTCUBEID(centerPoint,coord)
+!===================================================================================================================================
+!> determine position of Coord in a cube Octant in reference to a 3D centerpoint
+!>         Numbering of the 8 Octant IDs (octree)
+!>          __________
+!>         /    /    /|   |z
+!>        /  7 / 6  / |   |
+!>       /----/----/|6|   |
+!>      /_3__/_2__/ |/|   |______Y
+!>     |    |    |2 |5|   /
+!>     | 3  | 2  |/ |/   /
+!>     |----|----|1 /   /x
+!>     | 4  | 1  | /
+!>     |____|____|/
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN) :: centerPoint(1:3)
+REAL,INTENT(IN) :: coord(1:3)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF ((coord(1).GE.centerPoint(1)) .AND. (coord(2).GE.centerPoint(2)) .AND.(coord(3).LE.centerPoint(3))) THEN
+  OCTANTCUBEID=1
+ELSE IF((coord(1).GE.centerPoint(1)) .AND.(coord(2).GE.centerPoint(2))) THEN
+  OCTANTCUBEID=2
+ELSE IF((coord(1).GE.centerPoint(1)) .AND.(coord(3).GE.centerPoint(3))) THEN
+  OCTANTCUBEID=3
+ELSE IF (coord(1).GE.centerPoint(1)) THEN
+  OCTANTCUBEID=4
+ELSE IF((coord(2).GE.centerPoint(2)) .AND.(coord(3).LE.centerPoint(3))) THEN
+  OCTANTCUBEID=5
+ELSE IF (coord(2).GE.centerPoint(2)) THEN
+  OCTANTCUBEID=6
+ELSE IF (coord(3).GE.centerPoint(3)) THEN
+  OCTANTCUBEID=7
+ELSE
+  OCTANTCUBEID=8
+END IF
+
+END FUNCTION OCTANTCUBEID
+
+FUNCTION OCTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
+!===================================================================================================================================
+!> determines the position of the center of the given cubeID of an Octant for a given 3D centerpoint and depth
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN) :: CubeID
+INTEGER,INTENT(IN) :: octantDepth
+REAL,INTENT(IN)    :: octantCenter(1:3)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL, DIMENSION(3) :: OCTANTCUBEMIDPOINT
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF (CubeID.LT.5) THEN
+  OCTANTCUBEMIDPOINT(1) = 1.0
+  IF (CubeID.LT.3) THEN
+    OCTANTCUBEMIDPOINT(2) = 1.0
+  ELSE
+    OCTANTCUBEMIDPOINT(2) = -1.0
+  END IF
+ELSE
+  OCTANTCUBEMIDPOINT(1) = -1.0
+  IF (CubeID.LT.7) THEN
+    OCTANTCUBEMIDPOINT(2) = 1.0
+  ELSE
+    OCTANTCUBEMIDPOINT(2) = -1.0
+  END IF
+END IF
+IF ((CubeID.EQ.1).OR.(CubeID.EQ.4).OR.(CubeID.EQ.5).OR.(CubeID.EQ.8)) THEN
+  OCTANTCUBEMIDPOINT(3) = -1.0
+ELSE
+  OCTANTCUBEMIDPOINT(3) = 1.0
+END IF
+OCTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + OCTANTCUBEMIDPOINT(1:3)*2.0/REAL(2.0**(octantDepth+1))
+END FUNCTION OCTANTCUBEMIDPOINT
 
 END MODULE MOD_DSMC_ParticlePairing
