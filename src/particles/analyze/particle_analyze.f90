@@ -334,6 +334,8 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 #if (PP_TimeDiscMethod == 42)
   IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep),PartAnalyzeStep).NE.0) THEN
+      SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep)
+      SWRITE(UNIT_stdOut,'(A,I0)') '                        PartAnalyzeStep = ',PartAnalyzeStep
       CALL abort(&
         __STAMP__&
         ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
@@ -895,7 +897,7 @@ INTEGER             :: dir
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
-  IF(CalcEkin)THEN
+  IF(CalcEkin.OR.CalcEint)THEN
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
     ELSE

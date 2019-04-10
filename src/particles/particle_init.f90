@@ -2523,7 +2523,7 @@ CALL InitPIC()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*MPI*/
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 

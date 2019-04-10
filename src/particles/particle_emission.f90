@@ -6674,7 +6674,7 @@ DO iSpec = 1,nSpecies
   END IF
 END DO
 #if USE_LOADBALANCE
-CALL LBElemSplitTime(ElemID,tLBStart)
+CALL LBElemSplitTime(AdaptiveElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END DO
 

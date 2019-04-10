@@ -1019,6 +1019,7 @@ INTEGER                              :: p,q, SurfSideID
 REAL                                 :: POI_fak,TildTrajectory(3)
 ! Polyatomic Molecules
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL                                 :: NormProb
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 ! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
@@ -1213,8 +1214,23 @@ IF (useDSMC) THEN
 IF (CollisMode.GT.1) THEN
 IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20)) THEN
 
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+  !---- Rotational energy accommodation
+    IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+      NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+      CALL RANDOM_NUMBER(RanNum)
+      DO WHILE (RanNum.GE.NormProb)
+        CALL RANDOM_NUMBER(RanNum)
+        ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+        CALL RANDOM_NUMBER(RanNum)
+      END DO
+      ErotWall = ErotWall*BoltzmannConst*WallTemp
+    END IF
     ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
 
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN

@@ -655,6 +655,10 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   DoRot2  = .FALSE.
   DoVib1  = .FALSE.
   DoVib2  = .FALSE.
+  ProbVib1 = 0.
+  ProbRot1 = 0.
+  ProbVib2 = 0.
+  ProbRot2 = 0.
 
   iSpec = PartSpecies(Coll_pData(iPair)%iPart_p1)
   jSpec = PartSpecies(Coll_pData(iPair)%iPart_p2)
@@ -871,7 +875,6 @@ __STAMP__&
     ! check for polyatomic treatment
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ! no polyatomic treatment
@@ -911,7 +914,6 @@ __STAMP__&
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)    ! adding rot en to collision en
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
@@ -1115,10 +1117,10 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3
-INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
+INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3, iQuaMax
+INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4, ReacToDo
 INTEGER                       :: nPartNode, PairForRec, nPair
-REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
+REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX, IonizationEnergy
 REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
 REAL (KIND=8)                 :: iRan, iRan2, iRan3
 !===================================================================================================================================
@@ -1396,7 +1398,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
           ReactionProb2 = 0
         END IF
         IF (ReactionProb.GT.0.) THEN
-          ! determine if first molecule dissociate
+          ! determine if first molecule dissociates
           CALL RANDOM_NUMBER(iRan)
           IF ( ReactionProb / ( ReactionProb + ReactionProb2) .gt. iRan) THEN
             CALL QK_dissociation(iPair,iReac,RelaxToDo)
@@ -2706,6 +2708,94 @@ __STAMP__&
           END IF ! ReactionProb > iRan
         END IF ! Q-K
       END IF
+! ############################################################################################################################### !
+    CASE(20) ! Dissociation and ionization with QK are possible
+! ############################################################################################################################### !
+      iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
+      iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
+      IF (ChemReac%QKProcedure(iReac).AND.ChemReac%QKProcedure(iReac2)) THEN ! both Reaction QK
+        ! first pseudo reaction probability
+        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+          PartToExec = Coll_pData(iPair)%iPart_p1
+          PartReac2 = Coll_pData(iPair)%iPart_p2
+        ELSE
+          PartToExec = Coll_pData(iPair)%iPart_p2
+          PartReac2 = Coll_pData(iPair)%iPart_p1
+        END IF
+        ! Determine the collision energy (only relative translational)
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+        IF(DSMC%ElectronicModel) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartToExec,3)
+        ! ionization level is last known energy level of species
+        iQuaMax=SpecDSMC(PartSpecies(PartToExec))%MaxElecQuant - 1
+        IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,iQuaMax)*BoltzmannConst
+        ! if you have electronic levels above the ionization limit, such limits should be used instead of
+        ! the pure energy comparison
+        IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
+          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+        ELSE
+          ReactionProb = 0.
+        END IF
+        ! second pseudo reaction probability
+        IF (ChemReac%DefinedReact(iReac2,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
+          PartToExec = Coll_pData(iPair)%iPart_p1
+          PartReac2 = Coll_pData(iPair)%iPart_p2
+        ELSE
+          PartToExec = Coll_pData(iPair)%iPart_p2
+          PartReac2 = Coll_pData(iPair)%iPart_p1
+        END IF
+        ! Determine the collision energy (relative translational + vibrational energy of dissociating molecule)
+        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+                                + PartStateIntEn(PartToExec,1)
+        ! Correction for second collision partner
+        IF ((SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.20)) THEN
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(PartReac2))%EZeroPoint
+        END IF
+        ! Determination of the quantum number corresponding to the collision energy
+        iQuaMax   = INT(Coll_pData(iPair)%Ec / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - DSMC%GammaQuant)
+        ! Comparing the collision quantum number with the dissociation quantum number
+        IF (iQuaMax.GT.SpecDSMC(PartSpecies(PartToExec))%DissQuant) THEN
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+        ELSE
+          ReactionProb2 = 0.
+        END IF
+#if (PP_TimeDiscMethod==42)
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
+#endif
+        ReacToDo = 0
+        IF(ReactionProb*ReactionProb2.LE.0.0) THEN
+          IF(ReactionProb.GT.0.0) THEN
+            ReacToDo = iReac
+          END IF
+          IF(ReactionProb2.GT.0.0) THEN
+            ReacToDo = iReac2
+          ENDIF
+        ELSE
+          CALL RANDOM_NUMBER(iRan)
+          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+            ReacToDo = iReac
+          ELSE
+            ReacToDo = iReac2
+          END IF
+        END IF
+        IF(ReacToDo.NE.0) THEN
+#if (PP_TimeDiscMethod==42)
+          IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+            CALL DSMC_Chemistry(iPair, ReacToDo)
+#if (PP_TimeDiscMethod==42)
+          END IF
+          IF (DSMC%ReservoirRateStatistic) THEN
+            ChemReac%NumReac(ReacToDo) = ChemReac%NumReac(ReacToDo) + 1  ! for calculation of reaction rate coefficient
+          END IF
+#endif
+          RelaxToDo = .FALSE.
+        END IF
+      END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
       IF(CaseOfReaction.NE.0) THEN
@@ -2728,7 +2818,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -2742,7 +2832,6 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                        :: TransEn, RotEn, RotDOF, CorrFact
-  REAL, PARAMETER           :: PI=3.14159265358979323846_8
 !===================================================================================================================================
 
   TransEn = Coll_pData(iPair)%Ec      ! notice that during probability calculation,Collision energy only contains translational part
@@ -2793,7 +2882,7 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_Globals_Vars,       ONLY : BoltzmannConst
+  USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,          ONLY : PolyatomMolDSMC
 
@@ -2810,7 +2899,6 @@ REAL, INTENT(INOUT)       :: ProbVib, ProbVibMax
 ! LOCAL VARIABLES
 REAL                      :: CorrFact, CRelaSub, TempCorr, DrefVHS
 INTEGER                   :: iPolyatMole, iDOF
-REAL, PARAMETER           :: PI=3.14159265358979323846_8
 !===================================================================================================================================
 
   ProbVib = 0.
