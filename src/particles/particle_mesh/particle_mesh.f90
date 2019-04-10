@@ -5870,13 +5870,12 @@ USE MOD_Globals_Vars           ,ONLY: epsMach
 USE MOD_Particle_Vars          ,ONLY: MacroPart, nMacroParticle, UseMacroPart, nPointsMCVolumeEstimate
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems, GEO, epsOneCell
 USE MOD_Particle_Vars          ,ONLY: ElemHasMacroPart, CalcMPVolumePortion, ManualTimeStep
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
 USE MOD_part_tools             ,ONLY: INSIDEMACROPART
 USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo, wBaryCL_NGeo, XiCL_NGeo
 USE MOD_Mesh_Vars              ,ONLY: NGeo, nElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac, iter
-USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!,TensorProductInterpolation
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -5994,7 +5993,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 
 !--- 2: calculate volume portions using monte carlo inserting and rejections
   IF (CalcMPVolumePortion) THEN
-    nInsertPartsX=INT(nPointsMCVolumeEstimate)**(1./3.)
+    !nInsertPartsX=INT(nPointsMCVolumeEstimate**(1./3.))
     !nInsertPartsY=nInsertPartsX
     !nInsertPartsZ=nInsertPartsX
     DO iElem=1,nElems
@@ -6016,7 +6015,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
         !END DO
         ! for arbitrary elements, positions are chosen randomly and checked if they are in element first
         CALL BoundsOfElement(iElem,ElemBounds)
-        DO iPart=1,nInsertPartsX**3 !nInsertPartsY*nInsertPartsZ
+        DO iPart=1,nPointsMCVolumeEstimate
           DO
             CALL RANDOM_NUMBER(physPos)
             PhysPos = ElemBounds(1,:) + physPos*(ElemBounds(2,:)-ElemBounds(1,:))
@@ -6025,7 +6024,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
           END DO
           IF (INSIDEMACROPART(physPos)) matchedParts=matchedParts+1
         END DO
-        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nInsertPartsX**3)
+        GEO%MPVolumePortion(iElem)=REAL(matchedParts)/REAL(nPointsMCVolumeEstimate)
       END IF
     END DO
   END IF ! CalcMPVolumePortion

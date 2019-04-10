@@ -2548,6 +2548,9 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
 !-- MacroPart
 nPointsMCVolumeEstimate = GETINT('Particles-nPointsMCVolumeEstimate')
+IF (nPointsMCVolumeEstimate.LT.1) CALL abort(&
+__STAMP__&
+,'nPointsMCVolumeEstimate is must be above 0')
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
   IF (DoRefMapping.OR.TriaTracking) CALL abort(&
