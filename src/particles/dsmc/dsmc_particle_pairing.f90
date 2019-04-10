@@ -779,7 +779,7 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
 USE MOD_Particle_Mesh      ,ONLY: BoundsOfElement
-USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate
+USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate, UseMacroPart
 USE MOD_part_tools         ,ONLY: INSIDEMACROPART
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
@@ -798,10 +798,10 @@ REAL                     :: refPos(1:3),physPos(1:3)
 REAL                     :: ElemBounds(1:2,1:3)
 TYPE(tTreeNode), POINTER :: TreeNode
 !===================================================================================================================================
-IF (GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
+IF (UseMacroPart .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
   NULLIFY(TreeNode)
   ALLOCATE(TreeNode)
-  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**NodeDepth)
+  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth-1))
   ALLOCATE(TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node)) ! List of particles in the cell neccessary for stat pairing
   ALLOCATE(TreeNode%MappedPartStates(1:TreeNode%PNum_Node,1:3))
   ALLOCATE(TreeNode%MatchedPart(1:TreeNode%PNum_Node))
@@ -866,7 +866,7 @@ REAL, ALLOCATABLE    :: MappedPart_ChildNode(:,:,:)
 LOGICAL, ALLOCATABLE :: MatchedPart_ChildNode(:,:)
 !===================================================================================================================================
 IF (PRESENT(TreeNode)) THEN
-  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
+  IF (TreeNode%NodeDepth.LT.NodeDepth) THEN
     PartNumChildNode(:) = 0
     ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
     ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
@@ -875,8 +875,8 @@ IF (PRESENT(TreeNode)) THEN
     DO iPart=1,TreeNode%PNum_Node
       ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(iPart,1:3))
       iPartIndx = TreeNode%iPartIndx_Node(iPart)
-      iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
       PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
+      iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
       MappedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID),1:3) = TreeNode%MappedPartStates(iPart,1:3)
       IF (TreeNode%MatchedPart(iPart)) THEN
         MatchedPart_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = .TRUE.
@@ -887,12 +887,12 @@ IF (PRESENT(TreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iOctant)))
-      !ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iOctant),1:3))
+      ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iOctant),1:3))
       ALLOCATE(TreeNode%ChildNode%MatchedPart(PartNumChildNode(iOctant)))
       TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iOctant)) = iPartIndx_ChildNode(iOctant, 1:PartNumChildNode(iOctant))
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iOctant)
-      !TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iOctant),1:3)= &
-      !      MappedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant),1:3)
+      TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iOctant),1:3)= &
+            MappedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant),1:3)
       TreeNode%ChildNode%MatchedPart(1:PartNumChildNode(iOctant)) =  MatchedPart_ChildNode(iOctant,1:PartNumChildNode(iOctant))
       TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iOctant,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
       TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
@@ -947,7 +947,7 @@ IF (PRESENT(TreeNode)) THEN
     END IF
   END IF
 ELSE IF (PRESENT(LocalNodeDepth)) THEN
-  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
+  IF (LocalNodeDepth.LT.NodeDepth) THEN
     DO iOctant=1,8
       CurrentDepth = LocalNodeDepth + 1
       ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
