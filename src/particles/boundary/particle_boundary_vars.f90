@@ -57,6 +57,7 @@ TYPE tSurfaceCOMM
   INTEGER                               :: MyOutputRank                  ! local rank in new group
   INTEGER                               :: nOutputProcs                  ! number of output processes
 #ifdef MPI
+  LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
   INTEGER                               :: COMM                          ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors

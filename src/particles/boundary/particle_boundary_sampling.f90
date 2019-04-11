@@ -622,6 +622,13 @@ offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
 CALL MPI_BCAST (offsetInnerSurfSideMPI,size(offsetInnerSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 offsetInnerSurfSide=offsetInnerSurfSideMPI(SurfCOMM%MyOutputRank)
 
+! is there any innerBC with reflective surface
+IF((MAXVAL(offsetInnerSurfSideMPI)-MINVAL(offsetInnerSurfSideMPI)).GT.0) THEN
+  SurfCOMM%InnerBCs = .TRUE.
+ELSE
+  SurfCOMM%InnerBCs = .FALSE.
+END IF
+
 END SUBROUTINE InitSurfCommunicator
 
 
