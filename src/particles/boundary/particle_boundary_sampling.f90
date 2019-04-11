@@ -71,7 +71,7 @@ SUBROUTINE InitParticleBoundarySampling()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Preproc
-USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName,SideToElem
+USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
@@ -83,7 +83,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
 #ifdef MPI
-USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 #endif /*MPI*/
@@ -643,7 +643,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample, nPorousBC, nPorousBCVars 
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
-USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide,PartElemToElemAndSide
+USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
 USE MOD_Particle_MPI_Vars           ,ONLY:PorousBCSendBuf,PorousBCRecvBuf
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -656,7 +656,7 @@ IMPLICIT NONE
 LOGICAL                           :: isMPINeighbor(0:SurfCOMM%nProcs-1)
 LOGICAL                           :: RecvMPINeighbor(0:SurfCOMM%nProcs-1)
 INTEGER                           :: nDOF,ALLOCSTAT,SideID, TargetProc, TargetElem
-INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID,LocalProcID,iSendSide,iRecvSide,iPos,InnerElemID
+INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID,LocalProcID,iSendSide,iRecvSide,iPos
 INTEGER,ALLOCATABLE               :: recv_status_list(:,:) 
 INTEGER                           :: RecvRequest(0:SurfCOMM%nProcs-1),SendRequest(0:SurfCOMM%nProcs-1)
 INTEGER                           :: SurfToGlobal(0:SurfCOMM%nProcs-1)
@@ -1225,7 +1225,7 @@ SUBROUTINE MapInnerSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound,SurfComm
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall,PartBound
 USE MOD_Mesh_Vars,                  ONLY:nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars,         ONLY:PartSideToElem
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1403,7 +1403,6 @@ ASSOCIATE (&
       offsetInnerSurfSide  => INT(offsetInnerSurfSide,IK)   ,&
       nVar2D_Spec          => INT(nVar2D_Spec,IK)           ,&
       nVar2D               => INT(nVar2D,IK) )
-      nOutputSides = LocalnBCSides + nInnerSides
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
@@ -1419,25 +1418,27 @@ ASSOCIATE (&
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/), &
                         collective =.TRUE.         ,&
                         RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,1:LocalnBCSides))
-! Output of InnerSurfSide Array
-IF(nInnerSides.GT.0) THEN
-  nVarCount=0
-  DO iSpec = 1,nSpecies
+  ! Output of InnerSurfSide Array
+  ! HDF5 Output: collective=false is required to avoid a deadlock, since not all procs in this routine have inner sides
+  IF(nInnerSides.GT.0) THEN
+    nOutputSides = LocalnBCSides + nInnerSides
+    nVarCount=0
+    DO iSpec = 1,nSpecies
       CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
-                    nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
-                    nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
-                    offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
-                    collective =.FALSE.,&
-                    RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
-    nVarCount = nVarCount + INT(nVar2D_Spec)
-  END DO
-  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-                        nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
-                        nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
-                        offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
-                        collective =.FALSE.         ,&
-                        RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
-END IF
+                      nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
+                      nVal       =(/nVar2D_Spec       , nSurfSample , nSurfSample , nInnerSides/)        , &
+                      offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetInnerSurfSide/), &
+                      collective =.FALSE.,&
+                      RealArray=MacroSurfaceSpecVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides,iSpec))
+      nVarCount = nVarCount + INT(nVar2D_Spec)
+    END DO
+    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
+                          nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)  , &
+                          nVal       =(/nVar2D           , nSurfSample, nSurfSample , nInnerSides/)        , &
+                          offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetInnerSurfSide/), &
+                          collective =.FALSE.         ,&
+                          RealArray=MacroSurfaceVal(1:nVar2D,1:nSurfSample,1:nSurfSample,LocalnBCSides+1:nOutputSides))
+  END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
