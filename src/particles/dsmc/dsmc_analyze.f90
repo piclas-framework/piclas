@@ -439,7 +439,7 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 #ifdef MPI
 IF(SurfCOMM%InnerBCs) THEN
 ! if there are innerBCs with reflective surface properties
-! additional communcation is needed
+! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
   CALL ExchangeSurfData()
   CALL MapInnerSurfData()
 END IF

@@ -197,6 +197,9 @@ DO iSide=nBCSides+1,nSides
   END IF
 END DO
 
+! SlaveSides that are innerBCsides are added to SurfMesh%nSides after all innerBC MasterSides
+! in in order to get the correct InnerSideOffset for hdf5 output => 
+! second loop over iSide=nBCSides+1,nSides is needed
 DO iSide=nBCSides+1,nSides
   IF(IsSlaveSide(iSide)) THEN
     SurfMesh%nSides = SurfMesh%nSides + 1
@@ -1227,7 +1230,9 @@ END SUBROUTINE ExchangeSurfData
 
 SUBROUTINE MapInnerSurfData() 
 !===================================================================================================================================
-! Map the surface data from inner BCsSlaveSide to HaloSide
+! Map the surface data from innerBC SlaveSides to corresponding HaloSide.
+! All sampled SampWall informations of a innerBC SlaveSide is added to corresponding HaloSide.
+! Afterwards, these informations a send to innerBC MasterSide in a second ExchangeSurfData call in SUBROUTINE CalcSurfaceValues.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1265,7 +1270,6 @@ IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on Sl
     END IF
   END DO 
 END IF
-
 
 END SUBROUTINE MapInnerSurfData
 #endif /*MPI*/
