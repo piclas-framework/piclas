@@ -76,8 +76,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
-    Volume = GEO%Volume(iElem)
+    Volume = GEO%Volume(iElem)*(1.-GEO%MPVolumePortion(iElem))
   END IF
+  IF (Volume.EQ.0.) iPType=-1
   SELECT CASE(iPType)
 
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
@@ -338,6 +339,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !      Coll_pData(iPair)%Prob = 0
 !     !    CASE(40) !Molecular Ion - Molecular Ion
 !     !      Coll_pData(iPair)%Prob = 0    
+    CASE (-1)
+      Coll_pData(iPair)%Prob = 0.
     CASE DEFAULT
       CALL Abort(&
 __STAMP__&
