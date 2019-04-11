@@ -1527,8 +1527,6 @@ REAL                  :: tLBStart
   CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  CALL DSMC_main()
-
   IF (UseMacroPart) THEN
     MacroPart(:)%center(1) = MacroPart(:)%center(1) + MacroPart(:)%velocity(1)*dt
     MacroPart(:)%center(2) = MacroPart(:)%center(2) + MacroPart(:)%velocity(2)*dt
@@ -1543,6 +1541,7 @@ REAL                  :: tLBStart
   END IF
   CALL MarkMacroPartElems()
 
+  CALL DSMC_main()
 
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
