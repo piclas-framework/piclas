@@ -110,6 +110,8 @@ USE MOD_Interfaces,         ONLY:InitInterfaces
 USE MOD_QDS,                ONLY:InitQDS
 #endif /*USE_QDS_DG*/
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
+
+use mod_readIMD, only:initReadIMDdata
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -213,6 +215,8 @@ IF (.NOT.IsLoadBalance) THEN
   CALL prms%WriteUnused()
   CALL prms%RemoveUnnecessary()
 END IF
+
+call initReadIMDdata()
 
 END SUBROUTINE InitPiclas
 

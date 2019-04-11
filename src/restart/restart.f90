@@ -293,6 +293,9 @@ USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesM
 #if (USE_QDS_DG) || (PARTICLES) || (PP_HDG)
 USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,GetDataProps,nDims,HSize
 #endif
+
+use mod_readIMD_vars,            only:useIMDresults
+use mod_readIMD,                 only:read_IMD_results
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -364,12 +367,13 @@ INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElems
 #ifndef PP_HDG
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*not PP_HDG*/
+logical                            :: DoRestartDummy = .TRUE.
 !===================================================================================================================================
-IF(DoRestart)THEN
+!IF(DoRestart)THEN
+IF( DoRestartDummy )THEN
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
-
               
   ! Temp. vars for integer KIND=8 possibility
   PP_NTmp       = INT(PP_N,IK)
@@ -383,9 +387,15 @@ IF(DoRestart)THEN
   ! ===========================================================================
   ! 1.) Read the field solution
   ! ===========================================================================
+  RestartNullifySolution=.False.
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+  else if( useIMDresults )then
+    if( myRank == 0)write(*,*)'useIMDresults'
+    call read_IMD_results()
+
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
 #if USE_QDS_DG

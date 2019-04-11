@@ -68,6 +68,8 @@ USE MOD_SurfaceModel_Init,ONLY: DefineParametersSurfModel
 USE MOD_SurfaceModel_Analyze,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_Particle_Boundary_Porous,ONLY:DefineParametersPorousBC
 #endif
+
+use mod_readIMD, only: DefineParametersReadIMDdata
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -120,6 +122,8 @@ CALL DefineParametersLD()
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
 #endif
+
+call DefineParametersReadIMDdata()
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,I0,A)') ' DEFINING PARAMETERS DONE! --> ',prms%count_entries(),' UNIQUE PARAMETERS DEFINED'
