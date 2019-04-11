@@ -1392,17 +1392,19 @@ CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,comm
 !   END IF
 
 nVarCount=0
+nOutputSides = SurfMesh%nBCSides + SurfMesh%nInnerSides
 WRITE(H5_Name,'(A)') 'SurfaceData'
 ASSOCIATE (&
       nVar2D_Total         => INT(nVar2D_Total,IK)          ,&
       nSurfSample          => INT(nSurfSample,IK)           ,&
       nGlobalSides         => INT(SurfMesh%nGlobalSides,IK) ,&
-      LocalnBCSides        => INT(SurfMesh%nBCSides,IK)      ,&
+      LocalnBCSides        => INT(SurfMesh%nBCSides,IK)     ,&
       nInnerSides          => INT(SurfMesh%nInnerSides,IK)  ,&
       offsetSurfSide       => INT(offsetSurfSide,IK)        ,&
       offsetInnerSurfSide  => INT(offsetInnerSurfSide,IK)   ,&
       nVar2D_Spec          => INT(nVar2D_Spec,IK)           ,&
-      nVar2D               => INT(nVar2D,IK) )
+      nVar2D               => INT(nVar2D,IK)                ,&
+      nOutputSides         => INT(nOutputSides,IK) )
   DO iSpec = 1,nSpecies
     CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
                             nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides/)  , &
@@ -1421,7 +1423,6 @@ ASSOCIATE (&
   ! Output of InnerSurfSide Array
   ! HDF5 Output: collective=false is required to avoid a deadlock, since not all procs in this routine have inner sides
   IF(nInnerSides.GT.0) THEN
-    nOutputSides = LocalnBCSides + nInnerSides
     nVarCount=0
     DO iSpec = 1,nSpecies
       CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                      , &
