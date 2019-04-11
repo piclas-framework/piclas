@@ -568,6 +568,7 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
     REAL                                    :: MPVolumePortion
+    LOGICAL                                 :: MPVolumeDone=.FALSE.
 END TYPE
 
 TYPE tElemNodeVolumes

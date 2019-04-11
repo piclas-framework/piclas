@@ -462,7 +462,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
     CALL Abort(&
 __STAMP__&
 ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
-  END IF 
+  END IF
   !         Numbering of the 8 ChildNodes of the Octree
   !          __________
   !         /    /    /|   |z
@@ -779,7 +779,7 @@ SUBROUTINE CalcSubNodeMPVolumePortions(iElem, NodeDepth, Node)
 USE MOD_DSMC_Vars          ,ONLY: tNodeVolume, tTreeNode
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, epsOneCell
 USE MOD_Particle_Mesh      ,ONLY: BoundsOfElement
-USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate, UseMacroPart
+USE MOD_Particle_Vars      ,ONLY: nPointsMCVolumeEstimate, UseMacroPart, MacroPart
 USE MOD_part_tools         ,ONLY: INSIDEMACROPART
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
@@ -798,10 +798,17 @@ REAL                     :: refPos(1:3),physPos(1:3)
 REAL                     :: ElemBounds(1:2,1:3)
 TYPE(tTreeNode), POINTER :: TreeNode
 !===================================================================================================================================
+IF (UseMacroPart .AND. NodeDepth.EQ.1) THEN
+  IF (MAXVAL(ABS(MacroPart(:)%velocity(1))).GT.0. .OR.MAXVAL(ABS(MacroPart(:)%velocity(2))).GT.0. &
+      .OR. MAXVAL(ABS(MacroPart(:)%velocity(3))).GT.0.) THEN
+      CALL ResetMPVolDone(Node)
+  END IF
+END IF
+IF (GETMPVOLDONE(NodeDepth,1,Node)) RETURN
 IF (UseMacroPart .AND. GEO%MPVolumePortion(iElem).LT.1.0 .AND. GEO%MPVolumePortion(iElem).GT.0.) THEN
   NULLIFY(TreeNode)
   ALLOCATE(TreeNode)
-  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth-1))
+  TreeNode%PNum_Node = nPointsMCVolumeEstimate*(8**(NodeDepth))
   ALLOCATE(TreeNode%iPartIndx_Node(1:TreeNode%PNum_Node)) ! List of particles in the cell neccessary for stat pairing
   ALLOCATE(TreeNode%MappedPartStates(1:TreeNode%PNum_Node,1:3))
   ALLOCATE(TreeNode%MatchedPart(1:TreeNode%PNum_Node))
@@ -854,7 +861,7 @@ INTEGER, INTENT(IN) :: NodeDepth
 INTEGER, INTENT(IN),OPTIONAL :: LocalNodeDepth
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-TYPE (tNodeVolume), INTENT(OUT), POINTER           :: Node
+TYPE (tNodeVolume), INTENT(INOUT), POINTER         :: Node
 TYPE (tTreeNode), INTENT(INOUT), OPTIONAL, POINTER :: TreeNode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -866,7 +873,7 @@ REAL, ALLOCATABLE    :: MappedPart_ChildNode(:,:,:)
 LOGICAL, ALLOCATABLE :: MatchedPart_ChildNode(:,:)
 !===================================================================================================================================
 IF (PRESENT(TreeNode)) THEN
-  IF (TreeNode%NodeDepth.LT.NodeDepth) THEN
+  IF (TreeNode%NodeDepth.LE.NodeDepth) THEN
     PartNumChildNode(:) = 0
     ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
     ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
@@ -945,9 +952,10 @@ IF (PRESENT(TreeNode)) THEN
       END DO
       Node%MPVolumePortion = REAL(nMatchedPart)/REAL(TreeNode%PNum_Node)
     END IF
+    Node%MPVolumeDone = .TRUE.
   END IF
 ELSE IF (PRESENT(LocalNodeDepth)) THEN
-  IF (LocalNodeDepth.LT.NodeDepth) THEN
+  IF (LocalNodeDepth.LE.NodeDepth) THEN
     DO iOctant=1,8
       CurrentDepth = LocalNodeDepth + 1
       ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
@@ -984,6 +992,7 @@ ELSE IF (PRESENT(LocalNodeDepth)) THEN
     ELSE
       Node%MPVolumePortion = 0.
     END IF
+    Node%MPVolumeDone = .TRUE.
   END IF
 ELSE
   CALL abort(&
@@ -1214,5 +1223,79 @@ ELSE
 END IF
 OCTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + OCTANTCUBEMIDPOINT(1:3)*2.0/REAL(2.0**(octantDepth+1))
 END FUNCTION OCTANTCUBEMIDPOINT
+
+
+RECURSIVE SUBROUTINE ResetMPVolDone(Node)
+!===================================================================================================================================
+!> suboutine, which recursively resets MPVolumePortionDone Flag
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY: tNodeVolume
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+TYPE (tNodeVolume), INTENT(INOUT), POINTER :: Node
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iOctant
+!===================================================================================================================================
+IF (ASSOCIATED(Node%SubNode1)) THEN
+  DO iOctant=1,8
+    SELECT CASE (iOctant)
+    CASE(1)
+      CALL ResetMPVolDone(Node%SubNode1)
+    CASE(2)
+      CALL ResetMPVolDone(Node%SubNode2)
+    CASE(3)
+      CALL ResetMPVolDone(Node%SubNode3)
+    CASE(4)
+      CALL ResetMPVolDone(Node%SubNode4)
+    CASE(5)
+      CALL ResetMPVolDone(Node%SubNode5)
+    CASE(6)
+      CALL ResetMPVolDone(Node%SubNode6)
+    CASE(7)
+      CALL ResetMPVolDone(Node%SubNode7)
+    CASE(8)
+      CALL ResetMPVolDone(Node%SubNode8)
+    END SELECT
+  END DO
+END IF
+Node%MPVolumeDone=.FALSE.
+END SUBROUTINE ResetMPVolDone
+
+
+LOGICAL RECURSIVE FUNCTION GETMPVOLDONE(maxDepth,currentDepth,Node) RESULT(doneFlag)
+!===================================================================================================================================
+!> Returns true if MPVolumePorion was already estimated after reset
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_DSMC_Vars ,ONLY: tNodeVolume
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)                      :: maxDepth
+INTEGER,INTENT(IN)                      :: currentDepth
+TYPE (tNodeVolume), INTENT(IN), POINTER :: Node
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER :: nextDepth
+!===================================================================================================================================
+IF (currentDepth.LT.maxDepth) THEN
+  nextDepth=currentDepth+1
+  doneFlag=GETMPVOLDONE(maxDepth,nextDepth,Node%subNode1)
+ELSE
+  IF (ASSOCIATED(Node%subNode1)) THEN
+    doneFlag=Node%subNode1%MPVolumeDone
+  ELSE
+    doneFlag=.FALSE.
+  END IF
+END IF
+END FUNCTION GETMPVOLDONE
 
 END MODULE MOD_DSMC_ParticlePairing
