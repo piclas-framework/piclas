@@ -1304,9 +1304,6 @@ REAL                             :: tLBStart ! load balance
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
-!WRITE (*,*) "doInnerParts,doPartInExists =", doInnerParts,doPartInExists
-!WRITE (*,*) "DoExternalParts =", DoExternalParts
-
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
 
