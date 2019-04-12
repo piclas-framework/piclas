@@ -5928,22 +5928,27 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
     MacroPartTrajectory(1:3)=MacroPart(iMP)%velocity(1:3)*dtLocal
     LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
     IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
+
     MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
     MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
+    BGMCellXmin = MAX(GEO%TFIBGMimin,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
+    BGMCellXmax = MIN(GEO%TFIBGMimax,CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
+    BGMCellYmin = MAX(GEO%TFIBGMjmin,CEILING((MPBounds(1,2)-GEO%xminglob)/GEO%FIBGMdeltas(2)))
+    BGMCellYmax = MIN(GEO%TFIBGMjmax,CEILING((MPBounds(2,2)-GEO%xminglob)/GEO%FIBGMdeltas(2)))
+    BGMCellZmin = MAX(GEO%TFIBGMkmin,CEILING((MPBounds(1,3)-GEO%xminglob)/GEO%FIBGMdeltas(3)))
+    BGMCellZmax = MIN(GEO%TFIBGMkmax,CEILING((MPBounds(2,3)-GEO%xminglob)/GEO%FIBGMdeltas(3)))
+    !IF (BGMCellXmin.LT.GEO%TFIBGMimin) BGMCellXmin=GEO%TFIBGMimin
+    !BGMCellXmax = CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !IF (BGMCellXmax.GT.GEO%TFIBGMimax) BGMCellXmax=GEO%TFIBGMimax
+    !BGMCellYmin = CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !IF (BGMCellYmin.LT.GEO%TFIBGMjmin) BGMCellYmin=GEO%TFIBGMjmin
+    !BGMCellYmax = CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !IF (BGMCellYmax.GT.GEO%TFIBGMjmax) BGMCellYmax=GEO%TFIBGMjmax
+    !BGMCellZmin = CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !IF (BGMCellZmin.LT.GEO%TFIBGMkmin) BGMCellZmin=GEO%TFIBGMkmin
+    !BGMCellZmax = CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !IF (BGMCellZmax.GT.GEO%TFIBGMkmax) BGMCellZmax=GEO%TFIBGMkmax
 
-    BGMCellXmin = 1
-    BGMCellXmax = 0
-    BGMCellYmin = 1
-    BGMCellYmax = 0
-    BGMCellZmin = 1
-    BGMCellZmax = 0
-
-    IF (MPBounds(1,1)-GEO%xminglob.GT.0.) BGMCellXmin = CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IF (MPBounds(2,1)-GEO%xminglob.GT.0.) BGMCellXmax = CEILING((MPBounds(2,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IF (MPBounds(1,2)-GEO%yminglob.GT.0.) BGMCellYmin = CEILING((MPBounds(1,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IF (MPBounds(2,2)-GEO%yminglob.GT.0.) BGMCellYmax = CEILING((MPBounds(2,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IF (MPBounds(1,3)-GEO%zminglob.GT.0.) BGMCellZmin = CEILING((MPBounds(1,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    IF (MPBounds(2,3)-GEO%zminglob.GT.0.) BGMCellZmax = CEILING((MPBounds(2,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
     ! add current Element to BGM-Elem
     DO kBGM = BGMCellZmin,BGMCellZmax
       DO jBGM = BGMCellYmin,BGMCellYmax
