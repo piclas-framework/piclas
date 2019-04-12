@@ -1130,7 +1130,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+!USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO, nTotalElems
@@ -2813,7 +2813,7 @@ CALL InitFIBGM()
 IF (UseMacropart) THEN
   ALLOCATE(ElemHasMacroPart(1:nTotalElems, 1:nMacroParticle))
   ElemHasMacroPart(:,:)=.FALSE.
-  CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
+  !CALL AddToElemData(ElementOut,'ElemHasMacroPart',LogArray=ElemHasMacroPart(:,1))
 END IF
 CALL MarkMacroPartElems()
 !CALL InitSFIBGM()
