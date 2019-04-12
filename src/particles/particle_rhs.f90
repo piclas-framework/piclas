@@ -264,9 +264,9 @@ REAL                :: FAST_RELATIVISTIC_PUSH(1:3) ! The stamp
 ! LOCAL VARIABLES
 REAL                :: velosq, LorentzFac,qmt
 REAL                :: E(1:3),Pt(1:3)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
 REAL                :: B(1:3)
-#endif
+!#endif
 REAL                :: LorentzFac2,LorentzFac3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
 
@@ -329,6 +329,8 @@ FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! Returns the relativistic acceleration a = dv/dt
 ! see W. Rindler, Relativity: Special, General, and Cosmological, 2006, Oxford University Press, New York, p.125
+! 
+! CAUTION: This routines is used for HDG in combination with magnetic (external) fields
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort,Myrank
@@ -372,15 +374,16 @@ ASSOCIATE (&
   END IF
   ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
 
-#if (PP_nVar==8)
+! The following ifdef is commented out in order to push particles for the HDG solver in combination with a magnetic field
+!#if (PP_nVar==8)
     F(1) = E1 + v2 * B3 - v3 * B2
     F(2) = E2 + v3 * B1 - v1 * B3
     F(3) = E3 + v1 * B2 - v2 * B1
-#else
-    F(1) = E1 
-    F(2) = E2 
-    F(3) = E3 
-#endif
+!#else
+!    F(1) = E1 
+!    F(2) = E2 
+!    F(3) = E3 
+!#endif
 
     ! Calculate the acceleration
     ACCELERATION_RELATIVISTIC_PUSH = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(PartID,4:6))*PartState(PartID,4:6)*c2_inv )

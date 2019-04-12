@@ -362,11 +362,8 @@ IF(DoRestart) CALL EvalGradient()
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && defined(MPI)
-IF ((TRIM(DepositionType).EQ."shape_function")             &
-.OR.(TRIM(DepositionType).EQ."shape_function_1d")          &
-.OR.(TRIM(DepositionType).EQ."shape_function_spherical")   &
-.OR.(TRIM(DepositionType).EQ."shape_function_simple")      &
-.OR.(TRIM(DepositionType).EQ."shape_function_cylindrical"))THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
@@ -885,7 +882,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     ! finish communication
     CALL MPIParticleRecv()
   END IF
-  ! here: finish deposition with delta kernal
+  ! here: finish deposition with delta kernel
   !       maps source terms in physical space
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
@@ -4325,7 +4322,9 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4460,7 +4459,9 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    END IF
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4575,6 +4576,7 @@ USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -4665,7 +4667,9 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4835,7 +4839,9 @@ DO iStage=2,nRKStages
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/

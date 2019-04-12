@@ -580,9 +580,9 @@ SUBROUTINE MPIParticleSend()
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is send
+! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is sent
 !          and after the build and wait for number of particles reused to build array with external parts
-!          informations in PartState,.. can be reused, because they are not overwritten
+!          information in PartState,.. can be reused, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2072,7 +2072,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('cuboid')
+    CASE('cuboid','cuboid_sphere')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &

@@ -1987,6 +1987,14 @@ SUBROUTINE CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 ! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
 ! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 ! PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity)
+!
+! Note that the thermal velocity corresponds to the root mean square of the total velocity (in three dimensions), which is given by 
+!
+!      v_th = SQRT(3 * kB * T / m)
+!
+! with kB : Boltzmann's constant
+!      T  : temperature
+!      m  : mass of the particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

@@ -1746,11 +1746,8 @@ CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
 #ifdef MPI
-IF ((DepositionType.EQ.'shape_function')             &
-.OR.(DepositionType.EQ.'shape_function_cylindrical') &
-.OR.(DepositionType.EQ.'shape_function_spherical')   &
-.OR.(DepositionType.EQ.'shape_function_simple')      &
-.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! and changed, tooo
   BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
   BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1
@@ -1893,11 +1890,8 @@ END IF
 nShapePaddingX = 0
 nShapePaddingY = 0
 nShapePaddingZ = 0
-IF ((DepositionType.EQ.'shape_function')             &
-.OR.(DepositionType.EQ.'shape_function_cylindrical') &
-.OR.(DepositionType.EQ.'shape_function_simple')      &
-.OR.(DepositionType.EQ.'shape_function_spherical')   &
-.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
   nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
   nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
