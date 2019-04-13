@@ -364,8 +364,10 @@ IMPLICIT NONE
   REAL                  :: BGGasEVib
   INTEGER               :: currentBC, ElemID, iSide, BCSideID
 #if ( PP_TimeDiscMethod ==42 )
+#ifdef CODE_ANALYZE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii
+#endif
 #endif
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -871,6 +873,7 @@ __STAMP__&
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         IF ( (SpecDSMC(iSpec)%InterID .eq. 4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
@@ -887,6 +890,7 @@ __STAMP__&
         END IF
       END DO
     END IF
+#endif
 #endif
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
@@ -908,7 +912,8 @@ __STAMP__&
       END IF
     END DO
     
-#if ( PP_TimeDiscMethod ==42 )
+#if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
     ! Debug Output for initialized electronic state
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
@@ -927,6 +932,7 @@ __STAMP__&
         END IF
       END DO
     END IF
+#endif
 #endif
 
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001) && (PP_TimeDiscMethod!=300)

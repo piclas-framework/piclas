@@ -118,9 +118,11 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib 
                                                             ! relaxation
 #if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: levelcounter         ! counter for electronic levels; only debug
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: dtlevelcounter       ! counter for produced electronic levels per timestep; only debug
   REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ElectronicTransition ! counter for electronic transition from state i to j
+#endif
 #endif
   REAL,ALLOCATABLE,DIMENSION(:,:) :: ElectronicState        ! Array with electronic State for each species
                                                             ! first  index: 1 - degeneracy & 2 - char. Temp,el

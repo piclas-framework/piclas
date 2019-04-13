@@ -71,10 +71,10 @@ PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
 PUBLIC:: AnalyticParticleMovement
-#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleAnalyze
 
@@ -536,8 +536,11 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: ii, iunit, iCase, iTvib,jSpec
+INTEGER             :: iCase, iTvib,jSpec
+#ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
+INTEGER             :: ii, iunit
+#endif
 CHARACTER(LEN=350)  :: hilf
 REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
@@ -1212,34 +1215,27 @@ END IF
   IF( CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if ( PP_TimeDiscMethod ==42 )
-! hard coded
-! array not allocated
-  IF ( DSMC%ElectronicModel ) THEN
-  IF (DSMC%ReservoirSimuRate) THEN
-    IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
-  END IF
+#ifdef CODE_ANALYZE
+IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
+  ! Debug output for initialized electronic state
+  IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
+  DO iSpec = 1, nSpecies
+    IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
+        WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
+        iunit = 485
+        DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
+        OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
+        DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
+          WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
+                                              REAL( Species(iSpec)%Init(0)%initialParticleNumber)
+        END DO
+        CLOSE(iunit)
+      END IF
+    END IF
+  END DO
 END IF
 #endif
-!-----------------------------------------------------------------------------------------------------------------------------------
-#if ( PP_TimeDiscMethod ==42 )
-  ! Debug Output for initialized electronic state
-  IF ( DSMC%ElectronicModel .AND. DSMC%ReservoirSimuRate) THEN
-    DO iSpec = 1, nSpecies
-      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-        IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
-          WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
-          iunit = 485
-          DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
-          OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
-          DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
-            WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                                               REAL( Species(iSpec)%Init(0)%initialParticleNumber)
-          END DO
-          CLOSE(iunit)
-        END IF
-      END IF
-    END DO
-  END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE AnalyzeParticles
@@ -2463,6 +2459,7 @@ END SUBROUTINE ReacRates
 #endif 
 
 #if ( PP_TimeDiscMethod == 42)
+#ifdef CODE_ANALYZE
 SUBROUTINE ElectronicTransition (  Time, NumSpec )
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -2520,8 +2517,10 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE ElectronicTransition
 #endif
+#endif
 
 #if ( PP_TimeDiscMethod == 42)
+#ifdef CODE_ANALYZE
 SUBROUTINE WriteEletronicTransition ( Time )
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -2596,7 +2595,7 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE WriteEletronicTransition
 #endif
-
+#endif
 
 !  SUBROUTINE TrackingParticlePosition(time)
 !  !===================================================================================================================================
