@@ -72,7 +72,7 @@ SUBROUTINE InitTimeDisc()
 USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStepUser
-USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
+USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter
 #ifdef IMPA
 USE MOD_TimeDisc_Vars,        ONLY:RK_c, RK_inc,RK_inflow,nRKStages
@@ -208,6 +208,7 @@ dt=HUGE(1.)
 # endif
 RKdtFrac=1.
 RKdtFracTotal=1.
+dtWeight=1.
 TimediscInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -223,7 +224,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight
 !USE MOD_Equation_Vars          ,ONLY: c
 #if (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars          ,ONLY: dt_old
@@ -526,6 +527,7 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*(PP_TimeDiscMethod==509)*/
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
+  dtWeight=dt/dt_Min !might be further descreased by rk-stages
 #if (PP_TimeDiscMethod==509)
   IF (iter.EQ.0) THEN
     dt_old=dt
@@ -711,6 +713,7 @@ DO !iter_t=0,MaxIter
           !CALL InitTimeStep() ! re-calculate time step after load balance is performed
           RestartTime=time ! Set restart simulation time to current simulation time because the time is not read from the state file
           RestartWallTime=PICLASTIME() ! Set restart wall time if a load balance step is performed
+          dtWeight=1. ! is intialized in InitTimeDisc which is not called in LoadBalance, but needed for restart (RestartHDG)
         END IF
         CALL LoadBalance()
         IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
@@ -4561,7 +4564,7 @@ SUBROUTINE TimeStepPoissonByLSERK()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,RKdtFrac,RKdtFracTotal,time,iter,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
@@ -4626,6 +4629,7 @@ iStage=1
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 tStage=time
 RKdtFrac = RK_c(2)
+dtWeight = dt/dt_Min * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -4825,6 +4829,7 @@ DO iStage=2,nRKStages
     RKdtFrac = 1.-RK_c(nRKStages)
     RKdtFracTotal=1.
   END IF
+  dtWeight = dt/dt_Min * RKdtFrac
 
   ! deposition 
   IF (time.GE.DelayTime) THEN

@@ -140,6 +140,10 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '7.)   nearest-blurrycenter'                 &
                                                            , 'nearest-blurrycenter') ! Default
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
+CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
+                                                             'into PartSourceOld', '.FALSE.')
+CALL prms%CreateRealOption(     'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
+                                                             'into PartSourceOld', '0.001')
 
 CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
