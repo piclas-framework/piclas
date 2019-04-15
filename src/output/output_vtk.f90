@@ -379,7 +379,7 @@ END SUBROUTINE WriteDataToVTK
 !===================================================================================================================================
 !> Links DG and FV VTK files together
 !===================================================================================================================================
-SUBROUTINE WriteVTKMultiBlockDataSet(FileString,FileString_DG,FileString_FV)
+SUBROUTINE WriteVTKMultiBlockDataSet(FileString,FileString_DG)
 ! MODULES
 USE MOD_Globals
 IMPLICIT NONE
@@ -387,14 +387,13 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: FileString     !< Output file name
 CHARACTER(LEN=*),INTENT(IN) :: FileString_DG  !< Filename of DG VTU file 
-CHARACTER(LEN=*),INTENT(IN) :: FileString_FV  !< Filename of FV VTU file 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: ivtk
 CHARACTER(LEN=200) :: Buffer
 CHARACTER(LEN=1)   :: lf
 !===================================================================================================================================
-IF (MPIRoot) THEN                   
+IF (MPIRoot) THEN
   ! write multiblock file
   OPEN(NEWUNIT=ivtk,FILE=TRIM(FileString),ACCESS='STREAM')
   ! Line feed character
@@ -403,8 +402,6 @@ IF (MPIRoot) THEN
   WRITE(ivtk) TRIM(BUFFER)
   Buffer='  <vtkMultiBlockDataSet>'//lf;WRITE(ivtk) TRIM(BUFFER)
   Buffer='    <DataSet index="0" name="DG" file="'//TRIM(FileString_DG)//'">'//lf;WRITE(ivtk) TRIM(BUFFER)
-  Buffer='    </DataSet>'//lf;WRITE(ivtk) TRIM(BUFFER)
-  Buffer='    <DataSet index="1" name="FV" file="'//TRIM(FileString_FV)//'">'//lf;WRITE(ivtk) TRIM(BUFFER)
   Buffer='    </DataSet>'//lf;WRITE(ivtk) TRIM(BUFFER)
   Buffer='  </vtkMultiBlockDataSet>'//lf;WRITE(ivtk) TRIM(BUFFER)
   Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(BUFFER)

@@ -259,7 +259,7 @@ __STAMP__&
             CASE(2) ! adaptive Outlet/freestream
               ElemID = PEM%Element(iPart)
               TVib = Species(iSpecies)%Surfaceflux(iInit)%AdaptivePressure &
-                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpecies))
+                      / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpecies))
               TRot = TVib
             CASE DEFAULT
               CALL abort(&
@@ -828,7 +828,7 @@ END SUBROUTINE DSMC_VibRelaxPoly_MH
 
 SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 !===================================================================================================================================
-! Vibrational relaxation (multi-mode), using Gibbs sampling, faster than MH (1/3 for CO2, 1/2 for CH4 of comp duration)
+! Vibrational relaxation (multi-mode) using Gibbs sampling
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
@@ -900,9 +900,10 @@ END SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling
 SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! Switch between ARM and MH/Gibbs depending on the number of vibrational modes:
-! Acceptance Rejection: up to 3 (Gibbs) / 4 (MH) modes (molecules with 3 atoms, linear and non-linear)
+! Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
 ! Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
-! Gibbs sampling: from 4 modes (molecules with 3 (linear) and 4 or more atoms)
+! Gibbs sampling: strong dependence on the number of iterations for duration and accuracy, has to be tested more thoroughly for
+!                 different molecules
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
@@ -921,9 +922,9 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 
   iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.4) THEN
-!    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
-    CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
+  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
+    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+    ! CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
   ELSE
     CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
   END IF

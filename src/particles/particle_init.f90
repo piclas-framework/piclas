@@ -331,6 +331,7 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - gyrotron_circle \n'//&
                                 ' - circle_equidistant \n'//&
                                 ' - cuboid \n'//&
+                                ' - cuboid_sphere (spherical cutout of box) \n'//&
                                 ' - cylinder \n'//&
                                 ' - cuboid_vpi \n'//&
                                 ' - cylinder_vpi \n'//&
@@ -1596,7 +1597,7 @@ DO iSpec = 1, nSpecies
           SDEALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity)
           ALLOCATE(Species(iSpec)%Init(iInit)%ElemPartDensity(1:nElems))
           DO iElem = 1,nElems
-            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_DENSITY,iElem,iSpec,FileID)
+            Species(iSpec)%Init(iInit)%ElemPartDensity(iElem) = MacroRestartData_tmp(DSMC_NUMDENS,iElem,iSpec,FileID)
           END DO
         END IF
         FileID = Species(iSpec)%Init(iInit)%ElemVelocityICFileID
@@ -1739,7 +1740,8 @@ __STAMP__&
     END IF
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
-      IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
         IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                 
           SWRITE(*,*) "WARNING: Cuboid height will be calculated from v and dt!"
@@ -1756,8 +1758,9 @@ __STAMP__&
         CALL abort(&
 __STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid') &
-          .AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder')) &
+      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid')        .AND.&
+          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid_sphere') .AND.&
+          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder'))          &
         CALL abort(&
 __STAMP__&
           ,' Calculating height from v and dt is only supported for cuboid or cylinder!')
@@ -1859,6 +1862,7 @@ __STAMP__&
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       ALLOCATE(Species(iSpec)%Init(iInit)%ExcludeRegion(1:Species(iSpec)%Init(iInit)%NumberOfExcludeRegions)) 
       IF (((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere') &
        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) &
       .OR.((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi'))) THEN
@@ -1884,7 +1888,8 @@ __STAMP__&
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC     &
             = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
           !--normalize and stuff
-          IF ((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
+          IF(((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid').OR.&
+              (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid_sphere')) .OR. &
                ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
@@ -1911,7 +1916,8 @@ __STAMP__&
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2) &
               - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
-          ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid') .AND. &
+          ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid')        .AND. &
+                    (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid_sphere') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
             CALL abort(&
 __STAMP__&
@@ -1959,7 +1965,9 @@ __STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid')       .OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere').OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
         IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
@@ -2009,7 +2017,8 @@ __STAMP__&
 __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
-              IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
+              IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') .OR.&
+                 (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
                 Species(iSpec)%Init(iInit)%initialParticleNumber &
                   = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor &
                   * Species(iSpec)%Init(iInit)%CuboidHeightIC * A_ins)
@@ -2511,7 +2520,7 @@ CALL InitPIC()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*MPI*/
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 

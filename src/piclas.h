@@ -167,11 +167,11 @@
 #define DSMC_TEMPX       4
 #define DSMC_TEMPY       5
 #define DSMC_TEMPZ       6
-#define DSMC_DENSITY     7
+#define DSMC_NUMDENS     7
 #define DSMC_TVIB        8
 #define DSMC_TROT        9
 #define DSMC_TELEC       10
-#define DSMC_POINTWEIGHT 11
+#define DSMC_SIMPARTNUM  11
 #define DSMC_TEMPMEAN    12
 
 #define DSMC_NVARS       12

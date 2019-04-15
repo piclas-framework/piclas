@@ -1414,6 +1414,61 @@ __STAMP__&
          i=i+1
          chunkSize2=chunkSize2+1
       END DO
+    !------------------SpaceIC-case: cuboid_sphere (remove all particles outside of CuboidHeightIC / 2 (spherical cutout) ----------
+    CASE('cuboid_sphere')
+      lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+        CALL abort(&
+__STAMP__&
+,'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      i=1
+      chunkSize2=0
+      DO WHILE (i .LE. chunkSize)
+         CALL RANDOM_NUMBER(RandVal)
+         Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
+         Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
+         IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
+         ELSE
+#if (PP_TimeDiscMethod==201)
+!           !scaling due to variable time step (for inlet-condition, but already fixed when %CalcHeightFromDt is used!!!)
+!           IF (iter.GT.0) THEN
+!             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * dt / dt_maxwell * RandVal(3)
+!           ELSE
+             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+!           END IF
+#else
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+#endif
+         END IF
+         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
+           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
+           IF (insideExcludeRegion) THEN
+             i=i+1
+             CYCLE !particle is in excluded region
+           END IF
+         END IF
+         ! Exclude particles outside of radius defined by CuboidHeightIC / 2
+         IF(SQRT(Particle_pos(1)**2+Particle_pos(2)**2+Particle_pos(3)**2).GT.Species(FractNbr)%Init(iInit)%CuboidHeightIC/2.0)THEN
+           !i=i+1
+           CYCLE !particle is in excluded region
+         END IF
+         ! new particle
+         particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
+         particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
+         particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
+         i=i+1
+         chunkSize2=chunkSize2+1
+      END DO
     !------------------SpaceIC-case: cylinder---------------------------------------------------------------------------------------
     CASE('cylinder')
       lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
@@ -3971,6 +4026,7 @@ __STAMP__&
       END IF
       Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal          = .FALSE.
       Species(iSpec)%Surfaceflux(iSF)%SimpleRadialVeloFit   = .FALSE.
+      Species(iSpec)%Surfaceflux(iSF)%CircularInflow=.FALSE.
     END IF
     IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .OR. .NOT.noAdaptive) THEN
       !--- normalize VeloVecIC
@@ -4072,6 +4128,8 @@ __STAMP__&
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePreviousVelocity = 0.0
         Species(iSpec)%Surfaceflux(iSF)%AdaptivePartNumOut = 0
       END SELECT
+    ELSE
+      Species(iSpec)%Surfaceflux(iSF)%AdaptiveType = 0
     END IF
     ! ================================= ADAPTIVE BC READ IN END ===================================================================!
   END DO !iSF
@@ -4261,7 +4319,7 @@ IF((nAdaptiveBC.GT.0).OR.UseAdaptive.OR.(nPorousBC.GT.0))THEN
         Adaptive_MacroVal(DSMC_TEMPX,iElem,:)   = ElemData_HDF5(4,:,iElem)
         Adaptive_MacroVal(DSMC_TEMPY,iElem,:)   = ElemData_HDF5(5,:,iElem)
         Adaptive_MacroVal(DSMC_TEMPZ,iElem,:)   = ElemData_HDF5(6,:,iElem)
-        Adaptive_MacroVal(DSMC_DENSITY,iElem,:) = ElemData_HDF5(7,:,iElem)
+        Adaptive_MacroVal(DSMC_NUMDENS,iElem,:) = ElemData_HDF5(7,:,iElem)
         ! Porous BC parameter (11: Pumping capacity [m3/s], 12: Static pressure [Pa], 13: Integral pressure difference [Pa])
         Adaptive_MacroVal(11:13,iElem,:)        = ElemData_HDF5(8:10,:,iElem)
       END DO
@@ -4280,13 +4338,15 @@ DO iSpec=1,nSpecies
     END IF
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
+                  1:BCdata_auxSF(currentBC)%SideNumber))
+        Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                 1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
-      ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
-              1:BCdata_auxSF(currentBC)%SideNumber))
-      Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+        Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
+      END IF
     END IF
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -4410,8 +4470,10 @@ DO iSpec=1,nSpecies
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide)=2
             nType2(iSF,iSpec)=nType2(iSF,iSpec)+1
           END IF !  (rmin > Surfaceflux-rmax) .OR. (rmax < Surfaceflux-rmin)
-          IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
-              .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+            IF((Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).NE.1)   &
+                .AND.(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)) CALL CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
+          END IF
         END IF ! CircularInflow: check r-bounds
         IF (noAdaptive.AND.(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive)) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -4497,7 +4559,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPX,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPY,iElem,iSpec,FileID))
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = MAX(0.,MacroRestartData_tmp(DSMC_TEMPZ,iElem,iSpec,FileID))
-              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = MacroRestartData_tmp(DSMC_DENSITY,ElemID,iSpec,FileID)
+              Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = MacroRestartData_tmp(DSMC_NUMDENS,ElemID,iSpec,FileID)
               IF(nPorousBC.GT.0) THEN
                 CALL abort(&
 __STAMP__&
@@ -4513,7 +4575,7 @@ __STAMP__&
               Adaptive_MacroVal(DSMC_TEMPX,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               Adaptive_MacroVal(DSMC_TEMPY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
               Adaptive_MacroVal(DSMC_TEMPZ,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-              Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
+              Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec) = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             END IF
           END IF
         END IF
@@ -4780,8 +4842,8 @@ DO iSpec=1,nSpecies
         shiftFac=Species(iSpec)%Surfaceflux(iSF)%shiftFac
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
-      CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+    IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+      IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
     END IF
     !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
     IF (.NOT.DoPoissonRounding .AND. .NOT. DoTimeDepInflow .AND. noAdaptive) THEN
@@ -4952,9 +5014,9 @@ __STAMP__&
               ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
               T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
             CASE(2) ! adaptive Outlet/freestream
-              ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
+              ElemPartDensity = Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec)
               pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-              T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec))
+              T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec))
               !T = SQRT(Adaptive_MacroVal(4,ElemID,iSpec)**2+Adaptive_MacroVal(5,ElemID,iSpec)**2 &
               !  + Adaptive_MacroVal(6,ElemID,iSpec)**2)
             CASE(3) ! Mass flow, temperature constant
@@ -5043,9 +5105,9 @@ __STAMP__&
             ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
-            ElemPartDensity = Adaptive_MacroVal(DSMC_DENSITY,ElemID,iSpec)
+            ElemPartDensity = Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec)
             pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
-            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+            T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,:)))
           CASE(3) ! pressure outlet (pressure defined)
           CASE DEFAULT
             CALL abort(&
@@ -5687,7 +5749,7 @@ IF(iSF.GT.Species(FractNbr)%nSurfacefluxBCs)THEN
     T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
     pressure = PartBound%AdaptivePressure(Species(FractNbr)%Surfaceflux(iSF)%BC)
-    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_DENSITY,ElemID,:)))
+    T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,:)))
     !T = SQRT(Adaptive_MacroVal(4,ElemID,FractNbr)**2+Adaptive_MacroVal(5,ElemID,FractNbr)**2 &
     !  + Adaptive_MacroVal(6,ElemID,FractNbr)**2)
   CASE(3) ! pressure outlet (pressure defined)
@@ -5727,7 +5789,7 @@ ELSE
       T =  Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
     CASE(2) ! adaptive Outlet/freestream
       pressure = Species(FractNbr)%Surfaceflux(iSF)%AdaptivePressure
-      T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_DENSITY,ElemID,FractNbr))
+      T = pressure / (BoltzmannConst * Adaptive_MacroVal(DSMC_NUMDENS,ElemID,FractNbr))
     CASE DEFAULT
       CALL abort(&
   __STAMP__&
@@ -6648,7 +6710,7 @@ DO iSpec = 1,nSpecies
   END IF
 END DO
 #if USE_LOADBALANCE
-CALL LBElemSplitTime(ElemID,tLBStart)
+CALL LBElemSplitTime(AdaptiveElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END DO
 

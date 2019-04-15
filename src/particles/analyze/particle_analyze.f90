@@ -331,6 +331,8 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 #if (PP_TimeDiscMethod == 42)
   IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep),PartAnalyzeStep).NE.0) THEN
+      SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep)
+      SWRITE(UNIT_stdOut,'(A,I0)') '                        PartAnalyzeStep = ',PartAnalyzeStep
       CALL abort(&
         __STAMP__&
         ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
@@ -859,7 +861,7 @@ INTEGER             :: dir
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
-  IF(CalcEkin)THEN
+  IF(CalcEkin.OR.CalcEint)THEN
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
     ELSE
@@ -1985,6 +1987,14 @@ SUBROUTINE CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 ! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
 ! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 ! PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity)
+!
+! Note that the thermal velocity corresponds to the root mean square of the total velocity (in three dimensions), which is given by 
+!
+!      v_th = SQRT(3 * kB * T / m)
+!
+! with kB : Boltzmann's constant
+!      T  : temperature
+!      m  : mass of the particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

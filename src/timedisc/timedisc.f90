@@ -363,11 +363,8 @@ IF(DoRestart) CALL EvalGradient()
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && defined(MPI)
-IF ((TRIM(DepositionType).EQ."shape_function")             &
-.OR.(TRIM(DepositionType).EQ."shape_function_1d")          &
-.OR.(TRIM(DepositionType).EQ."shape_function_spherical")   &
-.OR.(TRIM(DepositionType).EQ."shape_function_simple")      &
-.OR.(TRIM(DepositionType).EQ."shape_function_cylindrical"))THEN
+! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
@@ -888,7 +885,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     ! finish communication
     CALL MPIParticleRecv()
   END IF
-  ! here: finish deposition with delta kernal
+  ! here: finish deposition with delta kernel
   !       maps source terms in physical space
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
@@ -1760,7 +1757,7 @@ USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, Part
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux, SetParticleVelocity
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
@@ -1785,33 +1782,7 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
 
   CALL UpdateNextFreePosition()
 
-!  Debug_Energy=0.0
-!  DO i=1,PDM%ParticleVecLength
-!    IF (PDM%ParticleInside(i)) THEN
-!      Debug_Energy(1)  = Debug_Energy(1) +&
-!        0.5* Species(PartSpecies(i))%MassIC*(PartState(i,4)**2+PartState(i,5)**2+PartState(i,6)**2)&
-!      + PartStateIntEn(i,3)
-!    END IF
-!  END DO
   CALL DSMC_main()
-!  DO i=1,PDM%ParticleVecLength
-!    IF (PDM%ParticleInside(i)) THEN
-!      Debug_Energy(2)  = Debug_Energy(2) +&
-!        0.5* Species(PartSpecies(i))%MassIC*(PartState(i,4)**2+PartState(i,5)**2+PartState(i,6)**2)&
-!      + PartStateIntEn(i,3)
-!    END IF
-!  END DO
-
-
-
-!  IF (Debug_Energy(1)-Debug_Energy(2)>0.0)THEN
-!    print*,"energy loss"
-!    read*
-!  else 
-!   print*,Debug_Energy(1),Debug_Energy(2),"   Difference(1-2)=",Debug_Energy(1)-Debug_Energy(2)
-!  END IF
-!  Debug_Energy=0.0
-!  read*
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,1)
@@ -1819,6 +1790,12 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  IF(DSMC%CompareLandauTeller) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      PDM%nextFreePosition(iPart)=iPart
+    END DO
+    CALL SetParticleVelocity(1,0,PDM%ParticleVecLength,1)
+  END IF
 ELSE
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
@@ -4348,7 +4325,9 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4483,7 +4462,9 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
     CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    END IF
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4598,6 +4579,7 @@ USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -4689,7 +4671,9 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4860,7 +4844,9 @@ DO iStage=2,nRKStages
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
+  IF(MOD(iter,PartAnalyzeStep).EQ.0)THEN ! Move this function to Deposition routine
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
