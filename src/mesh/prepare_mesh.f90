@@ -716,7 +716,6 @@ USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
 USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
-USE MOD_Mesh_Vars,ONLY:BoundaryType ! is required for particles and periodic sides!!
 #ifdef MPI
 USE MOD_MPI_vars
 #endif
@@ -763,20 +762,7 @@ DO iElem=1,nElems
       SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
       SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
     END IF
-    IF(aSide%sideID .LE. nBCSides)THEN
-      BC(aSide%sideID)=aSide%BCIndex
-    ELSE
-      ! mark periodic BCs
-      IF(aSide%BCindex.NE.0)THEN !side is BC or periodic side
-        IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1) BC(aSide%SideID)=aSide%BCindex
-      END IF
-#ifdef PARTICLES
-      ! mark analyze-sides or inner-BCs for particles
-      IF(aSide%BCindex.NE.0)THEN ! side is inner-BC or analyze side
-        IF(BoundaryType(aSide%BCindex,BC_TYPE).NE.1) BC(aSide%SideID)=aSide%BCindex
-      END IF
-#endif /*PARTICLES*/
-    END IF
+    BC(aSide%sideID)=aSide%BCIndex
   END DO ! LocSideID
 END DO ! iElem
 
