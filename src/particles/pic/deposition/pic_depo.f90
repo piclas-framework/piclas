@@ -82,6 +82,7 @@ CHARACTER(32)             :: hilf, hilf2
 CHARACTER(255)            :: TimeAverageFile
 LOGICAL                   :: LayerOutsideOfBounds, ChangeOccured
 REAL                      :: dimFactorSF
+INTEGER                   :: nTotalDOF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
