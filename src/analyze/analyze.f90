@@ -437,10 +437,9 @@ REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze2(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U2_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
@@ -531,10 +530,8 @@ SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: Elem_xGP,sJ
-USE MOD_Equation_Vars ,ONLY: IniExactFunc
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Mesh_Vars     ,ONLY: sJ
+USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
 USE MOD_Equation      ,ONLY: ExactFunc
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
@@ -553,9 +550,8 @@ REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 ! LOCAL VARIABLES 
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
@@ -639,7 +635,6 @@ SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars
 USE MOD_TimeDisc_Vars ,ONLY:iter
 USE MOD_Globals_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
@@ -727,10 +722,10 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars
-USE MOD_AnalyzeField,     ONLY:FinalizePoyntingInt
-USE MOD_TimeAverage_Vars, ONLY:doCalcTimeAverage
-USE MOD_TimeAverage,      ONLY:FinalizeTimeAverage
+USE MOD_Analyze_Vars,     ONLY: Vdm_GaussN_NAnalyze,wAnalyze,CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
+USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -775,7 +770,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoFieldAnalyze,DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
 USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
@@ -785,7 +780,6 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
@@ -816,6 +810,7 @@ USE MOD_Particle_Vars          ,ONLY: DelayTime
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) ||  defined(IMPA) || defined(ROS)
+USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
@@ -861,9 +856,11 @@ REAL                          :: PartStateAnalytic(1:6)        !< analytic posit
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#endif /* LSERK && IMPA && ROS */
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze

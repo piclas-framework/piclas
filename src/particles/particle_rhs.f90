@@ -347,7 +347,7 @@ REAL,INTENT(IN)     :: FieldAtParticle(1:6)
 REAL                :: ACCELERATION_RELATIVISTIC_PUSH(1:3) ! The stamp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: velosq,F(1:3),v1,v2,v3
+REAL                :: velosq,F(1:3)
 !===================================================================================================================================
 ASSOCIATE (&
       qmt => Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC ,& ! charge/m_0
