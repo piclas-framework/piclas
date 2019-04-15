@@ -4723,9 +4723,10 @@ USE MOD_Particle_MPI_Vars,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Timedisc_Vars         , ONLY : iter
-#endif
+!commented out in code
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+!USE MOD_Timedisc_Vars         , ONLY : iter
+!#endif
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition

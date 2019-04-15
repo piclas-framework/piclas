@@ -343,7 +343,6 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
