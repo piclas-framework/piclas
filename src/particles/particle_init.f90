@@ -2889,8 +2889,18 @@ __STAMP__&
 ,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
 __STAMP__&
-,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+      SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
+        CASE('maxwell','maxwell_lpn')
+          ! Others have to be tested first.
+        CASE DEFAULT
+          CALL abort(&
+__STAMP__&
+,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
+      END SELECT
     END IF
+    ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
+    BGGas%PairingPartner = 0
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
 
