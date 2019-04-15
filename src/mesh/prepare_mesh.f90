@@ -716,7 +716,6 @@ USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
 USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
-USE MOD_Mesh_Vars,ONLY:BoundaryType ! is required for particles and periodic sides!!
 #ifdef MPI
 USE MOD_MPI_vars
 #endif

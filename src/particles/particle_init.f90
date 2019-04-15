@@ -1141,9 +1141,8 @@ INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
 LOGICAL               :: PartDens_OnlyInit
-REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
 REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2

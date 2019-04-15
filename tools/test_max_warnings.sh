@@ -1,4 +1,5 @@
 #!/bin/bash
+rm -r build_test_warnings
 mkdir build_test_warnings
 cd build_test_warnings
 ccmake tee -DCMAKE_BUILD_TYPE=DEBUG ..
