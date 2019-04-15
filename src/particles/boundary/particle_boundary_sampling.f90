@@ -862,7 +862,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   END DO ! iSide=nSides+1,nTotalSides
 END DO ! iProc=1,SurfCOMM%nMPINeighbors
 
-
 ! open receive number of send particles
 ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -936,7 +935,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iSendSide=0
   iPos=1
   DO iSide=nSides+1,nTotalSides
-    SurfSideID=SurfMesh%SideIDToSurfID(iSide) 
+    SurfSideID=SurfMesh%SideIDToSurfID(iSide)
     IF(SurfSideID.EQ.-1) CYCLE
     ! get elemid
     IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
@@ -1017,7 +1016,6 @@ __STAMP__&
           ,' Cannot send halo-data to other progs. big error! ', ElemID, REAL(PP_nElems))
     END IF
     SideID=PartElemToSide(E2S_SIDE_ID,NativeLocSideID,NativeElemID)
-
     IF(SideID.GT.nSides)THEN
       IPWRITE(UNIT_stdOut,*) ' Received wrong sideid. Is not a BC side! '
       IPWRITE(UNIT_stdOut,*) ' SideID, nBCSides, nSides ', SideID, nBCSides, nSides

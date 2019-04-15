@@ -1447,7 +1447,7 @@ __STAMP__&
 ELSE
   WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
   WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
-  IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
+  IF(WriteMacroVolumeValues.AND.WriteMacroSurfaceValues)THEN
     WriteMacroValues = .TRUE.
   END IF
 END IF
