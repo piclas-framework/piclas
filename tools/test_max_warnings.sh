@@ -1,4 +1,8 @@
 #!/bin/bash
+# Script for compiling the code with DEBUG flag in order to count the number of warnings that occur during the compile process
+# Run this script in the upper most folder of the PICLas repository.
+
+# 1. Run script
 rm -r build_test_warnings
 mkdir build_test_warnings
 cd build_test_warnings
