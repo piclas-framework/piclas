@@ -441,7 +441,7 @@ IF(DoRestart)THEN
       IF(DGSourceExists)THEN
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
           ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-          CALL ReadArray('DG_Source' ,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=PartSource_HDF5)
+          CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
           DO iElem =1, PP_nElems
             DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if (defined (PP_HDG) && (PP_nVar==1))
