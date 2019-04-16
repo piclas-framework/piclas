@@ -1378,7 +1378,7 @@ CASE('nearest_blurrycenter')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
-      ! Cycle neutral particles
+      ! Don't deposit neutral particles!
       IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
@@ -1433,7 +1433,7 @@ CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -1526,7 +1526,7 @@ CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
   IF(DoInnerParts)  tempcharge= 0.0
   DO iPart = firstPart, lastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -1630,7 +1630,7 @@ CASE('shape_function','shape_function_simple')
   END IF
   IF (usevMPF) THEN
     DO iPart=firstPart,LastPart
-      ! Cycle neutral particles
+      ! Don't deposit neutral particles!
       IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
@@ -1643,7 +1643,7 @@ CASE('shape_function','shape_function_simple')
     END DO ! iPart
   ELSE
     DO iPart=firstPart,LastPart
-      ! Cycle neutral particles
+      ! Don't deposit neutral particles!
       IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
@@ -1764,15 +1764,11 @@ CASE('shape_function','shape_function_simple')
 #ifdef MPI     
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
-        ! Cycle neutral particles
-        IF(ABS(Species(ExtPartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
           ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
       END DO
     ELSE
       DO iPart=1,NbrOfextParticles  !external Particles
-        ! Cycle neutral particles
-        IF(ABS(Species(ExtPartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         CALL calcSfSource(4 &
           ,Species(ExtPartSpecies(iPart))%ChargeIC*Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf &
           ,Vec1,Vec2,Vec3,ExtPartState(iPart,1:3),-iPart,PartVelo=ExtPartState(iPart,4:6))
@@ -1855,7 +1851,7 @@ CASE('shape_function_1d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -1968,8 +1964,6 @@ CASE('shape_function_1d')
     END IF
     
     DO iPart=1,NbrOfextParticles  !external Particles
-      ! Cycle neutral particles
-      IF(ABS(Species(ExtPartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! Set charge pre-factor
       IF (usevMPF) THEN
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
@@ -2089,7 +2083,7 @@ CASE('shape_function_2d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -2229,8 +2223,6 @@ CASE('shape_function_2d')
     END IF
     
     DO iPart=1,NbrOfextParticles  !external Particles
-      ! Cycle neutral particles
-      IF(ABS(Species(ExtPartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! Set charge pre-factor
       IF (usevMPF) THEN
         Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
@@ -2377,7 +2369,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -2482,8 +2474,6 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     END IF
     
     DO iPart=1,NbrOfextParticles  !external Particles
-      ! Cycle neutral particles
-      IF(ABS(Species(ExtPartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
@@ -2590,7 +2580,7 @@ CASE('delta_distri')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       IF(PEM%Element(iPart).EQ.iElem)THEN
-        ! Cycle neutral particles
+        ! Don't deposit neutral particles!
         IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Set pre-factor
         IF (usevMPF) THEN
@@ -2682,7 +2672,7 @@ CASE('nearest_gausspoint')
 #endif /*USE_LOADBALANCE*/
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
-      ! Cycle neutral particles
+      ! Don't deposit neutral particles!
       IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
       ! TODO: Info why and under which conditions the following 'CYCLE' is called
       IF(doPartInExists)THEN
@@ -2771,7 +2761,7 @@ CASE('cartmesh_volumeweighting')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -2874,7 +2864,7 @@ CASE('cartmesh_splines')
 #endif /*USE_LOADBALANCE*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    ! Cycle neutral particles
+    ! Don't deposit neutral particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
