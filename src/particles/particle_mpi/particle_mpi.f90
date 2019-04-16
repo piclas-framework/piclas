@@ -402,7 +402,7 @@ IF(DoExternalParts)THEN
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral external particles!
-    IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE
+    IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
     CellX = MAX(GEO%FIBGMimin,CellX)
