@@ -86,6 +86,8 @@ SELECT CASE(PartLorentzType)
     ! non-relativistic
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -93,6 +95,8 @@ SELECT CASE(PartLorentzType)
     ! constant Lorentz factor over time step
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -101,6 +105,8 @@ SELECT CASE(PartLorentzType)
   ! prevent particles from acceleration above speed of light
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
@@ -163,6 +169,8 @@ SELECT CASE(PartLorentzType)
     ! derivation of relativistic equation of motion
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
@@ -171,6 +179,8 @@ SELECT CASE(PartLorentzType)
     ! derivation of relativistic equation of motion
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=ACCELERATION_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF

@@ -3824,6 +3824,9 @@ DO iSide=1,nPartSides
   IF(ALMOSTEQUAL(ScalarProduct,GEO%PeriodicVectorsLength(ABS(PVID))))THEN
     SidePeriodicType(iSide)=-SidePeriodicType(iSide)
   ELSEIF(.NOT.ALMOSTEQUAL(ScalarProduct,-GEO%PeriodicVectorsLength(ABS(PVID))))THEN
+    WRITE (*,*) "BCSideID                  : ", BCSideID                 
+    WRITE (*,*) "SideNormVec(1:3,BCSideID) : ", SideNormVec(1:3,BCSideID)
+    WRITE (*,*) "Vec1                      : ", Vec1
     CALL abort(&
 __STAMP__&
         , ' Missalignment between SideNormVec and PeriodicVector!',ABS(PVID),ScalarProduct)
