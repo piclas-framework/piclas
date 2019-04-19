@@ -26,13 +26,13 @@ inherent self check. If a boundary condition is not detected, the particle posit
 A fall-back algorithm is used to recompute the position and boundary interaction. Periodic domains are only possible
 for Cartesian meshes. The particle position is used for periodic displacements.
 
-| Option                 | Values     |  Notes                                                  |
-|:----------------------:|:----------:|:-------------------------------------------------------:|
-| CartesianPeriodic      | T/F        | If a fully periodic box (all 6 sides) is computed, the  |
-|                        |            | intersections do not have to be computed. Instead, each |
-|                        |            | particle can be simply shifted by the periodic vector.  |
-| FastPeriodic           | T/F        | Moves particle the whole periodic distance once, which  |
-|                        |            | can be several times the mesh size in this direction.   |
+|      Option       | Values |                          Notes                          |
+| :---------------: | :----: | :-----------------------------------------------------: |
+| CartesianPeriodic |  T/F   | If a fully periodic box (all 6 sides) is computed, the  |
+|                   |        | intersections do not have to be computed. Instead, each |
+|                   |        | particle can be simply shifted by the periodic vector.  |
+|   FastPeriodic    |  T/F   | Moves particle the whole periodic distance once, which  |
+|                   |        |  can be several times the mesh size in this direction.  |
 
 
 ### Tracing  (NEEDS UPDATING)
@@ -51,67 +51,195 @@ message. Note, the tracing on periodic meshes works only for non-mpi computation
 additional coding.
 
 
-| Option                 | Values     |  Notes                                                  |
-|:----------------------:|:----------:|:-------------------------------------------------------:|
-| CountNbOfLostParts     | T/F        | Count number of lost particles due to tolerance issues. |
-|                        |            | This number is a global number, summed over the full t. |
+|       Option       | Values |                          Notes                          |
+| :----------------: | :----: | :-----------------------------------------------------: |
+| CountNbOfLostParts |  T/F   | Count number of lost particles due to tolerance issues. |
+|                    |        | This number is a global number, summed over the full t. |
 
 ### Parameters for DoRefMapping and Tracing  (NEEDS UPDATING)
 
 Following parameters can be used for both schemes.
 
-| Option                 | Values     |  Notes                                                  | 
-|:----------------------:|:----------:|:-------------------------------------------------------:|
-| MeasureTrackTime       | T/F        | Measure the time required for tracking and init local.  |
-| RefMappingGuess        | 1-4        | Prediction of particle position in reference space:     |
-|                        | 1          | Assumption of a linear element coord system.            |
-|                        | 2          | Gauss point which is closest to the particle.           |
-|                        | 3          | CL point which is closest to the particle.              |
-|                        | 4          | Trival guess: element origin                            |
-| RefMappingEps          | 1e-4       | Tolerance of the Newton algorithm for mapping in ref.   |
-|                        |            | space. It is the L2 norm of the delta Xi in ref space.  |
-| BezierElevation        | 0-50       | Increase polinomial degree of BezierControlPoints to    |
-|                        |            | construct a thighter bounding box for each side.        |
-| BezierSampleN          | NGeo       | Polynomial degree to sample sides for SurfaceFlux and   |
-|                        |            | Sampling of DSMC surface data.                          |
-| BezierNewtonAngle      | <PI/2      | Angle to switch between Clipping and a Newton algorithm.|
-| BezierClipTolerance    | 1e-8       | Tolerance of Bezier-Clipping and Bezier-Newton          |
-| BezierClipHit          | 1e-6       | Tolerance to increase sides and path during Bezier-Algo.|
-| BezierSplitLimit       | 0.6        | Minimum degrees of side during clipping. A larger       |
-|                        |            | surface is spit in two to increase convergence rate and |
-|                        |            | predict several intersections.                          |
-| BezierClipMaxIntersec  | 2*NGeo     | Maximum number of roots for curvilinear faces.          |
-| epsilontol             | 100*epsM   | Tolerance for linear and bilinear algorithm.            |
+|        Option         |  Values  |                          Notes                           |
+| :-------------------: | :------: | :------------------------------------------------------: |
+|   MeasureTrackTime    |   T/F    |  Measure the time required for tracking and init local.  |
+|    RefMappingGuess    |   1-4    |   Prediction of particle position in reference space:    |
+|                       |    1     |       Assumption of a linear element coord system.       |
+|                       |    2     |      Gauss point which is closest to the particle.       |
+|                       |    3     |        CL point which is closest to the particle.        |
+|                       |    4     |               Trival guess: element origin               |
+|     RefMappingEps     |   1e-4   |  Tolerance of the Newton algorithm for mapping in ref.   |
+|                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
+|    BezierElevation    |   0-50   |   Increase polinomial degree of BezierControlPoints to   |
+|                       |          |     construct a thighter bounding box for each side.     |
+|     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
+|                       |          |              Sampling of DSMC surface data.              |
+|   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
+|  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
+|     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
+|   BezierSplitLimit    |   0.6    |    Minimum degrees of side during clipping. A larger     |
+|                       |          | surface is spit in two to increase convergence rate and  |
+|                       |          |              predict several intersections.              |
+| BezierClipMaxIntersec |  2*NGeo  |      Maximum number of roots for curvilinear faces.      |
+|      epsilontol       | 100*epsM |       Tolerance for linear and bilinear algorithm.       |
 
 ### Possible outdated  (NEEDS UPDATING)
 
-| Option                 | Values     |  Notes                                                  | 
-|:----------------------:|:----------:|:-------------------------------------------------------:|
-| BezierEpsilonBilinear  | T/F        | Tolerance for linear-bilinear side. Obsolet.            |
+|        Option         | Values |                    Notes                     |
+| :-------------------: | :----: | :------------------------------------------: |
+| BezierEpsilonBilinear |  T/F   | Tolerance for linear-bilinear side. Obsolet. |
 
 ## Boundary Conditions
 
+This is the only case, when the order within the parameter file becomes important, when modifying boundary conditions. If you want to modify a specific boundary by addressing its name, the related boundary type has to be defined
+~~~~~~~
+    BoundaryName=inflow         ! BC_Name defined in mesh file
+    BoundaryType=(/2,0,0,0/)
+    BoundaryName=outflow        ! BC_Name defined in mesh file
+    BoundaryType=(/2,0,0,0/)
+~~~~~~~
+
 ### Field
 
-#### Dielectric
+Dielectric -> type 100?
 
 ### Particle
 
-#### Specular/Reflective Wall
+Within the parameter file it is possible to define different particle boundary conditions for the boundaries defined during the preprocessing with HOPR. The number of boundaries is defined by
 
-#### Porous Wall
+    Part-nBounds=2
+    Part-Boundary1-SourceName=BC_OPEN
+    Part-Boundary1-Condition=open
+    Part-Boundary2-SourceName=BC_WALL
+    Part-Boundary2-Condition=reflective
 
-The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary.
+The available conditions (`Part-Boundary1-Condtion=`) are described in the table below.
+
+|  Condition   | Description                                           |
+| :----------: | ----------------------------------------------------- |
+|    `open`    | Every particle crossing the boundary will be deleted. |
+| `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
+| `symmetric`  | A perfect specular reflection, without sampling of particle impacts. |
+
+#### Diffuse Wall
+
+Gas-surface interaction can be modelled with the extended Maxwellian model [@Padilla2009], using accommodation coefficients of the form
+
+$$\alpha = \frac{E_i-E_r}{E_i - E_w}$$
+
+where $i$, $r$ and $w$ denote the incident, reflected and wall energy, respectively.  The coefficient `MomentumACC` is utilized to decide whether a diffuse (`MomentumACC` $>R$) or specular reflection (`MomentumACC` $<R$) occurs upon particle impact, where $R=[0,1)$ is a random number. A separate accommodation coefficient can be defined for the translation (`TransACC`), rotational (`RotACC`), vibrational (`VibACC`) and electronic energy (`ElecACC`) accommodation at a constant wall temperature [K].
+
+    Part-Boundary2-SourceName=BC_WALL
+    Part-Boundary2-Condition=reflective
+    Part-Boundary2-MomentumACC=1.
+    Part-Boundary2-WallTemp=300.
+    Part-Boundary2-TransACC=1.
+    Part-Boundary2-VibACC=1.
+    Part-Boundary2-RotACC=1.
+    Part-Boundary2-ElecACC=1.
+
+Additionally, a wall velocity [m/s] and voltage [V] can be given
+
+    Part-Boundary2-WallVelo=(/0,0,100/)
+    Part-Boundary2-Voltage=100
+
+#### Porous Wall / Pump
+
+The porous boundary condition uses a removal probability to determine whether a particle is deleted or reflected at the boundary. The main application of the implemented condition is to model a pump, according to [@Lei2017]. It is defined by giving the number of porous boundaries and the respective boundary number (`BC=2` corresponds to the `BC_WALL` boundary defined in the previous section) on which the porous condition is. 
+
+    Part-nPorousBC=1
+    Part-PorousBC1-BC=2
+    Part-PorousBC1-Pressure=5.
+    Part-PorousBC1-Temperature=300.
+    Part-PorousBC1-PumpingSpeed=2e-9
+    Part-PorousBC1-DeltaPumpingSpeed-Kp=0.1
+    Part-PorousBC1-DeltaPumpingSpeed-Ki=0.0
+
+The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_\mathrm{p}$, `DeltaPumpingSpeed-Kp`) is greater than zero
+
+$$ S^{n+1}(t) = S^{n}(t) + K_\mathrm{p} \Delta p(t) + K_\mathrm{i} \int_0^t \Delta p(t') dt',$$
+
+where $\Delta p$ is the pressure difference between the given pressure and the actual pressure at the pump. An integral factor ($K_\mathrm{i}$, `DeltaPumpingSpeed-Ki`) can be utilized to mimic a PI controller. The proportional and integral factors are relative to the given pressure. However, the integral factor has not yet been thoroughly tested. The removal probability $\alpha$ is then calculated by
+
+$$\alpha = \frac{S n \Delta t}{N_\mathrm{pump} w} $$
+
+where $n$ is the sampled, cell-local number density and $N_\mathrm{pump}$ is the total number of impinged particle at the pump during the previous time step. $\Delta t$ is the time step and $w$ the weighting factor. The pumping speed $S$ is only adapted if the resulting removal probability $\alpha$ is between zero and unity. The removal probability is not species-specific.
+
+To avoid statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$, number density $n$, and temperature at the pump) can be sampled for $N$ iterations by defining
+
+    Part-PorousBC-IterationMacroVal=10
+
+A porous region on the specified boundary can be defined by
+
+    Part-PorousBC1-Region=circular
+    Part-PorousBC1-normalDir=1
+    Part-PorousBC1-origin=(/5e-6,5e-6/)
+    Part-PorousBC1-rmax=2.5e-6
+
+Using the regions, multiple pumps can be defined on a single boundary.
 
 ## Particle Emission
 
 ### Surface Flux
 
+#### Circular Inflow
+
+The emission of particles from a surface flux can be limited to the area within a circle or a ring. The respective boundary has to coincide or be parallel to the xy-, xz, or yz-planes. This allows to define inflow boundaries without specifically meshing the geometrical feature, e.g. small orifices. The feature can be enabled per species and surface flux
+
+    Part-Species1-Surfaceflux1-CircularInflow=TRUE
+
+The normal direction of the respective boundary has to be defined by
+
+    Part-Species1-Surfaceflux1-axialDir=1
+
+Finally, the origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), while for a circle only the input of maximal radius is sufficient.
+
+    Part-Species1-Surfaceflux1-origin=(/5e-6,5e-6/)
+    Part-Species1-Surfaceflux1-rmax=2.5e-6
+    Part-Species1-Surfaceflux1-rmin=1e-6
+
+The absolute coordinates are defined as follows for the respective normal direction.
+
+| Normal Direction | Coordinates |
+| :--------------: | :---------: |
+|      x (=1)      |    (y,z)    |
+|      y (=2)      |    (z,x)    |
+|      z (=3)      |    (x,y)    |
+
+Multiple circular inflows can be defined on a single surface flux.
+
 #### Adaptive Boundaries
 
-Multiple adaptive particle emission conditions can be defined.
+Different adaptive boundaries can be defined as a part of a surface flux to model subsonic in- and outflows, where the emission is adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by [@Farbar2014] and [@Lei2017].
+
+    Part-Species1-Surfaceflux1-Adaptive=TRUE
+    Part-Species1-Surfaceflux1-Adaptive-Type=1
+
+An overview over the available types is given below.
+
+ * `Type=1`: Constant static pressure and temperature inlet, defined as Type 1 in Ref. [@Farbar2014]
+ * `Type=2`: Constant static pressure outlet, defined as Type 1 in Ref. [@Farbar2014]
+ * `Type=3`: Constant mass flow and temperature inlet, where the given mass flow and sampled velocity are used to determine the number of particles for the surface flux. It requires the BC to be defined as `open`. Defined as Type 2 in Ref. [@Farbar2014]
+ * `Type=4`: Constant mass flow inlet and temperature inlet, where number of particles to be inserted is determined directly from the mass flow and the number of particles leaving the domain, $N_{\mathrm{in}}=N_{\dot{m}} + N_{\mathrm{out}}$. Defined as cf_3 in Ref. [@Lei2017]
+
+Depending of the type of the chosen boundary type either the mass flow [kg/s] or the static pressure [Pa] have to be given
+
+    Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
+    Part-Species1-Surfaceflux1-Adaptive-Pressure=10
+
+The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations a relaxation factor $f_{\mathrm{relax}}$ is utilized and the current value of the sampled variable $v^{n}$ is updated according to
+
+$$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} $$
+
+The relaxation factor $f_{\mathrm{relax}}$ is defined by
+
+    Part-AdaptiveWeightingFactor = 0.001
+
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would required to have enough particles that leave the method. For `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted, and thus the correct mass flow can be reproduced.
 
 ## Particle in Cell
+
+References: [@Niegemann2012]
 
 ## Direct Simulation Monte Carlo
 
