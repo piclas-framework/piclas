@@ -67,11 +67,11 @@ Following parameters can be used for both schemes.
 |                       |    1     |       Assumption of a linear element coord system.       |
 |                       |    2     |      Gauss point which is closest to the particle.       |
 |                       |    3     |        CL point which is closest to the particle.        |
-|                       |    4     |               Trival guess: element origin               |
+|                       |    4     |               Trivial guess: element origin               |
 |     RefMappingEps     |   1e-4   |  Tolerance of the Newton algorithm for mapping in ref.   |
 |                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
-|    BezierElevation    |   0-50   |   Increase polinomial degree of BezierControlPoints to   |
-|                       |          |     construct a thighter bounding box for each side.     |
+|    BezierElevation    |   0-50   |   Increase polynomial degree of BezierControlPoints to   |
+|                       |          |     construct a tighter bounding box for each side.     |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
 |   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
@@ -93,10 +93,10 @@ Following parameters can be used for both schemes.
 
 This is the only case, when the order within the parameter file becomes important, when modifying boundary conditions. If you want to modify a specific boundary by addressing its name, the related boundary type has to be defined
 ~~~~~~~
-    BoundaryName=inflow         ! BC_Name defined in mesh file
-    BoundaryType=(/2,0,0,0/)
-    BoundaryName=outflow        ! BC_Name defined in mesh file
-    BoundaryType=(/2,0,0,0/)
+BoundaryName=inflow         ! BC_Name defined in mesh file
+BoundaryType=(/2,0,0,0/)
+BoundaryName=outflow        ! BC_Name defined in mesh file
+BoundaryType=(/2,0,0,0/)
 ~~~~~~~
 
 ### Field
@@ -113,13 +113,13 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
 
-The available conditions (`Part-Boundary1-Condtion=`) are described in the table below.
+The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
-|  Condition   | Description                                           |
-| :----------: | ----------------------------------------------------- |
-|    `open`    | Every particle crossing the boundary will be deleted. |
+|  Condition   | Description                                                                                                                                                                                 |
+| :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    `open`    | Every particle crossing the boundary will be deleted.                                                                                                                                       |
 | `reflective` | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
-| `symmetric`  | A perfect specular reflection, without sampling of particle impacts. |
+| `symmetric`  | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
 
 #### Diffuse Wall
 
@@ -127,7 +127,7 @@ Gas-surface interaction can be modelled with the extended Maxwellian model [@Pad
 
 $$\alpha = \frac{E_i-E_r}{E_i - E_w}$$
 
-where $i$, $r$ and $w$ denote the incident, reflected and wall energy, respectively.  The coefficient `MomentumACC` is utilized to decide whether a diffuse (`MomentumACC` $>R$) or specular reflection (`MomentumACC` $<R$) occurs upon particle impact, where $R=[0,1)$ is a random number. A separate accommodation coefficient can be defined for the translation (`TransACC`), rotational (`RotACC`), vibrational (`VibACC`) and electronic energy (`ElecACC`) accommodation at a constant wall temperature [K].
+where $i$, $r$ and $w$ denote the incident, reflected and wall energy, respectively.  The coefficient `MomentumACC` is utilized to decide whether a diffuse (`MomentumACC` $>R$) or specular reflection (`MomentumACC` $<R$) occurs upon particle impact, where $R=[0,1)$ is a random number. Separate accommodation coefficients can be defined for the translation (`TransACC`), rotational (`RotACC`), vibrational (`VibACC`) and electronic energy (`ElecACC`) accommodation at a constant wall temperature [K].
 
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
@@ -165,22 +165,80 @@ $$\alpha = \frac{S n \Delta t}{N_\mathrm{pump} w} $$
 
 where $n$ is the sampled, cell-local number density and $N_\mathrm{pump}$ is the total number of impinged particle at the pump during the previous time step. $\Delta t$ is the time step and $w$ the weighting factor. The pumping speed $S$ is only adapted if the resulting removal probability $\alpha$ is between zero and unity. The removal probability is not species-specific.
 
-To avoid statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$, number density $n$, and temperature at the pump) can be sampled for $N$ iterations by defining
+To reduce the influence of statistical fluctuations, the relevant macroscopic values (pressure difference $\Delta p$ and number density $n$) can be sampled for $N$ iterations by defining (for all porous boundaries)
 
     Part-PorousBC-IterationMacroVal=10
 
-A porous region on the specified boundary can be defined by
+A porous region on the specified boundary can be defined. At the moment, only the `circular` option is implemented. The origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal radius is required (`-rmax` and `-rmin`, respectively), while for a circle only the input of maximal radius is sufficient.
 
     Part-PorousBC1-Region=circular
     Part-PorousBC1-normalDir=1
     Part-PorousBC1-origin=(/5e-6,5e-6/)
     Part-PorousBC1-rmax=2.5e-6
 
+The absolute coordinates are defined as follows for the respective normal direction.
+
+| Normal Direction | Coordinates |
+| :--------------: | :---------: |
+|      x (=1)      |    (y,z)    |
+|      y (=2)      |    (z,x)    |
+|      z (=3)      |    (x,y)    |
+
 Using the regions, multiple pumps can be defined on a single boundary.
 
-## Particle Emission
+## Particle Initialization & Emission
+
+The following section gives an overview of the available options regarding the definition of species and particle initialization and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step. First of all, the number of species is defined by
+
+    Part-nSpecies=1
+    Part-MaxParticleNumber=2000000
+
+The maximum particle number is defined per core and should be chosen according to the number of simulation particles you expect, including a margin to account for imbalances due transient flow features and/or the occurrence of new particles due to chemical reactions.
+
+Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the weighting factor $w$ [-] are required for each species.
+
+    Part-Species1-MassIC=5.31352E-26
+    Part-Species1-ChargeIC=0.0
+    Part-Species1-MacroParticleFactor=5E2
+
+Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be defined with these parameters.
+
+**WORK IN PROGRESS**
+
+Different velocity distributions are available for the initialization of particles.
+
+| Distribution | Description                                             |
+| ------------ | ------------------------------------------------------- |
+| maxwell      | Maxwell-Boltzmann distribution                          |
+| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
+| ...          | many many more                                          |
+
+### Initialization
 
 ### Surface Flux
+
+A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined species-specific and can overlap. First, the number of surface fluxes has to be given
+
+    Part-Species1-nSurfaceFluxBCs=1
+
+The surface flux is mapped to a certain boundary by giving its boundary number (e.g. `BC=1` corresponds to the previously defined boundary `BC_OPEN`)
+
+    Part-Species1-Surfaceflux1-BC=1
+    Part-Species1-Surfaceflux1-VeloIC=1500
+    Part-Species1-Surfaceflux1-VeloVecIC=(/-1.0,0.0,0.0/)
+    Part-Species1-Surfaceflux1-velocityDistribution=maxwell_lpn
+    Part-Species1-Surfaceflux1-MWTemperatureIC=300.
+    Part-Species1-Surfaceflux1-PartDensity=1E20
+
+The drift velocity is defined by the direction vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based on the defined velocity distribution and the given translation temperature `MWTemperatureIC` [K]. Finally, the 'real' number density is defined by `PartDensity` [1/m$^3$], from which the actual number of simulation particles will be determined (depending on the chosen weighting factor).
+
+In the case of molecules, the rotational and vibrational temperature [K] have to be defined. If electronic excitation is considered, the electronic temperature [K] has to be defined
+
+    Part-Species1-Surfaceflux1-TempRot=300.
+    Part-Species1-Surfaceflux1-TempVib=300.
+    Part-Species1-Surfaceflux1-TempElec=300.
+
+*Missing description: SimpleRadialVeloFit, ReduceNoise, AcceptReject, ARM_DmaxSampleN, DoForceFreeSurfaceFlux*
 
 #### Circular Inflow
 
@@ -236,6 +294,8 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
     Part-AdaptiveWeightingFactor = 0.001
 
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would required to have enough particles that leave the method. For `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted, and thus the correct mass flow can be reproduced.
+
+It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
 ## Particle in Cell
 
