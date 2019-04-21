@@ -176,6 +176,39 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
   DoSFLocalDepoAtBounds = GETLOGICAL('PIC-shapefunction-local-depo-BC')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
+
+
+  IF(DoSFLocalDepoAtBounds)THEN ! init cell vol weight
+    ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
+    ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
+    CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+    CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+    CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
+    ALLOCATE( Vdm_tmp(0:1,0:PP_N))
+    CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+    DO iElem=1, nElems
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
+          END DO ! i=0,PP_N
+        END DO ! j=0,PP_N
+      END DO ! k=0,PP_N
+      CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+      DO k=0,1
+        DO j=0,1
+          DO i=0,1
+            CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
+          END DO ! i=0,PP_N
+        END DO ! j=0,PP_N
+      END DO ! k=0,PP_N
+    END DO
+    DEALLOCATE(Vdm_tmp)
+    DEALLOCATE(wGP_tmp, xGP_tmp)
+  END IF
+
+
+
 END IF
 
 !--- init DepositionType-specific vars
@@ -1293,7 +1326,7 @@ USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases,IsLocalDepositionBCElem
 USE MOD_TimeDisc_Vars,          ONLY:dtWeight
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
@@ -1320,13 +1353,14 @@ INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
-INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
-INTEGER                          :: kk, ll, mm, ppp                                              
+INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
+INTEGER                          :: kk, ll, mm, ppp, kkk,lll,mmm
 INTEGER                          :: ElemID, iCase, ind
 REAL                             :: radius2, S, S1, Fac(4)!, Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
+REAL, ALLOCATABLE                :: BGMSourceCellVol_loc(:,:,:,:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)!, caseShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
@@ -1339,7 +1373,7 @@ REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac!, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
-LOGICAL                          :: DoCycle
+LOGICAL                          :: DoCycle,DepoLoc
 #if USE_LOADBALANCE
 REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -2167,33 +2201,142 @@ CASE('shape_function_2d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
-                nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
-                !--- go through all gauss points
-                !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
-                DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                  !-- calculate distance between gauss and particle
-                  dX = ABS(ShiftedPart(I) - ElemDepo_xGP(I,k,l,m,ElemID))
-                  IF(dX.GT.r_sf) CYCLE
-                  dY = ABS(ShiftedPart(J) - ElemDepo_xGP(J,k,l,m,ElemID))
-                  IF(dY.GT.r_sf) CYCLE
-                  radius2 = dX*dX+dY*dY
-                  !-- calculate charge and current density at ip point using a shape function
-                  !-- currently only one shapefunction available, more to follow (including structure change)
-                  IF (radius2 .LT. r2_sf) THEN
-                    S = 1. - r2_sf_inv * radius2
-                  !radius2=GaussDistance(k,l,m)
-                  !IF (radius2 .LT. 1.0) THEN
-                  !  S = 1 -  radius2
-                    S1 = S*S
-                    DO expo = 3, alpha_sf
-                      S1 = S*S1
-                    END DO
-                    PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-                    PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                
+
+
+
+
+                
+                DepoLoc=.FALSE.
+                IF(DoSFLocalDepoAtBounds)THEN ! prevent deposition of inner particles near boundaries (prevent cut-off at boundary)
+                  IF(IsLocalDepositionBCElem(ElemID))THEN
+                    DepoLoc=.TRUE. ! required for skipping shape function deposition
+
+
+
+                    !ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
+                    ALLOCATE(BGMSourceCellVol_loc(0:1,0:1,0:1,1:4))
+                    BGMSourceCellVol_loc(:,:,:,:) = 0.0
+                    !DO iPart = firstPart, lastPart
+#if USE_LOADBALANCE
+                    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+                    IF (usevMPF) THEN
+                      Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+                    ELSE
+                      Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
+                    END IF ! usevMPF
+                    !iElem = PEM%Element(iPart)
+                    IF(DoRefMapping)THEN
+                      TempPartPos(1:3)=PartPosRef(1:3,iPart)
+                    ELSE
+                      CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,ElemID,ForceMode=.TRUE.)
+                    END IF
+                    TSource(:) = 0.0
+                    !#if (PP_nVar==8)
+                    TSource(1) = PartState(iPart,4)*Charge
+                    TSource(2) = PartState(iPart,5)*Charge
+                    TSource(3) = PartState(iPart,6)*Charge
+                    !#endif
+                    TSource(4) = Charge
+                    alpha1=(TempPartPos(1)+1.0)/2.0
+                    alpha2=(TempPartPos(2)+1.0)/2.0
+                    alpha3=(TempPartPos(3)+1.0)/2.0
+                    BGMSourceCellVol_loc(0,0,0,1:4) = BGMSourceCellVol_loc(0,0,0,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+                    BGMSourceCellVol_loc(0,0,1,1:4) = BGMSourceCellVol_loc(0,0,1,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+                    BGMSourceCellVol_loc(0,1,0,1:4) = BGMSourceCellVol_loc(0,1,0,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+                    BGMSourceCellVol_loc(0,1,1,1:4) = BGMSourceCellVol_loc(0,1,1,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+                    BGMSourceCellVol_loc(1,0,0,1:4) = BGMSourceCellVol_loc(1,0,0,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+                    BGMSourceCellVol_loc(1,0,1,1:4) = BGMSourceCellVol_loc(1,0,1,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
+                    BGMSourceCellVol_loc(1,1,0,1:4) = BGMSourceCellVol_loc(1,1,0,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
+                    BGMSourceCellVol_loc(1,1,1,1:4) = BGMSourceCellVol_loc(1,1,1,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
+#if USE_LOADBALANCE
+                    CALL LBElemPauseTime(ElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
+                    !END DO
+
+#if USE_LOADBALANCE
+                    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+                    !DO iElem=1, nElems
+                    BGMSourceCellVol_loc(0,0,0,:) = BGMSourceCellVol_loc(0,0,0,1:4)/CellVolWeight_Volumes(0,0,0,ElemID)
+                    BGMSourceCellVol_loc(0,0,1,:) = BGMSourceCellVol_loc(0,0,1,1:4)/CellVolWeight_Volumes(0,0,1,ElemID)
+                    BGMSourceCellVol_loc(0,1,0,:) = BGMSourceCellVol_loc(0,1,0,1:4)/CellVolWeight_Volumes(0,1,0,ElemID)
+                    BGMSourceCellVol_loc(0,1,1,:) = BGMSourceCellVol_loc(0,1,1,1:4)/CellVolWeight_Volumes(0,1,1,ElemID)
+                    BGMSourceCellVol_loc(1,0,0,:) = BGMSourceCellVol_loc(1,0,0,1:4)/CellVolWeight_Volumes(1,0,0,ElemID)
+                    BGMSourceCellVol_loc(1,0,1,:) = BGMSourceCellVol_loc(1,0,1,1:4)/CellVolWeight_Volumes(1,0,1,ElemID)
+                    BGMSourceCellVol_loc(1,1,0,:) = BGMSourceCellVol_loc(1,1,0,1:4)/CellVolWeight_Volumes(1,1,0,ElemID)
+                    BGMSourceCellVol_loc(1,1,1,:) = BGMSourceCellVol_loc(1,1,1,1:4)/CellVolWeight_Volumes(1,1,1,ElemID)   
+                    !END DO
+#if USE_LOADBALANCE
+                    CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
+#endif /*USE_LOADBALANCE*/
+
+#if USE_LOADBALANCE
+                    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+                    !DO iElem = 1, nElems
+                    DO kkk = 0, PP_N
+                      DO lll = 0, PP_N
+                        DO mmm = 0, PP_N
+                          alpha1 = CellVolWeightFac(kkk)
+                          alpha2 = CellVolWeightFac(lll)
+                          alpha3 = CellVolWeightFac(mmm)
+                          PartSource(1:4,kkk,lll,mmm,ElemID) =PartSource(1:4,kkk,lll,mmm,ElemID) +&
+                              BGMSourceCellVol_loc(0,0,0,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(0,0,1,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+                              BGMSourceCellVol_loc(0,1,0,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(0,1,1,1:4) * (1-alpha1) * (alpha2) * (alpha3) + &
+                              BGMSourceCellVol_loc(1,0,0,1:4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(1,0,1,1:4) * (alpha1) * (1-alpha2) * (alpha3) + &
+                              BGMSourceCellVol_loc(1,1,0,1:4) * (alpha1) * (alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(1,1,1,1:4) * (alpha1) * (alpha2) * (alpha3)
+                        END DO !mmm
+                      END DO !lll
+                    END DO !kkk
+#if USE_LOADBALANCE
+                    CALL LBElemSplitTime(iElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
+                    !END DO !iEle
+                    DEALLOCATE(BGMSourceCellVol_loc)
+
+
                   END IF
-                END DO; END DO; END DO
+                END IF ! IsLocalDepositionBCElem(ElemID)
+
+
+
+
+                ! Shape function deposition
+                IF(.NOT.DepoLoc)THEN
+#ifdef MPI
+                  nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
+                  !--- go through all gauss points
+                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
+                  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+                    !-- calculate distance between gauss and particle
+                    dX = ABS(ShiftedPart(I) - ElemDepo_xGP(I,k,l,m,ElemID))
+                    IF(dX.GT.r_sf) CYCLE
+                    dY = ABS(ShiftedPart(J) - ElemDepo_xGP(J,k,l,m,ElemID))
+                    IF(dY.GT.r_sf) CYCLE
+                    radius2 = dX*dX+dY*dY
+                    !-- calculate charge and current density at ip point using a shape function
+                    !-- currently only one shapefunction available, more to follow (including structure change)
+                    IF (radius2 .LT. r2_sf) THEN
+                      S = 1. - r2_sf_inv * radius2
+                    !radius2=GaussDistance(k,l,m)
+                    !IF (radius2 .LT. 1.0) THEN
+                    !  S = 1 -  radius2
+                      S1 = S*S
+                      DO expo = 3, alpha_sf
+                        S1 = S*S1
+                      END DO
+                      PartSource(1:3,k,l,m,ElemID) = PartSource(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+                      PartSource( 4 ,k,l,m,ElemID) = PartSource( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                    END IF
+                  END DO; END DO; END DO
+                END IF ! DepoLoc
                 chargedone(ElemID) = .TRUE.
               END IF
             END DO ! ppp
