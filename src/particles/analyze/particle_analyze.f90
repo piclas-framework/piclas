@@ -526,6 +526,7 @@ REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpec
 REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 REAL                :: MeanFreePath
+REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
 #ifdef MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
@@ -542,7 +543,6 @@ CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
 #endif
 CHARACTER(LEN=350)  :: hilf
-REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -889,19 +889,6 @@ INTEGER             :: dir
         ETotal = ETotal - totalChemEnergySum
       END IF
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-    IF(DSMC%CalcQualityFactors) THEN
-      MeanFreePath = 0.0
-#ifdef MPI
-      IF((iter.GT.0).AND.PartMPI%MPIRoot) THEN
-#else
-      IF((iter.GT.0)) THEN
-#endif
-        IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpec(1:nSpecies), NumSpec(nSpecAnalyze), &
-                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
-      END IF
-    END IF
-#endif
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
@@ -909,14 +896,27 @@ INTEGER             :: dir
   IF(DSMC%CalcQualityFactors) THEN
     MaxCollProb = 0.0
     MeanCollProb = 0.0
+    MeanFreePath = 0.0
+    IF(BGGas%BGGasSpecies.NE.0) THEN
+      ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
+      ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
+      NumSpecTmp = NumSpec
+      NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+      IF(nSpecAnalyze.GT.1)THEN
+        NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
+      END IF
+    END IF
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+      IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
+                                                          GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
     END IF
   END IF
 #else
   MaxCollProb = 0.0
   MeanCollProb = 0.0
+  MeanFreePath = 0.0
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
@@ -989,13 +989,6 @@ INTEGER             :: dir
   IF(CalcCollRates) CALL CollRates(CRate)
   IF(CalcReacRates) THEN
     IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      NumSpecTmp = NumSpec
-      IF(BGGas%BGGasSpecies.NE.0) THEN
-        NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
-        IF(nSpecAnalyze.GT.1)THEN
-          NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
-        END IF
-      END IF
       CALL ReacRates(RRate, NumSpecTmp, iter)
     END IF
   END IF
