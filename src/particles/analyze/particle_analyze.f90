@@ -491,15 +491,14 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
+USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
