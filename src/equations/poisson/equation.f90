@@ -210,7 +210,7 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: r1,r2
-REAL                            :: r_2D,r_3D,varphi,r_bary
+REAL                            :: r_2D,r_3D,r_bary
 REAL                            :: cos_theta
 REAL                            :: eps1,eps2
 !===================================================================================================================================

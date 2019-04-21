@@ -274,9 +274,9 @@ REAL                :: FAST_RELATIVISTIC_PUSH(1:3) ! The stamp
 ! LOCAL VARIABLES
 REAL                :: velosq, LorentzFac,qmt
 REAL                :: E(1:3),Pt(1:3)
-!#if (PP_nVar==8)
+#if (PP_nVar==8)
 REAL                :: B(1:3)
-!#endif
+#endif
 REAL                :: LorentzFac2,LorentzFac3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
 
