@@ -117,7 +117,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 ! Building of pairs for the background gas
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn
+  USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
   USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
@@ -166,6 +167,17 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
   ELSE
     BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+  END IF
+
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+    ! 3. Case: Temperature required for the mean free path with the VHS model
+    ! Instead of calculating the translation temperature, simply the input value of the BG gas is taken. If the other species have
+    ! an impact on the temperature, a background gas should not be utilized in the first place.
+    DSMC%InstantTransTemp(nSpecies+1) = Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC
+    IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
 
   CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
