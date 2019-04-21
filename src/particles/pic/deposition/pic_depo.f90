@@ -170,9 +170,10 @@ END IF
 
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-  r_sf     = GETREAL('PIC-shapefunction-radius')
-  alpha_sf = GETINT('PIC-shapefunction-alpha')
-  DoSFEqui = GETLOGICAL('PIC-shapefunction-equi')
+  r_sf                  = GETREAL('PIC-shapefunction-radius')
+  alpha_sf              = GETINT('PIC-shapefunction-alpha')
+  DoSFEqui              = GETLOGICAL('PIC-shapefunction-equi')
+  DoSFLocalDepoAtBounds = GETLOGICAL('PIC-shapefunction-local-depo-BC')
   r2_sf = r_sf * r_sf  ! Radius squared
   r2_sf_inv = 1./r2_sf ! Inverse of radius squared
 END IF

@@ -33,87 +33,90 @@ LOGICAL             :: ParticleMeshInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! periodic case
-INTEGER, ALLOCATABLE                     :: casematrix(:,:)                  ! matrix to compute periodic cases
-INTEGER                                  :: NbrOfCases                       ! Number of periodic cases
+INTEGER, ALLOCATABLE                     :: casematrix(:,:)   ! matrix to compute periodic cases
+INTEGER                                  :: NbrOfCases        ! Number of periodic cases
 
 
 ! general: periodic sides have to be Cartesian
-INTEGER,ALLOCATABLE :: SidePeriodicType(:)                                                ! 1:nTotalSides, periodic type of side
-                                                                                          ! 0 - normal or BC side
-                                                                                          ! >0 type of periodic displacement
-REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                                      ! displacement vector
-                                                                                          
-INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                              ! extended list: 1:2,1:6,1:nTotalElems
-                                                                                          ! ElemToSide: my geometry + halo
-                                                                                          ! geometry + halo information
-                                                                                          
+INTEGER,ALLOCATABLE :: SidePeriodicType(:)                    ! 1:nTotalSides, periodic type of side
+                                                              ! 0 - normal or BC side
+                                                              ! >0 type of periodic displacement
+REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)          ! displacement vector
+                                                              
+INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                  ! extended list: 1:2,1:6,1:nTotalElems
+                                                              ! ElemToSide: my geometry + halo
+                                                              ! geometry + halo information
+                                                              
 
-INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                                                ! extended list: 1:5,1:6,1:nTotalSides
-                                                                                          ! SideToElem: my geometry + halo
-                                                                                          ! geometry + halo information
+INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                    ! extended list: 1:5,1:6,1:nTotalSides
+                                                              ! SideToElem: my geometry + halo
+                                                              ! geometry + halo information
 
-INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)                                      ! Mapping from ElemToElem
-                                                                                          ! 1:4,1:6,1:nTotalElems
-                                                                                          ! now in global-elem-ids !!!
-INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)                               ! Mapping from ElemToElem
-                                                                                          ! 1:8,1:6,1:nTotalElems
-                                                                                          ! [1]1:4 - MortarNeighborElemID
-                                                                                          ! [1]5:8 -       Neighbor locSideID
-                                                                                          ! [2]1:6 - locSideID
-                                                                                          ! [3]    - nTotalElems 
-                                                                                          ! now in global-elem-ids !!!
-INTEGER             :: nPartSides                                                         ! nPartSides - nSides+nPartPeriodicSides
-INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
-INTEGER             :: nPartPeriodicSides                                                 ! total nb. of sides (my+halo)
-INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
-INTEGER             :: nTotalNodes                                                        ! total nb. of nodes (my+halo)
+INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)          ! Mapping from ElemToElem
+                                                              ! 1:4,1:6,1:nTotalElems
+                                                              ! now in global-elem-ids !!!
+INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)   ! Mapping from ElemToElem
+                                                              ! 1:8,1:6,1:nTotalElems
+                                                              ! [1]1:4 - MortarNeighborElemID
+                                                              ! [1]5:8 -       Neighbor locSideID
+                                                              ! [2]1:6 - locSideID
+                                                              ! [3]    - nTotalElems 
+                                                              ! now in global-elem-ids !!!
+INTEGER             :: nPartSides                             ! nPartSides - nSides+nPartPeriodicSides
+INTEGER             :: nTotalSides                            ! total nb. of sides (my+halo)
+INTEGER             :: nPartPeriodicSides                     ! total nb. of sides (my+halo)
+INTEGER             :: nTotalElems                            ! total nb. of elems (my+halo)
+INTEGER             :: nTotalNodes                            ! total nb. of nodes (my+halo)
 
-INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                                             ! number of local element boundary faces 
-                                                                                          ! used for tracing (connected to element)
-INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                                             ! total number of element boundary faces 
-                                                                                          ! used for tracing (loc faces + other 
-                                                                                          ! element faces that are possibly reached)
-LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                                                 ! is an elem with BC sides for tracing
-                                                                                          ! or BC in halo-eps distance to BC
+INTEGER,ALLOCATABLE :: TracingBCInnerSides(:)                 ! number of local element boundary faces 
+                                                              ! used for tracing (connected to element)
+INTEGER,ALLOCATABLE :: TracingBCTotalSides(:)                 ! total number of element boundary faces 
+                                                              ! used for tracing (loc faces + other 
+                                                              ! element faces that are possibly reached)
+LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                     ! is an elem with BC sides for tracing
+                                                              ! or BC in halo-eps distance to BC
+
+LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
+                                                              ! would result in the truncation of the shape function at the boundary.
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
-INTEGER             :: nTotalBCElems                                                      ! total number of bc elems (my+halo)
-INTEGER,ALLOCATABLE :: PartBCSideList(:)                                                  ! mapping from SideID to BCSideID
+INTEGER             :: nTotalBCSides                          ! total number of BC sides (my+halo)
+INTEGER             :: nTotalBCElems                          ! total number of bc elems (my+halo)
+INTEGER,ALLOCATABLE :: PartBCSideList(:)                      ! mapping from SideID to BCSideID
 
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                                 ! element local basis vector (linear elem)
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis                             ! inverse of length of basis vector
-REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                                 ! radius of element 
-REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo                                ! radius of element + 2% tolerance
-INTEGER                                 :: RefMappingGuess                                ! select guess for mapping into reference
-                                                                                          ! element
-                                                                                          ! 1 - Linear, cubical element
-                                                                                          ! 2 - closest Gauss-Point
-                                                                                          ! 3 - closest XCL-point
-                                                                                          ! 4 - trivial guess - element origin
-REAL                                    :: RefMappingEps                                  ! tolerance for Netwton to get xi from X
-REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
-                                                                                          ! inside of ref element
-REAL,ALLOCATABLE                        :: epsOneCell(:)                                  ! tolerance for particle in 
-                                                                                          ! inside ref element 1+epsinCell
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis     ! element local basis vector (linear elem)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis ! inverse of length of basis vector
+REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo     ! radius of element 
+REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo    ! radius of element + 2% tolerance
+INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
+                                                              ! element
+                                                              ! 1 - Linear, cubical element
+                                                              ! 2 - closest Gauss-Point
+                                                              ! 3 - closest XCL-point
+                                                              ! 4 - trivial guess - element origin
+REAL                                    :: RefMappingEps      ! tolerance for Netwton to get xi from X
+REAL                                    :: epsInCell          ! tolerance for eps for particle 
+                                                              ! inside of ref element
+REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for particle in 
+                                                              ! inside ref element 1+epsinCell
 
-!LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
+!LOGICAL                                 :: DoRefMapping      ! tracking by mapping particle into reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tFastInitBGM
-  INTEGER                                :: nElem                             ! Number of elements in background mesh cell
-  INTEGER, ALLOCATABLE                   :: Element(:)                        ! List of elements/physical cells in BGM cell
+  INTEGER                                :: nElem             ! Number of elements in background mesh cell
+  INTEGER, ALLOCATABLE                   :: Element(:)        ! List of elements/physical cells in BGM cell
 #ifdef MPI     
-  INTEGER, ALLOCATABLE                   :: ShapeProcs(:)                     ! first Entry: Number of Shapeprocs, 
-                                                                              ! following: ShapeProcs
-  INTEGER, ALLOCATABLE                   :: PaddingProcs(:)                   ! first Entry: Number of Paddingprocs, 
-                                                                              ! following: PaddingProcs
-  INTEGER, ALLOCATABLE                   :: SharedProcs(:)                    ! first Entry: Number of Sharedprocs, 
-                                                                              ! following: SharedProcs
-  !INTEGER                                :: nBCSides                          ! number BC sides in BGM cell
+  INTEGER, ALLOCATABLE                   :: ShapeProcs(:)     ! first Entry: Number of Shapeprocs, 
+                                                              ! following: ShapeProcs
+  INTEGER, ALLOCATABLE                   :: PaddingProcs(:)   ! first Entry: Number of Paddingprocs, 
+                                                              ! following: PaddingProcs
+  INTEGER, ALLOCATABLE                   :: SharedProcs(:)    ! first Entry: Number of Sharedprocs, 
+                                                              ! following: SharedProcs
+  !INTEGER                                :: nBCSides         ! number BC sides in BGM cell
 #endif                     
 END TYPE
 
@@ -124,29 +127,29 @@ TYPE tNodeToElem
 END TYPE
 
 TYPE tGeometry
-  REAL                                   :: xminglob                          ! global minimum x coord of all nodes
-  REAL                                   :: yminglob                          ! global minimum y coord of all nodes
-  REAL                                   :: zminglob                          ! global minimum z coord of all nodes
-  REAL                                   :: xmaxglob                          ! global max x coord of all nodes
-  REAL                                   :: ymaxglob                          ! global max y coord of all nodes
-  REAL                                   :: zmaxglob                          ! global max z coord of all nodes
-  REAL                                   :: xmin                              ! minimum x coord of all nodes
-  REAL                                   :: xmax                              ! maximum x coord of all nodes
-  REAL                                   :: ymin                              ! minimum y coord of all nodes
-  REAL                                   :: ymax                              ! maximum y coord of all nodes
-  REAL                                   :: zmin                              ! minimum z coord of all nodes
-  REAL                                   :: zmax                              ! maximum z coord of all nodes
+  REAL                                   :: xminglob                 ! global minimum x coord of all nodes
+  REAL                                   :: yminglob                 ! global minimum y coord of all nodes
+  REAL                                   :: zminglob                 ! global minimum z coord of all nodes
+  REAL                                   :: xmaxglob                 ! global max x coord of all nodes
+  REAL                                   :: ymaxglob                 ! global max y coord of all nodes
+  REAL                                   :: zmaxglob                 ! global max z coord of all nodes
+  REAL                                   :: xmin                     ! minimum x coord of all nodes
+  REAL                                   :: xmax                     ! maximum x coord of all nodes
+  REAL                                   :: ymin                     ! minimum y coord of all nodes
+  REAL                                   :: ymax                     ! maximum y coord of all nodes
+  REAL                                   :: zmin                     ! minimum z coord of all nodes
+  REAL                                   :: zmax                     ! maximum z coord of all nodes
   ! periodic
-  INTEGER                                :: nPeriodicVectors                  ! Number of periodic Vectors
-  REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)              ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
-  REAL, ALLOCATABLE                      :: PeriodicVectorsLength(:)          ! PeriodicVectorsLength(1:nPeriodicVectors)
-  INTEGER,ALLOCATABLE                    :: DirPeriodicVectors(:)             ! direction of periodic vectors
-  LOGICAL                                :: directions(3)                     ! flag for direction
+  INTEGER                                :: nPeriodicVectors         ! Number of periodic Vectors
+  REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)     ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
+  REAL, ALLOCATABLE                      :: PeriodicVectorsLength(:) ! PeriodicVectorsLength(1:nPeriodicVectors)
+  INTEGER,ALLOCATABLE                    :: DirPeriodicVectors(:)    ! direction of periodic vectors
+  LOGICAL                                :: directions(3)            ! flag for direction
   ! required for cartesian BGM for desposition
-  INTEGER, ALLOCATABLE                   :: PeriodicBGMVectors(:,:)           ! = periodic vectors in backgroundmesh coords
+  INTEGER, ALLOCATABLE                   :: PeriodicBGMVectors(:,:)  ! = periodic vectors in backgroundmesh coords
   ! FIBGM
-  REAL                                   :: FIBGMdeltas(3)                    ! size of background mesh cell for particle init
-  REAL                                   :: FactorFIBGM(3)                    ! scaling factor for FIBGM
+  REAL                                   :: FIBGMdeltas(3)           ! size of background mesh cell for particle init
+  REAL                                   :: FactorFIBGM(3)           ! scaling factor for FIBGM
 
   ! caution, possible pointer
   TYPE (tFastInitBGM),ALLOCATABLE        :: FIBGM(:,:,:)  !        =>NULL()   ! FastInitBackgroundMesh

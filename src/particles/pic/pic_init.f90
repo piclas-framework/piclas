@@ -149,6 +149,10 @@ CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAME
 CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
 CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-local-depo-BC', 'Do not use shape function deposition in elements where a '//&
+                                                                   'boundary would truncate the shape function. Use a local '//&
+                                                                   'deposition in these elements instead of the shape function.'&
+                                                                 , '.FALSE.')
 CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
                                                                  '2D shape function: Perpendicular deposition')
 CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the charge over volume (3D)\n'//&
