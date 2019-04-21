@@ -967,21 +967,23 @@ LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
-    Pt_temp(iPart,1) = PartState(iPart,4) 
-    Pt_temp(iPart,2) = PartState(iPart,5) 
-    Pt_temp(iPart,3) = PartState(iPart,6) 
-    PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4)*b_dt(1)
-    PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
-    PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
-    ! Don't push the velocity component of neutral particles!
-    IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-      Pt_temp(iPart,4) = Pt(iPart,1) 
-      Pt_temp(iPart,5) = Pt(iPart,2) 
-      Pt_temp(iPart,6) = Pt(iPart,3)
-      PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1)*b_dt(1)
-      PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2)*b_dt(1)
-      PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3)*b_dt(1)
-    END IF
+    IF (PDM%ParticleInside(iPart)) THEN
+      Pt_temp(iPart,1) = PartState(iPart,4) 
+      Pt_temp(iPart,2) = PartState(iPart,5) 
+      Pt_temp(iPart,3) = PartState(iPart,6) 
+      PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4)*b_dt(1)
+      PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
+      PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
+      ! Don't push the velocity component of neutral particles!
+      IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        Pt_temp(iPart,4) = Pt(iPart,1) 
+        Pt_temp(iPart,5) = Pt(iPart,2) 
+        Pt_temp(iPart,6) = Pt(iPart,3)
+        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1)*b_dt(1)
+        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2)*b_dt(1)
+        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3)*b_dt(1)
+      END IF
+    END IF ! PDM%ParticleInside(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
@@ -1150,21 +1152,23 @@ DO iStage=2,nRKStages
     LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
     PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     DO iPart=1,PDM%ParticleVecLength
-      Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
-      Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
-      Pt_temp(iPart,3) = PartState(iPart,6) - RK_a(iStage) * Pt_temp(iPart,3)
-      PartState(iPart,1) = PartState(iPart,1) + Pt_temp(iPart,1)*b_dt(iStage)
-      PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
-      PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
-      ! Don't push the velocity component of neutral particles!
-      IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
-        Pt_temp(iPart,4) =        Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
-        Pt_temp(iPart,5) =        Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
-        Pt_temp(iPart,6) =        Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
-        PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)
-        PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)
-        PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)
-      END IF
+      IF (PDM%ParticleInside(iPart)) THEN
+        Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
+        Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
+        Pt_temp(iPart,3) = PartState(iPart,6) - RK_a(iStage) * Pt_temp(iPart,3)
+        PartState(iPart,1) = PartState(iPart,1) + Pt_temp(iPart,1)*b_dt(iStage)
+        PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
+        PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
+        ! Don't push the velocity component of neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+          Pt_temp(iPart,4) =        Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
+          Pt_temp(iPart,5) =        Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
+          Pt_temp(iPart,6) =        Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
+          PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)
+          PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)
+          PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)
+        END IF
+      END IF ! PDM%ParticleInside(iPart)
     END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PUSH,tLBStart)
