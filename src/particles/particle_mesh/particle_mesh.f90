@@ -1402,7 +1402,7 @@ USE MOD_Particle_MPI           ,ONLY: InitHALOMesh
 USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType
+USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1512,10 +1512,12 @@ CALL GetBCElemMap()
 ! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
 ! to be truncated by the boundary: e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
-  IF(PartMPI%MPIROOT)THEN
-     WRITE(UNIT_stdOut,'(A)') ' GetShapeFunctionBCElems ...'
+  IF(DoSFLocalDepoAtBounds)THEN
+    IF(PartMPI%MPIROOT)THEN
+       WRITE(UNIT_stdOut,'(A)') ' GetShapeFunctionBCElems ...'
+    END IF
+    CALL GetShapeFunctionBCElems()
   END IF
-  CALL GetShapeFunctionBCElems()
 END IF
 
 ! Calculate the number of different element and side types (linear, bi-linear, curved, etc.)
