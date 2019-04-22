@@ -895,16 +895,18 @@ INTEGER             :: dir
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
-  IF(DSMC%CalcQualityFactors) THEN
+  IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
+    NumSpecTmp = NumSpec
     IF(BGGas%BGGasSpecies.NE.0) THEN
       ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
-      NumSpecTmp = NumSpec
       NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
       IF(nSpecAnalyze.GT.1)THEN
         NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
       END IF
     END IF
+  END IF
+  IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
