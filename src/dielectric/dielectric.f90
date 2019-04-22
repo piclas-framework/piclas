@@ -233,6 +233,10 @@ IMPLICIT NONE
 INTEGER             :: i,j,k,iDielectricElem
 REAL                :: r
 !===================================================================================================================================
+! Check if there are dielectric elements
+IF(nDielectricElems.LT.1) RETURN
+
+! Allocate field variables
 ALLOCATE(         DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(          DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
