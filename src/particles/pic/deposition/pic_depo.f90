@@ -1360,7 +1360,7 @@ REAL                             :: radius2, S, S1, Fac(4)!, Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
-REAL, ALLOCATABLE                :: BGMSourceCellVol_loc(:,:,:,:)
+REAL                             :: BGMSourceCellVol_loc(0:1,0:1,0:1,1:4)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)!, caseShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
@@ -2204,29 +2204,29 @@ CASE('shape_function_2d')
                 
 
 
+#ifdef MPI
+                nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
 
 
+                !WRITE (*,*) "ElemID =", ElemID
                 
                 DepoLoc=.FALSE.
-                IF(DoSFLocalDepoAtBounds)THEN ! prevent deposition of inner particles near boundaries (prevent cut-off at boundary)
+                ! prevent deposition of inner particles near boundaries (prevent cut-off at boundary)
+                IF(DoSFLocalDepoAtBounds.AND.(ElemID.EQ.PEM%Element(iPart)))THEN
                   IF(IsLocalDepositionBCElem(ElemID))THEN
+                    !write(*,*) "CellVolWeight"
                     DepoLoc=.TRUE. ! required for skipping shape function deposition
+                    !WRITE (*,*) "ElemID, IsLocalDepositionBCElem(ElemID) =", ElemID, IsLocalDepositionBCElem(ElemID)
+                    !read*
 
 
-
-                    !ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
-                    ALLOCATE(BGMSourceCellVol_loc(0:1,0:1,0:1,1:4))
-                    BGMSourceCellVol_loc(:,:,:,:) = 0.0
-                    !DO iPart = firstPart, lastPart
-#if USE_LOADBALANCE
-                    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
+                    BGMSourceCellVol_loc = 0.0
                     IF (usevMPF) THEN
                       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
                     ELSE
                       Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
                     END IF ! usevMPF
-                    !iElem = PEM%Element(iPart)
                     IF(DoRefMapping)THEN
                       TempPartPos(1:3)=PartPosRef(1:3,iPart)
                     ELSE
@@ -2250,15 +2250,7 @@ CASE('shape_function_2d')
                     BGMSourceCellVol_loc(1,0,1,1:4) = BGMSourceCellVol_loc(1,0,1,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
                     BGMSourceCellVol_loc(1,1,0,1:4) = BGMSourceCellVol_loc(1,1,0,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
                     BGMSourceCellVol_loc(1,1,1,1:4) = BGMSourceCellVol_loc(1,1,1,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
-#if USE_LOADBALANCE
-                    CALL LBElemPauseTime(ElemID,tLBStart)
-#endif /*USE_LOADBALANCE*/
-                    !END DO
-
-#if USE_LOADBALANCE
-                    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-                    !DO iElem=1, nElems
+                    
                     BGMSourceCellVol_loc(0,0,0,:) = BGMSourceCellVol_loc(0,0,0,1:4)/CellVolWeight_Volumes(0,0,0,ElemID)
                     BGMSourceCellVol_loc(0,0,1,:) = BGMSourceCellVol_loc(0,0,1,1:4)/CellVolWeight_Volumes(0,0,1,ElemID)
                     BGMSourceCellVol_loc(0,1,0,:) = BGMSourceCellVol_loc(0,1,0,1:4)/CellVolWeight_Volumes(0,1,0,ElemID)
@@ -2267,38 +2259,25 @@ CASE('shape_function_2d')
                     BGMSourceCellVol_loc(1,0,1,:) = BGMSourceCellVol_loc(1,0,1,1:4)/CellVolWeight_Volumes(1,0,1,ElemID)
                     BGMSourceCellVol_loc(1,1,0,:) = BGMSourceCellVol_loc(1,1,0,1:4)/CellVolWeight_Volumes(1,1,0,ElemID)
                     BGMSourceCellVol_loc(1,1,1,:) = BGMSourceCellVol_loc(1,1,1,1:4)/CellVolWeight_Volumes(1,1,1,ElemID)   
-                    !END DO
-#if USE_LOADBALANCE
-                    CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
-#endif /*USE_LOADBALANCE*/
-
-#if USE_LOADBALANCE
-                    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-                    !DO iElem = 1, nElems
+                    
                     DO kkk = 0, PP_N
                       DO lll = 0, PP_N
                         DO mmm = 0, PP_N
                           alpha1 = CellVolWeightFac(kkk)
                           alpha2 = CellVolWeightFac(lll)
                           alpha3 = CellVolWeightFac(mmm)
-                          PartSource(1:4,kkk,lll,mmm,ElemID) =PartSource(1:4,kkk,lll,mmm,ElemID) +&
+                          PartSource(1:4,kkk,lll,mmm,ElemID) =PartSource(1:4,kkk,lll,mmm,ElemID)     + &
                               BGMSourceCellVol_loc(0,0,0,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(0,0,1,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-                              BGMSourceCellVol_loc(0,1,0,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(0,1,1,1:4) * (1-alpha1) * (alpha2) * (alpha3) + &
-                              BGMSourceCellVol_loc(1,0,0,1:4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(1,0,1,1:4) * (alpha1) * (1-alpha2) * (alpha3) + &
-                              BGMSourceCellVol_loc(1,1,0,1:4) * (alpha1) * (alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(1,1,1,1:4) * (alpha1) * (alpha2) * (alpha3)
+                              BGMSourceCellVol_loc(0,0,1,1:4) * (1-alpha1) * (1-alpha2) *   (alpha3) + &
+                              BGMSourceCellVol_loc(0,1,0,1:4) * (1-alpha1) *   (alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(0,1,1,1:4) * (1-alpha1) *   (alpha2) *   (alpha3) + &
+                              BGMSourceCellVol_loc(1,0,0,1:4) *   (alpha1) * (1-alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(1,0,1,1:4) *   (alpha1) * (1-alpha2) *   (alpha3) + &
+                              BGMSourceCellVol_loc(1,1,0,1:4) *   (alpha1) *   (alpha2) * (1-alpha3) + &
+                              BGMSourceCellVol_loc(1,1,1,1:4) *   (alpha1) *   (alpha2) *   (alpha3)
                         END DO !mmm
                       END DO !lll
                     END DO !kkk
-#if USE_LOADBALANCE
-                    CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
-                    !END DO !iEle
-                    DEALLOCATE(BGMSourceCellVol_loc)
 
 
                   END IF
@@ -2309,9 +2288,6 @@ CASE('shape_function_2d')
 
                 ! Shape function deposition
                 IF(.NOT.DepoLoc)THEN
-#ifdef MPI
-                  nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2337,6 +2313,8 @@ CASE('shape_function_2d')
                     END IF
                   END DO; END DO; END DO
                 END IF ! DepoLoc
+
+
                 chargedone(ElemID) = .TRUE.
               END IF
             END DO ! ppp
