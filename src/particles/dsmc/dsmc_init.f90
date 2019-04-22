@@ -249,15 +249,19 @@ CALL prms%CreateIntOption(      'Part-Species[$]-NumOfProtons'  &
 
 CALL prms%SetSection("DSMC Species Polyatomic")
 CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
-                                           ,'Allow usage of polyatomic moleculs?', '.FALSE.', numberedmulti=.TRUE.)
+                                           ,'Allows the usage of polyatomic molecules (3 or more atoms).', '.FALSE.' &
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-LinearMolec'  &
-                                           ,'Flag if it is a linear molecule', '.FALSE.', numberedmulti=.TRUE.)
+                                           ,'Flag if the polyatomic molecule is a linear molecule (e.g. CO2 is linear, while '//&
+                                            'H2O is not.)', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-NumOfAtoms'  &
-                                           ,'Number of Atoms in Molecule', '0', numberedmulti=.TRUE.)
+                                           ,'Number of atoms in the molecule (e.g. CH4 -> 5 atoms).', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
-                                           ,'Characteristic vibrational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Characteristic vibrational temperature [K], given per mode. Degenerate modes should '//&
+                                            'simply be given repeatedly, corresponding to the degeneracy.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
-                                           ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
+                                           ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
+                                            'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Chemistry")
 CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
