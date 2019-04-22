@@ -579,6 +579,14 @@ gnu_integer_kind8:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+
+gnu_PIC_deposition:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -727,6 +735,22 @@ gnu_integer_kind8:
 #     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+# 
+# intel_integer_kind8:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+# 
+# intel_PIC_deposition:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

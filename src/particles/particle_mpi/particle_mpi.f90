@@ -317,8 +317,8 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 !===================================================================================================================================
 ! this routine sends the number of send particles. Following steps are performed
 ! 1) Compute number of Send Particles
-! 2) Performe MPI_ISEND with number of particles
-! Rest is perforemd in SendParticles
+! 2) Perform MPI_ISEND with number of particles
+! Rest is performed in SendParticles
 ! 3) Build Message 
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
@@ -364,6 +364,7 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
+  ! TODO: Info why and under which conditions the following 'CYCLE' is called
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
   ELSE
@@ -400,7 +401,8 @@ IF(DoExternalParts)THEN
     ELSE
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
-    IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE        ! Don't deposite neutral particles!
+    ! Don't deposit neutral external particles!
+    IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
     CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
     CellX = MAX(GEO%FIBGMimin,CellX)
@@ -580,9 +582,9 @@ SUBROUTINE MPIParticleSend()
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is send
+! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is sent
 !          and after the build and wait for number of particles reused to build array with external parts
-!          informations in PartState,.. can be reused, because they are not overwritten
+!          information in PartState,.. can be reused, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2072,7 +2074,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('cuboid')
+    CASE('cuboid','cuboid_sphere')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
