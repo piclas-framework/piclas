@@ -4267,10 +4267,10 @@ DO iElem=1,nTotalElems
       ! Skip BC sides for shape_function_2d
       IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
         ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , SideID)   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , SideID)   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , SideID)   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , SideID) )
+              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
           ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
           IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
               ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
@@ -4305,10 +4305,10 @@ DO iElem=1,nTotalElems
       ! Skip BC sides for shape_function_2d
       IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
         ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , SideID)   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , SideID)   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , SideID)   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , SideID) )
+              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
           ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
           IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
               ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
@@ -4329,8 +4329,14 @@ DO iElem=1,nTotalElems
   SideIndex=0
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    BCSideID2=SideID
-    IF(SideID.GT.0) BCSideID2=PartBCSideList(SideID)
+    !BCSideID2=SideID
+    !IF(SideID.GT.0) BCSideID2=PartBCSideList(SideID)
+    IF(SideID.GT.0)THEN
+      BCSideID2=PartBCSideList(SideID)
+    ELSE
+      BCSideID2=SideID
+    END IF
+
     IF(BCSideID2.GT.0) THEN
       xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
       SELECT CASE(ilocSide)
