@@ -913,8 +913,14 @@ INTEGER             :: dir
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-      IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
-                                                          GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+#ifdef MPI
+      IF (PartMPI%MPIROOT) THEN
+#endif
+        IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
+                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+#ifdef MPI
+      END IF
+#endif
     END IF
   END IF
 #endif
