@@ -1308,7 +1308,7 @@ SUBROUTINE Deposition(doInnerParts,doParticle_In)
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
 ! - nearest blurrycenter (barycenter of hexahedra)
-! - nearest Gauss Point  (only volome of IP - higher resolution than nearest blurrycenter )
+! - nearest Gauss Point  (only volume of IP - higher resolution than nearest blurrycenter )
 ! - shape function       (only one type implemented)
 ! - delta distribution
 ! useVMPF added, therefore, this routine contains automatically the use of variable mpfs
@@ -1326,7 +1326,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases,IsLocalDepositionBCElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
@@ -1356,7 +1356,7 @@ LOGICAL                          :: SAVE_GAUSS
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
 INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: ElemID, iCase, ind
-REAL                             :: radius2, S, S1, Fac(4)!, Fac2(4)
+REAL                             :: radius2, S, S1, Fac(1:4)!, Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
