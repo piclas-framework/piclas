@@ -249,7 +249,7 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! John David Jackson, Classical Electrodynamics, 3rd edition, New York: Wiley, 1999.
   ! E_0       : constant electric field in z-direction far away from sphere
   ! R         : constant radius of the sphere
-  ! eps_outer : dielectric constant of surrouding medium
+  ! eps_outer : dielectric constant of surrounding medium
   ! eps_inner : dielectric constant of sphere
   ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
   

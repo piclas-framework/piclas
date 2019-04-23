@@ -185,8 +185,8 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
+USE MOD_Restart_Vars          ,ONLY: RestartTime
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2086,6 +2086,14 @@ SUBROUTINE CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 ! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
 ! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 ! PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity)
+!
+! Note that the thermal velocity corresponds to the root mean square of the total velocity (in three dimensions), which is given by 
+!
+!      v_th = SQRT(3 * kB * T / m)
+!
+! with kB : Boltzmann's constant
+!      T  : temperature
+!      m  : mass of the particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -3828,7 +3836,8 @@ SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+! OLD METHOD: considering TEnd:
+! USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

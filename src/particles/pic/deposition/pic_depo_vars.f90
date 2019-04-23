@@ -23,9 +23,12 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                               :: DoDeposition       ! flag to switch deposition on/off
+LOGICAL                               :: RelaxDeposition    ! relaxation of current PartSource with RelaxFac into PartSourceOld
+REAL                                  :: RelaxFac
 REAL,ALLOCATABLE                      :: PartSource(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) current and charge density
 LOGICAL                               :: PartSourceConstExists
 REAL,ALLOCATABLE                      :: PartSourceConst(:,:,:,:,:)  ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
+REAL,ALLOCATABLE                      :: PartSourceOld(:,:,:,:,:,:)  ! PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
 REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -42,6 +45,8 @@ REAL                                  :: r_sf0              ! minimal shape func
 REAL                                  :: r_sf_scale         ! scaling of shape function radius
 REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
 INTEGER                               :: sf1d_dir           ! direction of 1D shape function 
+LOGICAL                               :: sfDepo3D           ! when using 1D or 2D deposition, the charge can be deposited over the
+!                                                           ! volume (3D) or line (1D) / area (2D)
 INTEGER                               :: NDepo              ! polynomial degree of delta distri
 REAL,ALLOCATABLE                      :: tempcharge(:)      ! temp-charge for epo. kernal
 REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
