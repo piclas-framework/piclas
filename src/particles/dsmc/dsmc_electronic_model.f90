@@ -103,7 +103,9 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
     CALL RANDOM_NUMBER(iRan2)
   END DO
 #if ( PP_TimeDiscMethod == 42 )
-    SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
+#ifdef CODE_ANALYZE
+  SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
+#endif
 #endif
   PartStateIntEn(iPart,3) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
 END SUBROUTINE InitElectronShell
@@ -133,33 +135,16 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy
 ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
-!#if ( PP_TimeDiscMethod==42 )
-!  INTEGER                       :: iQuaold
-!#endif
 !===================================================================================================================================
   CollisionEnergy = Coll_pData(iPair)%Ec
   iQuaMax  = 0
   ! Determine max electronic quant
   MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
-!#if ( PP_TimeDiscMethod==42 )
-!  iQuaold=0
-!  ! determine old Quant
-!  DO iQua = 0, MaxElecQuant
-!    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
-!      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
-!      iQuaold = iQua
-!    ELSE
-!    ! exit loop
-!      EXIT
-!    END IF
-!  END DO
-!#endif
   ! determine maximal Quant and term according to Eq (7) of Liechty
   gmax = 0.
   PartStateTemp = CollisionEnergy / BoltzmannConst
   DO iQua = 0, MaxElecQuant
-    IF ( PartStateTemp - &
-             SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) .GT. 0. ) THEN
+    IF (PartStateTemp - SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua).GT.0.) THEN
       gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
               ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
       ! maximal possible Quant before term goes negative
@@ -170,6 +155,10 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
       END IF
     END IF
   END DO
+  IF(gmax.LE.0.0) THEN
+    PartStateIntEn(iPart1,3) = 0.0
+    RETURN
+  END IF
   CALL RANDOM_NUMBER(iRan)
   iQua = int( ( iQuaMax +1 ) * iRan)
   gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
@@ -219,19 +208,6 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 #endif
   END IF
 
-!#if (PP_TimeDiscMethod==42)
-!      ! list of number of particles in each energy level
-!  IF (.NOT.DSMC%ReservoirSimuRate) THEN
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
-!    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
-!    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
-!  END IF
-!  ! collision with X resulting in a transition from i to j
-!  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
-!  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
-!                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
-!  END IF
-!#endif
 END SUBROUTINE ElectronicEnergyExchange
 
 
@@ -486,7 +462,12 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
 
-
+  ! Check if the ground state is defined at 0K
+  IF(SpecDSMC(iSpec)%ElectronicState(2,0).NE.0.0) THEN
+    CALL Abort(&
+    __STAMP__,&
+  'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
+  END IF
 
 END SUBROUTINE ReadSpeciesLevel
 
