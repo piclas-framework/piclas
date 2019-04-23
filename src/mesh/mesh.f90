@@ -85,6 +85,8 @@ CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped 
 CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&        
                                                          "| only perpendicular to z axis",&
                                                       '.FALSE.')
+CALL prms%CreateLogicalOption( 'CalcMeshInfo',         "Calculate and output elem data for myrank, ElemID and tracking info",&
+                                                      '.TRUE.')
 CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
                                                       "free-stream preservation is only guaranteed for N=3*NGeo.",&
                                                       '.FALSE.')
@@ -114,7 +116,7 @@ USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Metrics                ,ONLY: CalcMetrics
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt
+USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,CalcMeshInfo
 USE MOD_Mappings               ,ONLY: InitMappings
 #ifdef PARTICLES
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh,InitParticleGeometry
@@ -387,7 +389,7 @@ SurfLoc=0.
 #endif /*maxwell*/
 
 ! PoyntingVecIntegral
-CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -435,14 +437,20 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
-CALL AddToElemData(ElementOut,'myRank',IntScalar=MyRank)
-#ifdef PARTICLES
-ALLOCATE(ElemGlobalID(1:nElems))
-DO iElem=1,nElems
-  ElemGlobalID(iElem)=OffsetElem+iElem
-END DO ! iElem=1,nElems
-CALL AddToElemData(ElementOut,'ElemID',LongIntArray=ElemGlobalID)
-#endif /*PARTICLES*/
+
+! Output of myrank, ElemID and tracking info
+CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
+
+IF(CalcMeshInfo)THEN
+  CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
+  !#ifdef PARTICLES
+  ALLOCATE(ElemGlobalID(1:nElems))
+  DO iElem=1,nElems
+    ElemGlobalID(iElem)=OffsetElem+iElem
+  END DO ! iElem=1,nElems
+  CALL AddToElemData(ElementOut,'ElemID',LongIntArray=ElemGlobalID)
+  !#endif /*PARTICLES*/
+END IF
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'

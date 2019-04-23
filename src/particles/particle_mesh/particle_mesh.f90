@@ -3898,6 +3898,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: RefMappingEps,epsOneCell
 USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps,halo_eps2
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -4168,11 +4169,16 @@ IF(DoRefMapping)THEN
     TracingBCInnerSides(iElem) = BCElem(iElem)%nInnerSides
     TracingBCTotalSides(iElem) = BCElem(iElem)%lastSide
   END DO ! iElem
-  CALL AddToElemData(ElementOut,'TracingBCInnerSides',IntArray=TracingBCInnerSides(1:nElems))
-  CALL AddToElemData(ElementOut,'TracingBCTotalSides',IntArray=TracingBCTotalSides(1:nElems))
+
+  IF(CalcMeshInfo)THEN
+    CALL AddToElemData(ElementOut,'TracingBCInnerSides',IntArray=TracingBCInnerSides(1:nElems))
+    CALL AddToElemData(ElementOut,'TracingBCTotalSides',IntArray=TracingBCTotalSides(1:nElems))
+  END IF
 END IF
 
-CALL AddToElemData(ElementOut,'IsTracingBCElem'    ,LogArray=IsTracingBCElem(    1:nElems))
+IF(CalcMeshInfo)THEN
+  CALL AddToElemData(ElementOut,'IsTracingBCElem'    ,LogArray=IsTracingBCElem(    1:nElems))
+END IF
 
 ! finally, build epsonecell per element
 IF(DoRefMapping)THEN
@@ -4193,7 +4199,10 @@ END DO ! iElem=1,nLoop
 DO iElem=PP_nElems+1,nLoop
   epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
 END DO ! iElem=1,nLoop
-CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
+
+IF(CalcMeshInfo)THEN
+  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
+END IF
 
 END SUBROUTINE GetBCElemMap
 
@@ -4209,7 +4218,7 @@ SUBROUTINE GetShapeFunctionBCElems()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,nSides,NGeo,nBCSides,nElems
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems!,nSides,nBCSides
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
@@ -4258,65 +4267,59 @@ IF(halo_eps.LT.r_sf)THEN
   SWRITE(UNIT_StdOut,'(132("*"))')
 END IF
 
-
-! 1.   Check local BC sides:  mark elements as bc element if they have a local-BC side (skip periodic sides)
-DO iElem=1,nTotalElems
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF (SideID.LE.0) CYCLE
-    IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
-      IF(SidePeriodicType(SideID).NE.0) CYCLE ! skip periodic sides
-      ! Skip BC sides for shape_function_2d
-      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-        ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
-          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-        END ASSOCIATE
-      END IF
-      IsLocalDepositionBCElem(iElem)=.TRUE.
-    END IF
-  END DO ! ilocSide
-END DO ! iElem
-
-ALLOCATE( SideIndex(1:nTotalSides) )
-
-
-
-
-
-
+!    ! 1.   Check local BC sides:  mark elements as bc element if they have a local-BC side (skip periodic sides)
+!    DO iElem=1,nTotalElems
+!      DO ilocSide=1,6
+!        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!        IF (SideID.LE.0) CYCLE
+!        IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+!          IF(SidePeriodicType(SideID).NE.0) CYCLE ! skip periodic sides
+!          ! Skip BC sides for shape_function_2d
+!          IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+!            ASSOCIATE ( &
+!                  x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+!                  x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+!                  x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+!                  x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+!              ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+!              IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+!                  ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+!                  ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+!            END ASSOCIATE
+!          END IF
+!          IsLocalDepositionBCElem(iElem)=.TRUE.
+!        END IF
+!      END DO ! ilocSide
+!    END DO ! iElem
 
 ! 2.   Check halo BC sides: each element requires only the sides in its halo region
+ALLOCATE( SideIndex(1:nTotalSides) )
 DO iElem=1,nTotalElems
 
-  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! identified in previous step
+  !   IF(IsLocalDepositionBCElem(iElem)) CYCLE ! identified in previous step
 
   ! mark my sides
   BCElemSF=.FALSE.
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
     IF(SideID.LE.0)                   CYCLE
-    IF(PartBCSideList(SideID).EQ.-1)  CYCLE
-    IF(SidePeriodicType(SideID).NE.0) CYCLE ! skip periodic sides
-      ! Skip BC sides for shape_function_2d
-      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
-        ASSOCIATE ( &
-              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
-              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
-              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
-              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
-          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
-          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
-              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
-        END ASSOCIATE
-      END IF
+    IF(PartBCSideList(SideID).EQ.-1)  CYCLE ! Skip non-BC sides
+    IF(SidePeriodicType(SideID).NE.0) CYCLE ! Skip periodic-BC sides
+    !IF(SideID.GT.nBCSides)            CYCLE ! Skip non-BC sides -> already done in PartBCSideList(SideID).EQ.-1 ?
+
+    ! Skip BC sides for shape_function_2d
+    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+      ASSOCIATE ( &
+            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+      END ASSOCIATE
+    END IF
     IsLocalDepositionBCElem(iElem)=.TRUE.
     EXIT
   END DO ! ilocSide=1,6
@@ -4379,10 +4382,9 @@ DO iElem=1,nTotalElems
     END IF
     DO iSide=1,nTotalSides
       BCSideID=PartBCSideList(iSide) ! only bc sides
-      IF(BCSideID.EQ.-1)                             CYCLE
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! ignore sides of the same element
-      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! skip periodic sides. Note that side = iSide and not BCSideID
-
+      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Ignore sides of the same element
+      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
 
       ! Skip BC sides for shape_function_2d
       IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
@@ -4418,7 +4420,7 @@ DO iElem=1,nTotalElems
                 IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
                   IF(SideIndex(iSide).EQ.0)THEN
                     BCElemSF=.TRUE.
-                    SideIndex(iSide)=999 ! mark with number .NE. 0
+                    SideIndex(iSide)=1 ! mark with number .NE. 0
                     leave=.TRUE.
                     EXIT
                   END IF
@@ -4434,6 +4436,7 @@ DO iElem=1,nTotalElems
       END IF ! SideIndex(iSide).EQ.0
     END DO ! iSide=1,nTotalSides
   END DO ! ilocSide=1,6
+
   ! set true, only required for elements without an own bc side
   IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
 END DO ! iElem=1,nTotalElems

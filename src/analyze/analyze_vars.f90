@@ -28,6 +28,7 @@ REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
+LOGICAL           :: CalcMeshInfo                !< calulate and output myrank, ElemID and tracking info
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
 REAL              :: PoyntingIntPlaneFactor      !< factor for poyntingintplanes
 INTEGER           :: nPoyntingIntPlanes          !< number of planes
