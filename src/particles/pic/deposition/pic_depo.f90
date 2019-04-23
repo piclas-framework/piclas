@@ -1318,16 +1318,16 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
-USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Interpolation_Vars,     ONLY:wGP
-USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
-USE MOD_Eval_xyz,               ONLY:GetPositionInRefElem
-USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases,IsLocalDepositionBCElem
-USE MOD_TimeDisc_Vars,          ONLY:dtWeight
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Mesh_Vars              ,ONLY: nElems, Elem_xGP, sJ
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars     ,ONLY: wGP
+USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolynomial
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases,IsLocalDepositionBCElem
+USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -1354,13 +1354,12 @@ INTEGER                          :: i,j, k, l, m, iElem, iPart, iPart2, iSFfix
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax
-INTEGER                          :: kk, ll, mm, ppp, kkk,lll,mmm
+INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: ElemID, iCase, ind
 REAL                             :: radius2, S, S1, Fac(4)!, Fac2(4)
 REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
-REAL                             :: BGMSourceCellVol_loc(0:1,0:1,0:1,1:4)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)!, caseShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
@@ -2201,90 +2200,11 @@ CASE('shape_function_2d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-                
-
-
 #ifdef MPI
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
 #endif /*MPI*/
-
-
-                !WRITE (*,*) "ElemID =", ElemID
-                
-                DepoLoc=.FALSE.
-                ! prevent deposition of inner particles near boundaries (prevent cut-off at boundary)
-                IF(DoSFLocalDepoAtBounds.AND.(ElemID.EQ.PEM%Element(iPart)))THEN
-                  IF(IsLocalDepositionBCElem(ElemID))THEN
-                    !write(*,*) "CellVolWeight"
-                    DepoLoc=.TRUE. ! required for skipping shape function deposition
-                    !WRITE (*,*) "ElemID, IsLocalDepositionBCElem(ElemID) =", ElemID, IsLocalDepositionBCElem(ElemID)
-                    !read*
-
-
-                    BGMSourceCellVol_loc = 0.0
-                    IF (usevMPF) THEN
-                      Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-                    ELSE
-                      Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
-                    END IF ! usevMPF
-                    IF(DoRefMapping)THEN
-                      TempPartPos(1:3)=PartPosRef(1:3,iPart)
-                    ELSE
-                      CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,ElemID,ForceMode=.TRUE.)
-                    END IF
-                    TSource(:) = 0.0
-                    !#if (PP_nVar==8)
-                    TSource(1) = PartState(iPart,4)*Charge
-                    TSource(2) = PartState(iPart,5)*Charge
-                    TSource(3) = PartState(iPart,6)*Charge
-                    !#endif
-                    TSource(4) = Charge
-                    alpha1=(TempPartPos(1)+1.0)/2.0
-                    alpha2=(TempPartPos(2)+1.0)/2.0
-                    alpha3=(TempPartPos(3)+1.0)/2.0
-                    BGMSourceCellVol_loc(0,0,0,1:4) = BGMSourceCellVol_loc(0,0,0,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-                    BGMSourceCellVol_loc(0,0,1,1:4) = BGMSourceCellVol_loc(0,0,1,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
-                    BGMSourceCellVol_loc(0,1,0,1:4) = BGMSourceCellVol_loc(0,1,0,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
-                    BGMSourceCellVol_loc(0,1,1,1:4) = BGMSourceCellVol_loc(0,1,1,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
-                    BGMSourceCellVol_loc(1,0,0,1:4) = BGMSourceCellVol_loc(1,0,0,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
-                    BGMSourceCellVol_loc(1,0,1,1:4) = BGMSourceCellVol_loc(1,0,1,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
-                    BGMSourceCellVol_loc(1,1,0,1:4) = BGMSourceCellVol_loc(1,1,0,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
-                    BGMSourceCellVol_loc(1,1,1,1:4) = BGMSourceCellVol_loc(1,1,1,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
-                    
-                    BGMSourceCellVol_loc(0,0,0,:) = BGMSourceCellVol_loc(0,0,0,1:4)/CellVolWeight_Volumes(0,0,0,ElemID)
-                    BGMSourceCellVol_loc(0,0,1,:) = BGMSourceCellVol_loc(0,0,1,1:4)/CellVolWeight_Volumes(0,0,1,ElemID)
-                    BGMSourceCellVol_loc(0,1,0,:) = BGMSourceCellVol_loc(0,1,0,1:4)/CellVolWeight_Volumes(0,1,0,ElemID)
-                    BGMSourceCellVol_loc(0,1,1,:) = BGMSourceCellVol_loc(0,1,1,1:4)/CellVolWeight_Volumes(0,1,1,ElemID)
-                    BGMSourceCellVol_loc(1,0,0,:) = BGMSourceCellVol_loc(1,0,0,1:4)/CellVolWeight_Volumes(1,0,0,ElemID)
-                    BGMSourceCellVol_loc(1,0,1,:) = BGMSourceCellVol_loc(1,0,1,1:4)/CellVolWeight_Volumes(1,0,1,ElemID)
-                    BGMSourceCellVol_loc(1,1,0,:) = BGMSourceCellVol_loc(1,1,0,1:4)/CellVolWeight_Volumes(1,1,0,ElemID)
-                    BGMSourceCellVol_loc(1,1,1,:) = BGMSourceCellVol_loc(1,1,1,1:4)/CellVolWeight_Volumes(1,1,1,ElemID)   
-                    
-                    DO kkk = 0, PP_N
-                      DO lll = 0, PP_N
-                        DO mmm = 0, PP_N
-                          alpha1 = CellVolWeightFac(kkk)
-                          alpha2 = CellVolWeightFac(lll)
-                          alpha3 = CellVolWeightFac(mmm)
-                          PartSource(1:4,kkk,lll,mmm,ElemID) =PartSource(1:4,kkk,lll,mmm,ElemID)     + &
-                              BGMSourceCellVol_loc(0,0,0,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(0,0,1,1:4) * (1-alpha1) * (1-alpha2) *   (alpha3) + &
-                              BGMSourceCellVol_loc(0,1,0,1:4) * (1-alpha1) *   (alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(0,1,1,1:4) * (1-alpha1) *   (alpha2) *   (alpha3) + &
-                              BGMSourceCellVol_loc(1,0,0,1:4) *   (alpha1) * (1-alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(1,0,1,1:4) *   (alpha1) * (1-alpha2) *   (alpha3) + &
-                              BGMSourceCellVol_loc(1,1,0,1:4) *   (alpha1) *   (alpha2) * (1-alpha3) + &
-                              BGMSourceCellVol_loc(1,1,1,1:4) *   (alpha1) *   (alpha2) *   (alpha3)
-                        END DO !mmm
-                      END DO !lll
-                    END DO !kkk
-
-
-                  END IF
-                END IF ! IsLocalDepositionBCElem(ElemID)
-
-
-
+                ! Check whether the SF particle has to be locally deposited (set DepoLoc=T/F)
+                CALL DepoSFParticleLocally(DepoLoc,ElemID,iPart)
 
                 ! Shape function deposition
                 IF(.NOT.DepoLoc)THEN
@@ -3088,6 +3008,119 @@ END SELECT
 
 RETURN
 END SUBROUTINE Deposition
+
+
+!==================================================================================================================================
+!> Check whether a particle is inside of a local deposition element, where instead of the shape function, a local deposition method
+!> is used.
+!==================================================================================================================================
+SUBROUTINE DepoSFParticleLocally(DepoLoc,ElemID,PartID) 
+! MODULES                                                                                                                          !
+USE MOD_PreProc
+USE MOD_PICDepo_Vars           ,ONLY: DoSFLocalDepoAtBounds,CellVolWeight_Volumes,cellvolweightfac,PartSource
+USE MOD_Particle_Vars          ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars     ,ONLY: IsLocalDepositionBCElem
+USE MOD_Particle_Vars          ,ONLY: PartState,PartPosRef,PartSpecies,Species,PartMPF,usevMPF
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: ElemID  !< Element ID
+INTEGER,INTENT(IN)  :: PartID  !< Particle ID
+LOGICAL,INTENT(OUT) :: DepoLoc !< Returns true when particle is deposited locally, else returns false
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: BGMSourceCellVol_loc(0:1,0:1,0:1,1:4)
+REAL                :: Charge, TSource(1:4), alpha1, alpha2, alpha3, temppartpos(1:3)
+INTEGER             :: k,l,m
+!===================================================================================================================================
+
+! =============================
+! Workflow:
+!
+!  1.  Check if local deposition is used. If not: return
+!  2.  Check Check if particle is inside of a local deposition element and if the current element is the same
+!  3.  Local deposition via cell vol weight method
+!==============================
+
+! 1.  Check if local deposition is used. If not: return
+IF(.NOT.DoSFLocalDepoAtBounds)THEN
+  DepoLoc=.FALSE.
+  RETURN
+END IF
+
+! 2.  Check Check if particle is inside of a local deposition element and if the current element is the same
+IF(IsLocalDepositionBCElem(PEM%Element(PartID)))THEN ! Particle element is a local deposition element
+  DepoLoc=.TRUE.
+  ! Check if particle is NOT in current element to prevent deposition in neighboring elements.
+  IF(ElemID.NE.PEM%Element(PartID)) RETURN
+ELSE ! Particle element is NOT a local deposition element: perform deposition via shape function
+  DepoLoc=.FALSE.
+  RETURN
+END IF
+
+! 3.  Local deposition via cell vol weight method
+BGMSourceCellVol_loc = 0.0
+IF (usevMPF) THEN
+  Charge= Species(PartSpecies(PartID))%ChargeIC * PartMPF(PartID)
+ELSE
+  Charge= Species(PartSpecies(PartID))%ChargeIC * Species(PartSpecies(PartID))%MacroParticleFactor 
+END IF ! usevMPF
+IF(DoRefMapping)THEN
+  TempPartPos(1:3)=PartPosRef(1:3,PartID)
+ELSE
+  CALL GetPositionInRefElem(PartState(PartID,1:3),TempPartPos,ElemID,ForceMode=.TRUE.)
+END IF
+TSource(:) = 0.0
+!#if (PP_nVar==8)
+TSource(1) = PartState(PartID,4)*Charge
+TSource(2) = PartState(PartID,5)*Charge
+TSource(3) = PartState(PartID,6)*Charge
+!#endif
+TSource(4) = Charge
+alpha1=(TempPartPos(1)+1.0)/2.0
+alpha2=(TempPartPos(2)+1.0)/2.0
+alpha3=(TempPartPos(3)+1.0)/2.0
+BGMSourceCellVol_loc(0,0,0,1:4) = BGMSourceCellVol_loc(0,0,0,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+BGMSourceCellVol_loc(0,0,1,1:4) = BGMSourceCellVol_loc(0,0,1,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+BGMSourceCellVol_loc(0,1,0,1:4) = BGMSourceCellVol_loc(0,1,0,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+BGMSourceCellVol_loc(0,1,1,1:4) = BGMSourceCellVol_loc(0,1,1,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+BGMSourceCellVol_loc(1,0,0,1:4) = BGMSourceCellVol_loc(1,0,0,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+BGMSourceCellVol_loc(1,0,1,1:4) = BGMSourceCellVol_loc(1,0,1,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
+BGMSourceCellVol_loc(1,1,0,1:4) = BGMSourceCellVol_loc(1,1,0,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
+BGMSourceCellVol_loc(1,1,1,1:4) = BGMSourceCellVol_loc(1,1,1,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
+
+BGMSourceCellVol_loc(0,0,0,:) = BGMSourceCellVol_loc(0,0,0,1:4)/CellVolWeight_Volumes(0,0,0,ElemID)
+BGMSourceCellVol_loc(0,0,1,:) = BGMSourceCellVol_loc(0,0,1,1:4)/CellVolWeight_Volumes(0,0,1,ElemID)
+BGMSourceCellVol_loc(0,1,0,:) = BGMSourceCellVol_loc(0,1,0,1:4)/CellVolWeight_Volumes(0,1,0,ElemID)
+BGMSourceCellVol_loc(0,1,1,:) = BGMSourceCellVol_loc(0,1,1,1:4)/CellVolWeight_Volumes(0,1,1,ElemID)
+BGMSourceCellVol_loc(1,0,0,:) = BGMSourceCellVol_loc(1,0,0,1:4)/CellVolWeight_Volumes(1,0,0,ElemID)
+BGMSourceCellVol_loc(1,0,1,:) = BGMSourceCellVol_loc(1,0,1,1:4)/CellVolWeight_Volumes(1,0,1,ElemID)
+BGMSourceCellVol_loc(1,1,0,:) = BGMSourceCellVol_loc(1,1,0,1:4)/CellVolWeight_Volumes(1,1,0,ElemID)
+BGMSourceCellVol_loc(1,1,1,:) = BGMSourceCellVol_loc(1,1,1,1:4)/CellVolWeight_Volumes(1,1,1,ElemID)   
+
+DO k = 0, PP_N
+  DO l = 0, PP_N
+    DO m = 0, PP_N
+      alpha1 = CellVolWeightFac(k)
+      alpha2 = CellVolWeightFac(l)
+      alpha3 = CellVolWeightFac(m)
+      PartSource(1:4,k,l,m,ElemID) =PartSource(1:4,k,l,m,ElemID)     + &
+          BGMSourceCellVol_loc(0,0,0,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+          BGMSourceCellVol_loc(0,0,1,1:4) * (1-alpha1) * (1-alpha2) *   (alpha3) + &
+          BGMSourceCellVol_loc(0,1,0,1:4) * (1-alpha1) *   (alpha2) * (1-alpha3) + &
+          BGMSourceCellVol_loc(0,1,1,1:4) * (1-alpha1) *   (alpha2) *   (alpha3) + &
+          BGMSourceCellVol_loc(1,0,0,1:4) *   (alpha1) * (1-alpha2) * (1-alpha3) + &
+          BGMSourceCellVol_loc(1,0,1,1:4) *   (alpha1) * (1-alpha2) *   (alpha3) + &
+          BGMSourceCellVol_loc(1,1,0,1:4) *   (alpha1) *   (alpha2) * (1-alpha3) + &
+          BGMSourceCellVol_loc(1,1,1,1:4) *   (alpha1) *   (alpha2) *   (alpha3)
+    END DO !m
+  END DO !l
+END DO !k
+
+
+END SUBROUTINE DepoSFParticleLocally
 
 
 #ifndef MPI
