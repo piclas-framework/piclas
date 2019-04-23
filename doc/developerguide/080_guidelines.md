@@ -2,15 +2,65 @@
 
 # Development guidelines \label{chap:guidelines}
 
-This chapter contains information regarding the development process and other issues concerning Git (GitLab/GitHub).
+Code development is performed on the GitLab platform, with the protected `master` and `master.dev` branches. The actual development is performed on feature branches, which can be merged to `master.dev` following a merge request. After a successful pass of the nightly and weekly regression test, the `master.dev` can be merged into the `master`. A merge of the `master.dev` to the `master` should be associated with a release tag, where the changes to previous version are summarized.
+
+In the following the envisioned development process, code style guidelines, the release & deploy procedure as well as other developer relevant issues are discussed.
 
 ## Development process
+Issues are created for bugs, improvements, features, regression testing and documentation. The issues should be named with a few keywords. Try to avoid describing the complete issue already in the title. The issue can be assigned to a certain milestone (if appropriate).
 
-Naming convention for branches, workflow for development, milestones etc.
+Milestones are created based on planned releases (e.g. Release 1.2.1) or as a grouping of multiple related issues (e.g. Documentation Version 1, Clean-up Emission Routines). A deadline can be given if applicable. The milestone should contain a short summary of the work performed (bullet-points) as its contents will be added to the description of the releases. Generally, merge requests should be associated with a milestone containing a release tag, while issues should be associated with the grouping milestones.
 
-After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master.
+As soon as a developer wants to start working on an issue, she/he shall assign himself to the issue and a branch and merge request denoted as work in progress (`WIP: ...`) should be created to allow others to contribute and track the progress. For this purpose, it should be created directly from the web interface within the issue (`Create merge request`). This creates a branch, naming it automatically, leading with the issue number (e.g. `60-fix-boundary-condition`) and associates the branch and merge request to the issue (visible in the web interface below the description). To start working on the issue, the branch can be checked out as usually.
 
-### Style Guide
+Ideally, issues should be created for every code development for documentation purposes. Branches without an issue should be avoided to reduce the number of orphaned/stale branches. However, if branches are created outside of the issue context, they should be named with a prefix indicating the purpose of the branch, according to the existing labels in GitLab. Examples are given below:
+
+    feature.chemistry.polyatomic
+    improvement.tracking.curved
+    bug.compiler.warnings
+    reggie.chemistry.reservoir
+    documentation.pic.maxwell
+
+Progress tracking, documentation and collaboration on the online platform can be enabled through creating a merge request with the WIP prefix for this branch instead of an issue. An issues created afterwards cannot be associated with an already created branch, without renaming the branch to include the issue number at the beginning. However, this should be avoided.
+
+## Release and deploy
+
+After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master. This merge request should be associated with a milestone (e.g. Release 1.2.1)
+
+### Create a Release Tag
+
+**WORK IN PROGRESS**
+
+### Collaborative Numerics Group
+
+The master branch of development group can be merged after the successful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote
+
+    git remote add remote_name git@gitlab.com:collaborative-numerics-group/piclas/piclas.git
+
+Now you can checkout the most recent version of the master branch of the collaborative-numerics-group and create a local branch with that version (a simple checkout will create a detached HEAD state)
+
+    git fetch
+    git checkout -b branch_name remote_name/master
+
+The master branch of the development repository can now be merged into the newly created branch. Make sure to have the most recent version of the master branch (of the development repository) as well.
+
+    git merge origin/master
+
+Finally, the changes can be pushed from the *branch_name* to the master of collaborative-numerics-group
+
+    git push remote_name master
+
+If a tag has also been created, it should be pushed separately.
+
+    git push remote_name tag_name
+
+### GitHub
+
+Upon completion of a milestone leading to tagged version, the tag should be deployed to GitHub.
+
+**WORK IN PROGRESS**
+
+## Style Guide
 
 * Why do we need a style guide?
     * It creates a unified appearance and coding structure
@@ -25,7 +75,7 @@ After the successful completion of all regression checks (check-in, nightly, wee
     * Comments of modules and input-/output variables: Doxygen style
     * Comments of preprocessor directives in C-Style
 
-#### Header of Functions and Subroutines
+### Header of Functions and Subroutines
 
 Always use `USE` statements with `ONLY`
 
@@ -67,7 +117,7 @@ this accounts for variables and function/subroutines. An exception are the initi
 
 The separators `!====` and `!----` are exactly 132 characters long (here they have been shortened for visualization purposes).
 
-#### Variables
+### Variables
 
 * Preprocessor variables: `PP_$var`
     ```
@@ -91,7 +141,7 @@ The separators `!====` and `!----` are exactly 132 characters long (here they ha
     hTilde, TildeH, (Elem%U)
     ```
 
-#### Functions and Control Structures
+### Functions and Control Structures
 * FORTRAN intrinsics generally in capital letters
     ```
     ALLOCATE(), DO, MAX(), SQRT(), INT(), etc.
@@ -113,36 +163,6 @@ The separators `!====` and `!----` are exactly 132 characters long (here they ha
     ...
     END DO ! PP_nVar
     ```
-
-## Release and deploy
-
-### Collaborative Numerics Group
-
-The master branch of development group can be merged after the successful regression check with the master of the collaborative group. For this purpose, the collaborative repository can be added as a remote
-
-    git remote add remote_name git@gitlab.com:collaborative-numerics-group/piclas/piclas.git
-
-Now you can checkout the most recent version of the master branch of the collaborative-numerics-group and create a local branch with that version (a simple checkout will create a detached HEAD state)
-
-    git fetch
-    git checkout -b branch_name remote_name/master
-
-The master branch of the development repository can now be merged into the newly created branch. Make sure to have the most recent version of the master branch (of the development repository) as well.
-
-    git merge origin/master
-
-Finally, the changes can be pushed from the *branch_name* to the master of collaborative-numerics-group
-
-    git push remote_name master
-
-If a tag has also been created, it should be pushed separately.
-
-    git push remote_name tag_name
-
-### GitHub
-
-Upon completion of a milestone leading to tagged version, the tag should be deployed to GitHub.
-
 ## Compiler flags
   * RELEASE: optimized with -O3 for execution runs
   * DEBUG: debugger options

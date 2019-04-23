@@ -39,9 +39,9 @@ link-citations: true
  * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
    points for electrostatic and electromagnetic solvers
  * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 
-   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@HOPR]
+   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@Hindenlang2015]
  * Non-conforming interfaces [@Sonntag2017] based on the mortar approach [@Kopriva2001;@Bui2012] (electromagnetic solver)
- * Non-reflecting boundary conditions via [**CFS-PMLs**](https://doi.org/10.1109/TPS.2016.2637061) [@Copplestone2017] (electromagnetic solver)
+ * Non-reflecting boundary conditions via CFS-PMLs [@Copplestone2017] (electromagnetic solver)
  * Automatic domain decomposition for parallel simulations based on a space filling curve
  * High order low-storage explicit Runge-Kutta time integration [@Carpenter1994]
  * I/O using the [**HDF5**](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
