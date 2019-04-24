@@ -225,7 +225,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
   INTEGER                         :: ProductReac(1:3)
   REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
   REAL                            :: SumOne, SumTwo
-  REAl                            :: eps_prec=1.
+  REAL                            :: eps_prec=0.1
 !===================================================================================================================================
 
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
