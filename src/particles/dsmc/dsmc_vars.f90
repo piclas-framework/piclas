@@ -100,6 +100,9 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: Ediss_eV                   ! Energy of Dissosiation in eV, ini_2
   INTEGER                     :: MaxVibQuant                ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant               ! Max elec quantum number + 1
+  INTEGER                     :: DissQuant                  ! Vibrational quantum number corresponding to the dissociation energy
+                                                            ! (used for QK chemistry, not using MaxVibQuant to avoid confusion with
+                                                            !   the TSHO model)
   REAL                        :: RotRelaxProb               ! rotational relaxation probability
   REAL                        :: VibRelaxProb               ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb              ! electronic relaxation probability
@@ -115,9 +118,11 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib 
                                                             ! relaxation
 #if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: levelcounter         ! counter for electronic levels; only debug
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: dtlevelcounter       ! counter for produced electronic levels per timestep; only debug
   REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ElectronicTransition ! counter for electronic transition from state i to j
+#endif
 #endif
   REAL,ALLOCATABLE,DIMENSION(:,:) :: ElectronicState        ! Array with electronic State for each species
                                                             ! first  index: 1 - degeneracy & 2 - char. Temp,el
@@ -211,7 +216,9 @@ TYPE tBGGas
   INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
   REAL                          :: BGGasDensity             ! Density of Background Gas
   REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell   
-  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability    
+  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
+  INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
+                                                            ! regular particle
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
@@ -364,11 +371,11 @@ END TYPE
 TYPE(tChemReactions)              :: ChemReac
 
 
-TYPE tQKBackWard
+TYPE tQKAnalytic
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKBackWard), ALLOCATABLE    :: QKBackWard(:)       
+TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)       
 
 REAL                              :: realtime               ! realtime of simulation
 

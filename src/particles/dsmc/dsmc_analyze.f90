@@ -387,7 +387,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
-USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel
@@ -437,6 +437,12 @@ END IF
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 #ifdef MPI
+IF(SurfCOMM%InnerBCs) THEN
+! if there are innerBCs with reflective surface properties
+! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
+  CALL ExchangeSurfData()
+  CALL MapInnerSurfData()
+END IF
 CALL ExchangeSurfData()
 #endif
 
@@ -1672,7 +1678,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   ELSE                                            ! TSHO-model
                     Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
-                  Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
+                  Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
                   MolecPartNum = MolecPartNum + Macro_PartNum
                   IF(nSpecies.GT.1) THEN
                     Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum

@@ -234,6 +234,7 @@ CALL prms%SetSection("Particle Sampling")
 CALL prms%CreateLogicalOption(  'Part-WriteMacroValues'&
   , 'Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled every [Part-IterationForMacroVal] iterat'//&
   'ions from particles. Sampling starts from simulation start. Can not be enabled together with Part-TimeFracForSampling.\n'//&
+  'If Part-WriteMacroValues is true, WriteMacroVolumeValues and WriteMacroSurfaceValues are forced to be true.\n'//&
   '(HALOWIKI:)Write macro values (e.g. rotational Temperature).'&
   , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-WriteMacroVolumeValues'&
@@ -311,7 +312,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                   'Particle Charge (without MPF) of species[$] dim' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Particle Mass (without MPF) of species [$] [kg]', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Mass (without MPF) of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
@@ -331,6 +332,7 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - gyrotron_circle \n'//&
                                 ' - circle_equidistant \n'//&
                                 ' - cuboid \n'//&
+                                ' - cuboid_sphere (spherical cutout of box) \n'//&
                                 ' - cylinder \n'//&
                                 ' - cuboid_vpi \n'//&
                                 ' - cylinder_vpi \n'//&
@@ -1140,9 +1142,8 @@ INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3
 CHARACTER(200)        :: tmpString
 LOGICAL               :: PartDens_OnlyInit
-REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
-INTEGER               :: iVec, MaxNbrOfSpeciesSwaps,iIMDSpec
+INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
 REAL, DIMENSION(3,1)  :: n,n1,n2
 REAL, DIMENSION(3,3)  :: rot1, rot2
@@ -1436,13 +1437,20 @@ END IF
            
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
-WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
-WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
 IF(WriteMacroValues)THEN
-  WriteMacroVolumeValues = .TRUE.
-  WriteMacroSurfaceValues = .TRUE.
-ELSE IF((WriteMacroVolumeValues.AND.WriteMacroSurfaceValues).AND.(.NOT.WriteMacroValues))THEN
-  WriteMacroValues = .TRUE.
+  WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.TRUE.')
+  WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.TRUE.')
+  IF(.NOT.(WriteMacroVolumeValues.AND.WriteMacroSurfaceValues))THEN
+     CALL abort(&
+__STAMP__&
+    ,'ERROR in particle_init.f90: Part-WriteMacroValues=T => WriteMacroVolumeValues and WriteMacroSurfaceValues must be T!')
+  END IF
+ELSE
+  WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.FALSE.')
+  WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.FALSE.')
+  IF(WriteMacroVolumeValues.AND.WriteMacroSurfaceValues)THEN
+    WriteMacroValues = .TRUE.
+  END IF
 END IF
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0.0')
@@ -1524,7 +1532,7 @@ DO iSpec = 1, nSpecies
     IF(iInit.EQ.0)THEN
       !General Species Values
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
-      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
+      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
 #if defined(IMPA)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
@@ -1739,7 +1747,8 @@ __STAMP__&
     END IF
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
-      IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
         IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                 
           SWRITE(*,*) "WARNING: Cuboid height will be calculated from v and dt!"
@@ -1756,8 +1765,9 @@ __STAMP__&
         CALL abort(&
 __STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid') &
-          .AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder')) &
+      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid')        .AND.&
+          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid_sphere') .AND.&
+          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder'))          &
         CALL abort(&
 __STAMP__&
           ,' Calculating height from v and dt is only supported for cuboid or cylinder!')
@@ -1859,6 +1869,7 @@ __STAMP__&
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       ALLOCATE(Species(iSpec)%Init(iInit)%ExcludeRegion(1:Species(iSpec)%Init(iInit)%NumberOfExcludeRegions)) 
       IF (((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') &
+       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere') &
        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) &
       .OR.((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
        .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi'))) THEN
@@ -1884,7 +1895,8 @@ __STAMP__&
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC     &
             = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
           !--normalize and stuff
-          IF ((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
+          IF(((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid').OR.&
+              (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid_sphere')) .OR. &
                ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
@@ -1911,7 +1923,8 @@ __STAMP__&
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2) &
               - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
-          ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid') .AND. &
+          ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid')        .AND. &
+                    (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid_sphere') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
             CALL abort(&
 __STAMP__&
@@ -1959,7 +1972,9 @@ __STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
-      IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid')       .OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere').OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
         IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
@@ -2009,7 +2024,8 @@ __STAMP__&
 __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
-              IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
+              IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') .OR.&
+                 (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
                 Species(iSpec)%Init(iInit)%initialParticleNumber &
                   = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor &
                   * Species(iSpec)%Init(iInit)%CuboidHeightIC * A_ins)
@@ -2069,7 +2085,7 @@ __STAMP__&
       ELSE
         CALL abort(&
 __STAMP__&
-        ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+        ,'ERROR: Unknown SpaceIC for species: ', iSpec)
       END IF
     END IF
     !--- determine if cell_local macro restart with density distribution
@@ -2511,7 +2527,7 @@ CALL InitPIC()
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*MPI*/
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 
@@ -2889,8 +2905,18 @@ __STAMP__&
 ,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
 __STAMP__&
-,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+      SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
+        CASE('maxwell','maxwell_lpn')
+          ! Others have to be tested first.
+        CASE DEFAULT
+          CALL abort(&
+__STAMP__&
+,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
+      END SELECT
     END IF
+    ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
+    BGGas%PairingPartner = 0
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
 

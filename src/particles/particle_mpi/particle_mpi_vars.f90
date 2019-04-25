@@ -158,7 +158,7 @@ INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! l
 LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be send
                                                                              ! for deposition, e.g. shape-function
 LOGICAL                                  :: DoExternalParts                  ! external particles, required for 
-                                                                             ! shape-function or b-spline or valume weighting
+                                                                             ! shape-function or b-spline or volume weighting
 INTEGER                                  :: NbrOfExtParticles                ! number of external particles
 LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated 
 REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state

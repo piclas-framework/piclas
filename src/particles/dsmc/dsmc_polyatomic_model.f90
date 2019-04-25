@@ -63,18 +63,13 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec','.TRUE.')
+  PolyatomMolDSMC(iPolyatMole)%LinearMolec = GETLOGICAL('Part-Species'//TRIM(hilf)//'-LinearMolec')
   IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
     SpecDSMC(iSpec)%Xi_Rot = 2
   ELSE
     SpecDSMC(iSpec)%Xi_Rot = 3
   END IF
-  PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms','0')
-  IF(PolyatomMolDSMC(iPolyatMole)%NumOfAtoms.EQ.0)THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR in Number of Atoms in Polyatomic Molec, Species: ',iSpec)
-  END IF
+  PolyatomMolDSMC(iPolyatMole)%NumOfAtoms = GETINT('Part-Species'//TRIM(hilf)//'-NumOfAtoms')
   ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
   SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
   IF(SpecDSMC(iSpec)%Ediss_eV.EQ.0.) THEN
@@ -103,18 +98,11 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
     END DO
   END IF
   ! Read-in of characteristic vibrational temperature and calculation of zero-point energy
-  DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF 
+  DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-    PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) =  &
-      GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2),'0.')
-    IF(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF).EQ.0.) THEN
-      CALL abort(&
-        __STAMP__&
-        ,'ERROR in Polyatomic Species-Ini: Missing char. vib. temp., Species: ',iSpec)
-    ELSE
-      SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
-        + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
-    END IF
+    PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF) = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib'//TRIM(hilf2))
+    SpecDSMC(iSpec)%EZeroPoint = SpecDSMC(iSpec)%EZeroPoint &
+      + DSMC%GammaQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF)*BoltzmannConst
   END DO
   ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
   ! Maximum number of quantum number per DOF cut at 80 to reduce computational effort
@@ -828,7 +816,7 @@ END SUBROUTINE DSMC_VibRelaxPoly_MH
 
 SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 !===================================================================================================================================
-! Vibrational relaxation (multi-mode), using Gibbs sampling, faster than MH (1/3 for CO2, 1/2 for CH4 of comp duration)
+! Vibrational relaxation (multi-mode) using Gibbs sampling
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
@@ -900,9 +888,10 @@ END SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling
 SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 ! Switch between ARM and MH/Gibbs depending on the number of vibrational modes:
-! Acceptance Rejection: up to 3 (Gibbs) / 4 (MH) modes (molecules with 3 atoms, linear and non-linear)
+! Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
 ! Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
-! Gibbs sampling: from 4 modes (molecules with 3 (linear) and 4 or more atoms)
+! Gibbs sampling: strong dependence on the number of iterations for duration and accuracy, has to be tested more thoroughly for
+!                 different molecules
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
@@ -921,9 +910,9 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
 !===================================================================================================================================
 
   iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.4) THEN
-!    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
-    CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
+  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
+    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+    ! CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
   ELSE
     CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
   END IF

@@ -852,7 +852,7 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
       p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
     END IF
-    
+
   !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
 !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -1014,6 +1014,7 @@ INTEGER                              :: p,q, SurfSideID
 REAL                                 :: POI_fak,TildTrajectory(3)
 ! Polyatomic Molecules
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL                                 :: NormProb
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 ! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
@@ -1255,8 +1256,22 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
 !      Cmr     = SQRT(ErotNew / (SpecFP(PartSpecies(PartID))%RotMomentum * Fak_D))
 !   END IF
 ! #else
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+      NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+      CALL RANDOM_NUMBER(RanNum)
+      DO WHILE (RanNum.GE.NormProb)
+        CALL RANDOM_NUMBER(RanNum)
+        ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+        CALL RANDOM_NUMBER(RanNum)
+      END DO
+      ErotWall = ErotWall*BoltzmannConst*WallTemp
+    END IF
     ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
 ! #endif
 
