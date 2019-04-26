@@ -51,13 +51,15 @@ link-citations: true
 This guide is organized to guide the first implementation steps as well as provide a complete overview of 
 the simulation code's features from a developer's point of view.
 
-* Development guidelines, git-specific and cluster-specific issues are given in Chapter \ref{chap:guidelines}.
-<!--* Chapter \ref{chap:installation} contains step by step instructions from obtaining the source -->
-<!--code up to running a first simulation and visualizing the simulation results. In addition, it -->
-<!--provides an overview of the whole simulation framework and the currently implemented features.-->
-<!--* Chapter \ref{chap:workflow} outlines the workflow starting with mesh generation and concluding with the visualization of results produced with **PICLas**.-->
-<!--* Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.-->
-<!--* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. -->
-<!--* Simulation tutorials are contained in Chapter \ref{chap:tutorials}.-->
-<!--* A complete list of all parameters is given in Chapter \ref{chap:parameterfile}.-->
-<!-- * The unit test system used to test key routines with CTest is described in Chapter \ref{chap:unittest}. -->
+Preliminary Table of Contents
+
+1. Gitlab Workflow
+   1. Issues & Milestones
+   2. Release & Deploy
+2. Style Guide
+3. MPI Implementation
+4. Regression Testing
+5. Compiler Options
+
+* The first chapter shall give an overview over the development workflow within the Gitlab environment, and the necessary steps to create a release, deploy the update to the Collaborative Numerics Group and GitHub.
+* 
