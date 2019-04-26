@@ -67,11 +67,11 @@ Following parameters can be used for both schemes.
 |                       |    1     |       Assumption of a linear element coord system.       |
 |                       |    2     |      Gauss point which is closest to the particle.       |
 |                       |    3     |        CL point which is closest to the particle.        |
-|                       |    4     |               Trivial guess: element origin               |
+|                       |    4     |              Trivial guess: element origin               |
 |     RefMappingEps     |   1e-4   |  Tolerance of the Newton algorithm for mapping in ref.   |
 |                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
 |    BezierElevation    |   0-50   |   Increase polynomial degree of BezierControlPoints to   |
-|                       |          |     construct a tighter bounding box for each side.     |
+|                       |          |     construct a tighter bounding box for each side.      |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
 |   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
@@ -355,6 +355,48 @@ $R$ is the cut-off radius.
 ## Direct Simulation Monte Carlo
 
 ### Species Definition
+
+For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species, its name as well as an `InteractionID` have to be defined
+
+    Part-Species1-SpeciesName=CH4
+    Part-Species1-InteractionID=2
+
+The name is at the moment only utilized to retrieve the electronic energy levels from an additional database. The interaction ID determines the type of a species as follows
+
+|   ID | Type                               |
+| ---: | ---------------------------------- |
+|    1 | Atom                               |
+|    2 | Molecule (diatomic and polyatomic) |
+|    4 | Electron                           |
+|   10 | Atomic Ion                         |
+|   20 | Molecular Ion                      |
+
+The implemented Variable Hard Sphere (VHS) collision cross-section model requires the input of the parameter, the temperature exponent $\omega$, reference temperature $T_\mathrm{ref}$ and diameter $d_\mathrm{ref}$
+
+    Part-Species1-omegaVHS=0.24
+    Part-Species1-VHSReferenceTemp=273
+    Part-Species1-VHSReferenceDiam=4.63E-10
+
+It should be noted that although species-specific $\omega$ values can be read-in, DSMC should only be utilized with a single $\omega$. Diatomic molecular species require the definition of the characteristic temperatures
+
+    Part-Species1-CharaTempVib=4194.9
+
+Polyatomic molecular species require an additional flag, the input of the number of atoms  and whether the molecule is linear (e.g. CO$_2$, $\xi_\mathrm{rot} = 2$) or non-linear (e.g. H$_2$O, CH$_4$, $\xi_\mathrm{rot} = 3$). The number of the vibrational degrees of freedom is then given by
+
+$$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
+
+As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
+
+    Part-Species2-NumOfAtoms=4
+    Part-Species2-LinearMolec=FALSE
+    Part-Species2-CharaTempVib1=4320.6
+    Part-Species2-CharaTempVib2=872.1
+    Part-Species2-CharaTempVib3=4545.5
+    Part-Species2-CharaTempVib4=4545.5
+    Part-Species2-CharaTempVib5=2016.2
+    Part-Species2-CharaTempVib6=2016.2
+
+**WORK IN PROGRESS**
 
 ### Relaxation
 
