@@ -183,7 +183,7 @@ CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
 CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcHaloInfo',         "Output halo element information to ElemData",'.TRUE.')
+CALL prms%CreateLogicalOption( 'CalcHaloInfo',         "Output halo element information to ElemData",'.FALSE.')
 CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
     ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
     ,'.FALSE.')
