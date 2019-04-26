@@ -1,0 +1,10 @@
+## Related Issue
+
+Closes issues0#number
+
+## Merge Request Checklist
+
+* [ ] Style Guide
+* [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*
+
+/label Bug
