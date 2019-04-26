@@ -1,6 +1,6 @@
 ## Related Issue
 
-Closes issues0#number
+Closes #number
 
 ## Merge Request Checklist
 
