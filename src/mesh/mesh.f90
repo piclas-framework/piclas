@@ -85,8 +85,9 @@ CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped 
 CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&        
                                                          "| only perpendicular to z axis",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcMeshInfo',         "Calculate and output elem data for myrank, ElemID and tracking info",&
-                                                      '.TRUE.')
+CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
+                                                      'ElemData',&
+                                                      '.FALSE.')
 CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
                                                       "free-stream preservation is only guaranteed for N=3*NGeo.",&
                                                       '.FALSE.')

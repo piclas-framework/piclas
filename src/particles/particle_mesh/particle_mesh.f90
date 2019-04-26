@@ -183,6 +183,7 @@ CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
 CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
+CALL prms%CreateLogicalOption( 'CalcHaloInfo',         "Output halo element information to ElemData",'.TRUE.')
 CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
     ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
     ,'.FALSE.')
@@ -1403,6 +1404,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierContro
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
+USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1456,7 +1458,9 @@ SWRITE(UNIT_StdOut,'(66("-"))')
 
 CALL DuplicateSlavePeriodicSides()
 ! CAUTION: in MarkAllBCSides, a counter is reset for refmapping
-CALL MarkAllBCSides()
+IF(DoRefMapping)THEN
+  CALL MarkAllBCSides()
+END IF
 ! get elem and side types
 CALL GetElemAndSideType()
 
@@ -1469,6 +1473,9 @@ printBezierControlPointsWarnings = GETLOGICAL('printBezierControlPointsWarnings'
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
+IF(.NOT.DoRefMapping)THEN
+  CALL MarkAllBCSides()
+END IF
 #endif /*MPI*/
 
 IF(nTotalElems.GT.PP_nElems)THEN
@@ -1567,6 +1574,15 @@ IF(DoRefMapping) THEN
   CALL GetElemToSideDistance(nTotalBCSides,SideOrigin,SideRadius)
   DEALLOCATE( SideOrigin, SideRadius)
 END IF
+
+#ifdef MPI
+! Output halo element info
+CalcHaloInfo = GETLOGICAL('CalcHaloInfo')
+IF(CalcHaloInfo)THEN
+  CALL SetHaloInfo()
+END IF
+#endif /*MPI*/
+
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!' 
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -1741,11 +1757,20 @@ DO iStage=2,nRKStages-1
   halo_eps = MAX(halo_eps,RK_c(iStage+1)-RK_c(iStage))
 END DO
 halo_eps = MAX(halo_eps,1.-RK_c(nRKStages))
-SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 max. RKdtFrac  |    ',halo_eps 
+CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
 halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximum RKdtFrac
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
+
+! Check whether halo_eps is smaller than shape function radius
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  IF(halo_eps.LT.r_sf)THEN
+    SWRITE(UNIT_stdOut,'(A)') ' halo_eps is smaller than shape function radius. Setting halo_eps=r_sf'
+    halo_eps = r_sf
+    CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
+  END IF
+END IF
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 & 
@@ -3074,9 +3099,8 @@ END SUBROUTINE PointToExactElement
 
 SUBROUTINE BuildElementBasis()
 !================================================================================================================================
-! build the element local basis system 
-! origin is located at xi=(0,0,0)^T
-! each local coord system is pointing to an element side
+! Build the element local basis system, where the origin is located at xi=(0,0,0)^T and each local coordinate system is pointing 
+! to an element side
 !================================================================================================================================
 USE MOD_Globals
 USE MOD_Preproc
@@ -4218,7 +4242,225 @@ SUBROUTINE GetShapeFunctionBCElems()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems!,nSides,nBCSides
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems,BC
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars ,ONLY: sVdm_Bezier
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
+USE MOD_PICDepo_Vars           ,ONLY: r_sf,DepositionType,sf1d_dir
+USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_Mesh_Vars              ,ONLY: BoundaryType
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: iElem,firstBezierPoint,lastBezierPoint
+INTEGER                                  :: iSide,p,q,SideID,ilocSide,BCSideID2,BCSideID
+INTEGER                                  :: s,r
+INTEGER,ALLOCATABLE                      :: SideIndex(:)
+REAL,DIMENSION(1:3)                      :: NodeX
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+REAL                                     :: dx,dy,dz
+LOGICAL                                  :: leave,BCElemSF
+!===================================================================================================================================
+! allocate for local elements + halo elements
+ALLOCATE(IsLocalDepositionBCElem(nTotalElems))
+IsLocalDepositionBCElem=.FALSE.
+! Only add local elements to element list
+CALL AddToElemData(ElementOut,'IsLocalDepositionBCElem',LogArray=IsLocalDepositionBCElem(1:nElems))
+
+! Auxiliary integer array for marking sides (set equal to 1 if the side is within shape function radius of considered local side)
+ALLOCATE(SideIndex(1:nTotalSides))
+
+! =============================
+! Workflow:
+!  0.  Sanity Check: halo distance must be equal to or larger than the shape function radius
+!  1.  Loop over all elements (including halo elements)
+!  1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient
+!  1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
+!  1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
+!==============================
+
+! 0.   Check halo distance vs. shape function radius, because the halo region is used for checking the shape function deposition
+IF(halo_eps.LT.r_sf)THEN
+  SWRITE(UNIT_StdOut,'(132("*"))')
+  SWRITE(UNIT_StdOut,'(A)') ' Warning in GetShapeFunctionBCElems: halo_eps is less than r_sh, which may result in wrong '//&
+                            'deposition elements.\n Check IsLocalDepositionBCElem in state file!'
+  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  halo_eps : ',halo_eps
+  SWRITE(UNIT_StdOut,'(A,ES25.14E3)') '  r_sf     : ',r_sf
+  SWRITE(UNIT_StdOut,'(A)') ' Consider increasing the halo velocity to remove this warning.'
+  SWRITE(UNIT_StdOut,'(132("*"))')
+END IF
+
+
+
+! 1.  Loop over all elements (including halo elements)
+DO iElem=1,nTotalElems
+  BCElemSF=.FALSE.
+  ! 1.1  Mark rank-local elements with BC sides without calculating the distance between the nodes (more efficient)
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(SideID.LE.0)                             CYCLE ! Skip sides?
+    IF(PartBCSideList(SideID).EQ.-1)            CYCLE ! Skip non-BC sides
+    IF(SidePeriodicType(SideID).NE.0)           CYCLE ! Skip periodic-BC sides
+    IF(BoundaryType(BC(SideID),BC_TYPE).EQ.100) CYCLE ! Skip inner-BC sides (must be labelled with 100)
+
+
+    ! Skip BC sides for shape_function_2d
+    IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+      ASSOCIATE ( &
+            x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , PartBCSideList(SideID))   , &
+            x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , PartBCSideList(SideID))   , &
+            x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , PartBCSideList(SideID))   , &
+            x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , PartBCSideList(SideID)) )
+        ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+        IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+            ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+            ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+      END ASSOCIATE
+    END IF
+    IsLocalDepositionBCElem(iElem)=.TRUE.
+    EXIT
+  END DO ! ilocSide=1,6
+
+  IF(IsLocalDepositionBCElem(iElem)) CYCLE ! finished: next element
+
+
+
+  ! 1.2  Check distance (loop all local sides and measure the distance to all nTotalSides)
+  ! loop over all sides, to reduce required storage, if a side is marked once, it does not have to be checked for further sides
+  SideIndex=0
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(SideID.GT.0)THEN
+      BCSideID2=PartBCSideList(SideID)
+    ELSE
+      BCSideID2=SideID
+    END IF
+
+    IF(BCSideID2.GT.0) THEN
+      xNodes(:,:,:)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS,XI_PLUS)
+        firstBezierPoint=0
+        lastBezierPoint=NGeo
+      CASE DEFAULT
+        firstBezierPoint=1
+        lastBezierPoint=NGeo-1
+      END SELECT
+    ELSE
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:))
+        firstBezierPoint=0
+        lastBezierPoint=NGeo
+      CASE(XI_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:))
+        firstBezierPoint=0
+        lastBezierPoint=NGeo
+      CASE(ETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:))
+        firstBezierPoint=1
+        lastBezierPoint=NGeo-1
+      CASE(ETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:))
+        firstBezierPoint=1
+        lastBezierPoint=NGeo-1
+      CASE(ZETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:))
+        firstBezierPoint=1
+        lastBezierPoint=NGeo-1
+      CASE(ZETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:))
+        firstBezierPoint=1
+        lastBezierPoint=NGeo-1
+      END SELECT
+    END IF
+
+
+    ! 1.3  Loop over all sides (including halo sides) and compare distance to the current iLocSide of the element
+    DO iSide=1,nTotalSides
+      BCSideID=PartBCSideList(iSide) ! only bc sides
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE ! Skip sides of the same element
+      IF(BCSideID.EQ.-1)                             CYCLE ! Skip non-BC sides
+      IF(SidePeriodicType(iSide).NE.0)               CYCLE ! Skip periodic sides. Note that side = iSide and not BCSideID
+      IF(BoundaryType(BC(iSide),BC_TYPE).EQ.100)     CYCLE ! Skip inner-BC sides (must be labelled with 100)
+
+      ! Skip BC sides for shape_function_2d
+      IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
+        ASSOCIATE ( &
+              x1 => BezierControlPoints3D(sf1d_dir , 0    , 0    , BCSideID)   , &
+              x2 => BezierControlPoints3D(sf1d_dir , 0    , NGeo , BCSideID)   , &
+              x3 => BezierControlPoints3D(sf1d_dir , NGeo , 0    , BCSideID)   , &
+              x4 => BezierControlPoints3D(sf1d_dir , NGeo , NGeo , BCSideID) )
+          ! Check if all corner points are equal is the "sf1d_dir" direction: Skip this side if true
+          IF((ALMOSTEQUALRELATIVE(x1,x2,1e-6).AND.&
+              ALMOSTEQUALRELATIVE(x1,x3,1e-6).AND.&
+              ALMOSTEQUALRELATIVE(x1,x4,1e-6))) CYCLE
+        END ASSOCIATE
+      END IF
+
+      IF(SideIndex(iSide).EQ.0)THEN
+        leave=.FALSE.
+        ! all points of bc side
+        DO q=firstBezierPoint,lastBezierPoint
+          DO p=firstBezierPoint,lastBezierPoint
+            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+            !all nodes of current side
+            DO s=firstBezierPoint,lastBezierPoint
+              DO r=firstBezierPoint,lastBezierPoint
+                dX=ABS(xNodes(1,r,s)-NodeX(1))
+                IF(dX.GT.r_sf) CYCLE
+                dY=ABS(xNodes(2,r,s)-NodeX(2))
+                IF(dY.GT.r_sf) CYCLE
+                dZ=ABS(xNodes(3,r,s)-NodeX(3))
+                IF(dZ.GT.r_sf) CYCLE
+                IF(SQRT(dX*dX+dY*dY+dZ*dZ).LE.r_sf)THEN
+                  IF(SideIndex(iSide).EQ.0)THEN
+                    BCElemSF=.TRUE.
+                    SideIndex(iSide)=1 ! mark with number .NE. 0
+                    leave=.TRUE.
+                    EXIT
+                  END IF
+                END IF
+              END DO ! r
+              IF(leave) EXIT
+            END DO ! s
+            IF(leave) EXIT
+          END DO ! p
+          IF(leave) EXIT
+        END DO ! q
+        IF(leave) EXIT
+      END IF ! SideIndex(iSide).EQ.0
+    END DO ! iSide=1,nTotalSides
+  END DO ! ilocSide=1,6
+
+  ! set true, only required for elements without an own bc side
+  IF(BCElemSF) IsLocalDepositionBCElem(iElem)=.TRUE.
+END DO ! iElem=1,nTotalElems
+
+
+
+
+END SUBROUTINE GetShapeFunctionBCElems
+
+
+SUBROUTINE GetShapeFunctionBCElems_OLD()
+!===================================================================================================================================
+! Identify all elements that are close to boundaries, where the deposition via shape function would cause the shape function sphere
+! to be truncated by the boundary. In this case, a local deposition is used in that cell for "inner" parts, i.e., shape functions
+! that extend into the element by exterior particle shape functions are still deposited via the shape function.
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: XCL_NGeo,NGeo,nElems
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsLocalDepositionBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide,PartSideToElem,PartBCSideList,SidePeriodicType
@@ -4271,9 +4513,9 @@ END IF
 !    DO iElem=1,nTotalElems
 !      DO ilocSide=1,6
 !        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-!        IF (SideID.LE.0) CYCLE
-!        IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
-!          IF(SidePeriodicType(SideID).NE.0) CYCLE ! skip periodic sides
+!        IF (SideID.LE.0)                               CYCLE ! Skip ?
+!        IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides)) THEN  ! Don't skip ? and ?
+!          IF(SidePeriodicType(SideID).NE.0)            CYCLE ! skip periodic sides
 !          ! Skip BC sides for shape_function_2d
 !          IF(TRIM(DepositionType).EQ.'shape_function_2d')THEN
 !            ASSOCIATE ( &
@@ -4302,7 +4544,7 @@ DO iElem=1,nTotalElems
   BCElemSF=.FALSE.
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LE.0)                   CYCLE
+    IF(SideID.LE.0)                   CYCLE ! Skip ?
     IF(PartBCSideList(SideID).EQ.-1)  CYCLE ! Skip non-BC sides
     IF(SidePeriodicType(SideID).NE.0) CYCLE ! Skip periodic-BC sides
     !IF(SideID.GT.nBCSides)            CYCLE ! Skip non-BC sides -> already done in PartBCSideList(SideID).EQ.-1 ?
@@ -4444,7 +4686,7 @@ END DO ! iElem=1,nTotalElems
 
 
 
-END SUBROUTINE GetShapeFunctionBCElems
+END SUBROUTINE GetShapeFunctionBCElems_OLD
 
 
 SUBROUTINE CalcElemAndSideNum()
@@ -4624,9 +4866,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars ,ONLY: BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale
-!USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip                                                                                                                 ! USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
-! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID                                                                                                                 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
-! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType                                                                                                                 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,nTotalBCSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartBCSideList
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5615,13 +5854,13 @@ SUBROUTINE MarkAllBCSides()
 ! 1:nBCSides - nInnerSides - nSomePeriodicSides - nMortarSides - nMPISides - nMissingPeriodicSides
 ! As RefMapping requires only the BC sides, a shorter list is generated over all
 ! nTotalBCSides which is NOW smaller than nPartSides or nTotalSides
-! CAUTION and BRAIN-FUCK: 
+! CAUTION: 
 ! This smaller list is used to build: from 1:nTotalBCSides < nTotalSides and is used for
 ! SideNormVec,SideTypes,SideDistance
 ! BUT: 1:nTotalSides is STILL used for 
 ! BezierControlPoints3D, SideSlabInterVals,SideSlabNormals,BoundingBoxIsEmpty
 ! and are NOT reshaped yet, hence, the length of the array remains nTotalSides
-! BRAIN-FUCK CONTINUOUS: 
+! CAUTION/CONTINUOUS: 
 ! During building of the HALO region, the BezierControlPoints variables are further increased with nTotalSides while the 
 ! already small arrays increases with nTotalBCSides
 ! After building the HALO region, the actual arrays are reshaped and a stored in shorter arrays
@@ -5647,11 +5886,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: iSide
 !===================================================================================================================================
+! Note that for DoRefMapping=T: PartBCSideList is increased, due to the periodic sides
+!           for DoRefMapping=F: A new list is created
+IF(DoRefMapping) DEALLOCATE(PartBCSideList)
 
-! PartBCSideList is increased, due to the periodic sides
-IF(.NOT.DoRefMapping) RETURN
-
-DEALLOCATE(PartBCSideList)
 ALLOCATE(PartBCSideList(1:nTotalSides))
 ! BC Sides 
 PartBCSideList=-1
@@ -6297,5 +6535,308 @@ IF (.NOT.done) THEN
 END IF
 
 END SUBROUTINE CheckBoundsWithCartRadius
+
+
+#ifdef MPI
+!===================================================================================================================================
+!> For each rank an ElemData array 'ElemHaloInfo' is created, which contains information regarding the halo region of each rank
+!> ElemHaloInfo = 0: element not in list
+!>          = 1: local element
+!>          = 2: halo element
+!===================================================================================================================================
+SUBROUTINE SetHaloInfo() 
+! MODULES                                                                                                                          !
+USE MOD_GLobals
+USE MOD_Preproc            ,ONLY: PP_nElems
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemHaloInfoProc
+USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc,PartMPI
+USE MOD_Particle_Mesh_Vars ,ONLY: nTotalElems
+USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE tMPIMessage
+  REAL,ALLOCATABLE               :: content(:)            ! Message buffer real
+  LOGICAL,ALLOCATABLE            :: content_log(:)        ! Message buffer logical for BGM
+  INTEGER,ALLOCATABLE            :: content_int(:)        ! Message buffer for integer for adsorption
+END TYPE
+
+TYPE tHaloInfoMPIExchange
+  INTEGER,ALLOCATABLE            :: nHaloElemsSend(:,:)   ! Only MPI neighbors
+  INTEGER,ALLOCATABLE            :: nHaloElemsRecv(:,:)   ! Only MPI neighbors
+  INTEGER                        :: nMPIHaloReceivedElems ! Number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)      ! Send request message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)      ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)       ! Message, required for particle emission
+END TYPE
+ TYPE (tHaloInfoMPIExchange)     :: HaloInfoMPIExchange   ! Exchange of halo element information between ranks for ElemData output 
+
+TYPE(tMPIMessage),ALLOCATABLE    :: HaloInfoRecvBuf(:)    ! HaloInfoRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE    :: HaloInfoSendBuf(:)    ! HaloInfoSendBuf with all required types
+
+INTEGER,ALLOCATABLE              :: HaloElemTargetProc(:) ! Local rank id for communication
+INTEGER                          :: nSendHaloElems        ! Number of halo elements in HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
+INTEGER                          :: nRecvHaloElems        ! Number of halo elements in HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
+
+
+CHARACTER(32)                    :: hilf                  ! Auxiliary variable
+INTEGER                          :: yourrank,myelem,iProc,iPos,jPos,messagesize,iElem,ALLOCSTAT,iRank
+INTEGER,PARAMETER                :: HaloInfoCommSize=2
+INTEGER                          :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
+!===================================================================================================================================
+! Allocate type array for all ranks
+ALLOCATE(ElemHaloInfoProc(0:nProcessors-1))
+
+! Allocate for local elements: Container with information of my local elements and your halo elements
+DO iRank = 0, nProcessors-1
+  ALLOCATE(ElemHaloInfoProc(iRank)%ElemHaloInfo(PP_nElems))
+  ElemHaloInfoProc(iRank)%ElemHaloInfo = 0
+END DO ! iRank = 1, nProcessors
+
+! Set local elements
+ElemHaloInfoProc(myrank)%ElemHaloInfo = 1
+
+! Add arrays to ElemData
+DO iRank = 0, nProcessors-1
+  WRITE(UNIT=hilf,FMT='(I0)') iRank ! myrank
+  CALL AddToElemData(ElementOut,'MyRank'//TRIM(hilf)//'_ElemHaloInfo',IntArray=ElemHaloInfoProc(iRank)%ElemHaloInfo)
+END DO ! iRank = 1, nProcessors
+
+! Allocate halo info arrays
+ALLOCATE( HaloInfoMPIExchange%nHaloElemsSend(2,PartMPI%nMPINeighbors)  & 
+        , HaloInfoMPIExchange%nHaloElemsRecv(2,PartMPI%nMPINeighbors)  &
+        , HaloInfoRecvBuf(1:PartMPI%nMPINeighbors)                 &
+        , HaloInfoSendBuf(1:PartMPI%nMPINeighbors)                 &
+        , HaloInfoMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
+        , HaloInfoMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) &
+        , HaloElemTargetProc(PP_nElems+1:nTotalElems)              &
+        , STAT=ALLOCSTAT                                       )
+
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
+
+HaloInfoMPIExchange%nHaloElemsSend=0
+HaloInfoMPIExchange%nHaloElemsRecv=0
+
+
+
+
+
+! Communicate halo elem info
+!===================================================================================================================================
+! 1 of 4: SUBROUTINE IRecvNbOfParticles()
+!===================================================================================================================================
+HaloInfoMPIExchange%nHaloElemsRecv=0
+DO iProc=1,PartMPI%nMPINeighbors
+  CALL MPI_IRECV( HaloInfoMPIExchange%nHaloElemsRecv(:,iProc) &
+                , 2                                           &
+                , MPI_INTEGER                                 &
+                , PartMPI%MPINeighbor(iProc)                  &
+                , 1001                                        &
+                , PartMPI%COMM                                &
+                , HaloInfoMPIExchange%RecvRequest(1,iProc)    &
+                , IERROR )
+END DO ! iProc
+
+
+
+
+!===================================================================================================================================
+! 2 of 4: SUBROUTINE SendNbOfParticles(doParticle_In)
+!===================================================================================================================================
+! 1) get number of send particles
+HaloInfoMPIExchange%nHaloElemsSend=0
+HaloElemTargetProc=-1
+DO iElem = PP_nElems+1, nTotalElems
+  ! Send number of halo elements to each proc
+  HaloInfoMPIExchange%nHaloElemsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,iElem)) = &
+      HaloInfoMPIExchange%nHaloElemsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,iElem)) + 1
+  ! Set target iProc of the element for setting the particle message that is sent
+  HaloElemTargetProc(iElem) = PartHaloElemToProc(LOCAL_PROC_ID,iElem)
+END DO ! iElem = PP_nElems+1, nTotalElems
+
+! 2) send number of particles
+DO iProc=1,PartMPI%nMPINeighbors
+  CALL MPI_ISEND( HaloInfoMPIExchange%nHaloElemsSend(:,iProc) &
+                , 2                                           &
+                , MPI_INTEGER                                 &
+                , PartMPI%MPINeighbor(iProc)                  &
+                , 1001                                        &
+                , PartMPI%COMM                                &
+                , HaloInfoMPIExchange%SendRequest(1,iProc)    &
+                , IERROR )
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+
+
+
+
+!===================================================================================================================================
+! 3 of 4: SUBROUTINE MPIParticleSend()
+!===================================================================================================================================
+! 3) Build Message
+DO iProc=1, PartMPI%nMPINeighbors
+  ! allocate SendBuf
+  nSendHaloElems=HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
+  iPos=0
+  MessageSize=nSendHaloElems*HaloInfoCommSize
+  
+  ALLOCATE(HaloInfoSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+  __STAMP__&
+  ,'  Cannot allocate HaloInfoSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
+
+  ! fill message
+  DO iElem = PP_nElems+1, nTotalElems
+    ! Element is element with target proc-id equals local proc id
+    IF(HaloElemTargetProc(iElem).NE.iProc) CYCLE
+    ! my rank
+    HaloInfoSendBuf(iProc)%content(1+iPos) = REAL(myrank,KIND=8)
+    jPos=iPos+1
+
+    ! local element ID of new host proc: PEM%Element(PartID)
+    HaloInfoSendBuf(iProc)%content(    1+jPos)    = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,iElem),KIND=8)
+    jPos=jPos+1
+    IF(MOD(jPos,HaloInfoCommSize).NE.0) THEN
+      IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
+      IPWRITE(UNIT_stdOut,*)  'jPos',jPos
+      CALL Abort(&
+          __STAMP__&
+          ,' CalcHaloInfo: wrong sending message size!')
+    END IF
+    iPos=iPos+HaloInfoCommSize
+  END DO  ! iElem = PP_nElems+1, nTotalElems
+END DO ! iProc
+
+
+
+! 4) Finish Received number of halo elements
+DO iProc=1,PartMPI%nMPINeighbors
+  CALL MPI_WAIT(HaloInfoMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(HaloInfoMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+! total number of received particles: add up number of all received ranks
+HaloInfoMPIExchange%nMPIHaloReceivedElems=SUM(HaloInfoMPIExchange%nHaloElemsRecv(1,:))
+
+
+
+! 5) Allocate received buffer and open MPI_IRECV
+DO iProc=1,PartMPI%nMPINeighbors
+  nRecvHaloElems=HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
+  MessageSize=nRecvHaloElems*HaloInfoCommSize
+  ALLOCATE(HaloInfoRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    IPWRITE(*,*) 'sum of total received particles            ', SUM(HaloInfoMPIExchange%nHaloElemsRecv(1,:))
+    IPWRITE(*,*) 'sum of total received deposition particles ', SUM(HaloInfoMPIExchange%nHaloElemsRecv(2,:))
+    CALL abort(&
+    __STAMP__&
+    ,'  Cannot allocate HaloInfoRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
+  END IF
+  CALL MPI_IRECV( HaloInfoRecvBuf(iProc)%content                                 &
+                , MessageSize                                                &
+                , MPI_DOUBLE_PRECISION                                       &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1002                                                       &
+                , PartMPI%COMM                                               &
+                , HaloInfoMPIExchange%RecvRequest(2,iProc)                       &
+                , IERROR )
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+! 6) Send halo elements
+DO iProc=1,PartMPI%nMPINeighbors
+  nSendHaloElems = HaloInfoMPIExchange%nHaloElemsSend(1,iProc)
+  MessageSize    = nSendHaloElems*HaloInfoCommSize
+  CALL MPI_ISEND( HaloInfoSendBuf(iProc)%content                             &
+                , MessageSize                                                &
+                , MPI_DOUBLE_PRECISION                                       &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1002                                                       &
+                , PartMPI%COMM                                               &
+                , HaloInfoMPIExchange%SendRequest(2,iProc)                       &
+                , IERROR )
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+
+
+
+
+
+!===================================================================================================================================
+! 4 of 4: SUBROUTINE MPIParticleRecv()
+!===================================================================================================================================
+DO iProc=1,PartMPI%nMPINeighbors
+  CALL MPI_WAIT(HaloInfoMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+DO iProc=1,PartMPI%nMPINeighbors
+  nRecvHaloElems=HaloInfoMPIExchange%nHaloElemsRecv(1,iProc)
+  MessageSize=nRecvHaloElems*HaloInfoCommSize
+  ! finish communication with iproc
+  CALL MPI_WAIT(HaloInfoMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+  ! Evaluate the received data and assign the halo information to the local elements
+  DO iPos=0,MessageSize-1,HaloInfoCommSize
+    IF(nRecvHaloElems.EQ.0) EXIT
+    yourrank   = INT(HaloInfoRecvBuf(iProc)%content( 1+iPos),KIND=4)
+    jPos=iPos+1
+
+    myelem     = INT(HaloInfoRecvBuf(iProc)%content( 1+jPos),KIND=4)
+    jPos=jPos+1
+
+    IF(MOD(jPos,HaloInfoCommSize).NE.0)THEN
+      IPWRITE(UNIT_stdOut,*)  'HaloInfoCommSize',HaloInfoCommSize
+      IPWRITE(UNIT_stdOut,*)  'jPos',jPos
+      CALL Abort(&
+          __STAMP__&
+          ,' HaloInfoCommSize-wrong receiving message size!')
+    END IF
+
+    ! Set halo info
+    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 2
+  END DO
+END DO ! iProc
+
+
+! deallocate send,receive buffer
+DO iProc=1,PartMPI%nMPINeighbors
+  SDEALLOCATE(HaloInfoRecvBuf(iProc)%content)
+  SDEALLOCATE(HaloInfoSendBuf(iProc)%content)
+END DO ! iProc
+
+
+! De-allocate halo info arrays
+SDEALLOCATE(HaloInfoMPIExchange%nHaloElemsSend)
+SDEALLOCATE(HaloInfoMPIExchange%nHaloElemsRecv)
+SDEALLOCATE(HaloInfoRecvBuf)
+SDEALLOCATE(HaloInfoSendBuf)
+SDEALLOCATE(HaloInfoMPIExchange%SendRequest)
+SDEALLOCATE(HaloInfoMPIExchange%RecvRequest)
+SDEALLOCATE(HaloElemTargetProc)
+
+END SUBROUTINE SetHaloInfo
+#endif /*MPI*/
+
 
 END MODULE MOD_Particle_Mesh

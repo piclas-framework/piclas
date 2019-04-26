@@ -78,6 +78,14 @@ LOGICAL,ALLOCATABLE :: IsTracingBCElem(:)                     ! is an elem with 
 
 LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element where the deposition of a particle via a shape function
                                                               ! would result in the truncation of the shape function at the boundary.
+TYPE tElemHaloInfo
+  INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
+                                                              !< ElemHaloInfo = 0: element not in list
+                                                              !<              = 1: local element
+                                                              !<              = 2: halo element
+END TYPE
+TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
+
 INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
 INTEGER             :: nTotalBCSides                          ! total number of BC sides (my+halo)
