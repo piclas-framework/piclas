@@ -25,11 +25,25 @@ Progress tracking, documentation and collaboration on the online platform can be
 
 ## Merge Request
 
-Procedure for a merge request, checklist, etc.
+Merge requests that are not WIP are discussed every Monday by the developer group to be considered for a merge. The following checklist has to be completed before a merge request should be approved. For bugs only the first points have to be considered, while for features and improvements the complete list has to be completed.
+
+* [ ] Style Guide
+* [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*
+* [ ] Descriptions for new/changed routines
+  * Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
+  * Workflow (short summary in the header, inside the routine at the appropriate positions)
+* [ ] Reggie (small test setup, entry in REGGIE.md table, readme.md in test case folder)
+* [ ] New feature description in appropriate documentation (user/developer guide)
+
+**WORK IN PROGRESS**
+
+For this purpose, the developer can select the respective template for his merge request (Bug or Feature) and the corresponding label will be set automatically. The appropriate checklist will then be display as the merge request description. The templates for merge requests are stored in *./.gitlab/merge_request_templates/*.
+
+Problem: Merge requests generated automatically through the Issues interface have already `Closes #55` as a description. When editing the merge request, the description gets overwritten by the template. Thus, the issue number has to be added manually after the template is chosen.
 
 ## Release and deploy
 
-After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master. This merge request should be associated with a milestone (e.g. Release 1.2.1)
+After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master. This merge request should be associated with a milestone (e.g. Release 1.X.X).
 
 ### Create a Release Tag
 
@@ -62,8 +76,6 @@ The tag should be created from the `master` branch and the `Message` left empty.
     * Treatment of non-linear polyatomic molecules during analyze and wall interaction
 
 Headlines without changes/additions within a releases can be omitted.
-
-**WORK IN PROGRESS**
 
 ### Collaborative Numerics Group
 
@@ -117,7 +129,7 @@ Finally, the release tag can be deployed to GitHub. This can be achieved by runn
 
 ### Header of Functions and Subroutines
 
-Always use `USE` statements with `ONLY`
+Function calls must always supply the variable name of optional arguments. Always use `USE` statements with `ONLY`
 
     USE MODULE, ONLY: ...
     
