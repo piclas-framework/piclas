@@ -35,11 +35,7 @@ Merge requests that are not WIP are discussed every Monday by the developer grou
 * [ ] Reggie (small test setup, entry in REGGIE.md table, readme.md in test case folder)
 * [ ] New feature description in appropriate documentation (user/developer guide)
 
-**WORK IN PROGRESS**
-
-For this purpose, the developer can select the respective template for his merge request (Bug or Feature) and the corresponding label will be set automatically. The appropriate checklist will then be display as the merge request description. The templates for merge requests are stored in *./.gitlab/merge_request_templates/*.
-
-Problem: Merge requests generated automatically through the Issues interface have already `Closes #55` as a description. When editing the merge request, the description gets overwritten by the template. Thus, the issue number has to be added manually after the template is chosen.
+For this purpose, the developer can select the respective template for his merge request (Bug: only first two to-do's or Feature: all five to-do's, Improvements can utilize either depending on the nature of the improvement). The appropriate checklist will then be displayed as the merge request description. Merge requests generated automatically through the Issues interface have already `Closes #55` as a description. When editing the merge request, the description gets overwritten by the template. Thus, the issue number has to be added manually after the template is chosen. The templates for merge requests are stored in *./.gitlab/merge_request_templates/*.
 
 ## Release and deploy
 

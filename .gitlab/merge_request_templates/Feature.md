@@ -11,5 +11,3 @@ Closes #number
   * Workflow (short summary in the header, inside the routine at the appropriate positions)
 * [ ] Reggie (small test setup and entry in REGGIE.md table)
 * [ ] New feature description in appropriate documentation (user/developer guide)
-
-/label Feature
