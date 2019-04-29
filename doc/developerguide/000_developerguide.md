@@ -61,5 +61,6 @@ Preliminary Table of Contents
 4. Regression Testing
 5. Compiler Options
 
-* The first chapter shall give an overview over the development workflow within the Gitlab environment, and the necessary steps to create a release, deploy the update to the Collaborative Numerics Group and GitHub.
-* 
+* The first Chapter \ref{chap:git_workflow} shall give an overview over the development workflow within the Gitlab environment, and the necessary steps to create a release, deploy the update to the Collaborative Numerics Group and GitHub.
+* The second Chapter \ref{chap:style_guide} describes the rules and guidelines regarding code development such as how the header of functions and subroutines look like.
+* Chapter \ref{chap:compiler_options}
