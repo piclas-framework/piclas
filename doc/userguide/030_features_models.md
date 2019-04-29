@@ -67,11 +67,11 @@ Following parameters can be used for both schemes.
 |                       |    1     |       Assumption of a linear element coord system.       |
 |                       |    2     |      Gauss point which is closest to the particle.       |
 |                       |    3     |        CL point which is closest to the particle.        |
-|                       |    4     |               Trivial guess: element origin               |
+|                       |    4     |              Trivial guess: element origin               |
 |     RefMappingEps     |   1e-4   |  Tolerance of the Newton algorithm for mapping in ref.   |
 |                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
 |    BezierElevation    |   0-50   |   Increase polynomial degree of BezierControlPoints to   |
-|                       |          |     construct a tighter bounding box for each side.     |
+|                       |          |     construct a tighter bounding box for each side.      |
 |     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
 |                       |          |              Sampling of DSMC surface data.              |
 |   BezierNewtonAngle   |  <PI/2   | Angle to switch between Clipping and a Newton algorithm. |
@@ -297,13 +297,106 @@ The adaptive particle emission can be combined with the circular inflow feature.
 
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
-## Particle in Cell
+## Particle in Cell \label{sec:pic}
 
-References: [@Niegemann2012]
+### Deposition \label{sec:pic_deposition}
+
+Charge and current deposition can be performed using different methods, among others, shape
+functions, B-splines or locally volume-weighted.
+
+#### Shape Function
+
+High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006].
+The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
+
+##### Shape Function 1D {-}
+A one-dimensional shape function in $x$-direction is given by
+
+$$
+S_{1D}(r,R,\alpha)=\frac{\Gamma(\alpha+3/2)}{\sqrt{\pi}R\Gamma(\alpha+1)\Delta y \Delta z}\left( 1-\left( \frac{r}{R} \right)^{2} \right)^{\alpha}~,
+$$
+
+which is normalized to give $\int_{z_{1}}^{z_{2}}\int_{y_{1}}^{y_{2}}\int_{-R}^{R}S_{1D}(r,R,\alpha)dxdydz=1$,
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|=|x-x_{n}|}$ is the distance between the position of the 
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$, 
+$R$ is the cut-off radius, $\Delta y=y_{2}-y_{1}$ and $\Delta z=z_{2}-z_{1}$ are the domain lengths in $y$- and $z$-direction,
+respectively, and $\Gamma(z)$ is the gamma function given by
+
+$$
+  \Gamma(z)=\int_{0}^{\infty}x^{z-1}\exp(-x)dx~.
+$$
+
+
+##### Shape Function 2D {-}
+A two-dimensional shape function in $x$-$y$-direction is given by
+
+$$
+S_{2D}(r,R,\alpha)=\frac{\alpha+1}{\pi R^{2} \Delta z}\left( 1-\left( \frac{r}{R} \right)^{2} \right)^{\alpha}~,
+$$
+
+which is normalized to give $\int_{z_{1}}^{z_{2}}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R,\alpha)rdr d\phi d\theta=1$,
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the 
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$, 
+$R$ is the cut-off radius and $\Delta z=z_{2}-z_{1}$ is the domain length in $z$-direction.
+
+
+##### Shape Function 3D {-}
+A three-dimensional shape function in $x$-$y$-direction is given by [@Stock2012]
+
+$$
+S_{3D}(r,R,\alpha)=\frac{\Gamma(\alpha+5/2)}{\pi^{3/2}R^{3}\Gamma(\alpha+1)}\left( 1-\left( \frac{r}{R} \right)^{2} \right)^{\alpha}~,
+$$
+
+which is normalized to give $\int_{0}^{\pi}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R,\alpha)r^{2}\sin(\phi)dr d\phi d\theta=1$,
+where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the 
+grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and 
+$R$ is the cut-off radius.
 
 ## Direct Simulation Monte Carlo
 
 ### Species Definition
+
+For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species, its name as well as an `InteractionID` have to be defined
+
+    Part-Species1-SpeciesName=CH4
+    Part-Species1-InteractionID=2
+
+The name is at the moment only utilized to retrieve the electronic energy levels from an additional database. The interaction ID determines the type of a species as follows
+
+|   ID | Type                               |
+| ---: | ---------------------------------- |
+|    1 | Atom                               |
+|    2 | Molecule (diatomic and polyatomic) |
+|    4 | Electron                           |
+|   10 | Atomic Ion                         |
+|   20 | Molecular Ion                      |
+
+The implemented Variable Hard Sphere (VHS) collision cross-section model requires the input of the parameter, the temperature exponent $\omega$, reference temperature $T_\mathrm{ref}$ and diameter $d_\mathrm{ref}$
+
+    Part-Species1-omegaVHS=0.24
+    Part-Species1-VHSReferenceTemp=273
+    Part-Species1-VHSReferenceDiam=4.63E-10
+
+It should be noted that although species-specific $\omega$ values can be read-in, DSMC should only be utilized with a single $\omega$. Diatomic molecular species require the definition of the characteristic temperatures
+
+    Part-Species1-CharaTempVib=4194.9
+
+Polyatomic molecular species require an additional flag, the input of the number of atoms  and whether the molecule is linear (e.g. CO$_2$, $\xi_\mathrm{rot} = 2$) or non-linear (e.g. H$_2$O, CH$_4$, $\xi_\mathrm{rot} = 3$). The number of the vibrational degrees of freedom is then given by
+
+$$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
+
+As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
+
+    Part-Species2-NumOfAtoms=4
+    Part-Species2-LinearMolec=FALSE
+    Part-Species2-CharaTempVib1=4320.6
+    Part-Species2-CharaTempVib2=872.1
+    Part-Species2-CharaTempVib3=4545.5
+    Part-Species2-CharaTempVib4=4545.5
+    Part-Species2-CharaTempVib5=2016.2
+    Part-Species2-CharaTempVib6=2016.2
+
+**WORK IN PROGRESS**
 
 ### Relaxation
 

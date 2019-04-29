@@ -312,7 +312,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC'  &
                                   'Particle Charge (without MPF) of species[$] dim' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Particle Mass (without MPF) of species [$] [kg]', '0.', numberedmulti=.TRUE.)
+                                , 'Particle Mass (without MPF) of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
@@ -1532,7 +1532,7 @@ DO iSpec = 1, nSpecies
     IF(iInit.EQ.0)THEN
       !General Species Values
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
-      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
+      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
 #if defined(IMPA)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
@@ -2905,8 +2905,18 @@ __STAMP__&
 ,'BGGas%BGGasDensity must be defined for homogeneous BGG!')
       IF (Species(BGGas%BGGasSpecies)%Init(0)%MWTemperatureIC.EQ.0.) CALL abort(&
 __STAMP__&
-,'MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+,'ERROR: MWTemperatureIC not defined in Init0 for homogeneous BGG!')
+      SELECT CASE(Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution)
+        CASE('maxwell','maxwell_lpn')
+          ! Others have to be tested first.
+        CASE DEFAULT
+          CALL abort(&
+__STAMP__&
+,'ERROR: VelocityDistribution not supported/defined in Init0 for homogeneous BGG! Only maxwell/maxwell_lpn is allowed!')
+      END SELECT
     END IF
+    ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
+    BGGas%PairingPartner = 0
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
 
