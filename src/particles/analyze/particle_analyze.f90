@@ -376,6 +376,10 @@ IF(nSpecies.GT.1) THEN
 ELSE
   nSpecAnalyze = 1
 END IF
+
+CalcCouplPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
+IF(CalcCouplPower) DoPartAnalyze = .TRUE.
+
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
