@@ -4631,6 +4631,9 @@ RKdtFrac = RK_c(2)
 dtWeight = dt/dt_Min * RKdtFrac
 RKdtFracTotal=RKdtFrac
 
+PCoupl = 0.
+PCoupl = 5.*dt
+
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
 #ifdef MPI
