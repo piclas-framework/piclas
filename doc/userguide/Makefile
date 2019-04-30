@@ -9,6 +9,7 @@ SRC +=  050_tutorials.md 080_cluster_guide.md
 ifneq ($(BUILDALL),)
   SRC += missing.md
 endif
+SRC += 100_appendix.md
 SRC += references.md
 
 all: userguide
