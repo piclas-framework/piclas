@@ -14,7 +14,7 @@
 
 MODULE MOD_BGK
 !===================================================================================================================================
-! Module for BGK Flow
+!> description
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -37,7 +37,7 @@ CONTAINS
 
 SUBROUTINE BGK_DSMC_main()
 !===================================================================================================================================
-! Performs FP Momentum Evaluation
+!> description
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -175,10 +175,7 @@ ELSE
     vBulk = vBulk / nPart
 
     IF(DSMC%CalcQualityFactors) THEN
-      BGK_MeanRelaxFactorCounter = 0
-      BGK_MeanRelaxFactor = 0.
-      BGK_MaxRelaxFactor = 0.
-      BGK_MaxRotRelaxFactor = 0.
+      BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
     END IF
 
     IF (BGKMovingAverage) THEN

@@ -14,7 +14,7 @@
 
 MODULE MOD_BGK_CollOperator
 !===================================================================================================================================
-! Module solving collision operator using BGK
+! Module approximating the collision operator using the Bhatnagar-Gross-Krook model
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -36,7 +36,16 @@ CONTAINS
 
 SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll, AveragingPara, CorrectStep)
 !===================================================================================================================================
-!> description
+!> Subroutine for the cell-local BGK collision operator:
+!> 1.) Moment calculation: Summing up the relative velocities and their squares
+!> 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
+!> 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency
+!> 4.) Determine the number of particles undergoing a relaxation (including vibration and rotation)
+!> 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
+!> 6.) Determine the new bulk velocity and the new relative velocity of the particles
+!> 7.) Treatment of the vibrational energy of molecules
+!> 8.) Determine the new DSMC_RHS (for molecules, including rotational energy)
+!> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species
@@ -44,8 +53,7 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, P
 USE MOD_DSMC_Analyze          ,ONLY: CalcTVibPoly
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
-USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes
-USE MOD_BGK_Vars              ,ONLY: BGKMovingAverageLength, BGKMovingAverage
+USE MOD_BGK_Vars              ,ONLY: SpecBGK, ESBGKModel, BGKCollModel, BGKUnifiedCes, BGKMovingAverageLength, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGKUseQuantVibEn, BGKDoVibRelaxation, SBGKEnergyConsMethod
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
 #ifdef CODE_ANALYZE
@@ -95,18 +103,12 @@ END DO
 #endif
 
 NewEn = 0.; OldEn = 0.
-OldEnRot = 0.
-NewEnRot = 0.
-NewEnVib = 0.
-u2 = 0.0
-u0ij = 0.0
-u0i = 0.0
-u2i = 0.0
-Evib = 0.0
-ERot = 0.0
-u2Aver = 0.0
-vBulkRelax = 0.0
-vBulkRelaxOld = 0.0
+OldEnRot = 0.; NewEnRot = 0.; NewEnVib = 0.
+u2 = 0.0; u0ij = 0.0; u0i = 0.0; u2i = 0.0
+Evib = 0.0; ERot = 0.0
+u2Aver = 0.0; vBulkRelax = 0.0; vBulkRelaxOld = 0.0
+
+! 1.) Summing up the relative velocities and their square to calculate the moments
 DO iLoop = 1, nPart
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkAll(1:3)
   IF (BGKMovingAverage) u2Aver = u2Aver + PartState(iPartIndx_Node(iLoop),4)**2. &
@@ -178,6 +180,8 @@ ELSE
   InnerDOF = 0.
 END IF
 
+! Storing the relevant variables for the moving average. In the case of a limited moving average (BGKMovingAverageLength.GT.1),
+! the most recent value overwrites the first entry.
 IF (BGKMovingAverage) THEN
   IF (BGKMovingAverageLength.GT.1) THEN
     CorrectStep = CorrectStep + 1
@@ -205,6 +209,7 @@ ELSE
   CellTempRelax = CellTemp
 END IF
 
+! 2.) Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
         /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
@@ -226,6 +231,8 @@ IF(DSMC%CalcQualityFactors) THEN
   BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dt)
 END IF
 
+! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
+!     which is not the same as the relaxation frequency of distribution function, calculated above.
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   collisionfreq = SpecBGK(1)%CollFreqPreFactor(1) * Dens *CellTempRelax**(-SpecDSMC(1)%omegaVHS +0.5)
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
@@ -242,13 +249,11 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   END IF
 END IF
 
-vBulk(1:3) = 0.0
-nRelax = 0
-nNotRelax = 0
-nRotRelax = 0
-nVibRelax = 0
+vBulk(1:3) = 0.0; nRelax = 0; nNotRelax = 0; nRotRelax = 0; nVibRelax = 0
 ALLOCATE(iPartIndx_NodeRelax(nPart), iPartIndx_NodeRelaxTemp(nPart))
 iPartIndx_NodeRelaxTemp = 0
+
+! 4.) Determine the number of particles undergoing a relaxation (including rotational and vibrational relaxation for molecules)
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart
@@ -328,7 +333,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
       PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = -Xi_Rot / 2. * BoltzmannConst*TEqui*LOG(iRan)
       NewEnRot = NewEnRot + PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
     END DO
-ELSE
+ELSE ! Atoms
   DO iLoop = 1, nPart
     CALL RANDOM_NUMBER(iRan)
     ProbAddPart = 1.-exp(-relaxfreq*dt)
@@ -343,31 +348,29 @@ ELSE
     END IF
   END DO
   IF (nRelax.EQ.0) RETURN
-
   IF (SBGKEnergyConsMethod.EQ.2) THEN
     vBulkRelaxOld = vBulkRelaxOld / nRelax
     IF (nRelax.GT.2) THEN
       DO iLoop = 1, nRelax
-        OldEn = OldEn + 0.5*Species(1)%MassIC & 
-              *((PartState(iPartIndx_NodeRelax(iLoop),4)-vBulkRelaxOld(1))**2.0 &
-              + (PartState(iPartIndx_NodeRelax(iLoop),5)-vBulkRelaxOld(2))**2.0 &
-              + (PartState(iPartIndx_NodeRelax(iLoop),6)-vBulkRelaxOld(3))**2.0)
+        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(iPartIndx_NodeRelax(iLoop),4)-vBulkRelaxOld(1))**2.0 &
+                                             + (PartState(iPartIndx_NodeRelax(iLoop),5)-vBulkRelaxOld(2))**2.0 &
+                                             + (PartState(iPartIndx_NodeRelax(iLoop),6)-vBulkRelaxOld(3))**2.0)
       END DO
     ELSE
       DO iLoop = 1, nPart
-        OldEn = OldEn + 0.5*Species(1)%MassIC & 
-              *((PartState(iPartIndx_Node(iLoop),4)-vBulkAll(1))**2.0 &
-              + (PartState(iPartIndx_Node(iLoop),5)-vBulkAll(2))**2.0 &
-              + (PartState(iPartIndx_Node(iLoop),6)-vBulkAll(3))**2.0)
+        OldEn = OldEn + 0.5*Species(1)%MassIC*((PartState(iPartIndx_Node(iLoop),4)-vBulkAll(1))**2.0 &
+                                             + (PartState(iPartIndx_Node(iLoop),5)-vBulkAll(2))**2.0 &
+                                             + (PartState(iPartIndx_Node(iLoop),6)-vBulkAll(3))**2.0)
       END DO
     END IF
   END IF
-END IF
+END IF ! (SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)
 
+! 5.) Sample new particle velocities from the target distribution function, depending on the chosen model
 IF (nRelax.GT.0) THEN
   ALLOCATE(iRanPart(3,nRelax))
   SELECT CASE(BGKCollModel)
-  CASE (1)
+  CASE (1)  ! Ellipsoidal Statistical
     IF (ESBGKModel.EQ.1) THEN
       !! Approximated Solution
       DO fillMa1 =1, 3
@@ -440,12 +443,12 @@ IF (nRelax.GT.0) THEN
         CALL MetropolisES(nRelax, iRanPart, A)
       END IF
     END IF
-  CASE (2)
+  CASE (2)  ! Shakov
 !    CALL MetropolisShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
     CALL ARShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
-  CASE (3)
+  CASE (3)  ! Standard BGK (Maxwell target distribution)
     CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
-  CASE (4)
+  CASE (4)  ! Unified BGK
       DO fillMa1 =1, 3
         DO fillMa2 =fillMa1, 3
           IF (fillMa1.EQ.fillMa2) THEN
@@ -476,7 +479,9 @@ IF (nRelax.GT.0) THEN
     END IF
     vBulkRelax(1:3) = vBulkRelax(1:3) + DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3)
   END DO
-END IF
+END IF ! nRelax.GT.0
+
+! 6.) Determine the new bulk velocity and the new relative velocity of the particles that underwent relaxation
 IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
   vBulkRelax = vBulkRelax / nRelax
 ELSE
@@ -500,11 +505,12 @@ ELSE
   END DO
 END IF
 
+! 7.) Vibrational energy of the molecules: Determine the new state (either quantized or continuous) and ensure energy conservation
+!     by scaling the new vibrational states with the factor alpha
 IF(BGKDoVibRelaxation) THEN
   IF ((NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
     IF (BGKUseQuantVibEn) THEN
       alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax))
-
       IF(SpecDSMC(1)%PolyatomicMol) THEN
         DO iLoop = 1, nVibRelax
           PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = 0.0
@@ -535,7 +541,7 @@ IF(BGKDoVibRelaxation) THEN
           PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)  = PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
                + SpecDSMC(1)%EZeroPoint
         END DO
-      ELSE
+      ELSE  ! Diatomic molecules
         DO iLoop = 1, nVibRelax
           betaV = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1)/(SpecDSMC(1)%CharaTVib*BoltzmannConst)
           CALL RANDOM_NUMBER(iRan)
@@ -559,21 +565,25 @@ IF(BGKDoVibRelaxation) THEN
           END IF
           OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
         END DO
-      END IF
-    ELSE
+      END IF ! SpecDSMC(1)%PolyatomicMol
+    ELSE ! Continuous treatment of vibrational energy
       alpha = OldEn/NewEnVib*(Xi_Vib*nVibRelax/(3.*(nPart-1.)+Xi_Vib*nVibRelax)) 
       DO iLoop = 1, nVibRelax
         PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = alpha*PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) &
           + SpecDSMC(1)%EZeroPoint
         OldEn = OldEn - PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) +  SpecDSMC(1)%EZeroPoint
       END DO
-    END IF
-  ELSE IF (nVibRelax.GT.0) THEN
+    END IF ! BGKUseQuantVibEn
+  ELSE IF (nVibRelax.GT.0) THEN ! Relaxation towards the vibrational ground-state (new state is simply the zero-point energy)
     DO iLoop = 1, nVibRelax
       PartStateIntEn(iPartIndx_NodeRelaxVib(iLoop), 1) = SpecDSMC(1)%EZeroPoint
     END DO 
-  END IF
-END IF
+  END IF ! (NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)
+END IF ! BGKDoVibRelaxation
+
+! 8.) Determine the new particle state (for molecules including rotational energy) and ensure energy conservation by scaling the new
+!     velocities with the factor alpha. The actual update of particle velocity happens in the TimeDisc through the change in the
+!     velocity (DSMC_RHS), to enable an easier coupling with existing routines and DSMC)
 OldEn = OldEn + OldEnRot
 IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
   alpha = SQRT(OldEn/NewEn*(3.*(nRelax-1.))/(Xi_rot*nRotRelax+3.*(nRelax-1.)))
@@ -594,11 +604,14 @@ ELSE
                         - PartState(iPartIndx_NodeRelaxTemp(iLoop),4:6)
   END DO
 END IF
+
+! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
   PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2) = alpha*PartStateIntEn(iPartIndx_NodeRelaxRot(iLoop), 2)
 END DO
 
+! CODE ANALYZE: Compare the old momentum and energy of the cell with the new, abort if relative difference is above the limits
 #ifdef CODE_ANALYZE
 DO iLoop = 1, nPart
   Momentum_new(1:3) = Momentum_new(1:3) + DSMC_RHS(iPartIndx_Node(iLoop),1:3) + PartState(iPartIndx_Node(iLoop),4:6)

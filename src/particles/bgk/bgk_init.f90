@@ -14,7 +14,7 @@
 
 MODULE MOD_BGK_Init
 !===================================================================================================================================
-! Initialization of BGK
+!> Initialization of the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -90,18 +90,18 @@ END SUBROUTINE DefineParametersBGK
 
 SUBROUTINE InitBGK()
 !===================================================================================================================================
-!> Init of BGK Vars
+!> Initialization of the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_BGK_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
-USE MOD_ReadInTools
-USE MOD_BGK_Vars
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -189,7 +189,7 @@ END SUBROUTINE InitBGK
 
 SUBROUTINE BGK_init_MovingAverage()
 !===================================================================================================================================
-!> Building of the octree for a node depth of 2 during the initialization
+!> Initialization of the arrays for the sampling of the moving average
 !===================================================================================================================================
 ! MODULES
 USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKMovingAverageLength
@@ -218,6 +218,7 @@ DO iElem = 1, nElems
 END DO
 
 END SUBROUTINE BGK_init_MovingAverage
+
 
 SUBROUTINE FinalizeBGK()
 !----------------------------------------------------------------------------------------------------------------------------------!

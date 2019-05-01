@@ -14,7 +14,7 @@
 
 MODULE MOD_BGK_Adaptation
 !===================================================================================================================================
-!> description
+!> Module containing routines for the recursive octree cell refinement algorithm for the BGK and FP-Flow particle methods.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -37,23 +37,23 @@ CONTAINS
 
 SUBROUTINE BGK_octree_adapt(iElem)
 !===================================================================================================================================
-!> Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node 
-!> or start nearest neighbour search
+!> Main octree routine for BGK and FP-Flow: Checks whether particle number (or density) is above the given limit and performs
+!> a recursive octree algorithm to subdivide the cell until the limit is reached.
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
-USE MOD_DSMC_Vars              ,ONLY: tTreeNode, ElemNodeVol, DSMC
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Vars          ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues
-USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
-USE MOD_BGK_CollOperator       ,ONLY: BGK_CollisionOperator
-USE MOD_BGK_Vars               ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKSplittingDens
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_FP_CollOperator        ,ONLY: FP_CollisionOperatorOctree
-USE MOD_BGK_Vars               ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
-USE MOD_BGK_Vars               ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
-USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
-USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_TimeDisc_Vars            ,ONLY: TEnd, Time
+USE MOD_DSMC_Vars                ,ONLY: tTreeNode, ElemNodeVol, DSMC
+USE MOD_Particle_Mesh_Vars       ,ONLY: GEO
+USE MOD_Particle_Vars            ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues
+USE MOD_Particle_Tracking_Vars   ,ONLY: DoRefMapping
+USE MOD_BGK_CollOperator         ,ONLY: BGK_CollisionOperator
+USE MOD_BGK_Vars                 ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKSplittingDens
+USE MOD_Eval_xyz                 ,ONLY: GetPositionInRefElem
+USE MOD_FP_CollOperator          ,ONLY: FP_CollisionOperatorOctree
+USE MOD_BGK_Vars                 ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
+USE MOD_BGK_Vars                 ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
+USE MOD_FPFlow_Vars              ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
+USE MOD_FPFlow_Vars              ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -77,55 +77,50 @@ IF(DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
+! Skip cell if number of particles is less than 2, create particle list (iPartIndx_Node) and sum-up bulk velocity
 nPart = PEM%pNumber(iElem)
 IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
 NULLIFY(TreeNode)
-
 ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+ALLOCATE(TreeNode%iPartIndx_Node(nPart))
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
 vBulk(1:3) = 0.0
-iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
   vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
   iPart = PEM%pNext(iPart)
 END DO
 vBulk = vBulk / nPart
-
 Dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
-! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+
+! The octree refinement is performed if either the particle number or number density is above a user-given limit
 IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-  ! the side length of a cube (approximation) with same volume as the actual cell -> octree
   ALLOCATE(TreeNode%MappedPartStates(1:nPart, 1:3))
   TreeNode%PNum_Node = nPart
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   IF (DoRefMapping) THEN
     DO iLoop = 1, nPart
-      TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,iPart)
-      iPart = PEM%pNext(iPart)
+      TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
-      !CALL GeoCoordToMap(PartState(iPart,1:3), TreeNode%MappedPartStates(iLoop,1:3), iElem)
-      iPart = PEM%pNext(iPart)
+      CALL GetPositionInRefElem(PartState(TreeNode%iPartIndx_Node(iLoop),1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
     END DO
   END IF ! DoRefMapping
   TreeNode%NodeDepth = 1
   TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+  ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled
   IF (BGKMovingAverage) THEN
     CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
   ELSE
     CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
   END IF
   DEALLOCATE(TreeNode%MappedPartStates)
-ELSE
+ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart &
                               , GEO%Volume(iElem), vBulk)
@@ -140,8 +135,9 @@ ELSE
                             , GEO%Volume(iElem), vBulk)
   END IF
 #endif
-END IF
+END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
 
+! Sampling of quality factors for BGK and FP-Flow methods
 IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     IF(BGKInitDone) THEN
@@ -170,7 +166,11 @@ END SUBROUTINE BGK_octree_adapt
 
 RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 !===================================================================================================================================
-!> Adds additional octree node/branch (fancy)
+!> Adds an additional octree node/branch until either the particle number or number density is above a user-given limit
+!> 1.) Sorting the particles into the subcells (octree child nodes)
+!> 2.) Calculate the volumes of the subcells
+!> 3.) Combines subcells, if the particle number within the subcell is below the limit
+!> 4.) Check each child node if a further refinement is required
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -198,12 +198,13 @@ INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(8)
 REAL                         :: NodeVolumeTemp(8), vBulk(3,8)
-LOGICAL                      :: ForceBGK
+LOGICAL                      :: CombineChildNodes
 !===================================================================================================================================
+! 0. Determine if subcells with less particles than the given limit might occur (MARCEL FRAGEN)
 IF (TreeNode%PNum_Node.LE.8.*BGKMinPartPerCell) THEN
-  ForceBGK = .TRUE.
+  CombineChildNodes = .TRUE.
 ELSE
-  ForceBGK = .FALSE.
+  CombineChildNodes = .FALSE.
 END IF
 ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(8,TreeNode%PNum_Node,3))
@@ -213,6 +214,9 @@ IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
 __STAMP__&
 ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
 END IF
+
+! 1.) Sorting the received particles to the respective octree child node
+!
 !         Numbering of the 8 ChildNodes of the Octree
 !          __________
 !         /    /    /|   |z
@@ -224,8 +228,7 @@ END IF
 !     |----|----|1 /   /x
 !     | 4  | 1  | /
 !     |____|____|/
-
-! particle to Octree ChildNode sorting
+!
 vBulk = 0.0
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
@@ -277,8 +280,10 @@ DO iPart=1,TreeNode%PNum_Node
   END IF
 END DO
 
-IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) ForceBGK = .TRUE.
+! Check if any of the subcells has less particles than the limit, if so perform a recombination of cells (3.)
+IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) CombineChildNodes = .TRUE.
 
+! 2.) Calculate the subcell volume (if necessary)
 IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
   localDepth = TreeNode%NodeDepth
   CALL DSMC_CalcSubNodeVolumes(iElem, localDepth, ElemNodeVol(iElem)%Root)
@@ -299,7 +304,10 @@ IF (BGKMovingAverage) THEN
   END IF
 END IF
 
-IF(ForceBGK) THEN
+! 3.) Combine subcells together if the particle number is less than the limit (BGKMinPartPerCell). Go through the first 7 subcells
+!    and if the subcell is below the limit, add the particles and the volume to the next subcell and delete them from the original.
+!    For the last subcell: if it has less than the limit, find a cell, which still has particles and add them to it.
+IF(CombineChildNodes) THEN
   DO iLoop = 1, 7
     IF (PartNumChildNode(iLoop).LT.BGKMinPartPerCell) THEN
       DO iPart=1, PartNumChildNode(iLoop)
@@ -330,11 +338,10 @@ IF(ForceBGK) THEN
   END IF
 END IF
 
-
+! 4.) Check each child node if a further refinement is required. If no further refinement is necessary or if cells were combined
+!    -> Perform the collision operator
 DO iLoop = 1, 8
-  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-  IF ((PartNumChildNode(iLoop).GE.(2.*BGKMinPartPerCell)).AND.(.NOT.ForceBGK)) THEN
-    ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  IF ((PartNumChildNode(iLoop).GE.(2.*BGKMinPartPerCell)).AND.(.NOT.CombineChildNodes)) THEN
     NULLIFY(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode)
     ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
@@ -449,25 +456,9 @@ END DO
 END SUBROUTINE AddBGKOctreeNode
 
 
-integer function lcm(a,b)
-integer:: a,b
-    lcm = a*b / gcd(a,b)
-end function lcm
-
-integer function gcd(a,b)
-integer :: a,b,t
-    do while (b/=0)
-        t = b
-        b = mod(a,b)
-        a = t
-    end do
-    gcd = abs(a)
-end function gcd
-
-
 SUBROUTINE BGK_AllocateAveragingNode(Averaging)
 !===================================================================================================================================
-! description
+!> Allocation of the arrays and iteration counter required for the sampling of the moving average in the octree subnodes
 !===================================================================================================================================
 ! MODULES
 USE MOD_BGK_Vars,               ONLY :tNodeAverage, BGKMovingAverageLength
