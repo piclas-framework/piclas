@@ -176,16 +176,16 @@ SUBROUTINE InitializeParticleEmission()
 !===================================================================================================================================
 ! MODULES
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
-USE MOD_LoadBalance_Vars,      ONLY : PerformLoadBalance
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Restart_Vars,   ONLY : DoRestart
-USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
-USE MOD_part_tools,     ONLY : UpdateNextFreePosition
+USE MOD_Restart_Vars      ,ONLY: DoRestart
+USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset
+USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
-USE MOD_part_pressure,  ONLY : ParticleInsideCheck
+USE MOD_DSMC_Vars         ,ONLY: useDSMC, DSMC
+USE MOD_part_pressure     ,ONLY: ParticleInsideCheck
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -364,6 +364,18 @@ END DO ! species
 DO i = 1,PDM%ParticleVecLength
   PEM%lastElement(i) = PEM%Element(i)
 END DO
+
+!--- Remove particles from dielectric regions if DielectricNoParticles=.TRUE.
+IF(DoDielectric)THEN
+  IF(DielectricNoParticles)THEN
+    DO i = 1,PDM%ParticleVecLength
+      ! Remove particles in dielectric elements
+      IF(isDielectricElem(PEM%Element(i)))THEN
+        PDM%ParticleInside(i) = .FALSE.
+      END IF
+    END DO
+  END IF
+END IF
 
 SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 

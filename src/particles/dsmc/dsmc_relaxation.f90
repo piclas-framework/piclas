@@ -225,7 +225,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
   INTEGER                         :: ProductReac(1:3)
   REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
   REAL                            :: SumOne, SumTwo
-  REAl(KIND=8)                    :: eps_prec=0.1
+  REAL                            :: eps_prec=0.1
 !===================================================================================================================================
 
   ProductReac(1:3) = ChemReac%DefinedReact(iReac,2,1:3)
@@ -281,8 +281,12 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
             SumTwo = SumTwo + SpecDSMC(ProductReac(iProd))%ElectronicState(1,iQua) &
                             * EXP(-SpecDSMC(ProductReac(iProd))%ElectronicState(2,iQua)/MiddleTemp)
           END DO
-          XiElecPart(iProd) = 2 * SumOne / (SumTwo * BoltzmannConst * MiddleTemp)
-          Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
+          IF((SumOne.GT.0.0).AND.(SumTwo*BoltzmannConst.GT.0.0)) THEN
+            XiElecPart(iProd) = 2. * SumOne / (SumTwo * BoltzmannConst * MiddleTemp)
+            Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
+          ELSE
+            XiElecPart(iProd) = 0.0
+          END IF
         ELSE
           IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
         END IF

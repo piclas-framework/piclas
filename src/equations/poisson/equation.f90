@@ -540,7 +540,6 @@ USE MOD_LinearSolver_Vars  ,ONLY: ExplicitPartSource
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_Dielectric_vars    ,ONLY: DoDielectric,DielectricEpsR,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
