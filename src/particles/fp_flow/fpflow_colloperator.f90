@@ -14,14 +14,14 @@
 
 MODULE MOD_FP_CollOperator
 !===================================================================================================================================
-! Module including different particle pairing algorithms
+! Module containing the Fokker-Planck-based approximation of the collision operator
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE FP_CollisionOperatorOctree
+INTERFACE FP_CollisionOperator
   MODULE PROCEDURE FP_CollisionOperator
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -29,30 +29,29 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: FP_CollisionOperatorOctree
+PUBLIC :: FP_CollisionOperator
 !===================================================================================================================================
 
 CONTAINS
 
 SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, vBulkAll)
 !===================================================================================================================================
-! Performs FP Momentum Evaluation
-! Siehe paper: An efficient particle Fokker–Planck algorithm for rarefied gas flows, Gorji, JCP 2014
+! Cell-local collision operator using different Fokker-Planck-based approximations
 !===================================================================================================================================
 ! MODULES
 #ifdef CODE_ANALYZE
-USE MOD_Globals,                ONLY: abort,unit_stdout,myrank
+USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
 #endif /* CODE_ANALYZE */
-USE MOD_Globals_Vars,           ONLY: Pi, BoltzmannConst
-USE MOD_FPFlow_Vars,            ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
-USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars,          ONLY: Species, PartState
-USE MOD_TimeDisc_Vars,          ONLY: dt
-USE MOD_DSMC_Vars,              ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
+USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
+USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
+USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_Particle_Vars           ,ONLY: Species, PartState
+USE MOD_TimeDisc_Vars           ,ONLY: dt
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
 USE Ziggurat
-USE MOD_FPFlow_Init,            ONLY: FP_BuildTransGaussNums
-USE MOD_DSMC_Analyze,           ONLY: CalcTVibPoly
-USE MOD_BGK_CollOperator,       ONLY: CalcTEquiPoly, CalcTEqui
+USE MOD_FPFlow_Init             ,ONLY: FP_BuildTransGaussNums
+USE MOD_DSMC_Analyze            ,ONLY: CalcTVibPoly
+USE MOD_BGK_CollOperator        ,ONLY: CalcTEquiPoly, CalcTEqui
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,26 +96,10 @@ DO iLoop = 1, nPart
 END DO
 #endif
 
-FPCoeffMatr= 0.0
-dens = 0.0
-u0ij=0.0
-u2ij=0.0
-u0ijk=0.0
-u2=0.0
-u4i=0.0
-u2i=0.0
-u4=0.0
-u0ijMat=0.0
-u0i=0.0
+FPCoeffMatr= 0.0; dens = 0.0; u0ij=0.0; u2ij=0.0; u0ijk=0.0; u2=0.0; u4i=0.0; u2i=0.0; u4=0.0; u0ijMat=0.0; u0i=0.0
 ALLOCATE(Ni(3,nPart))
 Ni=0.0
-ERot=0.0
-EVib=0.0
-OldEn = 0.0
-NewEn = 0.0
-OldEnRot = 0.0; NewEnRot = 0.0; NewEnVib=0.0
-nRotRelax = 0
-nVibRelax = 0
+ERot=0.0; EVib=0.0; OldEn = 0.0; NewEn = 0.0; OldEnRot = 0.0; NewEnRot = 0.0; NewEnVib=0.0; nRotRelax = 0; nVibRelax = 0
 
 DO iLoop2 = 1, nPart
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop2),4:6)-vBulkAll(1:3)
@@ -148,8 +131,6 @@ DO iLoop2 = 1, nPart
       END DO
     END DO
     u0i(1:3) = u0i(1:3) + V_rel(1:3)   
-  ELSE IF (FPCollModel.EQ.3) THEN 
-    u2i(1:3) = u2i(1:3) + V_rel(1:3)*vmag2
   END IF
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN 
     IF(FPDoVibRelaxation) Evib = Evib + PartStateIntEn(iPartIndx_Node(iLoop2),1) - SpecDSMC(1)%EZeroPoint
@@ -174,8 +155,6 @@ ELSE IF (FPCollModel.EQ.2) THEN
   CALL DSYEV('N','U',3,A,3,W,Work,1000,INFO)
   trace = u0ijMat(1,1)+u0ijMat(2,2)+u0ijMat(3,3)
   u0i = u0i / nPart
-ELSE IF (FPCollModel.EQ.3) THEN
-  u2i(1:3) = u2i(1:3) *nPart/((nPart-1.)*(nPart-2.))
 END IF
 
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
@@ -488,8 +467,6 @@ ELSE IF (FPCollModel.EQ.2) THEN
     iRanPart(2,iLoop) = rnor()
     iRanPart(3,iLoop) = rnor()
   END DO
-ELSE IF (FPCollModel.EQ.3) THEN
-  CALL ARShakhovFP(nPart, iRanPart, u2/3., u2i, Prandtl) 
 END IF
 
 IF (FPCollModel.EQ.1) THEN
@@ -680,51 +657,5 @@ END DO
 #endif /* CODE_ANALYZE */
 
 END SUBROUTINE FP_CollisionOperator
-
-SUBROUTINE ARShakhovFP(nPart, iRanPart, Vtherm, HeatVec, Prandtl)
-!===================================================================================================================================
-! Performs FP Momentum Evaluation
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: HeatVec(3), Prandtl, Vtherm
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: Vheat, V2, iRan, OldProb, Envelope
-INTEGER                        :: iPart
-!===================================================================================================================================
-Envelope = MAX(ABS(HeatVec(1)),ABS(HeatVec(2)),ABS(HeatVec(3)))/Vtherm**(3./2.)
-Envelope =  1.+6.*Envelope
-
-DO iPart = 1, nPart
-  iRanPart(1,iPart) = rnor()
-  iRanPart(2,iPart) = rnor()
-  iRanPart(3,iPart) = rnor()
-  V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-  Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-!  OldProb =  (1. + (3./2.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-  OldProb =  (1. + (3./2.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2-5./2.))
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE (Envelope*iRan.GT.OldProb)
-    iRanPart(1,iPart) = rnor()
-    iRanPart(2,iPart) = rnor()
-    iRanPart(3,iPart) = rnor()
-    V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-    Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-!    OldProb = (1. + (3./2.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2/2.-5./2.))
-     OldProb =  (1. + (3./2.-Prandtl)*VHeat/(5.*Vtherm**(3./2.))*(V2-5./2.))
-    CALL RANDOM_NUMBER(iRan)
-  END DO
-END DO
-
-END SUBROUTINE ARShakhovFP
 
 END MODULE MOD_FP_CollOperator

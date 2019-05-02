@@ -49,7 +49,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: DoRefMapping
 USE MOD_BGK_CollOperator         ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                 ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKSplittingDens
 USE MOD_Eval_xyz                 ,ONLY: GetPositionInRefElem
-USE MOD_FP_CollOperator          ,ONLY: FP_CollisionOperatorOctree
+USE MOD_FP_CollOperator          ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                 ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
 USE MOD_BGK_Vars                 ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor
 USE MOD_FPFlow_Vars              ,ONLY: FPInitDone, FP_PrandtlNumber, FP_QualityFacSamp
@@ -122,7 +122,7 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   DEALLOCATE(TreeNode%MappedPartStates)
 ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperatorOctree(TreeNode%iPartIndx_Node, nPart &
+    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart &
                               , GEO%Volume(iElem), vBulk)
 #else
   IF (BGKMovingAverage) THEN
@@ -180,7 +180,7 @@ USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGKMovingAverageLength
-USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperatorOctree
+USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -399,7 +399,7 @@ DO iLoop = 1, 8
   ELSE IF (PartNumChildNode(iLoop).GE.2) THEN
     vBulk(1:3,iLoop) = vBulk(1:3,iLoop) / PartNumChildNode(iLoop)
 #if (PP_TimeDiscMethod==300)
-      CALL FP_CollisionOperatorOctree(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+      CALL FP_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), vBulk(1:3,iLoop))
 #else
     IF (BGKMovingAverage) THEN

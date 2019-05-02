@@ -14,7 +14,7 @@
 
 MODULE MOD_BGK
 !===================================================================================================================================
-!> description
+!> Main module for the the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -37,24 +37,24 @@ CONTAINS
 
 SUBROUTINE BGK_DSMC_main()
 !===================================================================================================================================
-!> description
+!> Coupled BGK and DSMC routine: Cell-local decision with BGKDSMCSwitchDens
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
-USE MOD_Mesh_Vars,              ONLY: nElems
-USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
-USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-USE MOD_Particle_Vars,          ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
-USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength, BGKDSMCSwitchDens
-USE MOD_BGK_Vars,               ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_QualityFacSamp
-USE MOD_BGK_Vars,               ONLY: BGK_MaxRotRelaxFactor
-USE MOD_BGK_CollOperator,       ONLY: BGK_CollisionOperator
-USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
-USE MOD_DSMC,                   ONLY: DSMC_main
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, PartSpecies, Species, WriteMacroVolumeValues
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKDSMCSwitchDens
+USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
+USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
+USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
+USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
+USE MOD_DSMC                ,ONLY: DSMC_main
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,10 +81,10 @@ DO iElem = 1, nElems
   IF (DoBGKCellAdaptation) THEN
     CALL BGK_octree_adapt(iElem)
   ELSE  
-    ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+    ALLOCATE(iPartIndx_Node(nPart))
     TotalMass = 0.0
     vBulk(1:3) = 0.0
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
       iSpec = PartSpecies(iPart)
@@ -124,24 +124,26 @@ END SUBROUTINE BGK_DSMC_main
 
 SUBROUTINE BGK_main()
 !===================================================================================================================================
-!> description
+!> Main routine for the BGK model
+!> 1.) Loop over all elements, call of octree refinement or directly of the collision operator
+!> 2.) Sampling of macroscopic variables with DSMC routines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars      ,ONLY: TEnd, Time
-USE MOD_Mesh_Vars          ,ONLY: nElems, MeshFile
-USE MOD_DSMC_Vars          ,ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_BGK_Adaptation     ,ONLY: BGK_octree_adapt
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Vars      ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
-USE MOD_Restart_Vars       ,ONLY: RestartTime
-USE MOD_BGK_Vars           ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
-USE MOD_BGK_Vars           ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-USE MOD_BGK_Vars           ,ONLY: BGK_MaxRotRelaxFactor
-USE MOD_BGK_CollOperator   ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_Analyze       ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Restart_Vars        ,ONLY: RestartTime
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
+USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
+USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor
+USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
+USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,CalcSurfaceValues,WriteDSMCHOToHDF5
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -158,15 +160,13 @@ IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
     CALL BGK_octree_adapt(iElem)
   END DO
-ELSE
+ELSE ! No octree cell refinement
   DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-
-    ALLOCATE(iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-
+    ALLOCATE(iPartIndx_Node(nPart))
     vBulk(1:3) = 0.0
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
       vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
@@ -196,7 +196,7 @@ ELSE
     END IF
     DEALLOCATE(iPartIndx_Node)
   END DO
-END IF
+END IF ! DoBGKCellAdaptation
 
 IF((.NOT.WriteMacroVolumeValues) .AND. (.NOT.WriteMacroSurfaceValues)) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN

@@ -14,7 +14,7 @@
 
 MODULE MOD_FPFlow
 !===================================================================================================================================
-! Module for FPFLOW
+! Module for the main Fokker-Planck routines
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -23,6 +23,10 @@ PRIVATE
 
 INTERFACE FPFlow_main
   MODULE PROCEDURE FPFlow_main
+END INTERFACE
+
+INTERFACE FP_DSMC_main
+  MODULE PROCEDURE FP_DSMC_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -37,22 +41,22 @@ CONTAINS
 
 SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
-!> description
+!> Coupled FP and DSMC routine: Cell-local decision with FPDSMCSwitchDens
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-USE MOD_Mesh_Vars,              ONLY: nElems
-USE MOD_Particle_Vars,          ONLY: PEM, PartState, Species, WriteMacroVolumeValues
-USE MOD_FP_CollOperator,        ONLY: FP_CollisionOperatorOctree
-USE MOD_FPFlow_Vars,            ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
-USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC
-USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
-USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling
-USE MOD_DSMC,                   ONLY: DSMC_main
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_Mesh_Vars           ,ONLY: nElems
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, Species, WriteMacroVolumeValues
+USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
+USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling
+USE MOD_DSMC                ,ONLY: DSMC_main
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,7 +104,7 @@ DO iElem = 1, nElems
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -122,22 +126,24 @@ END SUBROUTINE FP_DSMC_main
 
 SUBROUTINE FPFlow_main()
 !===================================================================================================================================
-! Performs FP Momentum Evaluation
+!> Main routine for the FP model
+!> 1.) Loop over all elements, call of octree refinement or directly of the collision operator
+!> 2.) Sampling of macroscopic variables with DSMC routines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_TimeDisc_Vars,          ONLY: TEnd, Time
-USE MOD_Mesh_Vars,              ONLY: nElems, MeshFile
-USE MOD_Particle_Mesh_Vars,     ONLY: GEO
-USE MOD_Particle_Vars,          ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
-USE MOD_FP_CollOperator,        ONLY: FP_CollisionOperatorOctree
-USE MOD_DSMC_Vars,              ONLY: DSMC_RHS, DSMC, SamplingActive
-USE MOD_BGK_Vars,               ONLY: DoBGKCellAdaptation
-USE MOD_BGK_Adaptation,         ONLY: BGK_octree_adapt
-USE MOD_DSMC_Analyze,           ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
-USE MOD_Restart_Vars,           ONLY: RestartTime
-USE MOD_FPFlow_Vars,            ONLY: FP_QualityFacSamp, FP_PrandtlNumber
-USE MOD_FPFlow_Vars,            ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
+USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
+USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
+USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
+USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
+USE MOD_DSMC_Analyze        ,ONLY: DSMCHO_data_sampling,WriteDSMCHOToHDF5,CalcSurfaceValues
+USE MOD_Restart_Vars        ,ONLY: RestartTime
+USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -176,7 +182,7 @@ ELSE
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperatorOctree(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
