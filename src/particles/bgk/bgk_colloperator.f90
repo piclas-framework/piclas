@@ -145,6 +145,8 @@ CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst) *nPart/(nPart-1.)
 u2 = u2*nPart/(nPart-1.)
 
 dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
+
+! Calculation of the rotational and vibrational degrees of freedom for molecules
 IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   Xi_vib = 0.0
   IF(BGKDoVibRelaxation) THEN
