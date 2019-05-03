@@ -791,6 +791,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTra
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
@@ -1077,6 +1078,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
+      IF(FPInitDone) FP_QualityFacSamp(:,:) = 0.
     END IF
   END IF
 END IF
