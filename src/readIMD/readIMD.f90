@@ -51,7 +51,7 @@ subroutine read_IMD_results()
   integer(kind=2)                           :: observables
   integer(kind=8)                           :: nGlobalAtoms
   integer                                   :: ioStatus(MPI_STATUS_SIZE)
-  integer                                   :: nAtoms, iAtom, iProc
+  integer(kind=8)                           :: nAtoms, iAtom, iProc
   integer(kind=8),dimension(0:nProcessors)  :: FileOffsets
   integer(kind=MPI_OFFSET_KIND)             :: myOffset
   character(len=1),dimension(:),allocatable :: AtomsBuffer
