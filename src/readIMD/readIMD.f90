@@ -88,6 +88,7 @@ subroutine read_IMD_results()
 
     disp = int(disp_tmp,8)
 
+    SWRITE(UNIT_stdOut,'(3A,I15)')'Number of atmos in ',trim(filenameIMDresults),': ',nGlobalAtoms
     call MPI_FILE_CLOSE(filehandle, mpiFileError)
 
   end if
@@ -140,6 +141,7 @@ subroutine read_IMD_results()
   deallocate(AtomsBuffer)
   call MPI_Info_free(mpiInfo, iError)
 
+  SWRITE(UNIT_stdOut,'(A)')'Read IMD data done'
   if( killPIClas )then
     call MPI_FINALIZE( iError )
     stop
