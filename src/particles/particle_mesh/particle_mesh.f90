@@ -4861,7 +4861,7 @@ DO iElem=1,PP_nElems
     END DO
     IF (.NOT.ElemExists) THEN
       TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
-      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = Element
+      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = iElem
     END IF
   END DO
 END DO
@@ -5064,9 +5064,12 @@ END IF
 ALLOCATE( PartMPI%MPINodeNeighbor(PartMPI%nMPINodeNeighbors))
 iMPINeighbor=0
 DO iProc=0,PartMPI%nProcs-1
-  IF(PartMPI%IsMPINeighbor(iProc))THEN
+  ! Check if iProc is my node neighbour
+  IF(PartMPI%IsMPINodeNeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
+    ! Mapping of node neighbour proc to global proc id (PartMPI%COMM)
     PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID=iProc
+    ! Loop all halo nodes
     DO iNode=nNodes+1,nTotalNodes
       IF(iProc.EQ.PartHaloNodeToProc(NATIVE_PROC_ID,iNode)) PartHaloNodeToProc(LOCAL_PROC_ID,iNode)=iMPINeighbor
     END DO ! iNode
@@ -5082,165 +5085,165 @@ NodeExchange%nNodesSend(:) = 0
 NodeExchange%nNodesRecv(:) = 0
 
 ! count number of nodes to send to each proc
-DO iProc=1,PartMPI%nMPINodeNeighbors
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
   DO iNode=1,nNodes
-    IF (NodeIndexToSend(iNode,iProc).GT.nNodes) THEN
-      NodeExchange%nNodesSend(iProc) = NodeExchange%nNodesSend(iProc) + 1
+    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
+      NodeExchange%nNodesSend(iMPINeighbor) = NodeExchange%nNodesSend(iMPINeighbor) + 1
     END IF
   END DO
 END DO
 
 ! open envelope receiving number of send nodes
 ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors))
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_IRECV( NodeExchange%nNodesRecv(iProc)            &
-                , 1                                         &
-                , MPI_INTEGER                               &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1313                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%RecvRequest(iProc)           &
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_IRECV( NodeExchange%nNodesRecv(iMPINeighbor)            &
+                , 1                                                &
+                , MPI_INTEGER                                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1313                                             &
+                , PartMPI%COMM                                     &
+                , NodeExchange%RecvRequest(iMPINeighbor)           &
                 , IERROR )
-END DO ! iProc
+END DO ! iMPINeighbor
 
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_ISEND( NodeExchange%nNodesSend(iProc)            &
-                , 1                                         &
-                , MPI_INTEGER                               &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
-                , 1313                                      &
-                , PartMPI%COMM                              &
-                , NodeExchange%SendRequest(iProc)           &
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_ISEND( NodeExchange%nNodesSend(iMPINeighbor)            &
+                , 1                                                &
+                , MPI_INTEGER                                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1313                                             &
+                , PartMPI%COMM                                     &
+                , NodeExchange%SendRequest(iMPINeighbor)           &
                 , IERROR )
-END DO ! iProc
+END DO ! iMPINeighbor
 
 
 ! 4) Finish Received number of nodes
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
 ,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
           ,' MPI Communication error', IERROR)
-END DO ! iProc
+END DO ! iMPINeighbor
 
 ! allocate send and receive buffer for communicating send node mapping
 ALLOCATE(NodeSendBuf(PartMPI%nMPINodeNeighbors))
 ALLOCATE(NodeRecvBuf(PartMPI%nMPINodeNeighbors))
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).GT.0)THEN
-    ALLOCATE(NodeSendBuf(iProc)%content(NodeExchange%nNodesSend(iProc)),STAT=ALLOCSTAT)
-    NodeSendBuf(iProc)%content(:)=0.
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0)THEN
+    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(NodeExchange%nNodesSend(iMPINeighbor)),STAT=ALLOCSTAT)
+    NodeSendBuf(iMPINeighbor)%content(:)=0.
   END IF
-  IF(NodeExchange%nNodesRecv(iProc).GT.0)THEN
-    ALLOCATE(NodeRecvBuf(iProc)%content(NodeExchange%nNodesRecv(iProc)),STAT=ALLOCSTAT)
-    NodeRecvBuf(iProc)%content(:)=0.
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0)THEN
+    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(NodeExchange%nNodesRecv(iMPINeighbor)),STAT=ALLOCSTAT)
+    NodeRecvBuf(iMPINeighbor)%content(:)=0.
   END IF
-END DO ! iProc=1,PartMPI%nMPINodeNeighbors
+END DO ! iMPINeighbor=1,PartMPI%nMPINodeNeighbors
 
 ! open receive buffer
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  CALL MPI_IRECV( NodeRecvBuf(iProc)%content                &
-                , NodeExchange%nNodesRecv(iProc)            &
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+  CALL MPI_IRECV( NodeRecvBuf(iMPINeighbor)%content                &
+                , NodeExchange%nNodesRecv(iMPINeighbor)            &
                 , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
                 , 1414                                      &
                 , PartMPI%COMM                              &
-                , NodeExchange%RecvRequest(iProc)           &
+                , NodeExchange%RecvRequest(iMPINeighbor)           &
                 , IERROR )
-END DO ! iProc
+END DO ! iMPINeighbor
 
 ! build message 
 ! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
 ! send
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  ALLOCATE(PartMPI%MPINodeNeighbor(iProc)%SendList(NodeExchange%nNodesSend(iProc)))
-  PartMPI%MPINodeNeighbor(iProc)%SendList(:) = 0
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(NodeExchange%nNodesSend(iMPINeighbor)))
+  PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(:) = 0
   iSendNode=0
   iPos=1
   DO iNode=1,nNodes
-    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iProc)%COMMProcID).GT.nNodes) THEN
+    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
       iSendNode=iSendNode+1
-      PartMPI%MPINodeNeighbor(iProc)%SendList(iSendNode)=iNode
-      NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iProc)%COMMProcID))
-      NodeSendBuf(iProc)%content(iPos)=REAL(NodeID)
+      PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(iSendNode)=iNode
+      NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID))
+      NodeSendBuf(iMPINeighbor)%content(iPos)=REAL(NodeID)
       iPos=iPos+1
     END IF
   END DO ! iNode=1,nNodes
-  IF(iSendNode.NE.NodeExchange%nNodesSend(iProc)) CALL abort(&
+  IF(iSendNode.NE.NodeExchange%nNodesSend(iMPINeighbor)) CALL abort(&
 __STAMP__&
-          ,' Message for node-exchange in init too short!',iProc)
-  IF(ANY(NodeSendBuf(iProc)%content.LE.0))THEN
-    IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iProc), ' to Proc ', iProc
+          ,' Message for node-exchange in init too short!',iMPINeighbor)
+  IF(ANY(NodeSendBuf(iMPINeighbor)%content.LE.0))THEN
+    IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iMPINeighbor), ' to Proc ', iMPINeighbor
     CALL abort(&
 __STAMP__&
           ,' Sent Native-NodeID is < zero!')
   END IF
 END DO
 
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).EQ.0) CYCLE
-  CALL MPI_ISEND( NodeSendBuf(iProc)%content                &
-                , NodeExchange%nNodesSend(iProc)            &
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+  CALL MPI_ISEND( NodeSendBuf(iMPINeighbor)%content                &
+                , NodeExchange%nNodesSend(iMPINeighbor)            &
                 , MPI_DOUBLE_PRECISION                      &
-                , PartMPI%MPINodeNeighbor(iProc)%COMMProcID &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
                 , 1414                                      &
                 , PartMPI%COMM                              &
-                , NodeExchange%SendRequest(iProc)           &
+                , NodeExchange%SendRequest(iMPINeighbor)           &
                 , IERROR )
-END DO ! iProc                                                
+END DO ! iMPINeighbor                                                
 
 ! 4) Finish Received indexing of received nodes
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesSend(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%SendRequest(iProc),MPIStatus,IERROR)
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).NE.0) THEN
+    CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
           ,' MPI Communication error', IERROR)
   END IF
-  IF(NodeExchange%nNodesRecv(iProc).NE.0) THEN
-    CALL MPI_WAIT(NodeExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).NE.0) THEN
+    CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
           ,' MPI Communication error', IERROR)
   END IF
-END DO ! iProc
+END DO ! iMPINeighbor
 
 ! fill list with received Node-IDs
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  IF(NodeExchange%nNodesRecv(iProc).EQ.0) CYCLE
-  ALLOCATE(PartMPI%MPINodeNeighbor(iProc)%RecvList(NodeExchange%nNodesRecv(iProc)))
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(NodeExchange%nNodesRecv(iMPINeighbor)))
   iPos=1
-  DO iRecvNode=1,NodeExchange%nNodesRecv(iProc)
-    NativeNodeID   = INT(NodeRecvBuf(iProc)%content(iPos))
+  DO iRecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+    NativeNodeID   = INT(NodeRecvBuf(iMPINeighbor)%content(iPos))
     IF(NativeNodeID.GT.nNodes)THEN
      CALL abort(&
 __STAMP__&
           ,' Cannot send halo-data to other procs. big error! ', NativeNodeID, REAL(nNodes))
     END IF
-    PartMPI%MPINodeNeighbor(iProc)%RecvList(iRecvNode)=NativeNodeID
+    PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(iRecvNode)=NativeNodeID
     iPos=iPos+1
-  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iProc)
-END DO ! iProc
+  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+END DO ! iMPINeighbor
 
 nDOF = 1
-DO iProc=1,PartMPI%nMPINodeNeighbors
-  SDEALLOCATE(NodeSendBuf(iProc)%content)
-  SDEALLOCATE(NodeRecvBuf(iProc)%content)
-  IF(NodeExchange%nNodesSend(iProc).GT.0) THEN
-    ALLOCATE(NodeSendBuf(iProc)%content(nDOF*NodeExchange%nNodesSend(iProc)))
-    NodeSendBuf(iProc)%content(:)=0.
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  SDEALLOCATE(NodeSendBuf(iMPINeighbor)%content)
+  SDEALLOCATE(NodeRecvBuf(iMPINeighbor)%content)
+  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0) THEN
+    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesSend(iMPINeighbor)))
+    NodeSendBuf(iMPINeighbor)%content(:)=0.
   END IF
-  IF(NodeExchange%nNodesRecv(iProc).GT.0) THEN
-    ALLOCATE(NodeRecvBuf(iProc)%content(nDOF*NodeExchange%nNodesRecv(iProc)) )
-    NodeRecvBuf(iProc)%content(:)=0.
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0) THEN
+    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesRecv(iMPINeighbor)) )
+    NodeRecvBuf(iMPINeighbor)%content(:)=0.
   END IF
-END DO ! iProc
+END DO ! iMPINeighbor
 DEALLOCATE(recv_status_list)
 
 CALL MPI_BARRIER(PartMPI%Comm,iError)
