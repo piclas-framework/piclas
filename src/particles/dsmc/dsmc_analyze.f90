@@ -1761,7 +1761,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         Total_PartNum = 0.0
         DO iSpec = 1, nSpecies
           DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) / REAL(DSMC%SampNum)
-          Total_PartNum = Total_PartNum + DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem)
+          IF(nSpecies.GT.1) Total_PartNum = Total_PartNum + DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem)
         END DO
       END IF
     END ASSOCIATE
