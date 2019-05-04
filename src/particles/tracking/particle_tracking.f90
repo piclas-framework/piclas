@@ -71,6 +71,9 @@ USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleI
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_TimeDisc_Vars               ,ONLY: iter
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -107,11 +110,15 @@ REAL, PARAMETER                  :: eps = 0
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER                          :: DelayCounter
+REAL                             :: iRan
 !===================================================================================================================================
 #ifdef IMPA
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
 
 DO i = 1,PDM%ParticleVecLength
 #ifdef IMPA
@@ -303,7 +310,28 @@ DO i = 1,PDM%ParticleVecLength
     IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(PDM%ParticleInside(i)) THEN
+      CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
+    END IF
+  END IF
 END DO
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  IF (RadialWeighting%CloneMode.EQ.2) THEN
+    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).GT.RadialWeighting%CloneInputDelay) THEN
+      CALL RANDOM_NUMBER(iRan)
+      ! Choosing random clone between 0 and CloneInputDelay
+      DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      DO WHILE (DelayCounter.EQ.RadialWeighting%NextClone)
+        CALL RANDOM_NUMBER(iRan)
+        DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      END DO
+      RadialWeighting%NextClone = DelayCounter
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE ParticleTriaTracking
 
@@ -336,6 +364,9 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_TimeDisc_Vars               ,ONLY: iter
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
@@ -384,8 +415,8 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 INTEGER                       :: inElem
-INTEGER                       :: PartDoubleCheck
-REAL                          :: alphaOld
+INTEGER                       :: PartDoubleCheck, DelayCounter
+REAL                          :: alphaOld, iRan
 #ifdef CODE_ANALYZE
 REAL                          :: IntersectionPoint(1:3)
 #endif /*CODE_ANALYZE*/
@@ -400,6 +431,8 @@ END IF
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
@@ -984,6 +1017,12 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(PDM%ParticleInside(iPart)) THEN
+      CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
+    END IF
+  END IF
 END DO ! iPart
 
 #ifdef CODE_ANALYZE
@@ -1061,6 +1100,21 @@ IF(PRESENT(nInnerNewton_In))THEN
   END IF
 END IF
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  IF (RadialWeighting%CloneMode.EQ.2) THEN
+    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).GT.RadialWeighting%CloneInputDelay) THEN
+      CALL RANDOM_NUMBER(iRan)
+      ! Choosing random clone between 0 and CloneInputDelay
+      DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      DO WHILE (DelayCounter.EQ.RadialWeighting%NextClone)
+        CALL RANDOM_NUMBER(iRan)
+        DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      END DO
+      RadialWeighting%NextClone = DelayCounter
+    END IF
+  END IF
+END IF
 
 END SUBROUTINE ParticleTracing
 

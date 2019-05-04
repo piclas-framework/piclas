@@ -158,6 +158,10 @@ CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
                                           'OctreePartNumNodeMin.', '50')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
+                                         ,' TO-DO', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
+                                         ,' TO-DO', '.FALSE.')
 
 
 CALL prms%SetSection("DSMC Species")
@@ -344,7 +348,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -366,7 +370,7 @@ IMPLICIT NONE
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: BGGasEVib
-  INTEGER               :: currentBC, ElemID, iSide, BCSideID
+  INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -451,10 +455,15 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    ALLOCATE(DSMC%QualityFacSamp(nElems,3))
-    DSMC%QualityFacSamp(1:nElems,1:3) = 0.0
-    ALLOCATE(DSMC%QualityFactors(nElems,3))
-    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+    IF(RadialWeighting%DoRadialWeighting) THEN
+      VarNum = 5
+    ELSE
+      VarNum = 3
+    END IF
+    ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
+    DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
+    ALLOCATE(DSMC%QualityFactors(nElems,VarNum))
+    DSMC%QualityFactors(1:nElems,1:VarNum) = 0.0
   END IF
 
 ! definition of DSMC particle values
@@ -523,7 +532,8 @@ __STAMP__&
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
   CollInf%Coll_SpecPartNum = 0
-
+  ALLOCATE(CollInf%MeanMPF(nCase))
+  CollInf%MeanMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -1085,6 +1095,14 @@ __STAMP__&
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
+  IF(DSMC%UseOctree) THEN
+    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour','.TRUE.')
+    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Statistical Pairing with Octree not yet supported in 3D!')
+    END IF
+  END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
   DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
@@ -1101,6 +1119,13 @@ __STAMP__&
 ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
+
+  CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
+  IF (CollInf%ProhibitDoubleColl) THEN
+    ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+    CollInf%OldCollPartner = 0
+  END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -35,39 +35,32 @@ PUBLIC :: DSMC_prob_calc
 
 CONTAINS
 
-SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
+SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume, MeanSpecNum)
 !===================================================================================================================================
 ! Routine calculating the collision probability
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState
-!  USE MOD_Particle_Vars,          ONLY : usevMPF
-  USE MOD_Particle_Mesh_Vars,     ONLY : Geo       ! da muss noch was getan werden (s.u.)
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, nSpecies, VarTimeStep, PartMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
-!  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
   USE MOD_DSMC_SpecXSec
-#if (PP_TimeDiscMethod==42)
-  USE MOD_Particle_Vars,          ONLY : nSpecies
-#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                 :: iElem, iPair
   REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
+  REAL, INTENT(IN), OPTIONAL          :: MeanSpecNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, NbrOfReaction
-  INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
-  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot
+  REAL                                :: SpecNum1, SpecNum2, iRan, Weight1, Weight2
+  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
   REAL(KIND=8)                        :: Volume
-!  INTEGER                             :: SpecToExec
-!  LOGICAL                             :: DoSimpleElectronColl
-!  REAL                                :: BGGasDensity_new
 #if (PP_TimeDiscMethod==42)
   INTEGER                             :: iReac, iSpec
 #endif
@@ -76,11 +69,67 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   iPType = SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID &
          + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID !definition of collision case
 
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      Weight1 = PartMPF(Coll_pData(iPair)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)
+      Weight2 = PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2)
+    ELSE
+      Weight1 = PartMPF(Coll_pData(iPair)%iPart_p1) 
+      Weight2 = PartMPF(Coll_pData(iPair)%iPart_p2) 
+    END IF
+  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+    Weight1 = VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)
+    Weight2 = VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2)
+  ELSE 
+    Weight1 = 1.
+    Weight2 = 1.
+  END IF
+
   IF (PRESENT(NodeVolume)) THEN
     Volume = NodeVolume
   ELSE
     Volume = GEO%Volume(iElem)
   END IF
+
+  IF (PRESENT(MeanSpecNum)) THEN
+    IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
+      CALL RANDOM_NUMBER(iRan)
+      IF (iRan.GT.0.5) THEN
+        SpecNum1 = MeanSpecNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
+        SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2  
+      ELSE
+        SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
+        SpecNum2 = MeanSpecNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
+      END IF
+    ELSE
+      SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1))
+      SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2))
+    END IF
+  ELSE
+    SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1))
+    SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2))
+  END IF
+
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      ! Not the actual weighting factor, since the weighting factor is included in SpecNum
+      ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
+      MacroParticleFactor =(Weight1 + Weight2)*0.5 &
+                          * CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)/CollInf%MeanMPF(Coll_pData(iPair)%PairType)
+      ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs 
+      ! (incl. weighting factor)
+      CollCaseNum = CollInf%MeanMPF(Coll_pData(iPair)%PairType)
+  ELSE
+    MacroParticleFactor = Species(1)%MacroParticleFactor
+    CollCaseNum = REAL(CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType))
+  END IF
+
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    dtCell = dt * (VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1) & 
+             + VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
+  ELSE 
+    dtCell = dt 
+  END IF
+
   SELECT CASE(iPType)
 
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
@@ -95,16 +144,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                         ! weighting Fact, here only one MPF is used!!!
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+                * dtCell / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       ELSE
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
-                * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  & 
-                        ! weighting Fact, here only one MPF is used!!!
-                / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
+                * MacroParticleFactor / CollCaseNum                                                     &
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+                * dtCell / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron

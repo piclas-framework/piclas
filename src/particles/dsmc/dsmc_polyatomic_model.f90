@@ -638,7 +638,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
 END SUBROUTINE DSMC_SetInternalEnr_Poly_MH
 
 
-SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
+SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib, WeightProd)
 !===================================================================================================================================
 ! Initialization of the vibrational state of polyatomic molecules created during chemical reactions
 ! Single mode initialization analagous to DSMC_SetInternalEnr_Poly_ARM_SingleMode
@@ -655,22 +655,29 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
   INTEGER, INTENT(IN)           :: iPart, iPair
   REAL, INTENT(IN)              :: Xi_Vib(:)
   REAL, INTENT(INOUT)           :: FakXi
+  REAL, INTENT(IN), OPTIONAL    :: WeightProd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, MaxColQua
+  REAL                          :: iRan, MaxColQua, Weight
   INTEGER                       :: iQua, iQuaMax, iDOF, iPolyatMole
 !===================================================================================================================================
   iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+  IF (PRESENT(WeightProd)) THEN
+    Weight = WeightProd
+  ELSE
+    Weight = 1.
+  END IF
   IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
   ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
   PartStateIntEn(iPart, 1) = 0.0
   DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     ! Addition of the zero-point energy part for the respective dofs (avoiding the redistribution of too much vibrational energy)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DSMC%GammaQuant * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-    ! Maximum quantum number calculated with the collision energy, which does not contain zero-point energy!
-    MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))  &
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec  &
+        + DSMC%GammaQuant * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
+    ! Maximum quantum number calculated with the collision energy
+    MaxColQua = Coll_pData(iPair)%Ec/(Weight*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))  &
               - DSMC%GammaQuant
     iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
     CALL RANDOM_NUMBER(iRan)
@@ -685,7 +692,7 @@ SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib)
     PartStateIntEn(iPart,1) = PartStateIntEn(iPart,1)     &
       + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-      - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+        - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
     VibQuantsPar(iPart)%Quants(iDOF) = iQua
     IF (iDOF.LT.PolyatomMolDSMC(iPolyatMole)%VibDOF) FakXi = FakXi - 0.5*Xi_vib(iDOF + 1)
   END DO
@@ -698,8 +705,8 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 ! three atoms, use only for comparison)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : PartSpecies
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
+  USE MOD_Particle_Vars,        ONLY : PartSpecies, PartMPF, VarTimeStep
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -717,7 +724,17 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
   INTEGER                       :: iDOF,iPolyatMole, iSpec
 !===================================================================================================================================
   iSpec = PartSpecies(iPart)
-  Ec = Coll_pData(iPair)%Ec
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      Ec = Coll_pData(iPair)%Ec / (PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart))
+    ELSE
+      Ec = Coll_pData(iPair)%Ec / PartMPF(iPart)
+    END IF
+  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+    Ec = Coll_pData(iPair)%Ec / VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    Ec = Coll_pData(iPair)%Ec
+  END IF
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
           ,tempEng(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
@@ -757,9 +774,9 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 ! Vibrational relaxation routine with the Metropolis-Hastings method (no burn-in phase)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,        ONLY : PartSpecies
+  USE MOD_Particle_Vars,        ONLY : PartSpecies, PartMPF, VarTimeStep
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -776,7 +793,17 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
   INTEGER                       :: iDOF,iPolyatMole, iWalk, iSpec
 !===================================================================================================================================
   iSpec = PartSpecies(iPart)
-  Ec = Coll_pData(iPair)%Ec
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      Ec = Coll_pData(iPair)%Ec / (PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart))
+    ELSE
+      Ec = Coll_pData(iPair)%Ec / PartMPF(iPart)
+    END IF
+  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+    Ec = Coll_pData(iPair)%Ec / VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    Ec = Coll_pData(iPair)%Ec
+  END IF
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   ALLOCATE(iRan(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
           ,tempEng(PolyatomMolDSMC(iPolyatMole)%VibDOF) &
@@ -820,8 +847,8 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
-  USE MOD_Particle_Vars,        ONLY : PartSpecies
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
+  USE MOD_Particle_Vars,        ONLY : PartSpecies, PartMPF, VarTimeStep
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -837,7 +864,17 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
   INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
 !===================================================================================================================================
   iSpec = PartSpecies(iPart)
-  Ec = Coll_pData(iPair)%Ec
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      Ec = Coll_pData(iPair)%Ec / (PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart))
+    ELSE
+      Ec = Coll_pData(iPair)%Ec / PartMPF(iPart)
+    END IF
+  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+    Ec = Coll_pData(iPair)%Ec / VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    Ec = Coll_pData(iPair)%Ec
+  END IF
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
   ALLOCATE(iQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF),iMaxQuant(PolyatomMolDSMC(iPolyatMole)%VibDOF))
   iQuant(:) = VibQuantsPar(iPart)%Quants(:)

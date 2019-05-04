@@ -978,6 +978,54 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 
+CALL prms%SetSection("Particle Symmetry")
+CALL prms%CreateLogicalOption('Particles-Symmetry2D'                  , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric'      , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-DSMC-RadialWeighting'        , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-DSMC-RadialWeighting-CellLocalWeighting', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Particles-DSMC-RadialWeighting-PartScaleFactor'  &
+                            , 'TODO-DEFINE-PARAMETER',  '1.')
+CALL prms%CreateRealOption(   'Particles-DSMC-RadialWeighting-MinPartWeightShift'  &
+                            , 'TODO-DEFINE-PARAMETER',  '1.')
+CALL prms%CreateIntOption(    'Particles-DSMC-RadialWeighting-CloneMode'  &
+                            , 'TODO-DEFINE-PARAMETER',  '2')
+CALL prms%CreateIntOption(    'Particles-DSMC-RadialWeighting-CloneDelay'  &
+                            , 'TODO-DEFINE-PARAMETER',  '2')
+
+CALL prms%SetSection("Variable Timestep")
+CALL prms%CreateLogicalOption('Part-VariableTimeStep', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
+                            , 'Read of maximal time factor to avoid too large time steps and problems with halo region/particle '//&
+                              'cloning')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
+                            , 'Optional: Increase number of particles by decreasing the time step',  '0')
+                            
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront'  &
+                            , 'FRONT: Time step decreases towards the stagnation point')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack'  &
+                            , 'BACK: Time step increases away from the stagnation points')
+
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint'  &
+                                , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  &
+                                , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction'  &
+                                , 'TODO-DEFINE-PARAMETER')
+
 END SUBROUTINE DefineParametersParticles
 
 SUBROUTINE InitParticles()
@@ -1107,8 +1155,8 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO
 USE MOD_Mesh_Vars              ,ONLY: nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC, BGGas, RadialWeighting
 USE MOD_Particle_Output_Vars   ,ONLY: WriteFieldsToVTK
 USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
@@ -1127,6 +1175,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs  !, VarTimeStep_SmoothDistribution
+USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1145,7 +1196,7 @@ LOGICAL               :: PartDens_OnlyInit
 REAL                  :: lineVector(3), v_drift_line, A_ins, n_vec(3), cos2, rmax
 INTEGER               :: MaxNbrOfSpeciesSwaps,iIMDSpec
 LOGICAL               :: exitTrue,IsIMDSpecies
-REAL, DIMENSION(3,1)  :: n,n1,n2
+REAL, DIMENSION(3,1)  :: norm,norm1,norm2
 REAL, DIMENSION(3,3)  :: rot1, rot2
 REAL                  :: alpha1, alpha2
 INTEGER               :: dummy_int
@@ -2517,6 +2568,17 @@ DelayTime = GETREAL('Part-DelayTime','0.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
+! Initialization of RadialWeighting in 2D axisymmetric simulations
+! Calculate the volumes for 2D simulation
+IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
+IF(Symmetry2DAxisymmetric) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    CALL DSMC_2D_InitRadialWeighting()
+  END IF
+  IF(.NOT.TriaSurfaceFlux) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+END IF
 
 ! init interpolation
 CALL InitializeInterpolation() ! not any more required ! has to be called earliear
@@ -2719,27 +2781,25 @@ IF (nAuxBCs.GT.0) THEN
       AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
       AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
 
-      n(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
-      IF (.NOT.ALMOSTZERO(SQRT(n(1,1)**2+n(3,1)**2))) THEN !collinear with y?
-        alpha1=ATAN2(n(1,1),n(3,1))
+      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
+      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
+        alpha1=ATAN2(norm(1,1),norm(3,1))
         CALL roty(rot1,alpha1)
-        n1=MATMUL(rot1,n)
+        norm1=MATMUL(rot1,norm)
       ELSE
         alpha1=0.
         CALL ident(rot1)
-        n1=n
+        norm1=norm
       END IF
-      !print*,'alpha1=',alpha1/PI*180.,'n1=',n1
-      IF (.NOT.ALMOSTZERO(SQRT(n1(2,1)**2+n1(3,1)**2))) THEN !collinear with x?
-        alpha2=-ATAN2(n1(2,1),n1(3,1))
+      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
+        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
         CALL rotx(rot2,alpha2)
-        n2=MATMUL(rot2,n1)
+        norm2=MATMUL(rot2,norm1)
       ELSE
         CALL abort(&
           __STAMP__&
           ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
       END IF
-      !print*,'alpha2=',alpha2/PI*180.,'n2=',n2
       AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
       AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
       AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
@@ -2919,6 +2979,22 @@ __STAMP__&
     BGGas%PairingPartner = 0
   END IF !BGGas%BGGasSpecies.NE.0
 END IF !useDSMC
+
+! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
+  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
+  VarTimeStep%ParticleTimeStep = 1.
+  IF(VarTimeStep%UseLinearScaling) THEN
+    ! In 3D, the time step for each cell is precomputed (2D simulations: scaling in the radial direction)
+    IF(.NOT.Symmetry2D) CALL VarTimeStep_CalcElemFacs()
+  END IF
+  ! IF(VarTimeStep%UseDistribution) THEN
+  !   ! Apply a min-mean filter combo if the distribution was adapted
+  !   ! (is performed here to have the element neighbours already defined)
+  !   IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
+  ! END IF
+END IF
 
 END SUBROUTINE InitializeVariables
 

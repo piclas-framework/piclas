@@ -88,7 +88,9 @@ USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySol
 USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars,          ONLY:UseDSMC
+USE MOD_DSMC_Vars             ,ONLY:UseDSMC, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
+USE MOD_Particle_VarTimeStep  ,ONLY: VarTimeStep_Init
 USE MOD_LD_Vars,            ONLY:UseLD
 USE MOD_ParticleInit,       ONLY:InitParticles
 USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
@@ -124,6 +126,27 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 #ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+
+!--- Flags for planar/axisymmetric simulation (2D)
+Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
+Symmetry2DAxisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry2DAxisymmetric.AND.(.NOT.Symmetry2D)) THEN
+  Symmetry2D = .TRUE.
+END IF
+IF(Symmetry2DAxisymmetric) THEN
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-DSMC-RadialWeighting')
+ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+END IF
+!--- Variable time step
+VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
+IF (VarTimeStep%UseVariableTimeStep)  THEN
+  CALL VarTimeStep_Init()
+ELSE
+  VarTimeStep%UseLinearScaling = .FALSE.
+  VarTimeStep%UseDistribution = .FALSE.
+END IF
+
 useLD=GETLOGICAL('UseLD','.FALSE.')
 IF(useLD) useDSMC=.TRUE.
 #endif /*PARTICLES*/

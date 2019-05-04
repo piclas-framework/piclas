@@ -17,7 +17,6 @@ MODULE MOD_part_tools
 ! Contains tools for particles
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars, ONLY : useDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -42,8 +41,10 @@ SUBROUTINE UpdateNextFreePosition()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Particle_Vars, ONLY : PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
-  USE MOD_Particle_Vars, ONLY : KeepWallParticles
+  USE MOD_Particle_Vars,          ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
+  USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PartState, VarTimeStep
+  USE MOD_DSMC_Vars,              ONLY: useDSMC, CollInf
+  USE MOD_Particle_VarTimeStep,   ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +55,6 @@ SUBROUTINE UpdateNextFreePosition()
 ! LOCAL VARIABLES
   INTEGER                          :: counter1,i,n
 !===================================================================================================================================
-
   IF(PDM%maxParticleNumber.EQ.0) RETURN
   counter1 = 1
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
@@ -68,6 +68,7 @@ SUBROUTINE UpdateNextFreePosition()
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
    DO i=1,n
      IF (.NOT.PDM%ParticleInside(i)) THEN
+       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
        PDM%nextFreePosition(counter1) = i
        counter1 = counter1 + 1
      ELSE
@@ -79,6 +80,9 @@ SUBROUTINE UpdateNextFreePosition()
        PEM%pEnd(PEM%Element(i)) = i
        PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
        PEM%pNumber(PEM%Element(i)) + 1
+       IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(i,1),PartState(i,2),PEM%Element(i))
+       END IF
        IF (KeepWallParticles) THEN
          IF (PDM%ParticleAtWall(i)) THEN
            PEM%wNumber(PEM%Element(i)) = PEM%wNumber(PEM%Element(i)) + 1
@@ -101,6 +105,7 @@ SUBROUTINE UpdateNextFreePosition()
   PDM%insideParticleNumber = PDM%ParticleVecLength - counter1+1
   PDM%CurrentNextFreePosition = 0
   DO i = n+1,PDM%maxParticleNumber
+   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
    PDM%nextFreePosition(counter1) = i
    counter1 = counter1 + 1
   END DO 

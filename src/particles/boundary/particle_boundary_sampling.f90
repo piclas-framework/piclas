@@ -76,7 +76,7 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel, VarTimeStep
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
@@ -272,6 +272,9 @@ SurfMesh%nGlobalSides=SurfMesh%nBCSides+SurfMesh%nInnerSides
 SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
 
 SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
+
+IF(VarTimeStep%UseVariableTimeStep) SurfMesh%SampSize = SurfMesh%SampSize + 1
+
 #ifdef MPI
 ! split communitator
 CALL InitSurfCommunicator()
@@ -369,13 +372,6 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
-  !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
-  !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
-  !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
-  ! nullify
-  !SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         = 0.
-  !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
-  !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
 END DO
 
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides)) 
