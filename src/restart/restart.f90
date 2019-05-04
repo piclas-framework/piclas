@@ -1439,7 +1439,7 @@ ELSE ! no restart
 END IF !IF(DoRestart)
 END SUBROUTINE Restart
 
-
+#ifdef PARTICLES
 SUBROUTINE RestartClones()
 !===================================================================================================================================
 ! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
@@ -1572,6 +1572,7 @@ IMPLICIT NONE
   END IF
 
 END SUBROUTINE RestartClones
+#endif /*PARTICLES*/
 
 
 #ifdef PP_HDG
