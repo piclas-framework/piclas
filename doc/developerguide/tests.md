@@ -24,11 +24,11 @@ Both works with pandoc and wordpress. Also see [pandoc verbatim code](http://pan
 As (@gleichung1) shows, blabla.
 
 ## Bibtex, cite
-Hindenlang [@hindenlang2014mesh]. Only works with pandoc!
+Hindenlang [@Hindenlang2015]. Only works with pandoc!
 
 [bibshow file=https://www.flexi-project.org/wp-content/uploads/2016/07/userguide-1.bib]
 
-Hindenlang [bibcite key=hindenlang2014mesh], Gassner [bibcite key=gassner2011disp]
+Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 
 
 ## section references
