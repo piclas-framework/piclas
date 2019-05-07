@@ -5872,7 +5872,6 @@ SUBROUTINE MarkAllBCSides()
 USE MOD_Mesh_Vars,               ONLY:nSides
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList,nTotalSides,nPartPeriodicSides,nTotalBCSides,nPartSides
 USE MOD_Mesh_Vars,               ONLY:BC,nBCSides
-USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Globals
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -5888,7 +5887,7 @@ INTEGER             :: iSide
 !===================================================================================================================================
 ! Note that for DoRefMapping=T: PartBCSideList is increased, due to the periodic sides
 !           for DoRefMapping=F: A new list is created
-IF(DoRefMapping) DEALLOCATE(PartBCSideList)
+SDEALLOCATE(PartBCSideList)
 
 ALLOCATE(PartBCSideList(1:nTotalSides))
 ! BC Sides 
