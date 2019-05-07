@@ -179,6 +179,9 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
 
 
   IF(DoSFLocalDepoAtBounds)THEN ! init cell vol weight
+    IF(.NOT.TRIM(DepositionType).EQ.'shape_function_2d') CALL abort(&
+        __STAMP__&
+        ,' PIC-shapefunction-local-depo-BC=T is currently only implemented for shape_function_2d!')
     ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
     ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
     CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
