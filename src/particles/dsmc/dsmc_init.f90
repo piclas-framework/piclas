@@ -451,8 +451,8 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    ALLOCATE(DSMC%QualityFacSamp(nElems,3))
-    DSMC%QualityFacSamp(1:nElems,1:3) = 0.0
+    ALLOCATE(DSMC%QualityFacSamp(nElems,4))
+    DSMC%QualityFacSamp(1:nElems,1:4) = 0.0
     ALLOCATE(DSMC%QualityFactors(nElems,3))
     DSMC%QualityFactors(1:nElems,1:3) = 0.0
   END IF

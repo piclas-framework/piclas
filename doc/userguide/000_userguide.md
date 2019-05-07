@@ -36,6 +36,7 @@ link-citations: true
  It is licensed under GPLv3, written in Fortran and parallelized with MPI. Implemented features are
  
  * Coupled Particle-in-Cell with Direct Simulation Monte Carlo methods
+ * Particle-based Bhatnagar-Gross-Krook (Ellipsoidal Statistical, Shakov, Unified) and Fokker–Planck (Cubic, Ellipsoidal Statistical) models for continuum gas flows
  * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
    points for electrostatic and electromagnetic solvers
  * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 

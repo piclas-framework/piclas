@@ -327,6 +327,21 @@ gnu_DSMC_check:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
+gnu_BGK_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+
+gnu_FPFlow_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 # intel_PIC_gyrotron_variable_Bz:
