@@ -1321,7 +1321,7 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 ! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+USE MOD_Particle_Mesh_Vars,  ONLY : GEO,PartElemToSide, PartSideToElem
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1346,8 +1346,9 @@ REAL                          :: A(1:3,1:4), cross(3)
      DO NodeNum = 1,4
        A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
      END DO
-     SideID =ElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
-     IF ((SideID.GE.firstMortarInnerSide).AND.(SideID.LE.lastMortarInnerSide)) THEN
+     SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
+     SideIDMortar=MortarType(2,SideID)
+     IF (SideIDMortar.GT.0) THEN
         !--- initialize flags for side checks
         PosCheck = .FALSE.
         NegCheck = .FALSE.
@@ -1365,7 +1366,6 @@ REAL                          :: A(1:3,1:4), cross(3)
           !--- final determination whether particle is in element
           IF (.NOT.PosCheck) InElementCheckMortar= .FALSE. 
         END IF
-!        IF (ElemID.EQ.52) print*, 'concav', InElementCheckMortar
         IF (.NOT.InElementCheckMortar) THEN
           InElementCheckMortar = .TRUE.
           ! Check convex element version
@@ -1384,7 +1384,6 @@ REAL                          :: A(1:3,1:4), cross(3)
           END IF
           IF (InElementCheckMortar) THEN
           !In convex mortar elem but not in concave, checking additional the mortar neighbors
-            SideIDMortar=MortarType(2,SideID)
             IF (MortarType(1,SideID).EQ.1) THEN
               nNbMortars = 4
             ELSE
@@ -1393,10 +1392,10 @@ REAL                          :: A(1:3,1:4), cross(3)
             DO ind = 1, nNbMortars
               InElementCheckMortarNb = .TRUE.
               nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
-              IF (SideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
-                NbElemID = SideToElem(S2E_ELEM_ID,nbSideID)
+              IF (PartSideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
+                NbElemID = PartSideToElem(S2E_ELEM_ID,nbSideID)
               ELSE
-                NbElemID = SideToElem(S2E_NB_ELEM_ID,nbSideID)
+                NbElemID = PartSideToElem(S2E_NB_ELEM_ID,nbSideID)
               END IF
               CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
               IF (InElementCheckMortarNb) THEN
@@ -1505,7 +1504,7 @@ SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 ! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+USE MOD_Particle_Mesh_Vars,  ONLY : GEO, PartElemToSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1529,8 +1528,8 @@ REAL                          :: Det(2)
    DO NodeNum = 1,4
      A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
    END DO
-   SideID =ElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
-   IF ((SideID.GE.firstMortarInnerSide).AND.(SideID.LE.lastMortarInnerSide)) THEN
+   SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
+   IF (MortarType(2,SideID).GT.0) THEN
       !--- initialize flags for side checks
       PosCheck = .FALSE.
       NegCheck = .FALSE.

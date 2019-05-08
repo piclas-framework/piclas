@@ -69,16 +69,16 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO!,ElemRadiusNGeo
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO, PartSideToElem
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem, Face_xGP
 USE MOD_Mesh_Vars,                   ONLY:BC, MortarSlave2MasterInfo
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6), G
 INTEGER                          :: SecondNrOfThroughSides, indSide
 INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
 LOGICAL                          :: ThroughSide, InElementCheck,PartisDone
-LOGICAL                          :: dolocSide(1:6),crossedBC, oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
+LOGICAL                          :: crossedBC, oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: det(6,2),detM,ratio,minRatio, detPartPos
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
@@ -136,15 +136,10 @@ DO i = 1,PDM%ParticleVecLength
     ElemID = PEM%lastElement(i)
     SideID = 0
     DoneLastElem(:,:) = 0    
-!      IF  (i.EQ.5365913) print*, LastPartPos(i,1:3), PartState(i,1:3)
     DO WHILE (.NOT.PartisDone)      
       !---- Check whether particle is in element
       oldElemIsMortar = .FALSE.
       CALL ParticleInsideQuad3D(PartState(i,1:3),ElemID,InElementCheck,det)
-!      IF  (i.EQ.5365913) THEN
-!          print*, elemid, InElementCheck, LastPartPos(i,1:3), PartState(i,1:3)
-!          read*
-!        end if
       !---- If it is, set new ElementNumber = lement and LocalizeOn = .FALSE. ->PartisDone
       IF (InElementCheck) THEN
         PEM%Element(i) = ElemID
@@ -160,16 +155,11 @@ DO i = 1,PDM%ParticleVecLength
         lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                                  +PartTrajectory(2)*PartTrajectory(2) &
                                  +PartTrajectory(3)*PartTrajectory(3) )
-        IF(ALMOSTZERO(lengthPartTrajectory))THEN
-          PEM%Element(i)=ElemID
-          PartisDone=.TRUE.
-          CYCLE
-        END IF
         PartTrajectory=PartTrajectory/lengthPartTrajectory
         DO iLocSide=1,6
-          TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)                   
-          IF ((TempSideID.GE.firstMortarInnerSide).AND.(TempSideID.LE.lastMortarInnerSide)) THEN               
-            SideIDMortar=MortarType(2,TempSideID)
+          TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID) 
+          SideIDMortar=MortarType(2,TempSideID)                  
+          IF (SideIDMortar.GT.0) THEN              
             IF (MortarType(1,TempSideID).EQ.1) THEN
               nMortarElems = 4            
             ELSE  
@@ -177,12 +167,12 @@ DO i = 1,PDM%ParticleVecLength
             END IF
             DO ind = 1, nMortarElems
               nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
-              IF (SideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
-                NbElemID = SideToElem(S2E_ELEM_ID,nbSideID)
-                NblocSideID = SideToElem(S2E_LOC_SIDE_ID,nbSideID)
+              IF (PartSideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
+                NbElemID = PartSideToElem(S2E_ELEM_ID,nbSideID)
+                NblocSideID = PartSideToElem(S2E_LOC_SIDE_ID,nbSideID)
               ELSE
-                NbElemID = SideToElem(S2E_NB_ELEM_ID,nbSideID)
-                NblocSideID = SideToElem(S2E_NB_LOC_SIDE_ID,nbSideID)
+                NbElemID = PartSideToElem(S2E_NB_ELEM_ID,nbSideID)
+                NblocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,nbSideID)
               END IF
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
@@ -198,7 +188,6 @@ DO i = 1,PDM%ParticleVecLength
                   LocalSide = NblocSideID
                 END IF
               END DO
-!            IF  (i.EQ.5365913) print*, 'mortar loop: ', TempSideID, ElemID, ThroughSide, nbSideID, NblocSideID, NbElemID
             END DO
           ELSE
             DO TriNum = 1,2
@@ -214,19 +203,13 @@ DO i = 1,PDM%ParticleVecLength
                   LocalSide = iLocSide
                 END IF
               END IF
-!               IF ((i.EQ.5365913).AND.(ElemID.EQ.81)) print*,'detailed',TempSideID, Trinum, det(iLocSide,TriNum), ThroughSide
             END DO
           END IF
-
         END DO
         TriNum = TriNumTemp(1)
-!        IF ((i.EQ.2728856).AND.(ElemID.EQ.6)) then
-!          print*, 'ahaaaaaa', 
-!        end if
         !--- if no side is found use the slower search method
         !--- if more than one is found, figure out which one it is
         IF (NrOfThroughSides.NE.1) THEN
-!        IF  (i.EQ.5365913)  print*, 'nrtrside>1', i,LastPartPos(i,1:3), PartState(i,1:3), ElemID, NrOfThroughSides, GlobSideTemp
           IF (NrOfThroughSides.EQ.0) THEN    !no side
             SideID = 0
             WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost. Searching for particle....'
@@ -270,10 +253,6 @@ DO i = 1,PDM%ParticleVecLength
             DO ind2 = 1, NrOfThroughSides
               doCheckSide = .TRUE.
               DO indSide = 2, 6
-!              DO indSide = 2, (NrOfThroughSides-1)*2,2
-!                IF(.NOT.((DoneLastElem(1,indSide).EQ.ElemID).AND. &
-!                         (DoneLastElem(2,indSide).EQ.LocSidesTemp(ind2)).AND. &
-!                         (DoneLastElem(3,indSide).EQ.TriNumTemp(ind2)))) THEN
                 IF(((DoneLastElem(1,indSide).EQ.ElemID).AND. &
                          (DoneLastElem(4,indSide).EQ.GlobSideTemp(ind2)).AND. &
                          (DoneLastElem(3,indSide).EQ.TriNumTemp(ind2)))) THEN
@@ -288,12 +267,6 @@ DO i = 1,PDM%ParticleVecLength
                     NbElemID = SideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
                   END IF
                   CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),NbElemID,InElementCheck,TriNumTemp(ind2),detM,.TRUE.,detPartPos)
-!            IF  (i.EQ.5365913) THEN
-!                  print*, 'woho extra ruuunde', ElemID, NbElemID, InElementCheck, GlobSideTemp(ind2), detM, detPartPos, GlobSideTemp(ind2)
-!                  print*, 'whohooooo2 Elem', DoneLastElem(1,:)
-!                  print*, 'Whohohoho globside', DoneLastElem(4,:)
-!                  print*, 'whooooo tria', DoneLastElem(3,:)
-!            END IF
                   IF (InElementCheck) THEN
                     ! Need to be checked
                     IF((detM.EQ.0).AND.(detPartPos.EQ.0)) CYCLE ! particle moves within side
@@ -306,11 +279,6 @@ DO i = 1,PDM%ParticleVecLength
                     ELSE
                       !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
                       ratio = detPartPos/detM
-!            IF  (i.EQ.5365913) THEN
-!              print*,'mortartratio', i, ElemID, LocSidesTemp(ind2), ratio  
-!              print*, 'mortarelem', SideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)), SideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
-!              read*
-!            end if
                       IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
                         minRatio = ratio
                         SecondNrOfThroughSides = SecondNrOfThroughSides + 1
@@ -321,7 +289,6 @@ DO i = 1,PDM%ParticleVecLength
                       END IF
                     END IF
                   END IF
-!        IF  (i.EQ.5365913) print*, 'woho extra final', SideID
                 ELSE
                   CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),ElemID,InElementCheck,TriNumTemp(ind2),detM)
                   IF (InElementCheck) THEN
@@ -334,11 +301,6 @@ DO i = 1,PDM%ParticleVecLength
                     ELSE
                       !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
                       ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
-!             IF  (i.EQ.5365913) THEN
-!              print*,'notmortartsideratio', i, ElemID, LocSidesTemp(ind2), ratio  
-!              print*, 'notmortartsideelem', SideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)), SideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
-!              read*
-!            end if
                       IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
                         minRatio = ratio
                         SecondNrOfThroughSides = SecondNrOfThroughSides + 1
@@ -383,17 +345,18 @@ DO i = 1,PDM%ParticleVecLength
         END IF
         ! get intersection side
         crossedBC=.FALSE.
-        doLocSide=.FALSE.
-        !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
-        flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
-        TrackInfo%LocSide = LocalSide
-        TrackInfo%CurrElem = ElemID
+        flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         IF(BC(SideID).GT.0)THEN
           OldElemID=ElemID
-          CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
-            ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
+          TrackInfo%CurrElem = ElemID
+          CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
+          CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
+                                                                       ,xi    &
+                                                                       ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
+                                                                       ,TriNum)
+          IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
-        IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+          IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
           IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.2) THEN
             DoneLastElem(:,:) = 0
@@ -415,20 +378,19 @@ DO i = 1,PDM%ParticleVecLength
           DoneLastElem(3,1) = TriNum
           DoneLastElem(4,1) = SideID
           IF ((MortarSlave2MasterInfo(SideID).EQ.-1).OR.oldElemIsMortar) THEN
-            IF (SideToElem(S2E_NB_ELEM_ID,SideID).EQ.ElemID) THEN
-             ElemID = SideToElem(S2E_ELEM_ID,SideID)
+            IF (PartSideToElem(S2E_NB_ELEM_ID,SideID).EQ.ElemID) THEN
+             ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
             ELSE
-             ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
+             ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
             END IF
           ELSE
-            IF (SideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID)).GT.0) THEN
-             ElemID = SideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID))
+            IF (PartSideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID)).GT.0) THEN
+             ElemID = PartSideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID))
             ELSE
-             ElemID = SideToElem(S2E_NB_ELEM_ID,MortarSlave2MasterInfo(SideID))
+             ElemID = PartSideToElem(S2E_NB_ELEM_ID,MortarSlave2MasterInfo(SideID))
             END IF
           END IF
         END IF
-!      IF  (i.EQ.5365913)  print*, 'throught side: ', DoneLastElem(1:4,1), NrOfThroughSides, SecondNrOfThroughSides
       END IF
     END DO
 #if USE_LOADBALANCE
