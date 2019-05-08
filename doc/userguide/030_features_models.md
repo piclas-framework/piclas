@@ -301,7 +301,7 @@ The adaptive particle emission can be combined with the circular inflow feature.
 
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
-## Particle in Cell \label{sec:pic}
+## Particle-In-Cell \label{sec:pic}
 
 ### Deposition \label{sec:pic_deposition}
 
@@ -311,9 +311,15 @@ functions, B-splines or locally volume-weighted.
 #### Shape Function
 
 High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006].
+The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
+using a local deposition method near boundaries. The deposition of particles in elements where the shape
+function might be truncated is changed to *cell_volweight* for these elements via
+
+    PIC-shapefunction-local-depo-BC = T
+
 The following polynomial isotropic shape functions are all designed to be used in three dimensions, where reductions to 2D and 1D are applied.
 
-##### Shape Function 1D {-}
+##### Shape Function 1D
 A one-dimensional shape function in $x$-direction is given by
 
 $$
@@ -330,8 +336,14 @@ $$
   \Gamma(z)=\int_{0}^{\infty}x^{z-1}\exp(-x)dx~.
 $$
 
+The direction in which deposition is performed is chosen via
 
-##### Shape Function 2D {-}
+    PIC-shapefunction1d-direction = 1 ! for x-direction
+                                    2 ! for y-direction
+                                    3 ! for z-direction
+
+
+##### Shape Function 2D
 A two-dimensional shape function in $x$-$y$-direction is given by
 
 $$
@@ -342,9 +354,20 @@ which is normalized to give $\int_{z_{1}}^{z_{2}}\int_{0}^{2\pi}\int_{0}^{R}S_{2
 where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the 
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$, 
 $R$ is the cut-off radius and $\Delta z=z_{2}-z_{1}$ is the domain length in $z$-direction.
+The perpendicular direction to the two axes, in which deposition is performed is chosen via
 
+    PIC-shapefunction1d-direction = 1 ! for const. depo in x-direction
+                                    2 ! for const. depo in y-direction
+                                    3 ! for const. depo in z-direction
 
-##### Shape Function 3D {-}
+when the charge is to be deposited const. along the $x$- or $y$- or $z$-direction. 
+If the charge is to be deposited over the area instead of the volume, the flag
+
+    PIC-shapefunction-3D-deposition=F
+
+must be set, which simply sets $\Delta z=1$ for the example described above.
+
+##### Shape Function 3D
 A three-dimensional shape function in $x$-$y$-direction is given by [@Stock2012]
 
 $$
