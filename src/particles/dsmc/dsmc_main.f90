@@ -35,7 +35,7 @@ PUBLIC :: DSMC_main
 
 CONTAINS
 
-SUBROUTINE DSMC_main()
+SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 !> Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
@@ -75,7 +75,8 @@ SUBROUTINE DSMC_main()
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
+! INPUT VARIABLES     
+  LOGICAL,OPTIONAL  :: DoElement(nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,9 +90,12 @@ SUBROUTINE DSMC_main()
   REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-  DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
-  DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+
+  IF(.NOT.PRESENT(DoElement)) THEN
+    DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
+    DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
+    DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
+  END IF
   DSMCSumOfFormedParticles = 0
 
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
@@ -99,6 +103,9 @@ SUBROUTINE DSMC_main()
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
   DO iElem = 1, nElems ! element/cell main loop
+    IF(PRESENT(DoElement)) THEN
+      IF (.NOT.DoElement(iElem)) CYCLE
+    END IF
 #if (PP_TimeDiscMethod==1001)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
@@ -180,6 +187,8 @@ SUBROUTINE DSMC_main()
             END IF
             ! mean collision separation distance of actual collisions
             IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) + DSMC%MCSoverMFP
+            ! Counting sample size
+            DSMC%QualityFacSamp(iElem,4) = DSMC%QualityFacSamp(iElem,4) + 1.
         END IF
       END IF
     END IF  ! --- CollisMode.NE.0

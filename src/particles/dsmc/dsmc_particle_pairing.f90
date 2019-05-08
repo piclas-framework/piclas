@@ -540,7 +540,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
         ! Two particles with the exact same velocities at the same positions -> sick clones
         IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
           IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-            IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,5) = DSMC%QualityFacSamp(iElem,5) + 1
+            IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
           END IF
           IF (iPair.LT.PairNum_Node) THEN
             ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
@@ -1919,7 +1919,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
     IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     ! Two particles with the exact same velocities at the same positions -> sick clones (no particle tinder yet)
       IF(DSMC%CalcQualityFactors.AND.(SamplingActive.OR.WriteMacroVolumeValues)) THEN
-        DSMC%QualityFacSamp(iElem,5) = DSMC%QualityFacSamp(iElem,5) + 1
+        DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
       END IF
       IF (nPart.EQ.1) THEN
           ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners

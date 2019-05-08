@@ -402,9 +402,6 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -588,17 +585,9 @@ __STAMP__&
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
              IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
              ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
              END IF
            END IF
            iPart = iPart + 1
@@ -646,17 +635,9 @@ __STAMP__&
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
             IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
               CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
             ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
+              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
             END IF
         END IF
           iPart = iPart + 1
@@ -2731,6 +2712,14 @@ CASE('maxwell_lpn')
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
   END DO
+CASE('taylorgreenvortex')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+       CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+       PartState(PositionNbr,4:6) = Vec3D(1:3)
+    END IF
+  END DO
 CASE('emmert')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
@@ -3589,6 +3578,80 @@ CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 RETURN
 
 END FUNCTION CalcEElec_particle
+
+
+SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
+!===================================================================================================================================
+! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: Species
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+INTEGER                          :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, v_drift(3)
+REAL                             :: T  ! temperature
+REAL                             :: p  ! pressure
+REAL                             :: p0 ! base pressure
+!===================================================================================================================================
+
+! V0 = Ma*c_s
+!   Ma := 0.3
+! c_s = sqrt(gamma*R*T/M)
+!   gamma := 1.4
+!   R     := 8.3144598
+!   T     := 273.15 
+!   M     := 28.0134e-3
+ASSOCIATE( V0   => 101.0694686816                       ,& !Species(FractNbr)%Init(iInit)%VeloIC ,&
+           x    => ElemBaryNGeo(1,Element)              ,&
+           y    => ElemBaryNGeo(2,Element)              ,&
+           z    => ElemBaryNGeo(3,Element)              ,&
+           L    => GEO%xmaxglob                         ,&
+           rho0 => 1.25                                 ,&
+           R_N2 => 296.8                                 & ! unit of R_N2 is [J*kg^-1K^-1]
+           )
+
+  v_drift(1) =  V0*SIN(x/L)*COS(y/L)*COS(z/L)
+  v_drift(2) = -V0*COS(x/L)*SIN(y/L)*COS(z/L)
+  v_drift(3) = 0.
+
+  p0 = rho0 * R_N2 * Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  p  = p0 + (rho0*V0**2/16.)*( COS(2*x/L)+COS(2*y/L) )*( COS(2*z/L)+2 )
+  T  = p / (rho0*R_N2)
+
+END ASSOCIATE
+
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !x-Komponente
+Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !y-Komponente
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !z-Komponente
+
+
+Vec3D(1:3) = Vec3D(1:3) + v_drift
+
+END SUBROUTINE CalcVelocity_taylorgreenvortex
 
 
 SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
@@ -4941,9 +5004,6 @@ USE MOD_DSMC_Symmetry2D,        ONLY : CalcRadWeightMPF
 USE MOD_Particle_VarTimeStep,   ONLY : CalcVarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
@@ -5781,17 +5841,9 @@ __STAMP__&
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr .ne. 0) THEN
           IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-             CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
             CALL DSMC_SetInternalEnr_Poly(iSpec,iSF,PositionNbr,2)
-#endif
           ELSE
-#if (PP_TimeDiscMethod==300)
-               CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
-#endif
+            CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
           END IF
         END IF
         iPart = iPart + 1

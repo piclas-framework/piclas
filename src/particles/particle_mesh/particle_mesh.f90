@@ -3008,7 +3008,7 @@ INTEGER,INTENT(OUT)                :: Element
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                              :: xi(1:3)
-!REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+!REAL,PARAMETER                    :: eps=1e-8 ! same value as in GetPositionInRefElem
 !REAL,PARAMETER                    :: eps2=1e-3
 !REAL                              :: epsOne,OneMeps
 !===================================================================================================================================

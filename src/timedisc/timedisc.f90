@@ -191,6 +191,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler Static Explicit with adaptive TimeStep'
 #elif (PP_TimeDiscMethod==300)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: FP Flow'
+#elif (PP_TimeDiscMethod==400)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: BGK'
 #elif (PP_TimeDiscMethod==500)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler, Poisson'
 #elif (PP_TimeDiscMethod==501)
@@ -600,6 +602,10 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByEulerStaticExp() ! O1 Euler Static Explicit
 #elif (PP_TimeDiscMethod==201)
   CALL TimeStepByEulerStaticExpAdapTS() ! O1 Euler Static Explicit with adaptive TimeStep
+#elif (PP_TimeDiscMethod==300) 
+  CALL TimeStep_FPFlow()
+#elif (PP_TimeDiscMethod==400) 
+  CALL TimeStep_BGK()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #ifdef PP_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
@@ -4240,6 +4246,266 @@ END IF
 END SUBROUTINE TimeStepByEulerStaticExpAdapTS
 #endif
 
+#if (PP_TimeDiscMethod==300)
+SUBROUTINE TimeStep_FPFlow()
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_TimeDisc_Vars             ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
+USE MOD_Filter                    ,ONLY: Filter
+#ifdef PARTICLES
+USE MOD_Globals                   ,ONLY: abort
+USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, LiquidSimFlag
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel              ,ONLY: Evaporation
+#ifdef MPI
+USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+#endif /*MPI*/
+USE MOD_FPFlow,                   ONLY: FPFlow_main, FP_DSMC_main
+USE MOD_FPFlow_Vars,              ONLY: CoupledFPDSMC
+USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars,   ONLY: nPorousBC
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: timeEnd, timeStart
+INTEGER               :: iPart
+REAL                  :: RandVal, dtFrac
+!===================================================================================================================================
+IF (DoSurfaceFlux) THEN
+  IF (LiquidSimFlag) CALL Evaporation()
+  ! Calculate desobing particles for Surfaceflux
+  CALL ParticleSurfaceflux()
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+      IF (.NOT.PDM%dtFracPush(iPart)) THEN
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+      ELSE
+        CALL RANDOM_NUMBER(RandVal)
+        dtFrac = dt * RandVal
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+        PDM%dtFracPush(iPart) = .FALSE.
+      END IF
+    END IF
+  END DO
+ELSE
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+END IF
+
+#ifdef MPI
+! open receive buffer for number of particles
+CALL IRecvNbOfParticles()
+#endif /*MPI*/
+IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+! actual tracking
+IF(DoRefMapping)THEN
+  CALL ParticleRefTracking()
+ELSE
+  IF (TriaTracking) THEN
+    CALL ParticleTriaTracking()
+  ELSE
+    CALL ParticleTracing()
+  END IF
+END IF
+IF (nPorousBC.GT.0) THEN
+  CALL PorousBoundaryRemovalProb_Pressure()
+END IF
+IF(MeasureTrackTime) THEN
+  CALL CPU_TIME(TimeEnd)
+  tTracking=tTracking+TimeEnd-TimeStart
+END IF
+#ifdef MPI
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
+#endif /*MPI*/
+CALL ParticleInserting()
+IF (CollisMode.NE.0) THEN
+  CALL UpdateNextFreePosition()
+ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
+          (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
+          WriteMacroVolumeValues ) THEN
+  CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
+ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
+         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
+  CALL abort(&
+__STAMP__,&
+'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+END IF
+
+IF (CoupledFPDSMC) THEN
+  CALL FP_DSMC_main()
+ELSE
+  CALL FPFlow_main()
+END IF  
+
+PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
+PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
+PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+
+
+END SUBROUTINE TimeStep_FPFlow
+#endif
+
+#if (PP_TimeDiscMethod==400)
+SUBROUTINE TimeStep_BGK()
+!===================================================================================================================================
+!> description
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
+USE MOD_Filter                 ,ONLY: Filter
+#ifdef PARTICLES
+USE MOD_Globals                ,ONLY: abort
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, LiquidSimFlag
+USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_SurfaceModel           ,ONLY: Evaporation
+#ifdef MPI
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+#endif /*MPI*/
+USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
+USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC
+USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: timeEnd, timeStart
+INTEGER               :: iPart
+REAL                  :: RandVal, dtFrac
+!===================================================================================================================================
+IF (DoSurfaceFlux) THEN
+  IF (LiquidSimFlag) CALL Evaporation()
+  ! Calculate desobing particles for Surfaceflux
+  CALL ParticleSurfaceflux()
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+      IF (.NOT.PDM%dtFracPush(iPart)) THEN
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+      ELSE
+        CALL RANDOM_NUMBER(RandVal)
+        dtFrac = dt * RandVal
+        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+        PDM%dtFracPush(iPart) = .FALSE.
+      END IF
+    END IF
+  END DO
+ELSE
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+END IF
+
+#ifdef MPI
+! open receive buffer for number of particles
+CALL IRecvNbOfParticles()
+#endif /*MPI*/
+IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+! actual tracking
+IF(DoRefMapping)THEN
+  CALL ParticleRefTracking()
+ELSE
+  IF (TriaTracking) THEN
+    CALL ParticleTriaTracking()
+  ELSE
+    CALL ParticleTracing()
+  END IF
+END IF
+IF (nPorousBC.GT.0) THEN
+  CALL PorousBoundaryRemovalProb_Pressure()
+END IF
+IF(MeasureTrackTime) THEN
+  CALL CPU_TIME(TimeEnd)
+  tTracking=tTracking+TimeEnd-TimeStart
+END IF
+#ifdef MPI
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
+#endif /*MPI*/
+CALL ParticleInserting()
+IF (CollisMode.NE.0) THEN
+  CALL UpdateNextFreePosition()
+ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
+          (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
+          WriteMacroVolumeValues ) THEN
+  CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
+ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
+         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
+  CALL abort(&
+__STAMP__,&
+'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+END IF
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main()
+  ELSE
+    CALL BGK_main()
+  END IF
+
+PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                       + DSMC_RHS(1:PDM%ParticleVecLength,1)
+PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                       + DSMC_RHS(1:PDM%ParticleVecLength,2)
+PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                       + DSMC_RHS(1:PDM%ParticleVecLength,3)
+
+END SUBROUTINE TimeStep_BGK
+#endif
+
 #ifdef PP_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 SUBROUTINE TimeStepPoisson()
@@ -4271,7 +4537,7 @@ USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,           ONLY: StartParticleMerge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
+USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge,PartAnalyzeStep
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange

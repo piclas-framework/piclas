@@ -351,8 +351,8 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroValues) THEN
-    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),4) = &
-                                            DSMC%QualityFacSamp(PEM%Element(PositionNbr),4) + 1
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
+                                            DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
   END IF
 END DO
 

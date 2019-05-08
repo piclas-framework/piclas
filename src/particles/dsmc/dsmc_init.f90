@@ -455,15 +455,16 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      VarNum = 5
-    ELSE
-      VarNum = 3
-    END IF
+    ! 1: Maximal collision probability per cell/subcells (octree)
+    ! 2: Mean collision probability within cell
+    ! 3: Mean collision separation distance over mean free path
+    ! 4: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
+    VarNum = 4
+    ! VarNum + 1: Number of cloned particles per cell
+    ! VarNum + 2: Number of identical particles (no relative velocity)
+    IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
     ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
     DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
-    ALLOCATE(DSMC%QualityFactors(nElems,VarNum))
-    DSMC%QualityFactors(1:nElems,1:VarNum) = 0.0
   END IF
 
 ! definition of DSMC particle values
@@ -1516,7 +1517,6 @@ SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
-  SDEALLOCATE(DSMC%QualityFactors)
 END IF
 SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)

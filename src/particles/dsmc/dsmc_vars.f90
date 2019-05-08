@@ -207,13 +207,10 @@ TYPE tDSMC
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
-  REAL, ALLOCATABLE             :: QualityFactors(:,:)      ! Quality factors for DSMC
+  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
-  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
-                                                            !     1: Time-averaged mean collision prob
-                                                            !     2: Mean collision separation distance over mean free path
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
