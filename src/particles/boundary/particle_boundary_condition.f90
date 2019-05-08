@@ -773,7 +773,7 @@ __STAMP__&
 END IF
 !----  Sampling Forces at MacroPart and calculating velocity change of macroparticle due to impule change
 force(1:3) = Species(PartSpecies(PartID))%MassIC &
-           * (relVeloPart(1:3) - NewVelo(1:3)) * Species(PartSpecies(PartID))%MacroParticleFactor
+           * (relVeloPart(1:3) - NewVelo(1:3)) * Species(PartSpecies(PartID))%MacroParticleFactor / dt
 ! delta velocity
 MacroPart(macroPartID)%RHS(1:3) = MacroPart(macroPartID)%RHS(1:3) + force(1:3)*dt/MacroPart(macroPartID)%mass
 

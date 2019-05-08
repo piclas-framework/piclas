@@ -2567,7 +2567,10 @@ __STAMP__&
     MacroPart(iMP)%radius=GETREAL('MacroPart'//TRIM(hilf)//'-radius')
     MacroPart(iMP)%temp=GETREAL('MacroPart'//TRIM(hilf)//'-temp')
     MacroPart(iMP)%density=GETREAL('MacroPart'//TRIM(hilf)//'-density')
-    MacroPart(iMP)%mass=4./3.*MacroPart(iMP)%radius**3*PI
+    IF (MacroPart(iMP)%density.LE.0.) CALL abort(&
+__STAMP__&
+,'density must be above 0 for MacroPart',iMP)
+    MacroPart(iMP)%mass=4./3.*MacroPart(iMP)%radius**3*PI*MacroPart(iMP)%density
     MacroPart(iMP)%momentumACC=GETREAL('MacroPart'//TRIM(hilf)//'-momentumACC')
     MacroPart(iMP)%transAcc=GETREAL('MacroPart'//TRIM(hilf)//'-transACC')
     MacroPart(iMP)%vibAcc=GETREAL('MacroPart'//TRIM(hilf)//'-vibACC')
