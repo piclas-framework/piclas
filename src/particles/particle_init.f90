@@ -982,6 +982,8 @@ CALL prms%SetSection("MacroParticle")
 
 CALL prms%CreateIntOption(      'MacroPart-nMacroParticle'  &
                                 , 'Number of macro particle, which are checked during tracing',  '0')
+CALL prms%CreateLogicalOption(  'MacroPart-FluxesEnabled'  &
+                                , 'Enables momentum, mass and energy changes of macro particle',  '.FALSE.')
 CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
@@ -993,7 +995,7 @@ CALL prms%CreateRealOption(     'MacroPart[$]-radius'  &
 CALL prms%CreateRealOption(     'MacroPart[$]-temp'  &
                                 , 'TODO-DEFINE-PARAMETER',  '273.15', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-density'  &
-                                , 'TODO-DEFINE-PARAMETER',  '7874', numberedmulti=.TRUE.)
+                                , 'TODO-DEFINE-PARAMETER',  '997', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-momentumACC'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'MacroPart[$]-transACC'  &
@@ -1130,7 +1132,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-!USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,nAdaptiveBC,PartAuxBC
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
 USE MOD_Particle_Mesh_Vars     ,ONLY: NbrOfRegions,RegionBounds,GEO, nTotalElems
@@ -2558,6 +2560,7 @@ __STAMP__&
 ,'Macroparticle not possible with triatracking or dorefmapping')
   ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
   UseMacroPart=.TRUE.
+  MacroPartFluxesEnabled = GETLOGICAL('MacroPart-FluxesEnabled')
   ALLOCATE (MacroPart(1:nMacroParticle))
   DO iMP = 1,nMacroParticle
     WRITE(UNIT=hilf,FMT='(I0)') iMP
@@ -2580,6 +2583,7 @@ __STAMP__&
   CalcMPVolumePortion=.TRUE.
 ELSE
   UseMacroPart=.FALSE.
+  MacroPartFluxesEnabled=.FALSE.
   CalcMPVolumePortion=.FALSE.
 END IF
 

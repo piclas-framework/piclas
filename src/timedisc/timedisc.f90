@@ -1378,7 +1378,7 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
-                               , WriteMacroSurfaceValues, MacroPart, UseMacroPart, nMacroParticle
+                               , WriteMacroSurfaceValues, MacroPart, UseMacroPart, nMacroParticle, MacroPartFluxesEnabled
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1531,13 +1531,15 @@ REAL                  :: tLBStart
     MacroPart(:)%center(1) = MacroPart(:)%center(1) + MacroPart(:)%velocity(1)*dt
     MacroPart(:)%center(2) = MacroPart(:)%center(2) + MacroPart(:)%velocity(2)*dt
     MacroPart(:)%center(3) = MacroPart(:)%center(3) + MacroPart(:)%velocity(3)*dt
-    DO iMP=1,nMacroParticle
-      !MacroPart(iMP)%velocity(1:6) = MacroPart(iMP)%velocity(1:6) + MacroPart(iMP)%RHS(1:6)
-      !MacroPart(iMP)%radius = MacroPart(iMP)%radius + MacroPart(iMP)%RHS(7)
-      !MacroPart(iMP)%temp   = MacroPart(iMP)%temp   + MacroPart(iMP)%RHS(8)
-      !MacroPart(iMP)%mass   = MacroPart(iMP)%mass   + MacroPart(iMP)%RHS(9)
-      MacroPart(iMP)%RHS(:)=0.
-    END DO
+    IF(MacroPartFluxesEnabled) THEN
+      DO iMP=1,nMacroParticle
+        MacroPart(iMP)%velocity(1:6) = MacroPart(iMP)%velocity(1:6) + MacroPart(iMP)%RHS(1:6)
+        MacroPart(iMP)%radius = MacroPart(iMP)%radius + MacroPart(iMP)%RHS(7)
+        MacroPart(iMP)%temp   = MacroPart(iMP)%temp   + MacroPart(iMP)%RHS(8)
+        MacroPart(iMP)%mass   = MacroPart(iMP)%mass   + MacroPart(iMP)%RHS(9)
+        MacroPart(iMP)%RHS(:)=0.
+      END DO
+    END IF
   END IF
   CALL MarkMacroPartElems()
 
