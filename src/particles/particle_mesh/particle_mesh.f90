@@ -739,7 +739,7 @@ ParticleMeshInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMesh
 
 
-SUBROUTINE SingleParticleToExactElement(iPart,doHalo,initFix,doRelocate)
+SUBROUTINE SingleParticleToExactElement(iPart,DoHalo,initFix,DoRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -765,9 +765,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
-LOGICAL,INTENT(IN)                :: doHalo
+LOGICAL,INTENT(IN)                :: DoHalo
 LOGICAL,INTENT(IN)                :: initFix
-LOGICAL,INTENT(IN)                :: doRelocate
+LOGICAL,INTENT(IN)                :: DoRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -994,7 +994,7 @@ END IF
 END SUBROUTINE SingleParticleToExactElement
 
 
-SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO,doRelocate)
+SUBROUTINE SingleParticleToExactElementNoMap(iPart,DoHALO,DoRelocate)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -1016,8 +1016,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
-LOGICAL,INTENT(IN)                :: doHalo
-LOGICAL,INTENT(IN)                :: doRelocate
+LOGICAL,INTENT(IN)                :: DoHalo
+LOGICAL,INTENT(IN)                :: DoRelocate
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2973,7 +2973,7 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE MapRegionToElem
 
 
-SUBROUTINE PointToExactElement(X_In,Element,isInSide,doHalo)                                                         
+SUBROUTINE PointToExactElement(X_In,Element,isInSide,DoHalo)                                                         
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -2994,7 +2994,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,INTENT(IN)                   :: X_in(3)
-LOGICAL,INTENT(IN)                :: doHalo
+LOGICAL,INTENT(IN)                :: DoHalo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -117,6 +117,7 @@ subroutine read_IMD_results()
   END DO
   FileOffsets(nProcessors) = nGlobalAtoms
   nAtoms = FileOffsets(myRank+1) - FileOffsets(myRank)
+  PDM%ParticleVecLength = int ( nAtoms, 4 )
   myOffset = FileOffsets(myRank)
 
   myFileOffset = disp + myOffset * observables * 8_8
@@ -143,10 +144,10 @@ subroutine read_IMD_results()
   !allocate(Atoms(observables,nAtoms))
 
   do ii=1,nAtoms
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(ii,:),&
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(ii,1:6),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
 
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(ii,:),&
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(ii,1:2),&
                     int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
   end do
 
@@ -165,12 +166,18 @@ subroutine read_IMD_results()
 
 call MPI_BARRIER( MPI_COMM_WORLD, iError )
 
+  PDM%ParticleInside(:) = .False.
+
   do jj=1,nAtoms
     PDM%ParticleInside(jj) = .True.
-    CALL SingleParticleToExactElementNoMap(jj,doHALO=.FALSE.,doRelocate=.FALSE.)
+    CALL SingleParticleToExactElementNoMap(jj,doHALO=.TRUE.,doRelocate=.TRUE.)
+    if( .not. PDM%ParticleInside(jj) )then
+      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(jj,1),PartState(jj,2),PartState(jj,3)
+    end if
   end do
 
   call UpdateNextFreePosition()
+
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()
