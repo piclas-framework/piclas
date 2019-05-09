@@ -773,8 +773,9 @@ ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
 END IF
 
-! Calculation of mixture reference diameter
+IF(nPart.LE.0) RETURN
 
+! Calculation of mixture reference diameter
 DO iSpec = 1, nSpecies
   DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
 END DO
@@ -783,6 +784,7 @@ END DO
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
+  IF(Temp.LE.0.0) RETURN
     DO iSpec = 1, nSpecies
       MFP_Tmp = 0.0
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
