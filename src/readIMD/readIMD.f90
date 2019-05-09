@@ -39,6 +39,8 @@ subroutine read_IMD_results()
 
   use mod_readIMD_vars
   use mod_globals
+  use MOD_Particle_Vars,only:PartState
+  use MOD_DSMC_Vars,only:PartStateIntEn
   implicit none
   ! --------------------------------------------------------
   ! local variable
@@ -57,7 +59,7 @@ subroutine read_IMD_results()
   character(len=1),dimension(:),allocatable :: AtomsBuffer
   integer(kind=4)                           :: atomBufferSize
   integer(kind=8)                           :: ii
-  real,dimension(:,:),allocatable           :: Atoms
+  !real,dimension(:,:),allocatable           :: Atoms
   integer                                   :: atomsBufferPos = 0
   integer                                   :: errorLen
   character(len=254)                        :: errorString
@@ -131,11 +133,14 @@ subroutine read_IMD_results()
 
   call MPI_FILE_CLOSE(filehandle, iError)
 
-  allocate(Atoms(observables,nAtoms))
+  !allocate(Atoms(observables,nAtoms))
 
   do ii=1,nAtoms
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, Atoms(:,ii),&
-                    int(observables,4), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(ii,:),&
+                    6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(ii,:),&
+                    int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
   end do
 
   deallocate(AtomsBuffer)
