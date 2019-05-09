@@ -39,8 +39,14 @@ subroutine read_IMD_results()
 
   use mod_readIMD_vars
   use mod_globals
-  use MOD_Particle_Vars,only:PartState
+  use MOD_Particle_Vars,only:PartState,PDM
   use MOD_DSMC_Vars,only:PartStateIntEn
+  use MOD_Particle_Mesh,only:SingleParticleToExactElementNoMap
+  use mod_particle_mpi,only:IRecvNbofParticles, SendNbOfParticles, MPIParticleSend, MPIParticleRecv
+  use mod_hdf5_output,only:WriteStateToHDF5
+  use mod_mesh_vars,only:meshfile
+  use mod_part_tools,only:UpdateNextFreePosition
+
   implicit none
   ! --------------------------------------------------------
   ! local variable
@@ -63,6 +69,7 @@ subroutine read_IMD_results()
   integer                                   :: atomsBufferPos = 0
   integer                                   :: errorLen
   character(len=254)                        :: errorString
+  integer(kind=4)                           :: jj
   ! -----------------------------------------------------------------------------
 
   SWRITE(UNIT_stdOut,'(A,A)')'Read IMD-results from file: ',trim(filenameIMDresults)
@@ -144,7 +151,32 @@ subroutine read_IMD_results()
   end do
 
   deallocate(AtomsBuffer)
+  PartState = PartState * 1e-10_8
+  PartState(:,4:6) = PartState(:,4:6) * 10.18e15_8
+  if( myRank == 0 )then
+    WRITE(*,*)PartState(1,:)
+    write(*,*)PartState(nAtoms,:)
+    write(*,*)nAtoms
+    write(*,*)'-------------------'
+    write(*,*)PartStateIntEn(1,:)
+    write(*,*)PartStateIntEn(nAtoms,:)
+  end if
   call MPI_Info_free(mpiInfo, iError)
+
+call MPI_BARRIER( MPI_COMM_WORLD, iError )
+
+  do jj=1,nAtoms
+    PDM%ParticleInside(jj) = .True.
+    CALL SingleParticleToExactElementNoMap(jj,doHALO=.FALSE.,doRelocate=.FALSE.)
+  end do
+
+  call UpdateNextFreePosition()
+  call IRecvNbofParticles()
+  call SendNbOfParticles()
+  call MPIParticleSend()
+  call MPIParticleRecv()
+  !call WriteStateToHDF5( trim(meshfile), t, tFuture )
+  call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
 
   SWRITE(UNIT_stdOut,'(A)')'Read IMD data done'
   if( killPIClas )then
