@@ -99,26 +99,28 @@ SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(PICLAS_PARTICLES "Particles" ON)
 SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
-                                                          Leapfrog
-                                                          RK3
-                                                          RK4
-                                                          RK14
-                                                          ParticleEuler-FieldRK4
-                                                          DSMC
-                                                          RESERVOIR
-                                                          CN
-                                                          ImplicitO3
-                                                          ImplicitO4
-                                                          Ascher3
-                                                          ROS2
-                                                          ROS3
-                                                          ROS4
-                                                          ROS46
-                                                          ROS6
-                                                          FieldRelaxation
-                                                          FieldRelaxation-AdaptiveTimeStep
-                                                          LD
-                                                          LD-DSMC)
+                                                              Leapfrog
+                                                              RK3
+                                                              RK4
+                                                              RK14
+                                                              ParticleEuler-FieldRK4
+                                                              DSMC 
+                                                              RESERVOIR
+                                                              CN 
+                                                              ImplicitO3
+                                                              ImplicitO4
+                                                              Ascher3
+                                                              ROS2
+                                                              ROS3
+                                                              ROS4
+                                                              ROS46
+                                                              ROS6
+                                                              FP-Flow
+                                                              BGK
+                                                              FieldRelaxation
+                                                              FieldRelaxation-AdaptiveTimeStep
+                                                              LD
+                                                              LD-DSMC)
 
 OPTION(PICLAS_QDS_DG "enable QDS method discretized by DGSEM" OFF)
 OPTION(PICLAS_BUILDPOSTI "Build POSTI toolset" OFF)
@@ -297,6 +299,10 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
   IF(PICLAS_HDG)
       ADD_DEFINITIONS(-DPP_HDG)
    ENDIF()
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
+ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -615,7 +621,7 @@ ENDIF()
 # ========================================================================= 
 IF(PICLAS_PAPI)
   FIND_PACKAGE(PAPI REQUIRED)
-  ADD_DEFINITIONS(-DPAPI) 
+  ADD_DEFINITIONS(-DPAPI)
   LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
   INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
   MESSAGE(STATUS "Building PICLas with PAPI benchmark support.") 
@@ -728,7 +734,7 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
 FILE(GLOB_RECURSE QDSF90 ./src/qds/*.f90
                          ./src/interpolation/prolongtoface.f90)
 
-                       IF(PICLAS_HDG)
+IF(PICLAS_HDG)
   LIST(APPEND piclasF90 ${hdgF90})
   IF(PICLAS_IMPLICIT)
     LIST(APPEND piclasF90 ${implicitF90})

@@ -176,15 +176,16 @@ SUBROUTINE InitializeParticleEmission()
 !===================================================================================================================================
 ! MODULES
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Restart_Vars,   ONLY : DoRestart
-USE MOD_Particle_Vars,  ONLY : Species,nSpecies,PDM,PEM, usevMPF, SpecReset
-USE MOD_part_tools,     ONLY : UpdateNextFreePosition
+USE MOD_Restart_Vars      ,ONLY: DoRestart
+USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset
+USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
-USE MOD_part_pressure,  ONLY : ParticleInsideCheck
+USE MOD_DSMC_Vars         ,ONLY: useDSMC, DSMC
+USE MOD_part_pressure     ,ONLY: ParticleInsideCheck
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -364,6 +365,18 @@ DO i = 1,PDM%ParticleVecLength
   PEM%lastElement(i) = PEM%Element(i)
 END DO
 
+!--- Remove particles from dielectric regions if DielectricNoParticles=.TRUE.
+IF(DoDielectric)THEN
+  IF(DielectricNoParticles)THEN
+    DO i = 1,PDM%ParticleVecLength
+      ! Remove particles in dielectric elements
+      IF(isDielectricElem(PEM%Element(i)))THEN
+        PDM%ParticleInside(i) = .FALSE.
+      END IF
+    END DO
+  END IF
+END IF
+
 SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
@@ -389,9 +402,6 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -575,17 +585,9 @@ __STAMP__&
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
              IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
              ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
                CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
              END IF
            END IF
            iPart = iPart + 1
@@ -633,17 +635,9 @@ __STAMP__&
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
             IF (SpecDSMC(i)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
               CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-#endif
             ELSE
-#if (PP_TimeDiscMethod==300)
-!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-#endif
+              CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
             END IF
         END IF
           iPart = iPart + 1
@@ -1408,6 +1402,61 @@ __STAMP__&
              CYCLE !particle is in excluded region
            END IF
          END IF
+         particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
+         particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
+         particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
+         i=i+1
+         chunkSize2=chunkSize2+1
+      END DO
+    !------------------SpaceIC-case: cuboid_sphere (remove all particles outside of CuboidHeightIC / 2 (spherical cutout) ----------
+    CASE('cuboid_sphere')
+      lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
+        Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+        CALL abort(&
+__STAMP__&
+,'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      i=1
+      chunkSize2=0
+      DO WHILE (i .LE. chunkSize)
+         CALL RANDOM_NUMBER(RandVal)
+         Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
+         Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
+         IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
+         ELSE
+#if (PP_TimeDiscMethod==201)
+!           !scaling due to variable time step (for inlet-condition, but already fixed when %CalcHeightFromDt is used!!!)
+!           IF (iter.GT.0) THEN
+!             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * dt / dt_maxwell * RandVal(3)
+!           ELSE
+             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+!           END IF
+#else
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+#endif
+         END IF
+         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
+           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
+           IF (insideExcludeRegion) THEN
+             i=i+1
+             CYCLE !particle is in excluded region
+           END IF
+         END IF
+         ! Exclude particles outside of radius defined by CuboidHeightIC / 2
+         IF(SQRT(Particle_pos(1)**2+Particle_pos(2)**2+Particle_pos(3)**2).GT.Species(FractNbr)%Init(iInit)%CuboidHeightIC/2.0)THEN
+           !i=i+1
+           CYCLE !particle is in excluded region
+         END IF
+         ! new particle
          particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
          particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
          particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
@@ -2652,6 +2701,14 @@ CASE('maxwell_lpn')
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
   END DO
+CASE('taylorgreenvortex')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+       CALL CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit=iInit, Element=PEM%Element(PositionNbr))
+       PartState(PositionNbr,4:6) = Vec3D(1:3)
+    END IF
+  END DO
 CASE('emmert')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
@@ -3368,6 +3425,84 @@ __STAMP__&
 END IF
 
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
+
+
+SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
+!===================================================================================================================================
+! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: Species
+USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr
+INTEGER,INTENT(IN), OPTIONAL     :: iInit
+INTEGER                          :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, v_drift(3)
+REAL                             :: T  ! temperature
+REAL                             :: p  ! pressure
+REAL                             :: p0 ! base pressure
+!===================================================================================================================================
+
+! V0 = Ma*c_s
+!   Ma := 0.3
+! c_s = sqrt(gamma*R*T/M)
+!   gamma := 1.4
+!   R     := 8.3144598
+!   T     := 273.15 
+!   M     := 28.0134e-3
+ASSOCIATE( V0   => 101.0694686816                       ,& !Species(FractNbr)%Init(iInit)%VeloIC ,&
+           x    => ElemBaryNGeo(1,Element)              ,&
+           y    => ElemBaryNGeo(2,Element)              ,&
+           z    => ElemBaryNGeo(3,Element)              ,&
+           L    => GEO%xmaxglob                         ,&
+           rho0 => 1.25                                 ,&
+           R_N2 => 296.8                                 & ! unit of R_N2 is [J*kg^-1K^-1]
+           )
+
+  v_drift(1) =  V0*SIN(x/L)*COS(y/L)*COS(z/L)
+  v_drift(2) = -V0*COS(x/L)*SIN(y/L)*COS(z/L)
+  v_drift(3) = 0.
+
+  p0 = rho0 * R_N2 * Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  p  = p0 + (rho0*V0**2/16.)*( COS(2*x/L)+COS(2*y/L) )*( COS(2*z/L)+2 )
+  T  = p / (rho0*R_N2)
+
+END ASSOCIATE
+
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !x-Komponente
+Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !y-Komponente
+Velosq = 2
+DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+  CALL RANDOM_NUMBER(RandVal)
+  Velo1  = 2.*RandVal(1) - 1.
+  Velo2  = 2.*RandVal(2) - 1.
+  Velosq = Velo1**2 + Velo2**2
+END DO
+Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/Velosq) !z-Komponente
+
+
+Vec3D(1:3) = Vec3D(1:3) + v_drift
+
+END SUBROUTINE CalcVelocity_taylorgreenvortex
 
 
 SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
@@ -4668,9 +4803,10 @@ USE MOD_Particle_MPI_Vars,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Timedisc_Vars         , ONLY : iter
-#endif
+!commented out in code
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+!USE MOD_Timedisc_Vars         , ONLY : iter
+!#endif
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
@@ -4681,13 +4817,10 @@ USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
-#if (PP_TimeDiscMethod==300)
-!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
-#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-#endif
+! #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+! USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
+! #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
@@ -4708,7 +4841,7 @@ USE MOD_Mesh_Vars              ,ONLY: NGeo!,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem!, TensorProductInterpolation
 #ifdef CODE_ANALYZE
-!USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+USE MOD_Particle_Tracking_Vars ,ONLY: PartOut, MPIRankOut
 #if  defined(IMPA) || defined(ROS)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
 #endif
@@ -4755,10 +4888,14 @@ REAL                        :: Vector1(3),Vector2(3),PartDistance,ndist(3),midpo
 INTEGER                     :: p,q,SurfSideID,PartID,Node1,Node2,ExtraPartsTria(2)
 REAL                        :: ElemPartDensity, VeloVec(1:3), VeloIC
 REAL                        :: VeloVecIC(1:3), ProjFak, v_thermal, a, T, vSF, nVFR,vec_nIn(1:3), pressure, veloNormal
+REAL, PARAMETER             :: eps_nontria=1.0E-6 !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
 #if USE_LOADBALANCE
 ! load balance
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#ifdef CODE_ANALYZE
+REAL                        :: tmpVec(3)
+#endif /*CODE_ANALYZE*/
 TYPE(tSurfFluxLink),POINTER :: currentSurfFluxPart => NULL()
 !===================================================================================================================================
 
@@ -5120,6 +5257,13 @@ __STAMP__&
         DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
           IF (TriaSurfaceFlux) THEN
             CALL RANDOM_NUMBER(RandVal2)
+            IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
+              RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2) !shift randVal off from 0 and 1
+              DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
+                CALL RANDOM_NUMBER(RandVal2)
+                RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2)
+              END DO
+            END IF
             Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1)
             Particle_pos =       Particle_pos + Vector2 * RandVal2(2)
             PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
@@ -5238,6 +5382,33 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
+#ifdef CODE_ANALYZE
+            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
+              IF(ParticleIndexNbr.EQ.PARTOUT)THEN
+                WRITE(UNIT_stdout,'(A32)') ' ---------------------------------------------------------------'
+                IPWRITE(UNIT_stdOut,'(I0,A,3(X,E15.8))') ' SurfFlux Pos:      ', PartState(ParticleIndexNbr,1:3)
+                IF (TriaSurfaceFlux) THEN
+                  !- the following lines are inverted to recalc. the RandVal
+                  !Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  !PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
+                  !             + ndist(2)*(Particle_pos(2)-midpoint(2)) &
+                  !             + ndist(3)*(Particle_pos(3)-midpoint(3))
+                  !IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
+                  !  Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
+                  !END IF
+                  !- recalc. the RandVal assuming no flip:
+                  tmpVec=PartState(ParticleIndexNbr,1:3)
+                  tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals1:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
+                  !- recalc. the RandVal assuming flip:
+                  tmpVec=2*midpoint(1:3)-PartState(ParticleIndexNbr,1:3)
+                  tmpVec = tmpVec - (/xNod,yNod,zNod/) != Vector1 * RandVal2(1) + Vector2 * RandVal2(2)
+                  IPWRITE(UNIT_stdOut,'(I0,A,2(X,E15.8))') ' SurfFlux RandVals2:', CalcVectorAdditionCoeffs(tmpVec,Vector1,Vector2)
+                END IF
+                WRITE(UNIT_stdout,'(A32)') ' ---------------------------------------------------------------'
+              END IF
+            END IF
+#endif /*CODE_ANALYZE*/
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
@@ -5428,17 +5599,9 @@ __STAMP__&
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr .ne. 0) THEN
           IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-#if (PP_TimeDiscMethod==300)
-             CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
             CALL DSMC_SetInternalEnr_Poly(iSpec,iSF,PositionNbr,2)
-#endif
           ELSE
-#if (PP_TimeDiscMethod==300)
-               CALL SetInternalEnr_InitFP(iSpec,iSF,PositionNbr,2)
-#else
-               CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
-#endif
+            CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,2)
           END IF
         END IF
         iPart = iPart + 1
@@ -6624,6 +6787,46 @@ END DO
 END SUBROUTINE AdaptiveBCAnalyze
 
 
+FUNCTION CalcVectorAdditionCoeffs(point,Vector1,Vector2)
+!===================================================================================================================================
+! robust calculation of Coeffs C(1) and C(2) from point = C(1)*Vector1 + C(2)*Vector2
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL, INTENT(IN)         :: point(3), Vector1(3), Vector2(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL                     :: CalcVectorAdditionCoeffs(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                     :: denom(3)
+!===================================================================================================================================
+denom(1)=Vector2(2)*Vector1(3)-Vector2(3)*Vector1(2)
+denom(2)=Vector2(1)*Vector1(2)-Vector2(2)*Vector1(1)
+denom(3)=Vector2(3)*Vector1(1)-Vector2(1)*Vector1(3)
+
+IF (ABS(denom(1)).GT.ABS(denom(2)) .AND. ABS(denom(1)).GT.ABS(denom(3))) THEN
+  CalcVectorAdditionCoeffs(2)=(point(2)*Vector1(3)-point(3)*Vector1(2))/denom(1)
+ELSE IF (ABS(denom(2)).GT.ABS(denom(1)) .AND. ABS(denom(2)).GT.ABS(denom(3))) THEN
+  CalcVectorAdditionCoeffs(2)=(point(1)*Vector1(2)-point(2)*Vector1(1))/denom(2)
+ELSE
+  CalcVectorAdditionCoeffs(2)=(point(3)*Vector1(1)-point(1)*Vector1(3))/denom(3)
+END IF
+
+IF (ABS(Vector1(1)).GT.ABS(Vector1(2)) .AND. ABS(Vector1(1)).GT.ABS(Vector1(3))) THEN
+  CalcVectorAdditionCoeffs(1)=(point(1)-CalcVectorAdditionCoeffs(2)*Vector2(1))/Vector1(1)
+ELSE IF (ABS(Vector1(2)).GT.ABS(Vector1(1)) .AND. ABS(Vector1(2)).GT.ABS(Vector1(3))) THEN
+  CalcVectorAdditionCoeffs(1)=(point(2)-CalcVectorAdditionCoeffs(2)*Vector2(2))/Vector1(2)
+ELSE
+  CalcVectorAdditionCoeffs(1)=(point(3)-CalcVectorAdditionCoeffs(2)*Vector2(3))/Vector1(3)
+END IF
+
+END FUNCTION CalcVectorAdditionCoeffs
+
+
 SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !===================================================================================================================================
 ! 
@@ -6773,6 +6976,7 @@ SDEALLOCATE(PartInsSubSidesAdapt)
 
 END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 
+
 SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 !===================================================================================================================================
 ! exchange the surface data
@@ -6852,5 +7056,6 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
 END DO; END DO
 
 END SUBROUTINE CircularInflow_Area
+
 
 END MODULE MOD_part_emission
