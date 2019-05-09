@@ -1369,7 +1369,7 @@ SUBROUTINE DSMC_init_octree()
       IF (Symmetry2D) THEN
         CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
       ELSE
-      CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
+        CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
       END IF
     END DO
   END DO

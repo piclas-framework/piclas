@@ -1174,7 +1174,7 @@ USE MOD_part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation       ,ONLY: InitializeInterpolation
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_Particle_Mesh          ,ONLY: InitFIBGM,MapRegionToElem,MarkAuxBCElems
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo
 USE MOD_part_pressure          ,ONLY: ParticlePressureIni,ParticlePressureCellIni
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
@@ -2588,6 +2588,9 @@ IF(Symmetry2DAxisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     CALL DSMC_2D_InitRadialWeighting()
   END IF
+  IF(.NOT.TriaTracking) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
   IF(.NOT.TriaSurfaceFlux) CALL abort(&
     __STAMP__&
     ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')

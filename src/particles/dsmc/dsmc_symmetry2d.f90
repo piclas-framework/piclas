@@ -294,8 +294,8 @@ SUBROUTINE DSMC_2D_SetInClones()
   USE MOD_Globals
   USE MOD_DSMC_Vars       ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
   USE MOD_DSMC_Vars       ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
-  USE MOD_Particle_Vars   ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroValues
-  USE MOD_TimeDisc_Vars      ,ONLY: iter
+  USE MOD_Particle_Vars   ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues
+  USE MOD_TimeDisc_Vars   ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -350,7 +350,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   LastPartPos(PositionNbr,1:3) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   ! Counting the number of clones per cell
-  IF(SamplingActive.OR.WriteMacroValues) THEN
+  IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &
                                             DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) + 1
   END IF

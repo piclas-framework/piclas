@@ -87,7 +87,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
   INTEGER                       :: React1Inx, React2Inx, ProductReac(1:3), EductReac(1:3), iReacForward
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact, ReducedMass
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total, Xi_elec1, Xi_elec2, Xi_elec3, WeightProd
-  REAL(KIND=8)                  :: BetaReaction, BackwardRate, ForwardRate
+  REAL                          :: BetaReaction, BackwardRate
   REAL                          :: Rcoll, Tcoll, Telec, b, TiQK, Weight1, Weight2, Weight3, NumWeightEduct, NumWeightProd
 !===================================================================================================================================
   Weight1=0.; Weight2=0.; Weight3=0.; WeightProd = 0.
