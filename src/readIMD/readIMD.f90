@@ -56,7 +56,8 @@ subroutine read_IMD_results()
   real,dimension(3)                         :: Box_X=.0_8, Box_Y=.0_8, Box_Z=.0_8
   integer(kind=MPI_OFFSET_KIND)             :: disp, myFileOffset
   integer(kind=2)                           :: disp_tmp
-  integer(kind=2)                           :: observables
+  integer(kind=2)                           :: observables_tmp
+  integer                                   :: observables
   integer(kind=8)                           :: nGlobalAtoms
   integer                                   :: ioStatus(MPI_STATUS_SIZE)
   integer(kind=8)                           :: nAtoms, iAtom, iProc
@@ -64,12 +65,11 @@ subroutine read_IMD_results()
   integer(kind=MPI_OFFSET_KIND)             :: myOffset
   character(len=1),dimension(:),allocatable :: AtomsBuffer
   integer(kind=4)                           :: atomBufferSize
-  integer(kind=8)                           :: ii
   !real,dimension(:,:),allocatable           :: Atoms
   integer                                   :: atomsBufferPos = 0
   integer                                   :: errorLen
   character(len=254)                        :: errorString
-  integer(kind=4)                           :: jj
+  integer(kind=4)                           :: iPart
   ! -----------------------------------------------------------------------------
 
   SWRITE(UNIT_stdOut,'(A,A)')'Read IMD-results from file: ',trim(filenameIMDresults)
@@ -89,13 +89,14 @@ subroutine read_IMD_results()
 
     call MPI_FILE_READ_AT(filehandle,3_8,disp_tmp,2,MPI_BYTE,ioStatus,iError)
     call MPI_FILE_READ_AT(filehandle,5_8,nGlobalAtoms,8,MPI_BYTE,ioStatus,iError)
-    call MPI_FILE_READ_AT(filehandle,13_8,observables,2,MPI_BYTE,ioStatus,iError)
+    call MPI_FILE_READ_AT(filehandle,13_8,observables_tmp,2,MPI_BYTE,ioStatus,iError)
 
     call MPI_FILE_READ_AT(filehandle,15_8,Box_X,3,MPI_DOUBLE_PRECISION,ioStatus,iError)
     call MPI_FILE_READ_AT(filehandle,39_8,Box_Y,3,MPI_DOUBLE_PRECISION,ioStatus,iError)
     call MPI_FILE_READ_AT(filehandle,63_8,Box_Z,3,MPI_DOUBLE_PRECISION,ioStatus,iError)
 
     disp = int(disp_tmp,8)
+    observables = int(observables_tmp,4)
 
     SWRITE(UNIT_stdOut,'(3A,I15)')'Number of atmos in ',trim(filenameIMDresults),': ',nGlobalAtoms
     call MPI_FILE_CLOSE(filehandle, mpiFileError)
@@ -106,7 +107,7 @@ subroutine read_IMD_results()
   call MPI_BCAST(Box_Y, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
   call MPI_BCAST(Box_Z, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, iError)
   call MPI_BCAST(nGlobalAtoms, 8, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
-  call MPI_BCAST(observables, 2, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
+  call MPI_BCAST(observables, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, iError)
   call MPI_BCAST(disp, 8, MPI_BYTE, 0, MPI_COMM_WORLD, iError)
 
   nAtoms = nGlobalAtoms/nProcessors
@@ -121,7 +122,7 @@ subroutine read_IMD_results()
   myOffset = FileOffsets(myRank)
 
   myFileOffset = disp + myOffset * observables * 8_8
-  atomBufferSize = 8 * observables * nAtoms
+  atomBufferSize = 8 * observables * int ( nAtoms, 4 )
   allocate(AtomsBuffer(atomBufferSize))
 
   call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(filenameIMDresults), MPI_MODE_RDONLY,&
@@ -143,11 +144,11 @@ subroutine read_IMD_results()
 
   !allocate(Atoms(observables,nAtoms))
 
-  do ii=1,nAtoms
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(ii,1:6),&
+  do iPart=1,PDM%ParticleVecLength
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
 
-    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(ii,1:2),&
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
                     int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
   end do
 
@@ -168,20 +169,26 @@ call MPI_BARRIER( MPI_COMM_WORLD, iError )
 
   PDM%ParticleInside(:) = .False.
 
-  do jj=1,nAtoms
-    PDM%ParticleInside(jj) = .True.
-    CALL SingleParticleToExactElementNoMap(jj,doHALO=.TRUE.,doRelocate=.TRUE.)
-    if( .not. PDM%ParticleInside(jj) )then
-      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(jj,1),PartState(jj,2),PartState(jj,3)
+  do iPart=1,PDM%ParticleVecLength
+    PDM%ParticleInside(iPart) = .True.
+    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+    if( .not. PDM%ParticleInside(iPart) )then
+      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
     end if
   end do
 
-  call UpdateNextFreePosition()
 
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()
+  
+  ! UpdateNextFreePosition must be called after particles are sent (because halo particles crash this routine) and 
+  ! before particles are received (where the next free position is required)
+  call UpdateNextFreePosition()
+  
   call MPIParticleRecv()
+
+
   !call WriteStateToHDF5( trim(meshfile), t, tFuture )
   call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
 
