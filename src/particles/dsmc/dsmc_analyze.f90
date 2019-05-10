@@ -889,7 +889,7 @@ INTEGER, INTENT(IN)   :: iPartIndx(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies)
+INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies), PartID, SpecID
 REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3), partWeight, SumSpecPartNum
 REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
 !===================================================================================================================================
@@ -904,23 +904,21 @@ SumSpecPartNum = 0.
 DSMC%InstantTransTemp = 0.
 
 DO iPart=1,PartNum
+  PartID = iPartIndx(iPart)
+  SpecID = PartSpecies(PartID)
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     IF (VarTimeStep%UseVariableTimeStep) THEN
-      partWeight = PartMPF(iPartIndx(iPart))*VarTimeStep%ParticleTimeStep(iPartIndx(iPart))
+      partWeight = PartMPF(PartID)*VarTimeStep%ParticleTimeStep(PartID)
     ELSE
-      partWeight = PartMPF(iPartIndx(iPart))
+      partWeight = PartMPF(PartID)
     END IF
-    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                    + PartState(iPartIndx(iPart),4:6) * partWeight
-    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                    + PartState(iPartIndx(iPart),4:6)**2 * partWeight
+    PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6) * partWeight
+    PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2 * partWeight
   ELSE
-    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                    + PartState(iPartIndx(iPart),4:6)
-    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                    + PartState(iPartIndx(iPart),4:6)**2
+    PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6)
+    PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2
   END IF
-  SpecPartNum_Simu(PartSpecies(iPartIndx(iPart))) = SpecPartNum_Simu(PartSpecies(iPartIndx(iPart))) + 1
+  SpecPartNum_Simu(SpecID) = SpecPartNum_Simu(SpecID) + 1
 END DO
 
 DO iSpec=1, nSpecies

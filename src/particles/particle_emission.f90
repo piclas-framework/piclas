@@ -316,7 +316,7 @@ __STAMP__&
       CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
       IF (useDSMC) THEN
         IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
           NbrOfParticle = PDM%maxParticleNumber
@@ -722,7 +722,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
@@ -811,7 +811,14 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
   ! ParticleEmission and Partdensity not working together
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
-  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
+  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
+    DoExactPartNumInsert = .TRUE.
+    IF(Symmetry2DAxisymmetric) THEN
+      CALL abort(&
+__STAMP__&
+,'Axisymmetric: Particle insertion only possible with PartDensity!')
+    END IF
+  END IF
   !IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
 !__STAMP__&
 !,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
@@ -2191,13 +2198,13 @@ __STAMP__,&
        END IF
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
-              CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
-          END IF
-          IF(RadialWeighting%DoRadialWeighting) THEN
-             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),FractNbr,ParticleIndexNbr)
-          END IF
+          ! IF (VarTimeStep%UseVariableTimeStep) THEN
+          !   VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+          !     CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
+          ! END IF
+          ! IF(RadialWeighting%DoRadialWeighting) THEN
+          !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),FractNbr,ParticleIndexNbr)
+          ! END IF
 #ifdef MPI
           IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
@@ -6517,12 +6524,15 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
+USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,             ONLY : nElems
 USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6542,11 +6552,12 @@ INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
-REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
+REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> minCoords, Bounds(2,1:3) --> maxCoords
 REAL                             :: Det(6,2)
 REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1:nElems)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
+REAL                             :: adaptTimestep
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
@@ -6577,8 +6588,16 @@ __STAMP__,&
     IF (UseExactPartNum) THEN
       nPart = CellChunkSize(iElem)
     ELSE
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
+      END IF
       CALL RANDOM_NUMBER(iRan)
-      nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
+        nPart = INT(PartDens / adaptTimestep * GEO%Volume(iElem) + iRan)
+      ELSE
+        nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+      END IF
     END IF
     DO iPart = 1, nPart
       ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
@@ -6586,7 +6605,14 @@ __STAMP__,&
         InsideFlag=.FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)
-          RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            ! Treatment of axisymmetry without weighting
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+          ELSE
+            RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          END IF
+          IF(Symmetry2D) RandomPos(3) = 0.
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
             IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
@@ -6604,6 +6630,13 @@ __STAMP__,&
         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
         PEM%Element(ParticleIndexNbr) = iElem
         ichunkSize = ichunkSize + 1
+        IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+            CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
+        END IF
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+        END IF
       ELSE
         CALL abort(&
 __STAMP__&
