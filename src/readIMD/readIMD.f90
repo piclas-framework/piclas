@@ -65,7 +65,6 @@ subroutine read_IMD_results()
   integer(kind=MPI_OFFSET_KIND)             :: myOffset
   character(len=1),dimension(:),allocatable :: AtomsBuffer
   integer(kind=4)                           :: atomBufferSize
-  !real,dimension(:,:),allocatable           :: Atoms
   integer                                   :: atomsBufferPos = 0
   integer                                   :: errorLen
   character(len=254)                        :: errorString
@@ -142,8 +141,6 @@ subroutine read_IMD_results()
 
   call MPI_FILE_CLOSE(filehandle, iError)
 
-  !allocate(Atoms(observables,nAtoms))
-
   do iPart=1,PDM%ParticleVecLength
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
@@ -153,19 +150,11 @@ subroutine read_IMD_results()
   end do
 
   deallocate(AtomsBuffer)
+
   PartState = PartState * 1e-10_8
   PartState(:,4:6) = PartState(:,4:6) * 10.18e15_8
-  if( myRank == 0 )then
-    WRITE(*,*)PartState(1,:)
-    write(*,*)PartState(nAtoms,:)
-    write(*,*)nAtoms
-    write(*,*)'-------------------'
-    write(*,*)PartStateIntEn(1,:)
-    write(*,*)PartStateIntEn(nAtoms,:)
-  end if
-  call MPI_Info_free(mpiInfo, iError)
 
-call MPI_BARRIER( MPI_COMM_WORLD, iError )
+  call MPI_Info_free(mpiInfo, iError)
 
   PDM%ParticleInside(:) = .False.
 
@@ -177,17 +166,15 @@ call MPI_BARRIER( MPI_COMM_WORLD, iError )
     end if
   end do
 
-
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()
-  
-  ! UpdateNextFreePosition must be called after particles are sent (because halo particles crash this routine) and 
+
+  ! UpdateNextFreePosition must be called after particles are sent (because halo particles crash this routine) and
   ! before particles are received (where the next free position is required)
   call UpdateNextFreePosition()
-  
-  call MPIParticleRecv()
 
+  call MPIParticleRecv()
 
   !call WriteStateToHDF5( trim(meshfile), t, tFuture )
   call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
@@ -197,6 +184,7 @@ call MPI_BARRIER( MPI_COMM_WORLD, iError )
     call MPI_FINALIZE( iError )
     stop
   end if
+
 end subroutine read_IMD_results
 
 end module mod_readIMD
