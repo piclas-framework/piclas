@@ -1048,8 +1048,8 @@ REAL                                 :: intersec(3), r_vec(3), axis(3), cos2inv
 REAL                                :: rotVelY, rotVelZ, rotPosY, MacroParticleFactor, adaptTimeStep
 REAL                                :: VelX, VelY, VelZ,VecX, VecY, VecZ
 REAL                                :: Vector1(1:3), Vector2(1:3)
-REAL                                :: POI_X, POI_Y, POI_Z
-REAL                                :: PoldX, PoldY, PoldZ, PnewX, PnewY, PnewZ, nx, ny, nz, nVal
+REAL                                :: POI_Y
+REAL                                :: nx, ny, nz, nVal
 REAL                                :: xNod, yNod, zNod
 INTEGER                             :: LocSideID, ElemID
 !===================================================================================================================================
@@ -1182,17 +1182,9 @@ END IF !IsAuxBC
 
 IF(Symmetry2DAxisymmetric) THEN
   ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
-  PoldX = LastPartPos(PartID,1)
-  PoldY = LastPartPos(PartID,2)
-  PoldZ = LastPartPos(PartID,3)
-
-  PnewX = PartState(PartID,1)
-  PnewY = PartState(PartID,2)
-  PnewZ = PartState(PartID,3)
-
-  VelX = PnewX - PoldX
-  VelY = PnewY - PoldY
-  VelZ = PnewZ - PoldZ
+  VelX = PartState(PartID,1) - LastPartPos(PartID,1)
+  VelY = PartState(PartID,2) - LastPartPos(PartID,2)
+  VelZ = PartState(PartID,3) - LastPartPos(PartID,3)
 
   ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID .EQ. TrackInfo%CurrElem) THEN
@@ -1202,24 +1194,18 @@ IF(Symmetry2DAxisymmetric) THEN
     LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   END IF
 
-  xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-  yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-  zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
-
   ! Getting the vectors, which span the cell (1-2 and 1-4)
   Vector1(1:3)=GEO%NodeCoords(1:3,GEO%ElemSideNodeID(2,LocSideID,ElemID))-GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
   Vector2(1:3)=GEO%NodeCoords(1:3,GEO%ElemSideNodeID(4,LocSideID,ElemID))-GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
-  ! Get the vector, which has the z-component
+  ! Get the vector, which does NOT have the z-component
   IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
     Vector1 = Vector2
   END IF
-
   ! Cross product of the two vectors is simplified as Vector1(3) is zero
   nx = Vector1(2)
   ny = -Vector1(1)
   nz = 0.
-
   ! Check for the correct orientation of the normal vectors (should be inwards)
   IF ((VelX*nx+VelY*ny).GT.0) THEN
     nx = -Vector1(2)
@@ -1229,12 +1215,6 @@ IF(Symmetry2DAxisymmetric) THEN
   nVal = SQRT(nx*nx + ny*ny)
   nx = nx/nVal
   ny = ny/nVal
-
-  !---- Calculate Point of Intersection (POI)
-  POI_fak = ((xNod-PoldX)*Vector1(2)+(PoldY-yNod)*Vector1(1))/(Vector1(2)*VelX-Vector1(1)*VelY)
-  POI_X = PoldX + POI_fak * VelX
-  POI_Y = PoldY + POI_fak * VelY
-  POI_Z = 0.
 END IF
 
 ! calculate new velocity vector (Extended Maxwellian Model)
@@ -1436,7 +1416,7 @@ LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
 
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
 !TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)
-TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
+TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)*adaptTimeStep
 POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
 ! travel rest of particle vector
 !PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
@@ -1445,7 +1425,7 @@ IF (IsAuxBC) THEN
 ELSE
   IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 END IF
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
 
 IF(Symmetry2DAxisymmetric) THEN
   ! Symmetry considerations --------------------------------------------------------
@@ -1461,7 +1441,6 @@ IF(Symmetry2DAxisymmetric) THEN
   PartState(PartID,3) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
-  lastPartPos(PartID,1)=POI_X; lastPartPos(PartID,2)=POI_Y; lastPartPos(PartID,3)=0.0
 END IF
 
 IF(Symmetry2D) THEN
