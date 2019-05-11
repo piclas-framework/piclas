@@ -95,13 +95,7 @@ Following parameters can be used for both schemes.
 
 ## Boundary Conditions
 
-This is the only case, when the order within the parameter file becomes important, when modifying boundary conditions. If you want to modify a specific boundary by addressing its name, the related boundary type has to be defined
-~~~~~~~
-BoundaryName=inflow         ! BC_Name defined in mesh file
-BoundaryType=(/2,0,0,0/)
-BoundaryName=outflow        ! BC_Name defined in mesh file
-BoundaryType=(/2,0,0,0/)
-~~~~~~~
+To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
 
 ### Field
 
@@ -109,7 +103,7 @@ Dielectric -> type 100?
 
 ### Particle
 
-Within the parameter file it is possible to define different particle boundary conditions for the boundaries defined during the preprocessing with HOPR. The number of boundaries is defined by
+Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by
 
     Part-nBounds=2
     Part-Boundary1-SourceName=BC_OPEN
@@ -117,7 +111,7 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
 
-The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
+The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
 |  Condition   | Description                                                                                                                                                                                 |
 | :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
