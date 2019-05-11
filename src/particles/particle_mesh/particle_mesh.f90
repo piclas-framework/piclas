@@ -185,11 +185,9 @@ CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,'.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
-                                                       ' ElemHaloInfo = 0: elements not in list\n'//&
-                                                       '              = 1: local elements\n'//&
-                                                       '              = 2: first element of the processor\n'//&
-                                                       '              = 3: last element of the processor\n'//&
-                                                       '              = 4: halo elements','.FALSE.')
+                                                       ' ElemHaloInfo = -1            : element not in list\n'//&
+                                                       '              = 0             : halo elements\n'//&
+                                                       '              = 1 to PP_nElems: local elements','.FALSE.')
 CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
     ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
     ,'.FALSE.')
@@ -6598,13 +6596,13 @@ ALLOCATE(ElemHaloInfoProc(0:nProcessors-1))
 ! Allocate for local elements: Container with information of my local elements and your halo elements
 DO iRank = 0, nProcessors-1
   ALLOCATE(ElemHaloInfoProc(iRank)%ElemHaloInfo(PP_nElems))
-  ElemHaloInfoProc(iRank)%ElemHaloInfo = 0 ! Elements that do not belong to the processor and are not halo elements are marked "0"
+  ElemHaloInfoProc(iRank)%ElemHaloInfo = -1 ! Elements that do not belong to the processor and are not halo elements are marked "-1"
 END DO ! iRank = 1, nProcessors
 
-! Set local elements
-ElemHaloInfoProc(myrank)%ElemHaloInfo = 1          ! The elements of the processor are marked with "1"
-ElemHaloInfoProc(myrank)%ElemHaloInfo(1)=2         ! The first element of the processor is marked with "2"
-ElemHaloInfoProc(myrank)%ElemHaloInfo(PP_nElems)=3 ! The last element of the processor is marked with "3"
+! Mark each local element with its ID
+DO iElem = 1, PP_nElems
+  ElemHaloInfoProc(myrank)%ElemHaloInfo(iElem) = iElem
+END DO ! iElem = 1, PP_nElems
 
 ! Add arrays to ElemData
 DO iRank = 0, nProcessors-1
@@ -6820,8 +6818,8 @@ DO iProc=1,PartMPI%nMPINeighbors
           ,' HaloInfoCommSize-wrong receiving message size!')
     END IF
 
-    ! Set halo info: halo elements are marked with "4"
-    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 4
+    ! Set halo info: halo elements are marked with "0"
+    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 0
   END DO
 END DO ! iProc
 
