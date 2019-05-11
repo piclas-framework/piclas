@@ -81,8 +81,10 @@ LOGICAL,ALLOCATABLE :: IsLocalDepositionBCElem(:)             ! is an element wh
 TYPE tElemHaloInfo
   INTEGER,ALLOCATABLE            :: ElemHaloInfo(:)           !< Contains information regarding the halo region of each rank
                                                               !< ElemHaloInfo = 0: element not in list
-                                                              !<              = 1: local element
-                                                              !<              = 2: halo element
+                                                              !<              = 1: local elements
+                                                              !<              = 2: first element of the processor
+                                                              !<              = 3: last element of the processor
+                                                              !<              = 4: halo elements
 END TYPE
 TYPE(tElemHaloInfo),ALLOCATABLE      :: ElemHaloInfoProc(:)   ! ElemHaloInfo array for each rank
 
