@@ -780,7 +780,6 @@ INTEGER :: i,j,k,iElem
 INTEGER :: ll
 ! Jacobian on CL N and NGeoRef
 REAL    :: DetJac_N( 1,0:PP_N,   0:PP_N,   0:PP_N)
-!REAL    :: tmp2(     1,0:Ngeo,0:Ngeo,0:Ngeo)
 ! interpolation points and derivatives on CL N
 REAL    :: XCL_N(      3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
 REAL    :: XCL_Ngeo(   3,  0:Ngeo,0:Ngeo,0:Ngeo)          ! mapping X(xi) P\in Ngeo

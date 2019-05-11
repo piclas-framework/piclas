@@ -115,10 +115,10 @@ DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
 DielectricTestCase               = GETSTR('DielectricTestCase','default')
 DielectricRmax                   = GETREAL('DielectricRmax','1.')
-IF((DielectricEpsR.LT.0.0).OR.(DielectricMuR.LT.0.0))THEN
+IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
   CALL abort(&
   __STAMP__&
-  ,'Dielectric: MuR or EpsR cannot be negative.')
+  ,'Dielectric: MuR or EpsR cannot be negative or zero.')
 END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
@@ -233,6 +233,10 @@ IMPLICIT NONE
 INTEGER             :: i,j,k,iDielectricElem
 REAL                :: r
 !===================================================================================================================================
+! Check if there are dielectric elements
+IF(nDielectricElems.LT.1) RETURN
+
+! Allocate field variables
 ALLOCATE(         DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(          DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
