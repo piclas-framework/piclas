@@ -1769,6 +1769,7 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
+#ifdef MPI
 ! Check whether halo_eps is smaller than shape function radius
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   IF(halo_eps.LT.r_sf)THEN
@@ -1777,6 +1778,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
+#endif /* MPI */
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 & 
