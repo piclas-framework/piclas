@@ -340,8 +340,7 @@ SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSou
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
-USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Mesh_Vars          ,ONLY: sJ
 USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -790,6 +789,8 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
@@ -1075,6 +1076,8 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     DSMC_HOSolution = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
+      IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
+      IF(FPInitDone) FP_QualityFacSamp(:,:) = 0.
     END IF
   END IF
 END IF
