@@ -102,7 +102,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
+#endif
 #ifdef PP_HDG
 LOGICAL                     :: DG_SolutionUExists
 #endif /* PP_HDG */
@@ -1475,7 +1477,9 @@ IMPLICIT NONE
 
   IF(ClonePartNum.GT.0) THEN
     ALLOCATE(CloneData(1:ClonePartNum,1:CloneDataSize))
-    CALL ReadArray('CloneData',2,(/ClonePartNum,CloneDataSize/),0,1,RealArray=CloneData)
+    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),CloneDataSize => INT(CloneDataSize,IK))
+      CALL ReadArray('CloneData',2,(/ClonePartNum,CloneDataSize/),0_IK,1,RealArray=CloneData)
+    END ASSOCIATE
     SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
     ! Determing the old clone delay
     maxDelay = INT(MAXVAL(CloneData(:,9)))
@@ -1512,7 +1516,9 @@ IMPLICIT NONE
         END IF
       END DO
       ALLOCATE(VibQuantData(1:ClonePartNum,1:MaxQuantNum))
-      CALL ReadArray('CloneVibQuantData',2,(/ClonePartNum,MaxQuantNum/),0,1,IntegerArray=VibQuantData)
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxQuantNum => INT(MaxQuantNum,IK))
+        CALL ReadArray('CloneVibQuantData',2,(/ClonePartNum,MaxQuantNum/),0_IK,1,IntegerArray_i4=VibQuantData)
+      END ASSOCIATE
     END IF
     ! Copying particles into ClonedParticles array
     DO iPart = 1, ClonePartNum

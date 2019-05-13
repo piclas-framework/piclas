@@ -152,7 +152,9 @@ IF(DoRestart) THEN
   CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)
   CALL DatasetExists(File_ID,'PartTimeStep',TimeStepExists)
   IF(TimeStepExists) THEN
-    CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1/),0,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
+    ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK))
+      CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
+    END ASSOCIATE
     SWRITE(UNIT_stdOut,*)'Variable Time Step: Read-in of timestep distribution from state file.'
   ELSEIF(.NOT.VarTimeStep%AdaptDistribution) THEN
     CALL abort(__STAMP__, &

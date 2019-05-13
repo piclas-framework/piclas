@@ -738,10 +738,10 @@ USE MOD_LD                     ,ONLY: LD_SetParticlePosition
 USE MOD_Timedisc_Vars          ,ONLY: DoDisplayIter, iter, IterDisplayStep
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
-USE MOD_Particle_Vars           ,ONLY: PEM, VarTimeStep, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+! USE MOD_Particle_Vars           ,ONLY: PEM, VarTimeStep, PartMPF
+! USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+! USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+! USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'                                                                               

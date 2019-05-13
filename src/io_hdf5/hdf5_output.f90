@@ -1490,16 +1490,15 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !INTEGER(HID_T)                 :: Dset_ID
 !INTEGER                        :: nVal
 #ifdef MPI
-INTEGER                        :: sendbuf(2),recvbuf(2)
+INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 #endif
-INTEGER                        :: pcount, iDelay
+INTEGER                        :: pcount, iDelay, iElem_glob
 LOGICAL                        :: withDSMC=.FALSE.
-INTEGER                        :: locnPart,offsetnPart
-INTEGER                        :: iPart,nPart_glob, iElem_glob
+INTEGER(KIND=IK)               :: locnPart,offsetnPart
+INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER                        :: minnParts
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, tempDelay
 !-----------------------------------------------------------------------------------------------------------------------------------
 !!added for Evib, Erot writeout
@@ -1552,18 +1551,15 @@ END DO
 #ifdef MPI
 sendbuf(1)=locnPart
 recvbuf=0
-CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
 offsetnPart=recvbuf(1)
 sendbuf(1)=recvbuf(1)+locnPart
-CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
 !global numbers
 nPart_glob=sendbuf(1)
-LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0
 nPart_glob=locnPart
-minnParts=locnPart
 #endif
 ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
 
@@ -1659,6 +1655,12 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
 CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSize,StrArray=StrVarNames)
+
+ASSOCIATE (&
+      nPart_glob    => INT(nPart_glob,IK)    ,&
+      offsetnPart      => INT(offsetElem,IK)      ,&
+      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
+      PartDataSize    => INT(PartDataSize,IK)    )
 CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&
                       nValGlobal=(/nPart_glob,PartDataSize/),&
                       nVal=      (/locnPart,PartDataSize  /),&
@@ -1668,10 +1670,12 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   CALL WriteArrayToHDF5(DataSetName='CloneVibQuantData', rank=2,&
                         nValGlobal=(/nPart_glob,MaxQuantNum/),&
                         nVal=      (/locnPart,MaxQuantNum  /),&
-                        offset=    (/offsetnPart , 0  /),&
-                        collective=.FALSE., IntegerArray=VibQuantData)
+                        offset=    (/offsetnPart , 0_IK  /),&
+                        collective=.FALSE., IntegerArray_i4=VibQuantData)
   DEALLOCATE(VibQuantData)
 END IF
+END ASSOCIATE
+
 
 CALL CloseDataFile()
 
