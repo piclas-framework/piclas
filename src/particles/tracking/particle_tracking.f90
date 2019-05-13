@@ -167,6 +167,11 @@ DO i = 1,PDM%ParticleVecLength
             END IF
             DO ind = 1, nMortarElems
               NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+              IF (NbElemID.LT.1) THEN
+                CALL abort(&
+                 __STAMP__ &
+                 ,'ERROR: Mortar Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+              END IF
               NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
               nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID) 
               DO TriNum = 1,2
