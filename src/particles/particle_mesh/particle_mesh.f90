@@ -183,7 +183,13 @@ CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
 CALL prms%CreateLogicalOption( 'printMPINeighborWarnings'&
     ,  ' Print warning if the MPI-Halo-region between to procs are not overlapping. Only one proc find the other in halo ' &
     ,'.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcHaloInfo',         "Output halo element information to ElemData",'.FALSE.')
+CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
+                                                       ' "MyRank_ElemHaloInfo"\n'//&
+                                                       ' ElemHaloInfo = 0: elements not in list\n'//&
+                                                       '              = 1: local elements\n'//&
+                                                       '              = 2: first element of the processor\n'//&
+                                                       '              = 3: last element of the processor\n'//&
+                                                       '              = 4: halo elements','.FALSE.')
 CALL prms%CreateLogicalOption( 'printBezierControlPointsWarnings'&
     ,  ' Print warning if MINVAL(BezierControlPoints3d(iDir,:,:,newSideID)) and global boundaries are too close ' &
     ,'.FALSE.')
@@ -1763,6 +1769,7 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
+#ifdef MPI
 ! Check whether halo_eps is smaller than shape function radius
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   IF(halo_eps.LT.r_sf)THEN
@@ -1771,6 +1778,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
+#endif /* MPI */
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 & 
@@ -6592,11 +6600,13 @@ ALLOCATE(ElemHaloInfoProc(0:nProcessors-1))
 ! Allocate for local elements: Container with information of my local elements and your halo elements
 DO iRank = 0, nProcessors-1
   ALLOCATE(ElemHaloInfoProc(iRank)%ElemHaloInfo(PP_nElems))
-  ElemHaloInfoProc(iRank)%ElemHaloInfo = 0
+  ElemHaloInfoProc(iRank)%ElemHaloInfo = 0 ! Elements that do not belong to the processor and are not halo elements are marked "0"
 END DO ! iRank = 1, nProcessors
 
 ! Set local elements
-ElemHaloInfoProc(myrank)%ElemHaloInfo = 1
+ElemHaloInfoProc(myrank)%ElemHaloInfo = 1          ! The elements of the processor are marked with "1"
+ElemHaloInfoProc(myrank)%ElemHaloInfo(1)=2         ! The first element of the processor is marked with "2"
+ElemHaloInfoProc(myrank)%ElemHaloInfo(PP_nElems)=3 ! The last element of the processor is marked with "3"
 
 ! Add arrays to ElemData
 DO iRank = 0, nProcessors-1
@@ -6812,8 +6822,8 @@ DO iProc=1,PartMPI%nMPINeighbors
           ,' HaloInfoCommSize-wrong receiving message size!')
     END IF
 
-    ! Set halo info
-    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 2
+    ! Set halo info: halo elements are marked with "4"
+    ElemHaloInfoProc(yourrank)%ElemHaloInfo(myelem) = 4
   END DO
 END DO ! iProc
 
