@@ -1321,7 +1321,7 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 ! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO,PartElemToSide, PartSideToElem
+USE MOD_Particle_Mesh_Vars,  ONLY : GEO,PartElemToSide, PartSideToElem,PartElemToElemAndSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1391,12 +1391,7 @@ REAL                          :: A(1:3,1:4), cross(3)
             END IF
             DO ind = 1, nNbMortars
               InElementCheckMortarNb = .TRUE.
-              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
-              IF (PartSideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
-                NbElemID = PartSideToElem(S2E_ELEM_ID,nbSideID)
-              ELSE
-                NbElemID = PartSideToElem(S2E_NB_ELEM_ID,nbSideID)
-              END IF
+              NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
               CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
               IF (InElementCheckMortarNb) THEN
                 InElementCheck = .FALSE.

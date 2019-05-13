@@ -69,10 +69,10 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO, PartSideToElem
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO, PartSideToElem, PartElemToElemAndSide, nTotalSides
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem, Face_xGP
-USE MOD_Mesh_Vars,                   ONLY:BC, MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,                   ONLY:BC, MortarSlave2MasterInfo,nSides
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
@@ -166,14 +166,9 @@ DO i = 1,PDM%ParticleVecLength
               nMortarElems = 2
             END IF
             DO ind = 1, nMortarElems
-              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
-              IF (PartSideToElem(S2E_ELEM_ID,nbSideID).GT.0) THEN
-                NbElemID = PartSideToElem(S2E_ELEM_ID,nbSideID)
-                NblocSideID = PartSideToElem(S2E_LOC_SIDE_ID,nbSideID)
-              ELSE
-                NbElemID = PartSideToElem(S2E_NB_ELEM_ID,nbSideID)
-                NblocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,nbSideID)
-              END IF
+              NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+              NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
+              nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID) 
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
                 CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,NblocSideID,NbElemID,ThroughSide,TriNum, .TRUE.)
@@ -261,10 +256,10 @@ DO i = 1,PDM%ParticleVecLength
               END DO
               IF (doCheckSide) THEN
                 IF (isMortarSideTemp(ind2)) THEN
-                  IF (SideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)).GT.0) THEN
-                    NbElemID = SideToElem(S2E_ELEM_ID,GlobSideTemp(ind2))
+                  IF (PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2)).GT.0) THEN
+                    NbElemID = PartSideToElem(S2E_ELEM_ID,GlobSideTemp(ind2))
                   ELSE
-                    NbElemID = SideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
+                    NbElemID = PartSideToElem(S2E_NB_ELEM_ID,GlobSideTemp(ind2))
                   END IF
                   CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),NbElemID,InElementCheck,TriNumTemp(ind2),detM,.TRUE.,detPartPos)
                   IF (InElementCheck) THEN
@@ -377,18 +372,14 @@ DO i = 1,PDM%ParticleVecLength
           DoneLastElem(2,1) = LocalSide
           DoneLastElem(3,1) = TriNum
           DoneLastElem(4,1) = SideID
-          IF ((MortarSlave2MasterInfo(SideID).EQ.-1).OR.oldElemIsMortar) THEN
-            IF (PartSideToElem(S2E_NB_ELEM_ID,SideID).EQ.ElemID) THEN
+          IF (oldElemIsMortar) THEN
+            IF (PartSideToElem(S2E_NB_ELEM_ID,SideID).EQ.-1) THEN
              ElemID = PartSideToElem(S2E_ELEM_ID,SideID)
             ELSE
              ElemID = PartSideToElem(S2E_NB_ELEM_ID,SideID)
             END IF
           ELSE
-            IF (PartSideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID)).GT.0) THEN
-             ElemID = PartSideToElem(S2E_ELEM_ID,MortarSlave2MasterInfo(SideID))
-            ELSE
-             ElemID = PartSideToElem(S2E_NB_ELEM_ID,MortarSlave2MasterInfo(SideID))
-            END IF
+            ElemID = PartElemToElemAndSide(1  ,LocalSide,ElemID)
           END IF
         END IF
       END IF

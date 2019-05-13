@@ -750,7 +750,7 @@ DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
 ! Calculation of mixture reference diameter
-
+IF (nPart.EQ.0) RETURN
 DO iSpec = 1, nSpecies
   DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
 END DO
@@ -759,19 +759,20 @@ END DO
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
-    DO iSpec = 1, nSpecies
-      MFP_Tmp = 0.0
-      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-        DO jSpec = 1, nSpecies
-          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-          END IF
-        END DO
-        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-      END IF
-    END DO
+  IF (Temp.LE.0) RETURN
+  DO iSpec = 1, nSpecies
+    MFP_Tmp = 0.0
+    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+      DO jSpec = 1, nSpecies
+        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+        END IF
+      END DO
+      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+    END IF
+  END DO
 ELSE
   DO iSpec = 1, nSpecies
     MFP_Tmp = 0.0
@@ -779,7 +780,7 @@ ELSE
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
           MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
@@ -900,7 +901,11 @@ DO iSpec=1, nSpecies
   DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
                                         + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
 END DO
-DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+IF (SUM(CollInf%Coll_SpecPartNum).GT.0) THEN
+  DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+ELSE
+  DSMC%InstantTransTemp(nSpecies+1) = 0.0
+END IF
 
 END SUBROUTINE CalcInstantTransTemp
 
