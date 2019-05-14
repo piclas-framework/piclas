@@ -236,7 +236,6 @@ In the case of molecules, the rotational and vibrational temperature [K] have to
     Part-Species1-Surfaceflux1-TempVib=300.
     Part-Species1-Surfaceflux1-TempElec=300.
 
-*Missing description: SimpleRadialVeloFit, ReduceNoise, AcceptReject, ARM_DmaxSampleN, DoForceFreeSurfaceFlux*
 
 #### Circular Inflow
 
@@ -294,6 +293,14 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to overpredict the given mass flow, when the emission area is very small and large sample size would required to have enough particles that leave the method. For `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted, and thus the correct mass flow can be reproduced.
 
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+
+#### Missing descriptions
+
+SimpleRadialVeloFit, ReduceNoise, DoForceFreeSurfaceFlux
+
+DoPoissonRounding: [@Tysanner2004]
+
+AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
 
 ## Particle-In-Cell \label{sec:pic}
 
