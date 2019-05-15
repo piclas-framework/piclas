@@ -984,6 +984,11 @@ USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+#if (PP_TimeDiscMethod==400)
+USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
+#elif (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Vars,            ONLY: FPDoVibRelaxation
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1210,52 +1215,6 @@ IF (CollisMode.GT.1) THEN
 IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20)) THEN
 
   !---- Rotational energy accommodation
-! #if (PP_TimeDiscMethod==300)
-!   IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-!     iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray  
-!     IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-!       ErotOld = PartStateIntEn(PartID,2)
-!       VeloCx  = rnor()                !normal distri
-!       VeloCy  = rnor()                !normal distri
-!       Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
-!       ErotWall    = BoltzmannConst * WallTemp * Fak_D
-!       ErotNew = ErotOld + RotACC * (ErotWall - ErotOld)
-!       Cmr     = SQRT(ErotNew / (PolyatomMolFP(iPolyatMole)%RotMomDOF(1)* Fak_D))
-!     ELSE
-!       ErotOldPoly(1)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(1) & 
-!               *FPInnerVelos(PartID)%FP_RotVelo(1)*FPInnerVelos(PartID)%FP_RotVelo(1)
-!       ErotOldPoly(2)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(2) & 
-!               *FPInnerVelos(PartID)%FP_RotVelo(2)*FPInnerVelos(PartID)%FP_RotVelo(3)
-!       ErotOldPoly(3)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(3) & 
-!               *FPInnerVelos(PartID)%FP_RotVelo(3)*FPInnerVelos(PartID)%FP_RotVelo(3)
-!       VeloCx  = rnor()                !normal distri
-!       VeloCy  = rnor()                !normal distri
-!       VeloCz  = rnor()
-!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(1)*VeloCx*VeloCx
-!       ErotWallPoly(1)    = BoltzmannConst * WallTemp * Fak_D
-!       ErotNewPoly(1) = ErotOldPoly(1) + RotACC * (ErotWallPoly(1) - ErotOldPoly(1))
-!       CmrRotPoly(1)     = SQRT(ErotNewPoly(1) / (Fak_D))
-!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(2)*VeloCy*VeloCy
-!       ErotWallPoly(2)    = BoltzmannConst * WallTemp * Fak_D
-!       ErotNewPoly(2) = ErotOldPoly(2) + RotACC * (ErotWallPoly(2) - ErotOldPoly(2))
-!       CmrRotPoly(2)     = SQRT(ErotNewPoly(2) / (Fak_D))
-!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(3)*VeloCz*VeloCz
-!       ErotWallPoly(3)    = BoltzmannConst * WallTemp * Fak_D
-!       ErotNewPoly(3) = ErotOldPoly(3) + RotACC * (ErotWallPoly(3) - ErotOldPoly(3))
-!       CmrRotPoly(3)     = SQRT(ErotNewPoly(3) / (Fak_D))
-!       ErotWall = ErotWallPoly(1) + ErotWallPoly(2) + ErotWallPoly(3)
-!       ErotNew = ErotNewPoly(1) + ErotNewPoly(2) + ErotNewPoly(3)
-!     END IF
-!   ELSE
-!      ErotOld = PartStateIntEn(PartID,2)
-!      VeloCx  = rnor()                !normal distri
-!      VeloCy  = rnor()                !normal distri
-!      Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
-!      ErotWall    = BoltzmannConst * WallTemp * Fak_D
-!      ErotNew = ErotOld + RotACC * (ErotWall - ErotOld)
-!      Cmr     = SQRT(ErotNew / (SpecFP(PartSpecies(PartID))%RotMomentum * Fak_D))
-!   END IF
-! #else
     IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
       CALL RANDOM_NUMBER(RanNum)
       ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
@@ -1273,7 +1232,6 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
       ErotWall = ErotWall*BoltzmannConst*WallTemp
     END IF
     ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
-! #endif
 
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     !----  Sampling for internal energy accommodation at walls
@@ -1285,54 +1243,13 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor 
     END IF  
 
-! #if (PP_TimeDiscMethod==300)
-!     IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-!       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray  
-!       IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
-!        FPInnerVelos(PartID)%FP_RotVelo(1) = Cmr * VeloCx
-!        FPInnerVelos(PartID)%FP_RotVelo(2) = Cmr * VeloCy
-!       ELSE
-!        FPInnerVelos(PartID)%FP_RotVelo(1) = CmrRotPoly(1) * VeloCx
-!        FPInnerVelos(PartID)%FP_RotVelo(2) = CmrRotPoly(2) * VeloCy
-!        FPInnerVelos(PartID)%FP_RotVelo(3) = CmrRotPoly(3) * VeloCz
-!       END IF
-!     ELSE
-!      FPInnerVelos(PartID)%FP_RotVelo(1) = Cmr * VeloCx
-!      FPInnerVelos(PartID)%FP_RotVelo(2) = Cmr * VeloCy
-!     END IF
-!     PartStateIntEn(PartID,2) = ErotNew   
-! #else
     PartStateIntEn(PartID,2) = ErotNew
-! #endif
 
-! #if (PP_TimeDiscMethod==300)
-!     IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN              
-!        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
-!        ALLOCATE(VecXVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), VecYVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF),&
-!            CmrVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), EVPolyNewFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
-!            EVPolyWallFP(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-!        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!          EvibOld = 0.5*(FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1)*FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1) &
-!                     + FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2)*FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2))
-!          VecXVibPolyFP(iDOF)  = rnor()                !normal distri
-!          VecYVibPolyFP(iDOF)  = rnor()                !normal distri
-!          Fak_D       = VecXVibPolyFP(iDOF)*VecXVibPolyFP(iDOF) + VecYVibPolyFP(iDOF)*VecYVibPolyFP(iDOF)
-!          EVPolyWallFP(iDOF)   = (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
-!             /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/WallTemp)-1.)) * Fak_D
-!          EVPolyNewFP(iDOF) = EvibOld + VibACC * (EVPolyWallFP(iDOF) - EvibOld)
-!          CmrVibPolyFP(iDOF) = SQRT(EVPolyNewFP(iDOF) /Fak_D)
-!        END DO
-!     ELSE
-!        EvibOld = PartStateIntEn(PartID,1) - DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
-!        VeloCx  = rnor()                !normal distri
-!        VeloCy  = rnor()                !normal distri
-!        Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
-!        EVibWall    = (BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib &
-!           /(EXP(SpecDSMC(PartSpecies(PartID))%CharaTVib/WallTemp)-1.)) * Fak_D
-!        EVibNew = EvibOld + VibACC * (EVibWall - EvibOld)
-!        Cmr     = SQRT(EvibNew /Fak_D)
-!     END IF
-! #else
+#if (PP_TimeDiscMethod==400)
+    IF (BGKDoVibRelaxation) THEN
+#elif (PP_TimeDiscMethod==300)
+    IF (FPDoVibRelaxation) THEN
+#endif
    !---- Vibrational energy accommodation
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
         EvibNew = 0.0
@@ -1382,39 +1299,6 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
 
       IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
    !----  Sampling for internal energy accommodation at walls
-! #if (PP_TimeDiscMethod==300)
-!         IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-!           iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7)  &
-!                      + PartStateIntEn(PartID,1) * Species(PartSpecies(PartID))%MacroParticleFactor
-!           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
-!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + &
-!                     EVPolyWallFP(iDOF)  * Species(PartSpecies(PartID))%MacroParticleFactor
-!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
-!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) + &
-!                     EVPolyNewFP(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
-!           END DO
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + &
-!                   PolyatomMolDSMC(iPolyatMole)%EZeroPoint * Species(PartSpecies(PartID))%MacroParticleFactor
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) + &
-!                   PolyatomMolDSMC(iPolyatMole)%EZeroPoint * Species(PartSpecies(PartID))%MacroParticleFactor
-!         ELSE
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7)  &
-!                      + PartStateIntEn(PartID,1) * Species(PartSpecies(PartID))%MacroParticleFactor
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + (EVibWall + DSMC%GammaQuant &
-!                      * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib) * Species(PartSpecies(PartID))%MacroParticleFactor
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
-!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) &
-!                      + (EvibNew + DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst) &
-!                     * Species(PartSpecies(PartID))%MacroParticleFactor
-!         END IF
-! #else
         IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -1432,27 +1316,12 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
         END IF
         SampWall(SurfSideID)%State(9,p,q)= SampWall(SurfSideID)%State(9,p,q) + &
                                             EvibNew * Species(PartSpecies(PartID))%MacroParticleFactor
-! #endif
       END IF     
-! #if (PP_TimeDiscMethod==300)
-!      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
-!        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
-!        PartStateIntEn(PartID,1) = 0.0
-!        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!         FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1) = CmrVibPolyFP(iDOF) * VecXVibPolyFP(iDOF)
-!         FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2) = CmrVibPolyFP(iDOF) * VecYVibPolyFP(iDOF)
-!         PartStateIntEn(PartID,1) = PartStateIntEn(PartID,1) + EVPolyNewFP(iDOF)
-!        END DO
-!        PartStateIntEn(PartID,1) = PartStateIntEn(PartID,1) + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
-!      ELSE
-!        FPInnerVelos(PartID)%FP_VibVelo(1) = Cmr * VeloCx
-!        FPInnerVelos(PartID)%FP_VibVelo(2) = Cmr * VeloCy
-!        PartStateIntEn(PartID,1) = EvibNew + DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
-!      END IF
-! #else
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
       PartStateIntEn(PartID,1) = EvibNew
-! #endif
+#if ((PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300))
+    END IF
+#endif
     END IF
     END IF ! CollisMode > 1
     END IF ! useDSMC

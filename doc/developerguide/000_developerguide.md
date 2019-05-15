@@ -39,9 +39,9 @@ link-citations: true
  * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
    points for electrostatic and electromagnetic solvers
  * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 
-   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@HOPR]
+   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@Hindenlang2015]
  * Non-conforming interfaces [@Sonntag2017] based on the mortar approach [@Kopriva2001;@Bui2012] (electromagnetic solver)
- * Non-reflecting boundary conditions via [**CFS-PMLs**](https://doi.org/10.1109/TPS.2016.2637061) [@Copplestone2017] (electromagnetic solver)
+ * Non-reflecting boundary conditions via CFS-PMLs [@Copplestone2017] (electromagnetic solver)
  * Automatic domain decomposition for parallel simulations based on a space filling curve
  * High order low-storage explicit Runge-Kutta time integration [@Carpenter1994]
  * I/O using the [**HDF5**](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
@@ -51,13 +51,16 @@ link-citations: true
 This guide is organized to guide the first implementation steps as well as provide a complete overview of 
 the simulation code's features from a developer's point of view.
 
-* Development guidelines, git-specific and cluster-specific issues are given in Chapter \ref{chap:guidelines}.
-<!--* Chapter \ref{chap:installation} contains step by step instructions from obtaining the source -->
-<!--code up to running a first simulation and visualizing the simulation results. In addition, it -->
-<!--provides an overview of the whole simulation framework and the currently implemented features.-->
-<!--* Chapter \ref{chap:workflow} outlines the workflow starting with mesh generation and concluding with the visualization of results produced with **PICLas**.-->
-<!--* Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.-->
-<!--* Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. -->
-<!--* Simulation tutorials are contained in Chapter \ref{chap:tutorials}.-->
-<!--* A complete list of all parameters is given in Chapter \ref{chap:parameterfile}.-->
-<!-- * The unit test system used to test key routines with CTest is described in Chapter \ref{chap:unittest}. -->
+Preliminary Table of Contents
+
+1. Gitlab Workflow
+   1. Issues & Milestones
+   2. Release & Deploy
+2. Style Guide
+3. MPI Implementation
+4. Regression Testing
+5. Compiler Options
+
+* The first Chapter \ref{chap:git_workflow} shall give an overview over the development workflow within the Gitlab environment, and the necessary steps to create a release, deploy the update to the Collaborative Numerics Group and GitHub.
+* The second Chapter \ref{chap:style_guide} describes the rules and guidelines regarding code development such as how the header of functions and subroutines look like.
+* Chapter \ref{chap:compiler_options}
