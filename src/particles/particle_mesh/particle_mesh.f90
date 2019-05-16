@@ -5978,7 +5978,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
                     DistVec(1:3)=XCL_NGeo(1:3,ii,jj,kk,iElem)-MacroPart(iMP)%center(1:3)
                     DistVecLength=SQRT(DOT_PRODUCT(DistVec,DistVec))
                     IF (DistVecLength.GT.0) DistVec=DistVec/DistVecLength
-                    eps=LengthMacroPartTrajectory*DOT_PRODUCT(DistVec,MacroPartTrajectory)+epsMach
+                    eps = LengthMacroPartTrajectory*MAX(0.,DOT_PRODUCT(DistVec,MacroPartTrajectory))+epsMach
                     IF (DistVecLength.LE.BoundsDiagonal+eps) THEN
                       ElemHasMacroPart(iElem,iMP)=.TRUE.
                     END IF
