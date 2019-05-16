@@ -668,6 +668,7 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -1045,7 +1046,7 @@ ELSE
     RETURN
   END IF
   isHit=.TRUE.
-  IF(ALLOCATED(PartBCSideList))THEN ! correspond to DoRefMapping
+  IF(DoRefMapping) THEN
     SELECT CASE(InterType)
     CASE(1)
       alpha  =t  (1)

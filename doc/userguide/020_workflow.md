@@ -155,11 +155,12 @@ parameter file (e.g. *parameter.ini*) is sufficient, while the DSMC method requi
 
     piclas --help
 
-General parameters such the name of project (used for filenames), the mesh file (as produced by HOPR), end time of the simulation (in seconds) are:
+General parameters such the name of project (used for filenames), the mesh file (as produced by HOPR), end time of the simulation (in seconds) and the time step, at which the particle data is written out (in seconds), are:
 
-    ProjectName=TestCase
-    MeshFile=test_mesh.h5
-    TEnd=1e-3
+    ProjectName = TestCase
+    MeshFile = test_mesh.h5
+    TEnd = 1e-3
+    Analyze_dt = 1e-4
 
 Generally following types are used:
 
@@ -194,8 +195,8 @@ After the mesh generation, compilation of the binary and setup of the parameter 
 The simulation may be restarted from an existing state file
 
     piclas parameter.ini [DSMCSpecies.ini] [restart_file.h5]
-    
-**Note:** When restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
+
+A state file is generated at the end of the simulation and also at every time step defined by `Analyze_dt`. **Note:** When restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
 
 After a successful simulation, state files will be written out in the HDF5 format preceded by the project name, file type (e.g. State, DSMCState, DSMCSurfState) and the time stamp:
 

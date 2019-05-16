@@ -5012,9 +5012,9 @@ USE MOD_Particle_VarTimeStep,   ONLY : CalcVarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-#endif
+! #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+! USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
+! #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart

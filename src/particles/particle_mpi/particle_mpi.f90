@@ -315,10 +315,10 @@ END SUBROUTINE IRecvNbOfParticles
 
 SUBROUTINE SendNbOfParticles(doParticle_In)
 !===================================================================================================================================
-! this routine sends the number of send particles. Following steps are performed
+! This routine sends the number of send particles, for which the following steps are performed:
 ! 1) Compute number of Send Particles
 ! 2) Perform MPI_ISEND with number of particles
-! Rest is performed in SendParticles
+! The remaining steps are performed in SendParticles
 ! 3) Build Message 
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
@@ -403,6 +403,9 @@ IF(DoExternalParts)THEN
     END IF
     ! Don't deposit neutral external particles!
     IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+    ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
+    IF(SkipExternalSFParticles(iPart)) CYCLE
+    ! Get indices of background mesh cells
     CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
     CellX = MAX(GEO%FIBGMimin,CellX)
@@ -1650,6 +1653,42 @@ PartMPIExchange%nPartsSend=0
 
 
 END SUBROUTINE MPIParticleRecv
+
+
+!==================================================================================================================================
+!> Check whether a particle is inside a cell where a local deposition method is used instead of the shape function and
+!> returns true or false (when true, the particle is not communicated via MPI to the neighboring ranks)
+!==================================================================================================================================
+PURE FUNCTION SkipExternalSFParticles(PartID)
+! MODULES
+USE MOD_PICDepo_Vars       ,ONLY: DoSFLocalDepoAtBounds
+USE MOD_Particle_Vars      ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars ,ONLY: IsLocalDepositionBCElem
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES 
+INTEGER,INTENT(IN)  :: PartID                  !< Particle ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL             :: SkipExternalSFParticles !< returns true is the particle must not be sent to other ranks via MPI
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Only check when shape functions are used in combination with local deposition
+IF(.NOT.DoSFLocalDepoAtBounds)THEN
+  SkipExternalSFParticles=.FALSE.
+  RETURN
+END IF
+
+! Check if particle is inside a local deposition element
+IF(IsLocalDepositionBCElem(PEM%Element(PartID)))THEN
+  SkipExternalSFParticles=.TRUE.
+ELSE
+  SkipExternalSFParticles=.FALSE.
+END IF
+
+END FUNCTION SkipExternalSFParticles
 
 
 SUBROUTINE FinalizeParticleMPI()

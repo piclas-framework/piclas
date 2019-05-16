@@ -602,6 +602,14 @@ gnu_PIC_deposition:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+
+gnu_PIC_innerBC_SFLocalDepoBC:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -766,6 +774,14 @@ gnu_PIC_deposition:
 #     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+#
+# intel_PIC_innerBC_SFLocalDepoBC:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
