@@ -1050,7 +1050,6 @@ REAL                                :: VelX, VelY, VelZ,VecX, VecY, VecZ
 REAL                                :: Vector1(1:3), Vector2(1:3)
 REAL                                :: POI_Y
 REAL                                :: nx, ny, nz, nVal
-REAL                                :: xNod, yNod, zNod
 INTEGER                             :: LocSideID, ElemID
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN

@@ -143,8 +143,8 @@ END DO
 DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
-  nSurfBC = nSurfBC + 1
-  BCName(nSurfBC) = BoundaryName(iBC)
+    nSurfBC = nSurfBC + 1
+    BCName(nSurfBC) = BoundaryName(iBC)
   END IF
 END DO
 IF (nSurfBC.GE.1) THEN
