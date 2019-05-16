@@ -406,6 +406,8 @@ Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 MidPoint = (Pmax(2)+Pmin(2)) / 2.
 IF(Symmetry2DAxisymmetric) THEN
   DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+  ! Area of the cells on the rotational symmetry axis is set to one
+  IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
 ELSE
   DSMC_2D_CalcSymmetryArea = Length
 END IF

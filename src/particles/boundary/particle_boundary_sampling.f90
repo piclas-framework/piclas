@@ -395,8 +395,8 @@ DO iSide=1,nTotalSides
     ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
     LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
     IF (ElemID.EQ.-1) THEN
-        ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-        LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+      ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+      LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     END IF
     SurfaceVal = 0.
     xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))

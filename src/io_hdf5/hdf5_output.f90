@@ -1658,7 +1658,7 @@ CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSize,StrArray
 
 ASSOCIATE (&
       nPart_glob    => INT(nPart_glob,IK)    ,&
-      offsetnPart      => INT(offsetElem,IK)      ,&
+      offsetnPart      => INT(offsetnPart,IK)      ,&
       MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
       PartDataSize    => INT(PartDataSize,IK)    )
 CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&

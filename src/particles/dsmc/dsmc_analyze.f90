@@ -473,15 +473,16 @@ END IF
 DO iSurfSide=1,SurfMesh%nSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      IF(VarTimeStep%UseVariableTimeStep) THEN
-        CounterSum = SUM(SampWall(iSurfSide)%State(13:12+nSpecies,p,q))
-        IF(CounterSum.GT.0.0) THEN
+      CounterSum = SUM(SampWall(iSurfSide)%State(13:12+nSpecies,p,q))
+      IF(CounterSum.GT.0.0) THEN
+        IF(VarTimeStep%UseVariableTimeStep) THEN
           TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(12+nSpecies+1,p,q) / CounterSum
         ELSE
-          TimeSampleTemp = 0.0
+          TimeSampleTemp = TimeSample
         END IF
       ELSE
-        TimeSampleTemp = TimeSample
+        ! No impacts on that surface -> skip the element
+        CYCLE
       END IF
       MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
       nVarCount = 5
