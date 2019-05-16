@@ -161,6 +161,7 @@ tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 BezierClipMaxIntersec = GETINT('BezierClipMaxIntersec',dummy)
 
+! Set local BC sides (without halo and without inner BC)
 IF(DoRefMapping)THEN
   !MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
   ALLOCATE(PartBCSideList(1:nSides))

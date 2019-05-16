@@ -343,12 +343,13 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - sin_deviation \n'//&
                                 ' - IMD'&
                               , 'cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-velocityDistribution'  &
-                                , 'Used velocity distribution.\n'//&
-                                  '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
-                                  '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
-                                  '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn).' &
-                                  , 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption('Part-Species[$]-velocityDistribution'  &
+                           , 'Used velocity distribution.\n'//&
+                             '   constant: all particles have the same defined velocity.(VeloIC, VeloVec)\n'//&
+                             '   maxwell: sampled from maxwell distribution.(for MWTemperatureIC)\n'//&
+                             '   maxwell_lpn: maxwell with low particle number (better maxwell dist. approx. for lpn)\n'//&
+                             '   taylorgreenvortex: Gallis et al., Molecular-Level Simulations of Turbulence and Its Decay, (2017).'&
+                           , 'constant', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-rotation'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Direction of rotation, similar to TE-mode', '1', numberedmulti=.TRUE.)
@@ -998,7 +999,6 @@ USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
 USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
-USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
@@ -1008,6 +1008,12 @@ USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
+#endif
+#if (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
+#endif
+#if (PP_TimeDiscMethod==400)
+USE MOD_BGK_Init                   ,ONLY: InitBGK
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1072,6 +1078,12 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
   IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
   IF (LiquidSimFlag) CALL InitLiquidSurfaceModel()
+#if (PP_TimeDiscMethod==300)
+  CALL InitFPFlow()
+#endif
+#if (PP_TimeDiscMethod==400)
+  CALL InitBGK()
+#endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
@@ -2054,8 +2066,9 @@ __STAMP__&
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
         END IF
       ELSE IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cell_local')) THEN
-        IF  ((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
+           IF( (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') &
+           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'taylorgreenvortex') )THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
             CALL abort(&
 __STAMP__&
@@ -2380,8 +2393,8 @@ DO iPBC=1,nPartBound
         SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for DoRefMapping=T, because '//  &
                                   ' orientation of SideNormVec is unknown.'
      CALL abort(&
-__STAMP__&
-,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+                __STAMP__&
+                ,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
@@ -2947,7 +2960,6 @@ CHARACTER(32)                    :: hilf
 REAL , ALLOCATABLE               :: State_HDF5(:,:)
 LOGICAL                          :: exists
 INTEGER                          :: nSpecies_HDF5, nVar_HDF5, nElems_HDF5, N_HDF5
-INTEGER                          :: nVarAdditional
 INTEGER                          :: iFile, iSpec, iElem, iVar
 !===================================================================================================================================
 DO iFile = 1, nMacroRestartFiles
@@ -3002,14 +3014,9 @@ __STAMP__&
     IF (N_HDF5.NE.1) CALL abort(&
 __STAMP__&
 ,'Error in Macrofile read in: N!=1 !')
-    ! check if (nVar_HDF5-DSMC_NVARS-nVarAdditional) equal to DSMC_NVARS*nSpecies
-    nVarAdditional = MOD(nVar_HDF5,DSMC_NVARS)
-    IF ((nVar_HDF5-DSMC_NVARS-nVarAdditional).NE.(DSMC_NVARS*nSpecies)) CALL abort(&
-__STAMP__&
-,'Error in Macrofile read in: wrong Nodetype !')
     IF (NodeType_HDF5.NE.'VISU') CALL abort(&
 __STAMP__&
-,'Error in Macrofile read in: wrong nVar_HDF5 !')
+,'Error in Macrofile read in: wrong Nodetype !')
     SDEALLOCATE(State_HDF5)
     ALLOCATE(State_HDF5(1:nVar_HDF5,nElems))
 

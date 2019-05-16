@@ -502,7 +502,7 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
@@ -519,6 +519,10 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
+USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
+USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,7 +541,7 @@ REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: ETotal, totalChemEnergySum
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
@@ -758,7 +762,7 @@ INTEGER             :: dir
           END DO
         END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300|| PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506) || PP_TimeDiscMethod==400)
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecAnalyze
@@ -850,6 +854,35 @@ INTEGER             :: dir
           OutputCounter = OutputCounter + 1
         END IF
 #endif
+        IF(FPInitDone) THEN
+          IF(DSMC%CalcQualityFactors) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MeanRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MaxRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MaxRotRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MeanPrandtlNumber',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+        END IF
+        IF(BGKInitDone) THEN
+          IF(DSMC%CalcQualityFactors) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MeanRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MaxRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MaxRotRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+        END IF
 #if (PP_TimeDiscMethod==42)
         IF(CalcCollRates) THEN
           DO iSpec = 1, nSpecies
@@ -915,7 +948,7 @@ INTEGER             :: dir
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
@@ -998,6 +1031,30 @@ INTEGER             :: dir
         END IF
       END DO
     END IF
+    IF(FPInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        IF(FP_MeanRelaxFactorCounter.GT.0) THEN
+          FP_MeanRelaxFactor = FP_MeanRelaxFactor / REAL(FP_MeanRelaxFactorCounter)
+          FP_PrandtlNumber = FP_PrandtlNumber / REAL(FP_MeanRelaxFactorCounter)
+        END IF
+        ! Determining the maximal (MPI_MAX) relaxation factors
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
+        ! Determining the maximal (MPI_MAX) relaxation factors
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1018,6 +1075,23 @@ INTEGER             :: dir
       DO iPBC = 1, nPorousBC
         CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
       END DO
+    END IF
+    IF(FPInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(FP_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_PrandtlNumber,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(BGK_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
     END IF
   END IF
 #endif /*MPI*/
@@ -1148,7 +1222,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300|| PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506) || PP_TimeDiscMethod==400)
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecAnalyze
@@ -1228,6 +1302,28 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanFreePath
     END IF
 #endif
+    IF(FPInitDone) THEN
+      IF(DSMC%CalcQualityFactors) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MeanRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MaxRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MaxRotRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_PrandtlNumber
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF(DSMC%CalcQualityFactors) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MeanRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MaxRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MaxRotRelaxFactor
+      END IF
+    END IF
 #if (PP_TimeDiscMethod==42)
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1

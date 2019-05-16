@@ -1395,7 +1395,7 @@ __STAMP__&
 #endif /*PARTICLES*/
 #ifdef PP_HDG
   iter=0
-  ! INSTEAD OF ALL THIS **** DO
+  ! INSTEAD OF ALL THIS STUFF DO
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve
