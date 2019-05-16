@@ -283,7 +283,8 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
         ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
       CASE DEFAULT
         CALL abort(__STAMP__,&
-          'PICLas2D: Cloning is wrong!')
+          'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+          ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
     END SELECT
   ELSE
   ! ######## Particle Delete #######################################################################################################
@@ -292,7 +293,8 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
       DeleteProb = 1. - CloneProb
       IF (DeleteProb.GT.0.5) THEN
         CALL abort(__STAMP__,&
-          'PICLas2D: The party loses too much Clowns!')
+          'ERROR in Radial Weighting of 2D/Axisymmetric: The deletion probability is higher than 0.5! Reduce the time step or'//&
+          ' the radial weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
       END IF
       CALL RANDOM_NUMBER(iRan)
       IF(DeleteProb.GT.iRan) THEN
