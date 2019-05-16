@@ -54,15 +54,27 @@ USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: SideID, iLocSide, i, j, ElemID, iNode
-REAL                          :: TempArea, radius
+INTEGER                       :: SideID, iLocSide, i, j, ElemID, iNode, CheckSymmetryBC
+REAL                          :: radius
 LOGICAL                       :: SymmetryBCExists
 !===================================================================================================================================
 
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
 SymmetryBCExists = .FALSE.
-DO SideID=1,nBCSides 
+DO SideID=1,nBCSides
+  ! Get the SideID of the symmetry side defined as symmetry BC ('symmetric')
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
+    ! Check if only one symmetry BC is defined
+    IF(SymmetryBCExists) THEN
+      IF(CheckSymmetryBC.NE.BC(SideID)) THEN
+        IPWRITE(*,*) 'ERROR: Previous BC=',CheckSymmetryBC, ' and current BC=', BC(SideID),' defined as symmetric!'
+        CALL Abort(&
+          __STAMP__&
+          ,'ERROR: Only one boundary defined as "symmetric" is allowed for 2D/axisymmetric simulations, please define the other'//&
+          ' symmetry side as reflective!')
+      END IF
+    END IF
+    CheckSymmetryBC = BC(SideID)
     SymmetryBCExists = .TRUE.
     ElemID = SideToElem(1,SideID)
     IF (ElemID.LT.1) THEN
@@ -73,30 +85,37 @@ DO SideID=1,nBCSides
     END IF
     SymmetrySide(ElemID,1) = SideID
     SymmetrySide(ElemID,2) = iLocSide
-    TempArea = 0.0
+    ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in the
+    ! xy-plane.
+    GEO%Volume(ElemID) = 0.0
     DO j=0,PP_N; DO i=0,PP_N
-      TempArea = TempArea + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
+      GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
     END DO; END DO
-    GEO%CharLength(ElemID) = SQRT(TempArea)
+    ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
+    ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
+    ! requirement.
+    GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
+    ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the xy-plane
+    ! is rotated around the x-axis. The radius is the middle point of the cell face.
     IF (Symmetry2DAxisymmetric) THEN
       radius = 0.
       DO iNode = 1, 4
-        radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))   
+        radius = radius + GEO%NodeCoords(2,GEO%ElemSideNodeID(iNode,iLocSide,ElemID))
       END DO
       radius = radius / 4.
-      GEO%Volume(ElemID) = 0.
-      DO j=0,PP_N; DO i=0,PP_N
-        GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
-      END DO; END DO
-      GEO%Volume(ElemID) = GEO%Volume(ElemID) * 2 * Pi * radius
-    ELSE
-      GEO%Volume(ElemID) = 0.
-      DO j=0,PP_N; DO i=0,PP_N
-        GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
-      END DO; END DO
+      GEO%Volume(ElemID) = GEO%Volume(ElemID) * 2. * Pi * radius
     END IF
   END IF
 END DO
+
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+GEO%LocalVolume = SUM(GEO%Volume)
+#ifdef MPI
+CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#else
+GEO%MeshVolume=GEO%LocalVolume
+#endif /*MPI*/
+
 IF(.NOT.SymmetryBCExists) THEN
   CALL abort(__STAMP__&
     ,'One symmetric BC has to be defined for 2D simulations')
