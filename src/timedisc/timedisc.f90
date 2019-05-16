@@ -4245,6 +4245,8 @@ USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
 USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
+USE MOD_Particle_Analyze_Vars,   ONLY: CalcCouplPower,PCoupl
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4281,6 +4283,9 @@ REAL    :: RandVal, dtFrac
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#ifdef PARTICLES
+REAL           :: EDiff
+#endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -4359,8 +4364,18 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
 
+  IF (CalcCouplPower) THEN  ! if output of coupled power is active
+    PCoupl = 0.             ! PCoupl is rested
+  END IF
+
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
+              * ( PartState(iPart,4) * PartState(iPart,4) &
+                + PartState(iPart,5) * PartState(iPart,5) &
+                + PartState(iPart,6) * PartState(iPart,6) )
+      END IF
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -4425,6 +4440,14 @@ IF (time.GE.DelayTime) THEN
         END IF
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
+      IF (CalcCouplPower) THEN  ! if output of coupled power is active
+        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+               + 0.5 * Species(PartSpecies(iPart))%MassIC &     
+               * ( PartState(iPart,4) * PartState(iPart,4) &
+                 + PartState(iPart,5) * PartState(iPart,5) &
+                 + PartState(iPart,6) * PartState(iPart,6) )
+        PCoupl = PCoupl + ABS(EDiff)
+      END IF
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -4579,11 +4602,11 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: PCoupl
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCouplPower,PCoupl
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
 USE MOD_Particle_Mesh          ,ONLY: CountPartsPerElem
@@ -4606,6 +4629,9 @@ REAL           :: tStage,b_dt(1:nRKStages)
 REAL           :: Pa_rebuilt_coeff(1:nRKStages),Pa_rebuilt(1:3,1:nRKStages),Pv_rebuilt(1:3,1:nRKStages),v_rebuilt(1:3,0:nRKStages-1)
 INTEGER        :: iPart, iStage_loc
 REAL           :: RandVal
+#ifdef PARTICLES
+REAL           :: EDiff
+#endif /*PARTICLES*/
 #if USE_LOADBALANCE
 REAL           :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -4630,9 +4656,6 @@ tStage=time
 RKdtFrac = RK_c(2)
 dtWeight = dt/dt_Min * RKdtFrac
 RKdtFracTotal=RKdtFrac
-
-PCoupl = 0.
-PCoupl = 5.*dt
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! communicate shape function particles
@@ -4719,8 +4742,17 @@ IF (time.GE.DelayTime) THEN
   IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 
+  IF (CalcCouplPower) THEN  ! if output of coupled power is active
+    PCoupl = 0.             ! PCoupl is rested
+  END IF
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+        EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
+              * ( PartState(iPart,4) * PartState(iPart,4) &
+                + PartState(iPart,5) * PartState(iPart,5) &
+                + PartState(iPart,6) * PartState(iPart,6) )
+      END IF
       !-- Pt is not known only for new Surfaceflux-Parts -> change IsNewPart back to F for other Parts
       IF (.NOT.DoSurfaceFlux) THEN
         PDM%IsNewPart(iPart)=.FALSE.
@@ -4784,6 +4816,14 @@ __STAMP__&
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
+      IF (CalcCouplPower) THEN  ! if output of coupled power is active
+        EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+               + 0.5 * Species(PartSpecies(iPart))%MassIC &     
+               * ( PartState(iPart,4) * PartState(iPart,4) &
+                 + PartState(iPart,5) * PartState(iPart,5) &
+                 + PartState(iPart,6) * PartState(iPart,6) )
+        PCoupl = PCoupl + ABS(EDiff)
+      END IF
     END IF
   END DO
 #if USE_LOADBALANCE
@@ -4897,6 +4937,12 @@ DO iStage=2,nRKStages
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+          EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
+                * ( PartState(iPart,4) * PartState(iPart,4) &
+                  + PartState(iPart,5) * PartState(iPart,5) &
+                  + PartState(iPart,6) * PartState(iPart,6) )
+        END IF
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
           Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
           Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
@@ -4952,6 +4998,14 @@ DO iStage=2,nRKStages
           PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
+        IF (CalcCouplPower) THEN  ! if output of coupled power is active
+          EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
+                 + 0.5 * Species(PartSpecies(iPart))%MassIC &     
+                 * ( PartState(iPart,4) * PartState(iPart,4) &
+                   + PartState(iPart,5) * PartState(iPart,5) &
+                   + PartState(iPart,6) * PartState(iPart,6) )
+          PCoupl = PCoupl + ABS(EDiff)
+        END IF
       END IF
     END DO
 #if USE_LOADBALANCE

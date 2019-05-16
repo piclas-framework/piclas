@@ -383,6 +383,9 @@ END IF
 
 CalcCouplPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
 IF(CalcCouplPower) DoPartAnalyze = .TRUE.
+!! TEST
+      Velo_null = 0.0
+!! TEST
 
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
@@ -651,6 +654,11 @@ INTEGER             :: dir
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupled',' '
           OutputCounter = OutputCounter + 1
+!! TEST
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Strecke',' '
+          OutputCounter = OutputCounter + 1
+!! TEST
         END IF
         IF (CalcLaserInteraction) THEN
           DO iSpec=1, nSpecies
@@ -963,6 +971,14 @@ INTEGER             :: dir
     IF(CalcCouplPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       PCoupl = PCoupl / dt
+!! Test
+      IF(iter.GT.0)THEN
+        Strecke = ( 0.5 * 1000 * 1.602176634e-19 * dt * dt / 9.1093826E-31 & 
+                + Velo_null * dt ) &
+                * 1000 * 1.602176634e-19 / dt
+        Velo_null = Velo_null + 1000 * 1.602176634e-19 * dt / 9.1093826E-31
+      END IF
+!! Test
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1061,6 +1077,10 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcCouplPower) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PCoupl
+!! TEST
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Strecke
+!! TEST
     END IF
     IF (CalcLaserInteraction) THEN
       DO iSpec=1, nSpecies
