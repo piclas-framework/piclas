@@ -5929,6 +5929,7 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
     LengthMacroPartTrajectory=SQRT(DOT_PRODUCT(MacroPartTrajectory,MacroPartTrajectory))
     IF (LengthMacroPartTrajectory.GT.0) MacroPartTrajectory=MacroPartTrajectory/LengthMacroPartTrajectory
 
+    ! define a box with BGM around sphere center
     MPBounds(1,1:3)=MacroPart(iMP)%center(1:3)-(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
     MPBounds(2,1:3)=MacroPart(iMP)%center(1:3)+(MacroPart(iMP)%radius*safetyFac+LengthMacroPartTrajectory+epsMach)
     BGMCellXmin = MAX(GEO%TFIBGMimin,CEILING((MPBounds(1,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)))
@@ -5966,9 +5967,11 @@ Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
         ! check with all 3 element diagonals wether macroparticle is smaller than element
         CALL BoundsOfElement(iElem,ElemBounds)
         BoundsDiagonalVec(1:3)=ElemBounds(2,1:3)-ElemBounds(1,1:3)
+        ! choose the greater length
         BoundsDiagonal=MAX( SQRT(DOT_PRODUCT(BoundsDiagonalVec,BoundsDiagonalVec)) , MacroPart(iMP)%radius)*safetyFac
         ElemHasMacroPart(iElem,iMP)=.FALSE.
         nodesInside=0
+        ! check distance of each node if it is within the defined distance (Distvec.LE.Boundsdiagonal) of te sphere center
         DO kk = 0,NGeo
           IF (.NOT.ElemHasMacroPart(iElem,iMP) .OR. CalcMPVolumePortion) THEN
             DO ii=0,NGeo
