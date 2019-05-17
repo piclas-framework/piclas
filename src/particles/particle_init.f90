@@ -2555,9 +2555,9 @@ __STAMP__&
 ,'nPointsMCVolumeEstimate is must be above 0')
 nMacroParticle = GETINT('MacroPart-nMacroParticle')
 IF (nMacroparticle.GT.0) THEN
-  IF (DoRefMapping.OR.TriaTracking) CALL abort(&
+  IF (DoRefMapping) CALL abort(&
 __STAMP__&
-,'Macroparticle not possible with triatracking or dorefmapping')
+,'Macroparticle not possible with dorefmapping')
   ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
   UseMacroPart=.TRUE.
   MacroPartFluxesEnabled = GETLOGICAL('MacroPart-FluxesEnabled')

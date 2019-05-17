@@ -65,12 +65,15 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
+USE MOD_Particle_Vars,               ONLY:nMacroParticle, useMacropart, ElemHasMacroPart
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem!,ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts,TrackInfo
+USE MOD_Particle_Boundary_Condition, ONLY:GetInteractionWithMacroPart
+USE MOD_Particle_Intersection,       ONLY:ComputeMacroPartIntersection,IntersectionWithWall
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -104,6 +107,13 @@ REAL                             :: det(6,2),detM,ratio,minRatio
 REAL                             :: PartTrajectory(1:3),lengthPartTrajectory
 REAL                             :: xi = -1. , eta = -1. , alpha = -1.
 REAL, PARAMETER                  :: eps = 0
+!-----------------------------------------------------------------------------------------------------------------------------------
+! variabes needed for tracking with macroparticles inside domain
+LOGICAL                          :: sphereHitExists, sideHitExists, onlyMacroPart
+REAL                             :: alphaPart, alphaPartTria, alphaSphere, alphaDoneRel
+REAL                             :: locAlphaPart, locAlphaSphere, oldLengthPartTrajectory
+INTEGER                          :: hitSideNbr, iMP, hitMacroPartID
+!-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -134,11 +144,29 @@ DO i = 1,PDM%ParticleVecLength
     SideID = 0
     DoneSideID(:) = 0
     DoneLastElem(:,:) = 0
+    alphaDoneRel=0.
+    PartTrajectory=PartState(i,1:3) - LastPartPos(i,1:3)
+    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                             +PartTrajectory(2)*PartTrajectory(2) &
+                             +PartTrajectory(3)*PartTrajectory(3) )
+    oldLengthPartTrajectory=LengthPartTrajectory
+    IF(LengthPartTrajectory.EQ.0)THEN
+      ! if Macroparticle are in element, they might move and consequently have to be treated although lengthparttrajectory is 0
+      ! partvelo - macropartvelo might be > 0 --> Relative lengthPartTrajectory > 0
+      IF (.NOT.UseMacroPart) THEN
+        PEM%Element(i)=ElemID
+        PartisDone=.TRUE.
+      END IF
+    ELSE
+      PartTrajectory=PartTrajectory/lengthPartTrajectory
+    END IF
     DO WHILE (.NOT.PartisDone)
+      sideHitExists=.FALSE.
+      alphaPartTria=2.
       !---- Check whether particle is in element
       CALL ParticleInsideQuad3D(PartState(i,1:3),ElemID,InElementCheck,det)
       !---- If it is, set new ElementNumber = lement and LocalizeOn = .FALSE. ->PartisDone
-      IF (InElementCheck) THEN
+      IF (InElementCheck.AND. .NOT.UseMacroPart) THEN
         PEM%Element(i) = TrackInfo%CurrElem !ElemID
         PartisDone = .TRUE.
       !---- If it is not, check through which side it moved
@@ -146,156 +174,217 @@ DO i = 1,PDM%ParticleVecLength
         NrOfThroughSides = 0
         LocSidesTemp(:) = 0
         TriNumTemp(:) = 0
-        PartTrajectory=PartState(i,1:3) - LastPartPos(i,1:3)
-        lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                                 +PartTrajectory(2)*PartTrajectory(2) &
-                                 +PartTrajectory(3)*PartTrajectory(3) )
-        IF(ALMOSTZERO(lengthPartTrajectory))THEN
-          PEM%Element(i)=ElemID
-          PartisDone=.TRUE.
-          CYCLE
-        END IF
-        PartTrajectory=PartTrajectory/lengthPartTrajectory
-        DO iLocSide=1,6
-          TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-          DO TriNum = 1,2
-            IF (det(iLocSide,TriNum).le.-eps) THEN
-              IF((TempSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
-              ThroughSide = .FALSE.
-              CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,iLocSide,ElemID,ThroughSide,TriNum)
-              IF (ThroughSide) THEN
-                NrOfThroughSides = NrOfThroughSides + 1
-                LocSidesTemp(NrOfThroughSides) = iLocSide
-                TriNumTemp(NrOfThroughSides) = TriNum
-                SideID = TempSideID
-                LocalSide = iLocSide
-              END IF
-            END IF
-          END DO
-        END DO
-        TriNum = TriNumTemp(1)
-        !--- if no side is found use the slower search method
-        !--- if more than one is found, figure out which one it is
-        IF (NrOfThroughSides.NE.1) THEN
-          IF (NrOfThroughSides.EQ.0) THEN    !no side
-            SideID = 0
-            WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost. Searching for particle....'
-            WRITE(*,*) 'Element: ', ElemID
-            WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
-            WRITE(*,*) 'Pos:     ', PartState(i,1:3)
-            WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
-            ! Retrace to check through which side the particle went
-            DO iLocSide=1,6
-              TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-              IF(PartElemToSide(E2S_FLIP,iLocSide,ElemID).EQ.0) THEN
-               IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) THEN
-                 SideID = TempSideID
-                 LocalSide = iLocSide
-               END IF
-             ELSE
-               IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) THEN
-                 SideID = TempSideID
-                 LocalSide = iLocSide
-                END IF
-              END IF
-            END DO 
-            IF(.NOT.PDM%ParticleInside(i))THEN
-              WRITE(*,*)'Particle',i,' lost completely!'
-              WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
-              WRITE(*,*) 'Pos:     ', PartState(i,1:3)
-              WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-              PDM%ParticleInside(i) = .FALSE.
-              SideID = 0
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
-            ELSE
-             WRITE(*,*) '...Particle found again'
-             WRITE(*,*) 'Element: ', PEM%Element(i)
-            END IF
-            PartisDone = .TRUE.
-          ELSE IF (NrOfThroughSides.GT.1) THEN   ! more than one side (possible for irregular hexagons)
-            SecondNrOfThroughSides = 0
-            minRatio = 0
-            DO ind2 = 1, NrOfThroughSides
-              IF(.NOT.((DoneLastElem(1,2).EQ.ElemID).AND. &
-                       (DoneLastElem(2,2).EQ.LocSidesTemp(ind2)).AND. &
-                       (DoneLastElem(3,2).EQ.TriNumTemp(ind2)))) THEN
-                CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),ElemID,InElementCheck,TriNumTemp(ind2),detM)
-                IF (InElementCheck) THEN
-                  IF((detM.EQ.0).AND.(det(LocSidesTemp(ind2),TriNumTemp(ind2)).EQ.0)) CYCLE ! particle moves within side
-                  IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN !safety measure
-                    SecondNrOfThroughSides = SecondNrOfThroughSides + 1
-                    SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
-                    LocalSide = LocSidesTemp(ind2)
-                    TriNum = TriNumTemp(ind2)
-                  ELSE
-                    !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
-                    ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
-                    IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
-                      minRatio = ratio
-                      SecondNrOfThroughSides = SecondNrOfThroughSides + 1
-                      SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
-                      LocalSide = LocSidesTemp(ind2)
-                      TriNum = TriNumTemp(ind2)
+        IF (.NOT.InElementCheck) THEN
+          sideHitExists=.TRUE.
+          DO iLocSide=1,6
+            TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+            DO TriNum = 1,2
+              IF (det(iLocSide,TriNum).le.-eps) THEN
+                IF((TempSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
+                ThroughSide = .FALSE.
+                CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,iLocSide,ElemID,ThroughSide,TriNum)
+                IF (ThroughSide) THEN
+                  NrOfThroughSides = NrOfThroughSides + 1
+                  IF (UseMacroPart) THEN
+                    CALL IntersectionWithWall(PartTrajectory,locAlphaPart,i,ilocSide,ElemID,TriNum)
+                    IF (locAlphaPart.LT.alphaPartTria) THEN
+                      alphaPartTria = locAlphaPart
+                      hitSideNbr=NrOfThroughSides
                     END IF
                   END IF
+                  !print*,"hier2",i,alphaPartTria
+                  LocSidesTemp(NrOfThroughSides) = iLocSide
+                  TriNumTemp(NrOfThroughSides) = TriNum
+                  SideID = TempSideID
+                  LocalSide = iLocSide
                 END IF
               END IF
             END DO
-            IF (SecondNrOfThroughSides.EQ.0) THEN
-              WRITE(*,*) 'Warning in Boundary_treatment: Particle',i,'went through no Sides on second check'
+          END DO
+          TriNum = TriNumTemp(1)
+          !--- if no side is found use the slower search method
+          !--- if more than one is found, figure out which one it is
+          IF (NrOfThroughSides.NE.1) THEN
+            IF (NrOfThroughSides.EQ.0) THEN    !no side
+              SideID = 0
+              WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost. Searching for particle....'
+              WRITE(*,*) 'Element: ', ElemID
               WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
               WRITE(*,*) 'Pos:     ', PartState(i,1:3)
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-              WRITE(*,*) 'Element  ', ElemID
-              SideID = 0
               CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
               ! Retrace to check through which side the particle went
               DO iLocSide=1,6
                 TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
                 IF(PartElemToSide(E2S_FLIP,iLocSide,ElemID).EQ.0) THEN
-                  IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
-                ELSE
-                  IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
+                 IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) THEN
+                   SideID = TempSideID
+                   LocalSide = iLocSide
+                 END IF
+               ELSE
+                 IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) THEN
+                   SideID = TempSideID
+                   LocalSide = iLocSide
+                  END IF
                 END IF
-              END DO
+              END DO 
               IF(.NOT.PDM%ParticleInside(i))THEN
                 WRITE(*,*)'Particle',i,' lost completely!'
+                WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
+                WRITE(*,*) 'Pos:     ', PartState(i,1:3)
+                WRITE(*,*) 'Velo:    ', PartState(i,4:6)
                 PDM%ParticleInside(i) = .FALSE.
                 SideID = 0
                 IF(CountNbOfLostParts) nLostParts=nLostParts+1
               ELSE
-                WRITE(*,*) '...Particle found again'
-                WRITE(*,*) 'Element: ', PEM%Element(i)
+               WRITE(*,*) '...Particle found again'
+               WRITE(*,*) 'Element: ', PEM%Element(i)
               END IF
-              PartisDone = .TRUE.
+              IF (UseMacroPart) THEN
+                IF (PDM%ParticleInside(i)) THEN
+                  CALL IntersectionWithWall(PartTrajectory,locAlphaPart,i,localSide,ElemID,TriNum)
+                  IF (locAlphaPart.LT.alphaPartTria) THEN
+                    alphaPartTria = locAlphaPart
+                    hitSideNbr=NrOfThroughSides
+                  END IF
+                END IF
+              ELSE
+                PartisDone = .TRUE.
+              END IF
+            ELSE IF (NrOfThroughSides.GT.1) THEN   ! more than one side (possible for irregular hexagons)
+              SecondNrOfThroughSides = 0
+              minRatio = 0
+              DO ind2 = 1, NrOfThroughSides
+                IF(.NOT.((DoneLastElem(1,2).EQ.ElemID).AND. &
+                         (DoneLastElem(2,2).EQ.LocSidesTemp(ind2)).AND. &
+                         (DoneLastElem(3,2).EQ.TriNumTemp(ind2)))) THEN
+                  CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),ElemID,InElementCheck,TriNumTemp(ind2),detM)
+                  IF (InElementCheck) THEN
+                    IF((detM.EQ.0).AND.(det(LocSidesTemp(ind2),TriNumTemp(ind2)).EQ.0)) CYCLE ! particle moves within side
+                    IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN !safety measure
+                      SecondNrOfThroughSides = SecondNrOfThroughSides + 1
+                      SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+                      LocalSide = LocSidesTemp(ind2)
+                      TriNum = TriNumTemp(ind2)
+                    ELSE
+                      !--- compare ratio of spatial product of PartPos->Tri-Nodes and LastPartPos->Tri-Nodes
+                      ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
+                      IF (ratio.LT.minRatio) THEN ! ratio is always negative, i.e. maximum abs is wanted!
+                        minRatio = ratio
+                        SecondNrOfThroughSides = SecondNrOfThroughSides + 1
+                        SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
+                        LocalSide = LocSidesTemp(ind2)
+                        TriNum = TriNumTemp(ind2)
+                      END IF
+                    END IF
+                  END IF
+                END IF
+              END DO
+              IF (SecondNrOfThroughSides.EQ.0) THEN
+                WRITE(*,*) 'Warning in Boundary_treatment: Particle',i,'went through no Sides on second check'
+                WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
+                WRITE(*,*) 'Pos:     ', PartState(i,1:3)
+                WRITE(*,*) 'Velo:    ', PartState(i,4:6)
+                WRITE(*,*) 'Element  ', ElemID
+                SideID = 0
+                CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
+                ! Retrace to check through which side the particle went
+                DO iLocSide=1,6
+                  TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+                  IF(PartElemToSide(E2S_FLIP,iLocSide,ElemID).EQ.0) THEN
+                    IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
+                  ELSE
+                    IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
+                  END IF
+                END DO
+                IF(.NOT.PDM%ParticleInside(i))THEN
+                  WRITE(*,*)'Particle',i,' lost completely!'
+                  PDM%ParticleInside(i) = .FALSE.
+                  SideID = 0
+                  IF(CountNbOfLostParts) nLostParts=nLostParts+1
+                ELSE
+                  WRITE(*,*) '...Particle found again'
+                  WRITE(*,*) 'Element: ', PEM%Element(i)
+                END IF
+                PartisDone = .TRUE.
+              END IF
             END IF
-          END IF
-        END IF
+          END IF ! NrOfThroughSides
+        END IF ! .NOT.onlyMacroPart 
+
+        ! check every sphere in element for intersection and select closest intersection
+        sphereHitExists = .FALSE.
+        IF (UseMacroPart) THEN
+          alphaPart=2.
+          DO iMP=1,nMacroParticle
+            IF (ElemHasMacroPart(ElemID,iMP)) THEN
+              CALL ComputeMacroPartIntersection(sphereHitExists,PartTrajectory,lengthPartTrajectory,iMP&
+                                               ,locAlphaPart,locAlphaSphere,alphaDoneRel,i)
+            END IF
+            IF(sphereHitExists) THEN
+              IF (locAlphaPart.LT.alphaPart) THEN
+                alphaPart = locAlphaPart
+                alphaSphere = locAlphaSphere
+                hitMacroPartID=iMP
+              END IF
+            END IF
+          END DO
+        END IF !UseMacroPart
+
         ! get intersection side
         crossedBC=.FALSE.
         doLocSide=.FALSE.
-        !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
-        flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
-        TrackInfo%LocSide = LocalSide
-        OldElemID=ElemID
-        CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
-          ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
+        ! now check if a hit with a sphere exists and the sphere is intersected before a side (perform collision and cycle)
+        IF (sphereHitExists) THEN
+          IF (alphaPart.LT.alphaPartTria) THEN
+            !print*,"hier3",i,alphaPartTria,alphaPart,sphereHitExists,sideHitExists
+            sideHitExists=.FALSE.
+            CALL GetInteractionWithMacroPart(PartTrajectory,lengthPartTrajectory,alphaPart,alphaSphere,alphaDoneRel &
+                                            ,hitMacroPartID,i,crossedBC)
+            IF(.NOT.PDM%ParticleInside(i)) PartisDone = .TRUE.
 #if USE_LOADBALANCE
-        IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+            IF (ElemID.LE.PP_nElems) CALL LBElemSplitTime(ElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-        IF(ElemID.NE.OldElemID)THEN
-          DoneSideID(1) = SideID
-          IF(TriNum.EQ.1) DoneSideID(2) = 2
-          IF(TriNum.EQ.2) DoneSideID(2) = 1
-          DoneLastElem(:,2) = DoneLastElem(:,1)
-          DoneLastElem(1,1) = OldElemID
-          DoneLastElem(2,1) = LocalSide
-          DoneLastElem(3,1) = TriNum
-        ELSE
-          DoneSideID(1) = SideID
-          DoneSideID(2) = TriNum
-          DoneLastElem(:,:) = 0
+            IF(crossedBC) THEN
+              DoneSideID(1) = 0
+              DoneSideID(2) = 0
+              DoneLastElem(:,:) = 0
+              oldLengthPartTrajectory=LengthPartTrajectory
+            END IF
+          END IF
+        END IF ! sphereHitExists
+
+        IF (sideHitExists) THEN
+          !SideID=PartElemToSide(E2S_SIDE_ID,LocalSide,ElemID)
+          flip  =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
+          TrackInfo%LocSide = LocalSide
+          OldElemID=ElemID
+          CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,LocalSide,LocalSide,PartTrajectory &
+            ,lengthPartTrajectory,xi,eta,alpha,i,SideID,SideType(SideID),ElemID,TriNum=TriNum)
+#if USE_LOADBALANCE
+          IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
+          IF(ElemID.NE.OldElemID)THEN
+            DoneSideID(1) = SideID
+            IF(TriNum.EQ.1) DoneSideID(2) = 2
+            IF(TriNum.EQ.2) DoneSideID(2) = 1
+            DoneLastElem(:,2) = DoneLastElem(:,1)
+            DoneLastElem(1,1) = OldElemID
+            DoneLastElem(2,1) = LocalSide
+            DoneLastElem(3,1) = TriNum
+          ELSE
+            DoneSideID(1) = SideID
+            DoneSideID(2) = TriNum
+            DoneLastElem(:,:) = 0
+            IF (useMacroPart) THEN
+              alphaDoneRel = alphaDoneRel + (1.-alphaDoneRel)*(alphaPartTria/oldLengthPartTrajectory)
+              oldLengthPartTrajectory=LengthPartTrajectory
+            END IF
+          END IF
+        END IF !sideHitExists
+        IF(.NOT.sphereHitExists .AND. .NOT.sideHitExists) THEN
+          PEM%Element(i) = TrackInfo%CurrElem !ElemID
+          PartisDone = .TRUE.
         END IF
       END IF
     END DO
