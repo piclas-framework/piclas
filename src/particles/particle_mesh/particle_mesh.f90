@@ -1321,6 +1321,7 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 ! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,  ONLY : GEO,PartElemToSide, PartSideToElem,PartElemToElemAndSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
 ! IMPLICIT VARIABLE HANDLING
@@ -1338,7 +1339,7 @@ LOGICAL,INTENT(OUT)           :: InElementCheck
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, nbSideID, ind, NbElemID, nNbMortars
 LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, BehindSide, InElementCheckMortarNb
-REAL                          :: A(1:3,1:4), cross(3)
+REAL                          :: A(1:3,1:4), crossP(3)
 !===================================================================================================================================
   InElementCheck = .TRUE.
   InElementCheckMortar = .TRUE.
@@ -1392,6 +1393,11 @@ REAL                          :: A(1:3,1:4), cross(3)
             DO ind = 1, nNbMortars
               InElementCheckMortarNb = .TRUE.
               NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+              IF (NbElemID.LT.1) THEN
+                CALL abort(&
+                 __STAMP__ &
+                 ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
+              END IF
               CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
               IF (InElementCheckMortarNb) THEN
                 InElementCheck = .FALSE.
@@ -1408,19 +1414,19 @@ REAL                          :: A(1:3,1:4), cross(3)
        NegCheck = .FALSE.
 
        !--- compute cross product for vector 1 and 3
-       cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
-       cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
-       cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+       crossP(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+       crossP(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+       crossP(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
 
        !--- negative determinant of triangle 1 (points 1,3,2):
-       Det(iLocSide,1) = cross(1) * A(1,2) + &
-                         cross(2) * A(2,2) + &
-                         cross(3) * A(3,2)
+       Det(iLocSide,1) = crossP(1) * A(1,2) + &
+                         crossP(2) * A(2,2) + &
+                         crossP(3) * A(3,2)
        Det(iLocSide,1) = -det(iLocSide,1)
        !--- determinant of triangle 2 (points 1,3,4):
-       Det(iLocSide,2) = cross(1) * A(1,4) + &
-                         cross(2) * A(2,4) + &
-                         cross(3) * A(3,4)
+       Det(iLocSide,2) = crossP(1) * A(1,4) + &
+                         crossP(2) * A(2,4) + &
+                         crossP(3) * A(3,4)
        IF (Det(iLocSide,1).LT.0) THEN
          NegCheck = .TRUE.
        ELSE
