@@ -94,7 +94,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                          :: doParticle
 LOGICAL                          :: doPartInExists
 #endif
-INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar
+INTEGER                          :: i, NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar, BCType
 INTEGER                          :: ElemID,flip,OldElemID
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -211,41 +211,15 @@ DO i = 1,PDM%ParticleVecLength
         !--- if more than one is found, figure out which one it is
         IF (NrOfThroughSides.NE.1) THEN
           IF (NrOfThroughSides.EQ.0) THEN    !no side
-            SideID = 0
-            WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost. Searching for particle....'
+            WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost.'
             WRITE(*,*) 'Element: ', ElemID
             WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
             WRITE(*,*) 'Pos:     ', PartState(i,1:3)
             WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-            CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
-            ! Retrace to check through which side the particle went
-            DO iLocSide=1,6
-              TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-              IF(PartElemToSide(E2S_FLIP,iLocSide,ElemID).EQ.0) THEN
-               IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) THEN
-                 SideID = TempSideID
-                 LocalSide = iLocSide
-               END IF
-             ELSE
-               IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) THEN
-                 SideID = TempSideID
-                 LocalSide = iLocSide
-                END IF
-              END IF
-            END DO 
-            IF(.NOT.PDM%ParticleInside(i))THEN
-              WRITE(*,*)'Particle',i,' lost completely!'
-              WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
-              WRITE(*,*) 'Pos:     ', PartState(i,1:3)
-              WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-              PDM%ParticleInside(i) = .FALSE.
-              SideID = 0
-              IF(CountNbOfLostParts) nLostParts=nLostParts+1
-            ELSE
-             WRITE(*,*) '...Particle found again'
-             WRITE(*,*) 'Element: ', PEM%Element(i)
-            END IF
+            PDM%ParticleInside(i) = .FALSE.
+            IF(CountNbOfLostParts) nLostParts=nLostParts+1
             PartisDone = .TRUE.
+            EXIT
           ELSE IF (NrOfThroughSides.GT.1) THEN   ! more than one side (possible for irregular hexagons)
             SecondNrOfThroughSides = 0
             minRatio = 0
@@ -313,33 +287,16 @@ DO i = 1,PDM%ParticleVecLength
                 END IF
               END IF              
             END DO
-            IF (SecondNrOfThroughSides.EQ.0) THEN
-              WRITE(*,*) 'Warning in Boundary_treatment: Particle',i,'went through no Sides on second check'
+            IF (SecondNrOfThroughSides.EQ.0) THEN               
+              WRITE(*,*) 'Error in Iteration-Step ??? ! Particle Number',i,'lost on second check.'
+              WRITE(*,*) 'Element: ', ElemID
               WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
               WRITE(*,*) 'Pos:     ', PartState(i,1:3)
               WRITE(*,*) 'Velo:    ', PartState(i,4:6)
-              WRITE(*,*) 'Element  ', ElemID
-              SideID = 0
-              CALL SingleParticleToExactElement(i,doHalo=.TRUE.,initFix=.FALSE.,doRelocate=.FALSE.)
-              ! Retrace to check through which side the particle went
-              DO iLocSide=1,6
-                TempSideID=PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-                IF(PartElemToSide(E2S_FLIP,iLocSide,ElemID).EQ.0) THEN
-                  IF(PartSideToElem(S2E_NB_ELEM_ID,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
-                ELSE
-                  IF(PartSideToElem(S2E_ELEM_ID   ,TempSideID).EQ.PEM%Element(i)) SideID = TempSideID
-                END IF
-              END DO
-              IF(.NOT.PDM%ParticleInside(i))THEN
-                WRITE(*,*)'Particle',i,' lost completely!'
-                PDM%ParticleInside(i) = .FALSE.
-                SideID = 0
-                IF(CountNbOfLostParts) nLostParts=nLostParts+1
-              ELSE
-                WRITE(*,*) '...Particle found again'
-                WRITE(*,*) 'Element: ', PEM%Element(i)
-              END IF
+              PDM%ParticleInside(i) = .FALSE.
+              IF(CountNbOfLostParts) nLostParts=nLostParts+1
               PartisDone = .TRUE.
+              EXIT
             END IF
           END IF
         END IF
@@ -349,7 +306,9 @@ DO i = 1,PDM%ParticleVecLength
         IF(BC(SideID).GT.0)THEN
           OldElemID=ElemID
           TrackInfo%CurrElem = ElemID
-          CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
+          BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
+          IF(BCType.NE.1) &
+             CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
                                                                        ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
@@ -358,7 +317,7 @@ DO i = 1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.2) THEN
+          IF ((BCType.EQ.2).OR.(BCType.EQ.6)) THEN
             DoneLastElem(:,:) = 0
           ELSE
             DO ind2= 5, 1, -1
