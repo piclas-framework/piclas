@@ -100,6 +100,9 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: Ediss_eV                   ! Energy of Dissosiation in eV, ini_2
   INTEGER                     :: MaxVibQuant                ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant               ! Max elec quantum number + 1
+  INTEGER                     :: DissQuant                  ! Vibrational quantum number corresponding to the dissociation energy
+                                                            ! (used for QK chemistry, not using MaxVibQuant to avoid confusion with
+                                                            !   the TSHO model)
   REAL                        :: RotRelaxProb               ! rotational relaxation probability
   REAL                        :: VibRelaxProb               ! vibrational relaxation probability
   REAL                        :: ElecRelaxProb              ! electronic relaxation probability
@@ -115,9 +118,11 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib 
                                                             ! relaxation
 #if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: levelcounter         ! counter for electronic levels; only debug
   INTEGER,ALLOCATABLE,DIMENSION(:)  :: dtlevelcounter       ! counter for produced electronic levels per timestep; only debug
   REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ElectronicTransition ! counter for electronic transition from state i to j
+#endif
 #endif
   REAL,ALLOCATABLE,DIMENSION(:,:) :: ElectronicState        ! Array with electronic State for each species
                                                             ! first  index: 1 - degeneracy & 2 - char. Temp,el
@@ -128,6 +133,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
   REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
   INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
   INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
 !                                                           ! ionization)
 END TYPE tSpeciesDSMC
@@ -210,7 +216,9 @@ TYPE tBGGas
   INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
   REAL                          :: BGGasDensity             ! Density of Background Gas
   REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell   
-  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability    
+  INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
+  INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
+                                                            ! regular particle
 END TYPE tBGGas
 
 TYPE(tBGGas)                        :: BGGas
@@ -363,11 +371,11 @@ END TYPE
 TYPE(tChemReactions)              :: ChemReac
 
 
-TYPE tQKBackWard
+TYPE tQKAnalytic
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKBackWard), ALLOCATABLE    :: QKBackWard(:)       
+TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)       
 
 REAL                              :: realtime               ! realtime of simulation
 
@@ -427,6 +435,8 @@ INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Co
 REAL, ALLOCATABLE                 :: QLocal(:)                  ! Intermediate Criterion (per cell)
 LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection 
                                                                 ! for Sampling Start is used (only  if UseQCrit=FALSE)
+INTEGER                           :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
+!                                                               ! reaching 1000 outputs of said warning
 
 TYPE tSampler ! DSMC sampling for Steady-State Detection
   REAL                            :: Energy(3)                  ! Energy in Cell (Translation)

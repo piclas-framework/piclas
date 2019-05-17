@@ -34,7 +34,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_pairing_statistical, DSMC_pairing_octree, DSMC_init_octree
+PUBLIC :: DSMC_pairing_statistical, DSMC_pairing_octree, DSMC_init_octree, DSMC_CalcSubNodeVolumes
 !===================================================================================================================================
 
 CONTAINS
@@ -101,6 +101,10 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END DO
 
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+    ! 3. Case: Temperature required for the mean free path with the VHS model
     CALL CalcInstantTransTemp(iPartIndx_Node,PartNum)
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF
@@ -279,6 +283,10 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   END DO
 
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
+    ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
+    !           relaxation probability (CalcGammaVib)
+    ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
+    ! 3. Case: Temperature required for the mean free path with the VHS model
     CALL CalcInstantTransTemp(iPartIndx,nPart)
     IF(SelectionProc.EQ.2) CALL CalcGammaVib()
   END IF

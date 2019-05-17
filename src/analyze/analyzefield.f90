@@ -105,7 +105,7 @@ IF(MPIROOT)THEN
        !CALL FLUSH (unit_index)
        !--- insert header
      
-       WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+       WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
        IF (CalcEpot) THEN 
          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
          WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-El      '
@@ -770,10 +770,18 @@ SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#ifdef PP_HDG
+#if PP_nVar==3 || PP_nVar==4
+USE MOD_Dielectric_vars    ,ONLY: DielectricMu
+#endif /*PP_nVar==3 or 4*/
+#endif /*PP_HDG or PP_nVar==8*/
 USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
 USE MOD_Interpolation_Vars ,ONLY: wGP
+#if (PP_nVar==8)
+USE MOD_Dielectric_vars    ,ONLY: DielectricMu
+#endif /*PP_nVar=8*/        
 USE MOD_Equation_Vars      ,ONLY: smu0, eps0 
-USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,DielectricMu,ElemToDielectric
+USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
 #ifndef PP_HDG
 USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/        

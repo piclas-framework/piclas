@@ -39,12 +39,13 @@ SUBROUTINE DSMC_chemical_init()
 ! Readin of variables and definition of reaction cases
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,             ONLY : ChemReac,CollisMode, DSMC, QKBackWard, SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY: ChemReac,CollisMode, DSMC, QKAnalytic, SpecDSMC
   USE MOD_ReadInTools
   USE MOD_Globals
-  USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-  USE MOD_PARTICLE_Vars,         ONLY : nSpecies
-  USE MOD_Particle_Analyze_Vars, ONLY : ChemEnergySum
+  USE MOD_Globals_Vars,           ONLY: BoltzmannConst
+  USE MOD_PARTICLE_Vars,          ONLY: nSpecies
+  USE MOD_Particle_Analyze_Vars,  ONLY: ChemEnergySum
+  USE MOD_DSMC_ChemReact,         ONLY: CalcPartitionFunction, CalcQKAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,11 +55,12 @@ SUBROUTINE DSMC_chemical_init()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(LEN=3)         :: hilf 
-  INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss
+  INTEGER               :: iReac, iReac2, iReac3, iReac4, iSpec, iChemDir, iReacForward, iReacDiss, PartitionArraySize, iInter
   INTEGER, ALLOCATABLE  :: PairCombID(:,:), DummyRecomb(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   LOGICAL               :: DoScat
   INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, MaxElecQua, ReadInNumOfReact
+  REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
   
 ! reading reaction values   
@@ -171,12 +173,12 @@ __STAMP__&
       ! ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ! ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
 
-      ! Filling up ChemReac-Array for the given non-reactive dissociation partners
-      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
+      ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
+      IF((TRIM(ChemReac%ReactType(iReac)).EQ.'D').OR.(TRIM(ChemReac%ReactType(iReac)).EQ.'iQK')) THEN
         IF((ChemReac%DefinedReact(iReac,1,2).EQ.0).AND.(ChemReac%DefinedReact(iReac,2,2).EQ.0)) THEN
           IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
             CALL abort(__STAMP__,&
-            'Dissociation - Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+            'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
           END IF
           DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
             IF(iReac2.EQ.1) THEN
@@ -184,8 +186,9 @@ __STAMP__&
               ChemReac%DefinedReact(iReac,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
               ChemReac%DefinedReact(iReac,2,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
             ELSE
-              ! The following species are added after the number of originally read-in reactions (counter: iReacDiss)
-              ChemReac%ReactType(iReacDiss+iReac2-1)             = 'D'
+              ! The following reaction are added after the number of originally read-in reactions (counter: iReacDiss)
+              ChemReac%ReactType(iReacDiss+iReac2-1)             = ChemReac%ReactType(iReac)
+              ChemReac%QKProcedure(iReacDiss+iReac2-1)           = ChemReac%QKProcedure(iReac)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,:)      = ChemReac%DefinedReact(iReac,1,:)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,1,2)      = ChemReac%ArbDiss(iReac)%NonReactiveSpecies(iReac2)
               ChemReac%DefinedReact(iReacDiss+iReac2-1,2,:)      = ChemReac%DefinedReact(iReac,2,:)
@@ -240,18 +243,68 @@ __STAMP__&
       END DO
     END DO
 
+    ! Initialize partition functions required for automatic backward rates
+    IF(DSMC%BackwardReacRate) THEN
+      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+        PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+      END IF
+      DO iSpec = 1, nSpecies
+        ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
+        DO iInter = 1, PartitionArraySize
+          Temp = iInter * DSMC%PartitionInterval
+          CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
+          SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
+        END DO
+      END DO
+    END IF
+    ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
+    ! during a single collision, e.g. N2+e -> ionization or dissociation)
+    IF(ANY(ChemReac%QKProcedure)) THEN
+      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
+        PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
+      ELSE
+        CALL abort(&
+__STAMP__&
+,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+      END IF
+      ALLOCATE(QKAnalytic(ChemReac%NumOfReact))
+      DO iReac = 1, ChemReac%NumOfReact
+        IF(ChemReac%QKProcedure(iReac)) THEN
+          ! Calculation of the analytical rate, to be able to calculate the backward rate with partition function
+          ALLOCATE(QKAnalytic(iReac)%ForwardRate(1:PartitionArraySize))
+          DO iInter = 1, PartitionArraySize
+            Temp = iInter * DSMC%PartitionInterval
+            QKAnalytic(iReac)%ForwardRate(iInter) = CalcQKAnalyticRate(iReac,Temp)
+          END DO
+        END IF
+      END DO
+    END IF
     ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
     IF(DSMC%BackwardReacRate) THEN
       DO iReac = ChemReac%NumOfReact/2+1, ChemReac%NumOfReact
         iReacForward = iReac - ChemReac%NumOfReact/2
         IF(ChemReac%QKProcedure(iReacForward)) THEN
-          IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK') ChemReac%ReactType(iReac) = 'r'
+          IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'iQK').OR.&
+             (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
+            ChemReac%ReactType(iReac) = 'r'
+            IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
             ChemReac%DefinedReact(iReac,1,1)      = ChemReac%DefinedReact(iReacForward,2,1)
             ! Products of the dissociation (which are the educts of the recombination) have to be swapped in order to comply with
             ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
             ChemReac%DefinedReact(iReac,1,2)      = ChemReac%DefinedReact(iReacForward,2,3)
             ChemReac%DefinedReact(iReac,1,3)      = ChemReac%DefinedReact(iReacForward,2,2)
             ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReacForward,1,:)
+            ChemReac%EForm(iReac)                 = -ChemReac%EForm(iReacForward)
+            ChemReac%EActiv(iReac) = 0.0
+            QKAnalytic(iReac)%ForwardRate         = QKAnalytic(iReacForward)%ForwardRate
+          ELSE
+            CALL abort(__STAMP__,&
+            'Other reaction types than iQK are not implemented with the automatic backward rate determination, Reaction:', iReac)
+          END IF
         ELSE
           IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
             ! Analogous to the iQK case
@@ -319,13 +372,6 @@ __STAMP__&
       END IF
     END DO
 
-    IF (ANY(ChemReac%QKProcedure).AND.DSMC%BackwardReacRate) THEN
-      ALLOCATE(QKBackWard(ChemReac%NumOfReact))
-      DO iReac = 1, ChemReac%NumOfReact
-        IF (TRIM(ChemReac%ReactType(iReac)).EQ.'r') CALL InitQKForwardReac(iReac, INT(DSMC%PartitionMaxTemp/DSMC%PartitionInterval))
-      END DO
-    END IF
-    
     ALLOCATE(PairCombID(nSpecies, nSpecies))
     PairCombID = 0
     CALL DSMC_BuildChem_IDArray(PairCombID)
@@ -391,13 +437,31 @@ __STAMP__&
     ! Case 18: only electron impact ionization
     DO iReac = 1, ChemReac%NumOfReact
       IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'iQK').AND.(.NOT.YetDefined_Help(iReac))) THEN
-          Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-          Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-          ChemReac%ReactCase(Reactant1, Reactant2) = 18
-          ChemReac%ReactCase(Reactant2, Reactant1) = 18
-          ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-          ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-          YetDefined_Help(iReac) = .TRUE.
+        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+        ChemReac%ReactCase(Reactant1, Reactant2) = 18
+        ChemReac%ReactCase(Reactant2, Reactant1) = 18
+        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+        DO iReac2 = 1, ChemReac%NumOfReact
+          IF(ChemReac%QKProcedure(iReac2)) THEN
+            IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac2))) THEN
+              IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
+                  PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
+                Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+                Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+                ChemReac%ReactCase(Reactant1, Reactant2) = 20
+                ChemReac%ReactCase(Reactant2, Reactant1) = 20
+                ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+                ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+                ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
+                ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
+                YetDefined_Help(iReac2) = .TRUE.
+              END IF
+            END IF
+          END IF
+        END DO
+        YetDefined_Help(iReac) = .TRUE.
       END IF
     END DO  
     ! Case 16: only simple CEX/MEX possible
@@ -412,34 +476,6 @@ __STAMP__&
           YetDefined_Help(iReac) = .TRUE.
       END IF
     END DO  
-    ! Case 6/17: associative ionization (N + N -> N2(ion) + e) and recombination possible
-!    DO iReac = 1, ChemReac%NumOfReact
-!      IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'i').AND.(.NOT.YetDefined_Help(iReac))) THEN
-!        Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-!        Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-!        ChemReac%ReactCase(Reactant1, Reactant2) = 6
-!        ChemReac%ReactCase(Reactant2, Reactant1) = 6
-!        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-!        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-!        YetDefined_Help(iReac) = .TRUE.
-!        DO iReac2 = 1, ChemReac%NumOfReact
-!          IF ((TRIM(ChemReac%ReactType(iReac2)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac2))) THEN
-!            IF (PairCombID(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)).EQ.&
-!                PairCombID(ChemReac%DefinedReact(iReac2,1,1),ChemReac%DefinedReact(iReac2,1,2))) THEN
-!              Reactant1 = ChemReac%DefinedReact(iReac,1,1)
-!              Reactant2 = ChemReac%DefinedReact(iReac,1,2)
-!              ChemReac%ReactCase(Reactant1, Reactant2) = 17
-!              ChemReac%ReactCase(Reactant2, Reactant1) = 17
-!              ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-!              ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-!              ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-!              ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-!              YetDefined_Help(iReac2) = .TRUE.
-!            END IF
-!          END IF
-!        END DO
-!      END IF
-!    END DO
     ! Case 5/7/8/9/10/11/12: At least two dissociations possible
     DO iReac = 1, ChemReac%NumOfReact
       IF ((TRIM(ChemReac%ReactType(iReac)).EQ.'D').AND.(.NOT.YetDefined_Help(iReac))) THEN
@@ -515,23 +551,6 @@ __STAMP__&
                                           YetDefined_Help(iReac4) = .TRUE.
                                     END IF
                                   END IF
-  !                                IF ((TRIM(ChemReac%ReactType(iReac4)).EQ.'R').AND.(.NOT.YetDefined_Help(iReac4))) THEN
-  !                                  IF (PairCombID(ChemReac%DefinedReact(iReac4,1,1),ChemReac%DefinedReact(iReac4,1,2)).EQ.&
-  !                                      PairCombID(ChemReac%DefinedReact(iReac3,1,1),ChemReac%DefinedReact(iReac3,1,2))) THEN
-  !                                        ! Case 16: Three dissociations and one recombination
-  !                                        Reactant1 = ChemReac%DefinedReact(iReac4,1,1)
-  !                                        Reactant2 = ChemReac%DefinedReact(iReac4,1,2)
-  !                                        ChemReac%ReactCase(Reactant1, Reactant2) = 16
-  !                                        ChemReac%ReactCase(Reactant2, Reactant1) = 16
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 2) = iReac2
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 2) = iReac2
-  !                                        ChemReac%ReactNum(Reactant1, Reactant2, 3) = iReac3
-  !                                        ChemReac%ReactNum(Reactant2, Reactant1, 3) = iReac3
-  !                                        YetDefined_Help(iReac4) = .TRUE.
-  !                                  END IF
-  !                                END IF
                                 END IF
                               END DO
                             END IF
@@ -1129,55 +1148,6 @@ SUBROUTINE Calc_Arrhenius_Factors()
 
 END SUBROUTINE Calc_Arrhenius_Factors
 
-
-SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize)
-!===================================================================================================================================
-! Calculation of the forward reaction rate for the determination of the backward reaction probability for QK
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars,       ONLY: Pi, BoltzmannConst
-USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, QKBackWard, ChemReac, CollInf
-USE MOD_DSMC_ChemReact,     ONLY: gammainc
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iReac, PartitionArraySize
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: iReacOrigin, iSpec1, iSpec2, MaxElecQua
-  INTEGER                       :: iInter, iQua
-  REAL                          :: Qelec, Temp, IncomGamma, ForwardRate, Rcoll, TrefVHS
-!===================================================================================================================================
-  ALLOCATE(QKBackWard(iReac)%ForwardRate(1:PartitionArraySize))
-  iReacOrigin = iReac - ChemReac%NumOfReact/2
-  iSpec1 = ChemReac%DefinedReact(iReacOrigin,1,1)
-  iSpec2 = ChemReac%DefinedReact(iReacOrigin,1,2)
-  MaxElecQua=SpecDSMC(iSpec1)%MaxElecQuant - 1
-  ChemReac%EForm(iReac) = SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)*BoltzmannConst
-  ChemReac%EActiv(iReac) = 0.0
-  TrefVHS=(SpecDSMC(iSpec1)%TrefVHS + SpecDSMC(iSpec2)%TrefVHS)/2.
-  Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(iSpec1, iSpec2))) &
-    * (SpecDSMC(iSpec1)%DrefVHS/2. + SpecDSMC(iSpec2)%DrefVHS/2.)**2 &      
-    * SQRT(2. * BoltzmannConst * TrefVHS &
-    / (CollInf%MassRed(CollInf%Coll_Case(iSpec1, iSpec2))))
-  DO iInter = 1, PartitionArraySize
-    Temp = iInter * DSMC%PartitionInterval
-    Qelec = 0.
-    ForwardRate = 0.0
-    DO iQua = 0, MaxElecQua
-      IncomGamma = gammainc([2.-SpecDSMC(iSpec1)%omegaVHS,(SpecDSMC(iSpec1)%ElectronicState(2,MaxElecQua)- &
-          SpecDSMC(iSpec1)%ElectronicState(2,iQua))/Temp])
-      ForwardRate= ForwardRate + IncomGamma * SpecDSMC(iSpec1)%ElectronicState(1,iQua) & 
-                  * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-      Qelec = Qelec + SpecDSMC(iSpec1)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec1)%ElectronicState(2,iQua) / Temp)
-    END DO  
-    QKBackWard(iReac)%ForwardRate(iInter) = ForwardRate*(Temp / TrefVHS)**(0.5 - SpecDSMC(iSpec1)%omegaVHS)*Rcoll/Qelec     
-  END DO
-END SUBROUTINE InitQKForwardReac
 
 SUBROUTINE Init_TLU_Data
 !===================================================================================================================================

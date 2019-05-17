@@ -282,7 +282,7 @@ IF (useDSMC) THEN
       SampWall(SurfSideID)%Adsorption(1,p,q) = SampWall(SurfSideID)%Adsorption(1,p,q) &
                                         + AdsorptionEnthalpie * Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
-    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+    IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.SpecDSMC(PartSpecies(PartID))%InterID.EQ.20) THEN
       !----  Sampling for internal (rotational) energy accommodation at walls
       SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
                                         + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -387,7 +387,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfMesh,nSurfSample,SampWall,CalcSurfCollis,nPorousBC
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 #ifdef MPI
-USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData
+USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel
@@ -437,6 +437,12 @@ END IF
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 #ifdef MPI
+IF(SurfCOMM%InnerBCs) THEN
+! if there are innerBCs with reflective surface properties
+! additional communcation is needed (see:SUBROUTINE MapInnerSurfData)
+  CALL ExchangeSurfData()
+  CALL MapInnerSurfData()
+END IF
 CALL ExchangeSurfData()
 #endif
 
@@ -570,7 +576,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
 INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1 
 REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search 
-REAl(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
 !===================================================================================================================================
 
@@ -631,7 +637,7 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: ii
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAL(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
+REAL(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
 !===================================================================================================================================
 
@@ -690,7 +696,7 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iDOF,iPolyatMole
 REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-REAl(KIND=8)                    :: eps_prec=1.0E-5   ! precision of zero point search
+REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: SumOne    ! both summs
 !===================================================================================================================================
 
@@ -814,7 +820,7 @@ INTEGER               :: iSpec, iDOF, iPolyatMole
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF (DSMC%PolySingleMode) THEN
@@ -1240,16 +1246,16 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(7) = 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             TSource(8:9)      =  PartStateIntEn(i,1:2)
           ELSE
             TSource(8:9) = 0.0
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
-              TSource(10)     =  PartStateIntEn(i,3)
-            ELSE
+            IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
               TSource(10) = 0.0
+            ELSE
+              TSource(10) = PartStateIntEn(i,3)
             END IF
           ELSE
             TSource(10) = 0.0
@@ -1393,11 +1399,11 @@ CASE('nearest_gausspoint')
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+            IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
               Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
             END IF
           END IF
@@ -1425,7 +1431,7 @@ CASE('cell_mean')
             DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,2)
           END IF
           IF (DSMC%ElectronicModel) THEN
-            IF (SpecDSMC(PartSpecies(i))%InterID.NE.4) THEN
+            IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
               DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
             END IF
           END IF
@@ -1454,16 +1460,16 @@ CASE('cell_volweight')
     TSource(7) = 1.0  !density
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+        IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           TSource(8:9)      =  PartStateIntEn(iPart,1:2)
         ELSE
           TSource(8:9) = 0.0
         END IF
         IF (DSMC%ElectronicModel) THEN
-          IF (SpecDSMC(PartSpecies(iPart))%InterID.NE.4) THEN
-            TSource(10)     =  PartStateIntEn(iPart,3)
+          IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+            TSource(10) = 0.0   
           ELSE
-            TSource(10) = 0.0
+            TSource(10) = PartStateIntEn(iPart,3)
           END IF
         ELSE
           TSource(10) = 0.0
@@ -1576,18 +1582,21 @@ USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
+USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, FP_QualityFacSamp
+USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc
-REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems)
+REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality, &
+      0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, kk , ll, mm, iSpec, nVarCount, nSpecTemp
-REAL                    :: TVib_TempFac
+REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
 ! nullify
@@ -1677,7 +1686,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                     Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, &
                       PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
-                  Macro_TempRot = PartERot / (PartNum*BoltzmannConst)
+                  Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
                   MolecPartNum = MolecPartNum + Macro_PartNum
                   IF(nSpecies.GT.1) THEN
                     Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
@@ -1685,7 +1694,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                   END IF
                 END IF
                 IF (DSMC%ElectronicModel) THEN
-                  IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                     Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                     HeavyPartNum = HeavyPartNum + Macro_PartNum
                   END IF
@@ -1718,30 +1727,56 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
 
   ! write dsmc quality values
   IF (DSMC%CalcQualityFactors) THEN
-    DO iElem=1,nElems
-    !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
-      IF(WriteMacroVolumeValues) THEN
-        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(DSMC%SampNum)
-        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(DSMC%SampNum)
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(DSMC%SampNum)
+    IF(WriteMacroVolumeValues) THEN
+      iter_loc = REAL(DSMC%SampNum)
+    ELSE
+      IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+        iter_loc = REAL(iter)
       ELSE
-        IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / REAL(iter)
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / REAL(iter)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / REAL(iter)
-        ELSE
-          DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-          DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-        END IF
+        iter_loc = (Time-(1-DSMC%TimeFracSamp)*TEnd) / dt
       END IF
-    !END DO; END DO; END DO
+    END IF
+    DO iElem=1,nElems
+      IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
+        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / DSMC%QualityFacSamp(iElem,4)
+      END IF
+      nVarCount = nVar + 3
+      IF(FPInitDone) THEN
+        IF(FP_QualityFacSamp(2,iElem).GT.0) THEN
+          ! Mean relaxation factor (mean over all octree subcells)
+          DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = FP_QualityFacSamp(1,iElem) / FP_QualityFacSamp(2,iElem)
+          ! Mean Prandtl number
+          DSMC_MacroVal(nVarCount+2,kk,ll,mm,iElem) = FP_QualityFacSamp(6,iElem) / FP_QualityFacSamp(2,iElem)
+        END IF
+        IF(FP_QualityFacSamp(4,iElem).GT.0) THEN
+          ! Max relaxation factor (maximal value of all octree subcells)
+          DSMC_MacroVal(nVarCount+3,kk,ll,mm,iElem) = FP_QualityFacSamp(3,iElem) / FP_QualityFacSamp(4,iElem)
+          ! Max rotational relaxation factor
+          DSMC_MacroVal(nVarCount+4,kk,ll,mm,iElem) = FP_QualityFacSamp(5,iElem) / FP_QualityFacSamp(4,iElem)
+        END IF
+        ! Ratio between FP and DSMC usage per cell
+        DSMC_MacroVal(nVarCount+5,kk,ll,mm,iElem) = FP_QualityFacSamp(4,iElem) / iter_loc
+        nVarCount = nVarCount + 5
+      END IF
+      IF(BGKInitDone) THEN
+        IF(BGK_QualityFacSamp(2,iElem).GT.0) THEN
+          ! Mean relaxation factor (mean over all octree subcells)
+          DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = BGK_QualityFacSamp(1,iElem) / BGK_QualityFacSamp(2,iElem)
+        END IF
+        IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
+          ! Max relaxation factor (maximal value of all octree subcells)
+          DSMC_MacroVal(nVarCount+2,kk,ll,mm,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+          ! Max rotational relaxation factor
+          DSMC_MacroVal(nVarCount+3,kk,ll,mm,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
+        END IF
+        ! Ratio between BGK and DSMC usage per cell
+        DSMC_MacroVal(nVarCount+4,kk,ll,mm,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+        nVarCount = nVarCount + 4
+      END IF
     END DO
   END IF
-  ! fill remaining node values with calculated values
-  DO mm = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO kk = 0, HODSMC%nOutputDSMC
-    DSMC_MacroVal(:,kk,ll,mm,:) = DSMC_MacroVal(:,1,1,1,:)
-  END DO; END DO; END DO
 ELSE ! all other sampling types
   nVarCount=0
   DO iSpec = 1, nSpecies
@@ -1791,7 +1826,7 @@ ELSE ! all other sampling types
                 DSMC_MacroVal(nVarCount+9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
               END IF
@@ -1850,7 +1885,7 @@ ELSE ! all other sampling types
                 END IF
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                     /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -1917,7 +1952,7 @@ ELSE ! all other sampling types
                 MolecPartNum = MolecPartNum + DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)
               END IF
               IF (DSMC%ElectronicModel) THEN
-                IF (SpecDSMC(iSpec)%InterID.NE.4) THEN
+                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem)= DSMC_MacroVal(nVarCount+10,kk,ll,mm, iElem) &
                       + CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec) &
@@ -1979,6 +2014,8 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
 USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_BGK_Vars      ,ONLY: BGKInitDone
+USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1993,7 +2030,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVar, nVar_quality, nVarloc, nVarCount, ALLOCSTAT, iSpec
+INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:,:,:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -2014,6 +2051,8 @@ END IF
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
+  IF(BGKInitDone) nVar_quality = nVar_quality + 4
+  IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
 END IF
@@ -2055,20 +2094,38 @@ IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
+  nVarCount=nVarCount+3
+  IF(BGKInitDone) THEN
+    StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
+    StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'
+    StrVarNames(nVarCount+3) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+4) ='BGK_DSMC_Ratio'
+    nVarCount=nVarCount+4
+  END IF
+  IF(FPInitDone) THEN
+    StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'
+    StrVarNames(nVarCount+2) ='FP_MeanPrandtlNumber'
+    StrVarNames(nVarCount+3) ='FP_MaxRelaxationFactor'
+    StrVarNames(nVarCount+4) ='FP_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+5) ='FP_DSMC_Ratio'
+    nVarCount=nVarCount+5
+  END IF
 END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCHOState',OutputTime))//'.h5'
 ! PO:
 ! excahnge PP_N through Nout
-IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateDSMCHOFileSkeleton('DSMCHOState',nVar+nVar_quality, &
+      StrVarNames,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC, & 
+        0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&

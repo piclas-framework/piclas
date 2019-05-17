@@ -327,6 +327,21 @@ gnu_DSMC_check:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
+gnu_BGK_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+
+gnu_FPFlow_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
     
 # intel_PIC_gyrotron_variable_Bz:
@@ -579,6 +594,22 @@ gnu_integer_kind8:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+
+gnu_PIC_deposition:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+
+gnu_PIC_innerBC_SFLocalDepoBC:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
        
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -727,6 +758,30 @@ gnu_integer_kind8:
 #     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+# 
+# intel_integer_kind8:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+# 
+# intel_PIC_deposition:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+#
+# intel_PIC_innerBC_SFLocalDepoBC:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -764,13 +819,21 @@ gnu_PIC:
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-gnu_DSMC/:
+gnu_DSMC:
   <<: *defaults_gnu
   stage: reggie_weekly
   tags:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC ; fi
+
+gnu_DSMC_Reservoir:
+  <<: *defaults_gnu
+  stage: reggie_weekly
+  tags:
+    - withmodules
+  script:
+    - if [ -n "${DO_WEEKLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir ; fi
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -782,7 +845,7 @@ gnu_DSMC/:
 #   script:
 #     - if [ -n "${DO_WEEKLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell ; fi
 
-# intel_DSMC/:
+# intel_DSMC:
 #   <<: *defaults_intel
 #   stage: reggie_weekly
 #   tags:
@@ -826,10 +889,10 @@ github:
     - rm -rf piclas_github || true ;
     - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
     - cd piclas_github ;
-    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
-    - git commit -m 'truncated history before v1.0.0' ;
-    - git rebase --onto orphan_branch v1.0.0 master ;
-    - git branch -D orphan_branch ;
+##    - git checkout --orphan orphan_branch v1.0.0 ; # tag v1.0.0 points to f754d8e1e207cb959a81bfb9013bc0f12476c62b
+##    - git commit -m 'truncated history before v1.0.0' ;
+##    - git rebase --onto orphan_branch v1.0.0 master ;
+##    - git branch -D orphan_branch ;
     - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
-    - git push --force piclas-framework master ;
+    - git push --force --follow-tags piclas-framework master ;
 #    - git push --mirror git@gitlab.com:iagcopple/piclas-framework.git ; cd ../

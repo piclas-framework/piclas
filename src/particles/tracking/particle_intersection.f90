@@ -668,6 +668,7 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3,BaseVectorsScale,SideNormVec
 USE MOD_Particle_Mesh_Vars,      ONLY:PartBCSideList
 USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBilinear
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -897,14 +898,14 @@ IF (nRoot.EQ.1) THEN
           END IF
         END IF
       END IF
+      alphaNorm=t(1)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         alpha=t(1)!/LengthPartTrajectory
@@ -963,14 +964,14 @@ ELSE
           END IF
         END IF
       END IF
+      alphaNorm=t(1)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(1),' | t: ',t(1),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(1)/lengthPartTrajectory
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
       IF((alphaNorm.LE.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
@@ -1011,14 +1012,14 @@ ELSE
           END IF
         END IF
       END IF
+      alphaNorm=t(2)/lengthPartTrajectory
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(PartID.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(A,G0,A,E15.8)') '     | xi: ',xi(2),' | t: ',t(2)
+          WRITE(UNIT_stdout,'(A,G0,A,G0,A,G0)') '     | xi: ',xi(2),' | t: ',t(2),' | alphaNorm: ',alphaNorm
         END IF
       END IF
 #endif /*CODE_ANALYZE*/
-      alphaNorm=t(2)/lengthPartTrajectory
       IF((alphaNorm.LT.1.0) .AND.(alphaNorm.GE.0.))THEN!.GT.-epsilontol))THEN
         ! Two solutions can be correspond to one unique intersection (?!)
         IF(InterType.EQ.1)THEN
@@ -1045,7 +1046,7 @@ ELSE
     RETURN
   END IF
   isHit=.TRUE.
-  IF(ALLOCATED(PartBCSideList))THEN ! correspond to DoRefMapping
+  IF(DoRefMapping) THEN
     SELECT CASE(InterType)
     CASE(1)
       alpha  =t  (1)

@@ -86,6 +86,8 @@ SELECT CASE(PartLorentzType)
     ! non-relativistic
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -93,6 +95,8 @@ SELECT CASE(PartLorentzType)
     ! constant Lorentz factor over time step
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -101,6 +105,8 @@ SELECT CASE(PartLorentzType)
   ! prevent particles from acceleration above speed of light
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
@@ -163,8 +169,20 @@ SELECT CASE(PartLorentzType)
     ! derivation of relativistic equation of motion
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      END IF
+    END DO
+  CASE(31) 
+    ! derivation of relativistic equation of motion
+    DO iPart = 1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        ! Don't push neutral particles!
+        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
+        Pt(iPart,1:3)=ACCELERATION_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
   CASE DEFAULT
@@ -274,6 +292,7 @@ velosq = v1s+v2s+v3s
 IF(velosq.GT.c2) THEN
  IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
  IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
+ IPWRITE(*,*) ' x=',PartState(PartID,1),' y=',PartState(PartID,2),' z=',PartState(PartID,3)
  CALL abort(&
   __STAMP__&
   ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
@@ -314,6 +333,75 @@ Pt(3) = E(3)
 FAST_RELATIVISTIC_PUSH = MATMUL(Vinv,Pt)
 
 END FUNCTION FAST_RELATIVISTIC_PUSH
+
+
+FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
+!===================================================================================================================================
+! Returns the relativistic acceleration a = dv/dt
+! see W. Rindler, Relativity: Special, General, and Cosmological, 2006, Oxford University Press, New York, p.125
+! 
+! CAUTION: This routines is used for HDG in combination with magnetic (external) fields
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
+USE MOD_Equation_Vars,     ONLY : c2_inv, c2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: PartID
+REAL,INTENT(IN)     :: FieldAtParticle(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                :: ACCELERATION_RELATIVISTIC_PUSH(1:3) ! The stamp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: velosq,F(1:3)
+!===================================================================================================================================
+ASSOCIATE (&
+      qmt => Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC ,& ! charge/m_0
+      v1  => PartState(PartID,4) ,& ! Velocity in x
+      v2  => PartState(PartID,5) ,& ! Velocity in y
+      v3  => PartState(PartID,6) ,& ! Velocity in z
+      E1  => FieldAtParticle(1)  ,& ! Electric field in x
+      E2  => FieldAtParticle(2)  ,& ! Electric field in y
+      E3  => FieldAtParticle(3)  ,& ! Electric field in z
+      B1  => FieldAtParticle(4)  ,& ! Magnetic field in x
+      B2  => FieldAtParticle(5)  ,& ! Magnetic field in y
+      B3  => FieldAtParticle(6)   & ! Magnetic field in z
+      )
+
+  ! Check squared velocity with c^2
+  velosq = v1*v1 + v2*v2 + v3*v3
+  IF(velosq.GT.c2) THEN
+    IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
+    IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
+    IPWRITE(*,*) ' x=',PartState(PartID,1),' y=',PartState(PartID,2),' z=',PartState(PartID,3)
+    CALL abort(&
+        __STAMP__&
+        ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+  END IF
+  ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
+
+! The following ifdef is commented out in order to push particles for the HDG solver in combination with a magnetic field
+!#if (PP_nVar==8)
+    F(1) = E1 + v2 * B3 - v3 * B2
+    F(2) = E2 + v3 * B1 - v1 * B3
+    F(3) = E3 + v1 * B2 - v2 * B1
+!#else
+!    F(1) = E1 
+!    F(2) = E2 
+!    F(3) = E3 
+!#endif
+
+    ! Calculate the acceleration
+    ACCELERATION_RELATIVISTIC_PUSH = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(PartID,4:6))*PartState(PartID,4:6)*c2_inv )
+  END ASSOCIATE
+END ASSOCIATE
+
+END FUNCTION ACCELERATION_RELATIVISTIC_PUSH
+
 
 
 FUNCTION RELATIVISTIC_PUSH(PartID,FieldAtParticle,LorentzFacInvIn)

@@ -1,0 +1,2632 @@
+<ParaView>
+  <ServerManagerState version="5.2.0">
+    <Proxy group="animation" type="AnimationScene" id="263" servers="16">
+      <Property name="AnimationTime" id="263.AnimationTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="Cues" id="263.Cues" number_of_elements="1">
+        <Proxy value="265"/>
+        <Domain name="groups" id="263.Cues.groups"/>
+      </Property>
+      <Property name="Duration" id="263.Duration" number_of_elements="1">
+        <Element index="0" value="10"/>
+      </Property>
+      <Property name="EndTime" id="263.EndTime" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="FramesPerTimestep" id="263.FramesPerTimestep" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="range" id="263.FramesPerTimestep.range"/>
+      </Property>
+      <Property name="GoToFirst" id="263.GoToFirst"/>
+      <Property name="GoToLast" id="263.GoToLast"/>
+      <Property name="GoToNext" id="263.GoToNext"/>
+      <Property name="GoToPrevious" id="263.GoToPrevious"/>
+      <Property name="LockEndTime" id="263.LockEndTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="263.LockEndTime.bool"/>
+      </Property>
+      <Property name="LockStartTime" id="263.LockStartTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="263.LockStartTime.bool"/>
+      </Property>
+      <Property name="Loop" id="263.Loop" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="263.Loop.bool"/>
+      </Property>
+      <Property name="NumberOfFrames" id="263.NumberOfFrames" number_of_elements="1">
+        <Element index="0" value="10"/>
+        <Domain name="range" id="263.NumberOfFrames.range"/>
+      </Property>
+      <Property name="Play" id="263.Play"/>
+      <Property name="PlayMode" id="263.PlayMode" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="263.PlayMode.enum">
+          <Entry value="0" text="Sequence"/>
+          <Entry value="1" text="Real Time"/>
+          <Entry value="2" text="Snap To TimeSteps"/>
+        </Domain>
+      </Property>
+      <Property name="StartTime" id="263.StartTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="Stop" id="263.Stop"/>
+      <Property name="TimeKeeper" id="263.TimeKeeper" number_of_elements="1">
+        <Proxy value="259"/>
+      </Property>
+      <Property name="ViewModules" id="263.ViewModules" number_of_elements="3">
+        <Proxy value="4082"/>
+        <Proxy value="4149"/>
+        <Proxy value="4149"/>
+        <Domain name="groups" id="263.ViewModules.groups"/>
+      </Property>
+    </Proxy>
+    <Proxy group="animation" type="TimeAnimationCue" id="265" servers="16">
+      <Property name="AnimatedDomainName" id="265.AnimatedDomainName" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="AnimatedElement" id="265.AnimatedElement" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="AnimatedPropertyName" id="265.AnimatedPropertyName" number_of_elements="1">
+        <Element index="0" value="Time"/>
+      </Property>
+      <Property name="AnimatedProxy" id="265.AnimatedProxy" number_of_elements="1">
+        <Proxy value="259"/>
+        <Domain name="groups" id="265.AnimatedProxy.groups"/>
+      </Property>
+      <Property name="Enabled" id="265.Enabled" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="265.Enabled.bool"/>
+      </Property>
+      <Property name="EndTime" id="265.EndTime" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="KeyFrames" id="265.KeyFrames">
+        <Domain name="groups" id="265.KeyFrames.groups"/>
+      </Property>
+      <Property name="LastAddedKeyFrameIndex" id="265.LastAddedKeyFrameIndex"/>
+      <Property name="StartTime" id="265.StartTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="TimeMode" id="265.TimeMode" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="265.TimeMode.enum">
+          <Entry value="0" text="Normalized"/>
+          <Entry value="1" text="Relative"/>
+        </Domain>
+      </Property>
+      <Property name="UseAnimationTime" id="265.UseAnimationTime" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="265.UseAnimationTime.bool"/>
+      </Property>
+    </Proxy>
+    <Proxy group="misc" type="ViewLayout" id="1983" servers="16">
+      <Layout number_of_elements="3">
+        <Item direction="2" fraction="0.5" view="0"/>
+        <Item direction="0" fraction="0.5" view="4082"/>
+        <Item direction="0" fraction="0.5" view="4149"/>
+      </Layout>
+    </Proxy>
+    <Proxy group="misc" type="RepresentationAnimationHelper" id="3963" servers="16">
+      <Property name="Source" id="3963.Source" number_of_elements="1">
+        <Proxy value="3951"/>
+      </Property>
+    </Proxy>
+    <Proxy group="representations" type="XYChartRepresentation" id="4116" servers="21">
+      <Property name="AttributeType" id="4116.AttributeType" number_of_elements="1">
+        <Element index="0" value="6"/>
+        <Domain name="enum" id="4116.AttributeType.enum">
+          <Entry value="0" text="Point Data"/>
+          <Entry value="1" text="Cell Data"/>
+          <Entry value="2" text="Field Data"/>
+          <Entry value="4" text="Vertex Data"/>
+          <Entry value="5" text="Edge Data"/>
+          <Entry value="6" text="Row Data"/>
+        </Domain>
+      </Property>
+      <Property name="Color" id="4116.Color" number_of_elements="3">
+        <Element index="0" value="1"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="1"/>
+        <Domain name="range" id="4116.Color.range"/>
+      </Property>
+      <Property name="CompositeDataSetIndex" id="4116.CompositeDataSetIndex" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="tree" id="4116.CompositeDataSetIndex.tree"/>
+      </Property>
+      <Property name="Input" id="4116.Input" number_of_elements="1">
+        <Proxy value="3951" output_port="0"/>
+        <Domain name="input_type" id="4116.Input.input_type"/>
+      </Property>
+      <Property name="SeriesColor" id="4116.SeriesColor" number_of_elements="100">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="002-nPart-Spec-001     "/>
+        <Element index="5" value="0.889998"/>
+        <Element index="6" value="0.100008"/>
+        <Element index="7" value="0.110002"/>
+        <Element index="8" value="003-nPart-Spec-002     "/>
+        <Element index="9" value="0.220005"/>
+        <Element index="10" value="0.489998"/>
+        <Element index="11" value="0.719997"/>
+        <Element index="12" value="004-nPart-Spec-003     "/>
+        <Element index="13" value="0.300008"/>
+        <Element index="14" value="0.689998"/>
+        <Element index="15" value="0.289998"/>
+        <Element index="16" value="005-nPart-Spec-004     "/>
+        <Element index="17" value="0.6"/>
+        <Element index="18" value="0.310002"/>
+        <Element index="19" value="0.639994"/>
+        <Element index="20" value="006-TempTra-001     "/>
+        <Element index="21" value="1"/>
+        <Element index="22" value="0.500008"/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="007-TempTra-002     "/>
+        <Element index="25" value="0.650004"/>
+        <Element index="26" value="0.340002"/>
+        <Element index="27" value="0.160006"/>
+        <Element index="28" value="008-TempTra-003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="0"/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="009-TempTra-004     "/>
+        <Element index="33" value="0.889998"/>
+        <Element index="34" value="0.100008"/>
+        <Element index="35" value="0.110002"/>
+        <Element index="36" value="010-TempVib001     "/>
+        <Element index="37" value="0.220005"/>
+        <Element index="38" value="0.489998"/>
+        <Element index="39" value="0.719997"/>
+        <Element index="40" value="011-TempVib002     "/>
+        <Element index="41" value="0.300008"/>
+        <Element index="42" value="0.689998"/>
+        <Element index="43" value="0.289998"/>
+        <Element index="44" value="012-TempVib003     "/>
+        <Element index="45" value="0.6"/>
+        <Element index="46" value="0.310002"/>
+        <Element index="47" value="0.639994"/>
+        <Element index="48" value="013-XiVibMean001     "/>
+        <Element index="49" value="1"/>
+        <Element index="50" value="0.500008"/>
+        <Element index="51" value="0"/>
+        <Element index="52" value="014-XiVibMean002     "/>
+        <Element index="53" value="0.650004"/>
+        <Element index="54" value="0.340002"/>
+        <Element index="55" value="0.160006"/>
+        <Element index="56" value="015-XiVibMean003     "/>
+        <Element index="57" value="0"/>
+        <Element index="58" value="0"/>
+        <Element index="59" value="0"/>
+        <Element index="60" value="016-TempRot001     "/>
+        <Element index="61" value="0.889998"/>
+        <Element index="62" value="0.100008"/>
+        <Element index="63" value="0.110002"/>
+        <Element index="64" value="017-TempRot002     "/>
+        <Element index="65" value="0.220005"/>
+        <Element index="66" value="0.489998"/>
+        <Element index="67" value="0.719997"/>
+        <Element index="68" value="018-TempRot003     "/>
+        <Element index="69" value="0.300008"/>
+        <Element index="70" value="0.689998"/>
+        <Element index="71" value="0.289998"/>
+        <Element index="72" value="019-TempTotal001     "/>
+        <Element index="73" value="0.6"/>
+        <Element index="74" value="0.310002"/>
+        <Element index="75" value="0.639994"/>
+        <Element index="76" value="020-TempTotal002     "/>
+        <Element index="77" value="1"/>
+        <Element index="78" value="0.500008"/>
+        <Element index="79" value="0"/>
+        <Element index="80" value="021-TempTotal003     "/>
+        <Element index="81" value="0.650004"/>
+        <Element index="82" value="0.340002"/>
+        <Element index="83" value="0.160006"/>
+        <Element index="84" value="022-TempTotal004     "/>
+        <Element index="85" value="0"/>
+        <Element index="86" value="0"/>
+        <Element index="87" value="0"/>
+        <Element index="88" value="023-Pmean     "/>
+        <Element index="89" value="0.889998"/>
+        <Element index="90" value="0.100008"/>
+        <Element index="91" value="0.110002"/>
+        <Element index="92" value="024-Pmax     "/>
+        <Element index="93" value="0.220005"/>
+        <Element index="94" value="0.489998"/>
+        <Element index="95" value="0.719997"/>
+        <Element index="96" value="025-MeanFreePath      "/>
+        <Element index="97" value="0.300008"/>
+        <Element index="98" value="0.689998"/>
+        <Element index="99" value="0.289998"/>
+        <Domain name="array_list" id="4116.SeriesColor.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLabel" id="4116.SeriesLabel" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="001-TIME"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="002-nPart-Spec-001     "/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="003-nPart-Spec-002     "/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="004-nPart-Spec-003     "/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="005-nPart-Spec-004     "/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="006-TempTra-001     "/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="007-TempTra-002     "/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="008-TempTra-003     "/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="009-TempTra-004     "/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="010-TempVib001     "/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="011-TempVib002     "/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="012-TempVib003     "/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="013-XiVibMean001     "/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="014-XiVibMean002     "/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="015-XiVibMean003     "/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="016-TempRot001     "/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="017-TempRot002     "/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="018-TempRot003     "/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="019-TempTotal001     "/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="020-TempTotal002     "/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="021-TempTotal003     "/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="022-TempTotal004     "/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="023-Pmean     "/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="024-Pmax     "/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="025-MeanFreePath      "/>
+        <Domain name="array_list" id="4116.SeriesLabel.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLabelPrefix" id="4116.SeriesLabelPrefix" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="SeriesLineStyle" id="4116.SeriesLineStyle" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="1"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="1"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="1"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="1"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="1"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="1"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="1"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="1"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="1"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="1"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="1"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="1"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="1"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="1"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="1"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="1"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="1"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="1"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="1"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="1"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="1"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="1"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="1"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="1"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="1"/>
+        <Domain name="array_list" id="4116.SeriesLineStyle.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLineThickness" id="4116.SeriesLineThickness" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="2"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="2"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="2"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="2"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="2"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="2"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="2"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="2"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="2"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="2"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="2"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="2"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="2"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="2"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="2"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="2"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="2"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="2"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="2"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="2"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="2"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="2"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="2"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="1"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="2"/>
+        <Domain name="array_list" id="4116.SeriesLineThickness.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesMarkerStyle" id="4116.SeriesMarkerStyle" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="0"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="0"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4116.SeriesMarkerStyle.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesPlotCorner" id="4116.SeriesPlotCorner" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="0"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="0"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4116.SeriesPlotCorner.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesVisibility" id="4116.SeriesVisibility" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="1"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="1"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="0"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4116.SeriesVisibility.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="UseIndexForXAxis" id="4116.UseIndexForXAxis" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4116.UseIndexForXAxis.bool"/>
+      </Property>
+      <Property name="Visibility" id="4116.Visibility" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4116.Visibility.bool"/>
+      </Property>
+      <Property name="XArrayName" id="4116.XArrayName" number_of_elements="1">
+        <Element index="0" value="001-TIME"/>
+        <Domain name="array_list" id="4116.XArrayName.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+    </Proxy>
+    <Proxy group="representations" type="XYChartRepresentation" id="4161" servers="21">
+      <Property name="AttributeType" id="4161.AttributeType" number_of_elements="1">
+        <Element index="0" value="6"/>
+        <Domain name="enum" id="4161.AttributeType.enum">
+          <Entry value="0" text="Point Data"/>
+          <Entry value="1" text="Cell Data"/>
+          <Entry value="2" text="Field Data"/>
+          <Entry value="4" text="Vertex Data"/>
+          <Entry value="5" text="Edge Data"/>
+          <Entry value="6" text="Row Data"/>
+        </Domain>
+      </Property>
+      <Property name="Color" id="4161.Color" number_of_elements="3">
+        <Element index="0" value="1"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="1"/>
+        <Domain name="range" id="4161.Color.range"/>
+      </Property>
+      <Property name="CompositeDataSetIndex" id="4161.CompositeDataSetIndex" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="tree" id="4161.CompositeDataSetIndex.tree"/>
+      </Property>
+      <Property name="Input" id="4161.Input" number_of_elements="1">
+        <Proxy value="3951" output_port="0"/>
+        <Domain name="input_type" id="4161.Input.input_type"/>
+      </Property>
+      <Property name="SeriesColor" id="4161.SeriesColor" number_of_elements="100">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="002-nPart-Spec-001     "/>
+        <Element index="5" value="0.889998"/>
+        <Element index="6" value="0.100008"/>
+        <Element index="7" value="0.110002"/>
+        <Element index="8" value="003-nPart-Spec-002     "/>
+        <Element index="9" value="0.220005"/>
+        <Element index="10" value="0.489998"/>
+        <Element index="11" value="0.719997"/>
+        <Element index="12" value="004-nPart-Spec-003     "/>
+        <Element index="13" value="0.300008"/>
+        <Element index="14" value="0.689998"/>
+        <Element index="15" value="0.289998"/>
+        <Element index="16" value="005-nPart-Spec-004     "/>
+        <Element index="17" value="0.6"/>
+        <Element index="18" value="0.310002"/>
+        <Element index="19" value="0.639994"/>
+        <Element index="20" value="006-TempTra-001     "/>
+        <Element index="21" value="1"/>
+        <Element index="22" value="0.500008"/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="007-TempTra-002     "/>
+        <Element index="25" value="0.650004"/>
+        <Element index="26" value="0.340002"/>
+        <Element index="27" value="0.160006"/>
+        <Element index="28" value="008-TempTra-003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="0"/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="009-TempTra-004     "/>
+        <Element index="33" value="0.889998"/>
+        <Element index="34" value="0.100008"/>
+        <Element index="35" value="0.110002"/>
+        <Element index="36" value="010-TempVib001     "/>
+        <Element index="37" value="0.220005"/>
+        <Element index="38" value="0.489998"/>
+        <Element index="39" value="0.719997"/>
+        <Element index="40" value="011-TempVib002     "/>
+        <Element index="41" value="0.300008"/>
+        <Element index="42" value="0.689998"/>
+        <Element index="43" value="0.289998"/>
+        <Element index="44" value="012-TempVib003     "/>
+        <Element index="45" value="0.6"/>
+        <Element index="46" value="0.310002"/>
+        <Element index="47" value="0.639994"/>
+        <Element index="48" value="013-XiVibMean001     "/>
+        <Element index="49" value="1"/>
+        <Element index="50" value="0.500008"/>
+        <Element index="51" value="0"/>
+        <Element index="52" value="014-XiVibMean002     "/>
+        <Element index="53" value="0.650004"/>
+        <Element index="54" value="0.340002"/>
+        <Element index="55" value="0.160006"/>
+        <Element index="56" value="015-XiVibMean003     "/>
+        <Element index="57" value="0"/>
+        <Element index="58" value="0"/>
+        <Element index="59" value="0"/>
+        <Element index="60" value="016-TempRot001     "/>
+        <Element index="61" value="0.889998"/>
+        <Element index="62" value="0.100008"/>
+        <Element index="63" value="0.110002"/>
+        <Element index="64" value="017-TempRot002     "/>
+        <Element index="65" value="0.220005"/>
+        <Element index="66" value="0.489998"/>
+        <Element index="67" value="0.719997"/>
+        <Element index="68" value="018-TempRot003     "/>
+        <Element index="69" value="0.300008"/>
+        <Element index="70" value="0.689998"/>
+        <Element index="71" value="0.289998"/>
+        <Element index="72" value="019-TempTotal001     "/>
+        <Element index="73" value="0.6"/>
+        <Element index="74" value="0.310002"/>
+        <Element index="75" value="0.639994"/>
+        <Element index="76" value="020-TempTotal002     "/>
+        <Element index="77" value="1"/>
+        <Element index="78" value="0.500008"/>
+        <Element index="79" value="0"/>
+        <Element index="80" value="021-TempTotal003     "/>
+        <Element index="81" value="0.650004"/>
+        <Element index="82" value="0.340002"/>
+        <Element index="83" value="0.160006"/>
+        <Element index="84" value="022-TempTotal004     "/>
+        <Element index="85" value="0"/>
+        <Element index="86" value="0"/>
+        <Element index="87" value="0"/>
+        <Element index="88" value="023-Pmean     "/>
+        <Element index="89" value="0.889998"/>
+        <Element index="90" value="0.100008"/>
+        <Element index="91" value="0.110002"/>
+        <Element index="92" value="024-Pmax     "/>
+        <Element index="93" value="0.220005"/>
+        <Element index="94" value="0.489998"/>
+        <Element index="95" value="0.719997"/>
+        <Element index="96" value="025-MeanFreePath      "/>
+        <Element index="97" value="0.300008"/>
+        <Element index="98" value="0.689998"/>
+        <Element index="99" value="0.289998"/>
+        <Domain name="array_list" id="4161.SeriesColor.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLabel" id="4161.SeriesLabel" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="001-TIME"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="002-nPart-Spec-001     "/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="003-nPart-Spec-002     "/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="004-nPart-Spec-003     "/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="005-nPart-Spec-004     "/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="006-TempTra-001     "/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="007-TempTra-002     "/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="008-TempTra-003     "/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="009-TempTra-004     "/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="010-TempVib001     "/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="011-TempVib002     "/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="012-TempVib003     "/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="013-XiVibMean001     "/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="014-XiVibMean002     "/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="015-XiVibMean003     "/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="016-TempRot001     "/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="017-TempRot002     "/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="018-TempRot003     "/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="019-TempTotal001     "/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="020-TempTotal002     "/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="021-TempTotal003     "/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="022-TempTotal004     "/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="023-Pmean     "/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="024-Pmax     "/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="025-MeanFreePath      "/>
+        <Domain name="array_list" id="4161.SeriesLabel.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLabelPrefix" id="4161.SeriesLabelPrefix" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="SeriesLineStyle" id="4161.SeriesLineStyle" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="1"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="1"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="1"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="1"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="1"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="1"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="1"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="1"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="1"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="1"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="1"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="1"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="1"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="1"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="1"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="1"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="1"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="1"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="1"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="1"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="1"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="1"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="1"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="1"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="1"/>
+        <Domain name="array_list" id="4161.SeriesLineStyle.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesLineThickness" id="4161.SeriesLineThickness" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="2"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="2"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="2"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="2"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="2"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="2"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="2"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="2"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="2"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="2"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="2"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="2"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="2"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="2"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="2"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="2"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="2"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="2"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="2"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="2"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="2"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="2"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="2"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="2"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="2"/>
+        <Domain name="array_list" id="4161.SeriesLineThickness.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesMarkerStyle" id="4161.SeriesMarkerStyle" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="0"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="0"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4161.SeriesMarkerStyle.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesPlotCorner" id="4161.SeriesPlotCorner" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="0"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="0"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4161.SeriesPlotCorner.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="SeriesVisibility" id="4161.SeriesVisibility" number_of_elements="50">
+        <Element index="0" value="001-TIME"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="002-nPart-Spec-001     "/>
+        <Element index="3" value="0"/>
+        <Element index="4" value="003-nPart-Spec-002     "/>
+        <Element index="5" value="0"/>
+        <Element index="6" value="004-nPart-Spec-003     "/>
+        <Element index="7" value="0"/>
+        <Element index="8" value="005-nPart-Spec-004     "/>
+        <Element index="9" value="0"/>
+        <Element index="10" value="006-TempTra-001     "/>
+        <Element index="11" value="0"/>
+        <Element index="12" value="007-TempTra-002     "/>
+        <Element index="13" value="0"/>
+        <Element index="14" value="008-TempTra-003     "/>
+        <Element index="15" value="0"/>
+        <Element index="16" value="009-TempTra-004     "/>
+        <Element index="17" value="0"/>
+        <Element index="18" value="010-TempVib001     "/>
+        <Element index="19" value="0"/>
+        <Element index="20" value="011-TempVib002     "/>
+        <Element index="21" value="0"/>
+        <Element index="22" value="012-TempVib003     "/>
+        <Element index="23" value="0"/>
+        <Element index="24" value="013-XiVibMean001     "/>
+        <Element index="25" value="0"/>
+        <Element index="26" value="014-XiVibMean002     "/>
+        <Element index="27" value="0"/>
+        <Element index="28" value="015-XiVibMean003     "/>
+        <Element index="29" value="0"/>
+        <Element index="30" value="016-TempRot001     "/>
+        <Element index="31" value="0"/>
+        <Element index="32" value="017-TempRot002     "/>
+        <Element index="33" value="0"/>
+        <Element index="34" value="018-TempRot003     "/>
+        <Element index="35" value="0"/>
+        <Element index="36" value="019-TempTotal001     "/>
+        <Element index="37" value="0"/>
+        <Element index="38" value="020-TempTotal002     "/>
+        <Element index="39" value="0"/>
+        <Element index="40" value="021-TempTotal003     "/>
+        <Element index="41" value="0"/>
+        <Element index="42" value="022-TempTotal004     "/>
+        <Element index="43" value="1"/>
+        <Element index="44" value="023-Pmean     "/>
+        <Element index="45" value="0"/>
+        <Element index="46" value="024-Pmax     "/>
+        <Element index="47" value="0"/>
+        <Element index="48" value="025-MeanFreePath      "/>
+        <Element index="49" value="0"/>
+        <Domain name="array_list" id="4161.SeriesVisibility.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+      <Property name="UseIndexForXAxis" id="4161.UseIndexForXAxis" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4161.UseIndexForXAxis.bool"/>
+      </Property>
+      <Property name="Visibility" id="4161.Visibility" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4161.Visibility.bool"/>
+      </Property>
+      <Property name="XArrayName" id="4161.XArrayName" number_of_elements="1">
+        <Element index="0" value="001-TIME"/>
+        <Domain name="array_list" id="4161.XArrayName.array_list">
+          <String text="001-TIME"/>
+          <String text="002-nPart-Spec-001     "/>
+          <String text="003-nPart-Spec-002     "/>
+          <String text="004-nPart-Spec-003     "/>
+          <String text="005-nPart-Spec-004     "/>
+          <String text="006-TempTra-001     "/>
+          <String text="007-TempTra-002     "/>
+          <String text="008-TempTra-003     "/>
+          <String text="009-TempTra-004     "/>
+          <String text="010-TempVib001     "/>
+          <String text="011-TempVib002     "/>
+          <String text="012-TempVib003     "/>
+          <String text="013-XiVibMean001     "/>
+          <String text="014-XiVibMean002     "/>
+          <String text="015-XiVibMean003     "/>
+          <String text="016-TempRot001     "/>
+          <String text="017-TempRot002     "/>
+          <String text="018-TempRot003     "/>
+          <String text="019-TempTotal001     "/>
+          <String text="020-TempTotal002     "/>
+          <String text="021-TempTotal003     "/>
+          <String text="022-TempTotal004     "/>
+          <String text="023-Pmean     "/>
+          <String text="024-Pmax     "/>
+          <String text="025-MeanFreePath      "/>
+        </Domain>
+      </Property>
+    </Proxy>
+    <Proxy group="sources" type="CSVReader" id="3951" servers="1">
+      <Property name="FileName" id="3951.FileName" number_of_elements="1">
+        <Element index="0" value="/home/nizenkov/Workspace/piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_diss_CH4/PartAnalyze.csv"/>
+        <Domain name="files" id="3951.FileName.files"/>
+      </Property>
+      <Property name="FileNameInfo" id="3951.FileNameInfo" number_of_elements="1">
+        <Element index="0" value="/home/nizenkov/Workspace/piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_diss_CH4/PartAnalyze.csv"/>
+      </Property>
+      <Property name="TimestepValues" id="3951.TimestepValues"/>
+      <Property name="DetectNumericColumns" id="3951.DetectNumericColumns" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="3951.DetectNumericColumns.bool"/>
+      </Property>
+      <Property name="FieldDelimiterCharacters" id="3951.FieldDelimiterCharacters" number_of_elements="1">
+        <Element index="0" value=","/>
+      </Property>
+      <Property name="HaveHeaders" id="3951.HaveHeaders" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="3951.HaveHeaders.bool"/>
+      </Property>
+      <Property name="MergeConsecutiveDelimiters" id="3951.MergeConsecutiveDelimiters" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="3951.MergeConsecutiveDelimiters.bool"/>
+      </Property>
+      <Property name="UseStringDelimiter" id="3951.UseStringDelimiter" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="3951.UseStringDelimiter.bool"/>
+      </Property>
+    </Proxy>
+    <Proxy group="misc" type="TimeKeeper" id="259" servers="16">
+      <Property name="SuppressedTimeSources" id="259.SuppressedTimeSources"/>
+      <Property name="Time" id="259.Time" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="range" id="259.Time.range"/>
+      </Property>
+      <Property name="TimeLabel" id="259.TimeLabel" number_of_elements="1">
+        <Element index="0" value="Time"/>
+      </Property>
+      <Property name="TimeRange" id="259.TimeRange" number_of_elements="2">
+        <Element index="0" value="0"/>
+        <Element index="1" value="1"/>
+      </Property>
+      <Property name="TimeSources" id="259.TimeSources" number_of_elements="1">
+        <Proxy value="3951"/>
+      </Property>
+      <Property name="TimestepValues" id="259.TimestepValues"/>
+      <Property name="Views" id="259.Views" number_of_elements="2">
+        <Proxy value="4082"/>
+        <Proxy value="4149"/>
+      </Property>
+    </Proxy>
+    <Proxy group="views" type="XYChartView" id="4082" servers="21">
+      <Property name="BottomAxisColor" id="4082.BottomAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.BottomAxisColor.range"/>
+      </Property>
+      <Property name="BottomAxisGridColor" id="4082.BottomAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4082.BottomAxisGridColor.range"/>
+      </Property>
+      <Property name="BottomAxisLabelBold" id="4082.BottomAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.BottomAxisLabelBold.bool"/>
+      </Property>
+      <Property name="BottomAxisLabelColor" id="4082.BottomAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.BottomAxisLabelColor.range"/>
+      </Property>
+      <Property name="BottomAxisLabelFontFamily" id="4082.BottomAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.BottomAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisLabelFontSize" id="4082.BottomAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="BottomAxisLabelItalic" id="4082.BottomAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.BottomAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="BottomAxisLabelNotation" id="4082.BottomAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4082.BottomAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisLabelPrecision" id="4082.BottomAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4082.BottomAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="BottomAxisLabels" id="4082.BottomAxisLabels">
+        <Domain name="scalar_range" id="4082.BottomAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="BottomAxisLogScale" id="4082.BottomAxisLogScale" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.BottomAxisLogScale.bool"/>
+      </Property>
+      <Property name="BottomAxisRangeMaximum" id="4082.BottomAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="0.001"/>
+      </Property>
+      <Property name="BottomAxisRangeMinimum" id="4082.BottomAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="1e-07"/>
+      </Property>
+      <Property name="BottomAxisTitle" id="4082.BottomAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="BottomAxisTitleBold" id="4082.BottomAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.BottomAxisTitleBold.bool"/>
+      </Property>
+      <Property name="BottomAxisTitleColor" id="4082.BottomAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.BottomAxisTitleColor.range"/>
+      </Property>
+      <Property name="BottomAxisTitleFontFamily" id="4082.BottomAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.BottomAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisTitleFontSize" id="4082.BottomAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="BottomAxisTitleItalic" id="4082.BottomAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.BottomAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="BottomAxisUseCustomLabels" id="4082.BottomAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.BottomAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="BottomAxisUseCustomRange" id="4082.BottomAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.BottomAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="CacheKey" id="4082.CacheKey" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="range" id="4082.CacheKey.range"/>
+      </Property>
+      <Property name="ChartTitle" id="4082.ChartTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="ChartTitleAlignment" id="4082.ChartTitleAlignment" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4082.ChartTitleAlignment.enum">
+          <Entry value="0" text="Left"/>
+          <Entry value="1" text="Center"/>
+          <Entry value="2" text="Right"/>
+        </Domain>
+      </Property>
+      <Property name="ChartTitleBold" id="4082.ChartTitleBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.ChartTitleBold.bool"/>
+      </Property>
+      <Property name="ChartTitleColor" id="4082.ChartTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.ChartTitleColor.range"/>
+      </Property>
+      <Property name="ChartTitleFontFamily" id="4082.ChartTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.ChartTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="ChartTitleFontSize" id="4082.ChartTitleFontSize" number_of_elements="1">
+        <Element index="0" value="14"/>
+      </Property>
+      <Property name="ChartTitleItalic" id="4082.ChartTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.ChartTitleItalic.bool"/>
+      </Property>
+      <Property name="HideTimeMarker" id="4082.HideTimeMarker" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.HideTimeMarker.bool"/>
+      </Property>
+      <Property name="LeftAxisColor" id="4082.LeftAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.LeftAxisColor.range"/>
+      </Property>
+      <Property name="LeftAxisGridColor" id="4082.LeftAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4082.LeftAxisGridColor.range"/>
+      </Property>
+      <Property name="LeftAxisLabelBold" id="4082.LeftAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisLabelBold.bool"/>
+      </Property>
+      <Property name="LeftAxisLabelColor" id="4082.LeftAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.LeftAxisLabelColor.range"/>
+      </Property>
+      <Property name="LeftAxisLabelFontFamily" id="4082.LeftAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.LeftAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisLabelFontSize" id="4082.LeftAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LeftAxisLabelItalic" id="4082.LeftAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="LeftAxisLabelNotation" id="4082.LeftAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4082.LeftAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisLabelPrecision" id="4082.LeftAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4082.LeftAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="LeftAxisLabels" id="4082.LeftAxisLabels">
+        <Domain name="scalar_range" id="4082.LeftAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="LeftAxisLogScale" id="4082.LeftAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisLogScale.bool"/>
+      </Property>
+      <Property name="LeftAxisRangeMaximum" id="4082.LeftAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="10000"/>
+      </Property>
+      <Property name="LeftAxisRangeMinimum" id="4082.LeftAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="LeftAxisTitle" id="4082.LeftAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="LeftAxisTitleBold" id="4082.LeftAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.LeftAxisTitleBold.bool"/>
+      </Property>
+      <Property name="LeftAxisTitleColor" id="4082.LeftAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.LeftAxisTitleColor.range"/>
+      </Property>
+      <Property name="LeftAxisTitleFontFamily" id="4082.LeftAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.LeftAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisTitleFontSize" id="4082.LeftAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LeftAxisTitleItalic" id="4082.LeftAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="LeftAxisUseCustomLabels" id="4082.LeftAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="LeftAxisUseCustomRange" id="4082.LeftAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LeftAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="LegendBold" id="4082.LegendBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LegendBold.bool"/>
+      </Property>
+      <Property name="LegendFontFamily" id="4082.LegendFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.LegendFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LegendFontSize" id="4082.LegendFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LegendItalic" id="4082.LegendItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.LegendItalic.bool"/>
+      </Property>
+      <Property name="LegendLocation" id="4082.LegendLocation" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4082.LegendLocation.enum">
+          <Entry value="0" text="TopLeft"/>
+          <Entry value="1" text="TopRight"/>
+          <Entry value="2" text="BottomRight"/>
+          <Entry value="3" text="BottomLeft"/>
+          <Entry value="4" text="Left"/>
+          <Entry value="5" text="Top"/>
+          <Entry value="6" text="Right"/>
+          <Entry value="7" text="Bottom"/>
+          <Entry value="8" text="Custom"/>
+        </Domain>
+      </Property>
+      <Property name="LegendPosition" id="4082.LegendPosition" number_of_elements="2">
+        <Element index="0" value="587"/>
+        <Element index="1" value="718"/>
+      </Property>
+      <Property name="Representations" id="4082.Representations" number_of_elements="1">
+        <Proxy value="4116"/>
+      </Property>
+      <Property name="RightAxisColor" id="4082.RightAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.RightAxisColor.range"/>
+      </Property>
+      <Property name="RightAxisGridColor" id="4082.RightAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4082.RightAxisGridColor.range"/>
+      </Property>
+      <Property name="RightAxisLabelBold" id="4082.RightAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisLabelBold.bool"/>
+      </Property>
+      <Property name="RightAxisLabelColor" id="4082.RightAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.RightAxisLabelColor.range"/>
+      </Property>
+      <Property name="RightAxisLabelFontFamily" id="4082.RightAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.RightAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisLabelFontSize" id="4082.RightAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="RightAxisLabelItalic" id="4082.RightAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="RightAxisLabelNotation" id="4082.RightAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4082.RightAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisLabelPrecision" id="4082.RightAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4082.RightAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="RightAxisLabels" id="4082.RightAxisLabels">
+        <Domain name="scalar_range" id="4082.RightAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="RightAxisLogScale" id="4082.RightAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisLogScale.bool"/>
+      </Property>
+      <Property name="RightAxisRangeMaximum" id="4082.RightAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="RightAxisRangeMinimum" id="4082.RightAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="RightAxisTitle" id="4082.RightAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="RightAxisTitleBold" id="4082.RightAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.RightAxisTitleBold.bool"/>
+      </Property>
+      <Property name="RightAxisTitleColor" id="4082.RightAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.RightAxisTitleColor.range"/>
+      </Property>
+      <Property name="RightAxisTitleFontFamily" id="4082.RightAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.RightAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisTitleFontSize" id="4082.RightAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="RightAxisTitleItalic" id="4082.RightAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="RightAxisUseCustomLabels" id="4082.RightAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="RightAxisUseCustomRange" id="4082.RightAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.RightAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="ShowBottomAxisGrid" id="4082.ShowBottomAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowBottomAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowBottomAxisLabels" id="4082.ShowBottomAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowBottomAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowLeftAxisGrid" id="4082.ShowLeftAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowLeftAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowLeftAxisLabels" id="4082.ShowLeftAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowLeftAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowLegend" id="4082.ShowLegend" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowLegend.bool"/>
+      </Property>
+      <Property name="ShowRightAxisGrid" id="4082.ShowRightAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowRightAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowRightAxisLabels" id="4082.ShowRightAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowRightAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowTopAxisGrid" id="4082.ShowTopAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowTopAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowTopAxisLabels" id="4082.ShowTopAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.ShowTopAxisLabels.bool"/>
+      </Property>
+      <Property name="TooltipNotation" id="4082.TooltipNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4082.TooltipNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="TooltipPrecision" id="4082.TooltipPrecision" number_of_elements="1">
+        <Element index="0" value="6"/>
+        <Domain name="range" id="4082.TooltipPrecision.range"/>
+      </Property>
+      <Property name="TopAxisColor" id="4082.TopAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.TopAxisColor.range"/>
+      </Property>
+      <Property name="TopAxisGridColor" id="4082.TopAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4082.TopAxisGridColor.range"/>
+      </Property>
+      <Property name="TopAxisLabelBold" id="4082.TopAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisLabelBold.bool"/>
+      </Property>
+      <Property name="TopAxisLabelColor" id="4082.TopAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.TopAxisLabelColor.range"/>
+      </Property>
+      <Property name="TopAxisLabelFontFamily" id="4082.TopAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.TopAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisLabelFontSize" id="4082.TopAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="TopAxisLabelItalic" id="4082.TopAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="TopAxisLabelNotation" id="4082.TopAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4082.TopAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisLabelPrecision" id="4082.TopAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4082.TopAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="TopAxisLabels" id="4082.TopAxisLabels">
+        <Domain name="scalar_range" id="4082.TopAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="TopAxisLogScale" id="4082.TopAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisLogScale.bool"/>
+      </Property>
+      <Property name="TopAxisRangeMaximum" id="4082.TopAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="TopAxisRangeMinimum" id="4082.TopAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="TopAxisTitle" id="4082.TopAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="TopAxisTitleBold" id="4082.TopAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4082.TopAxisTitleBold.bool"/>
+      </Property>
+      <Property name="TopAxisTitleColor" id="4082.TopAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4082.TopAxisTitleColor.range"/>
+      </Property>
+      <Property name="TopAxisTitleFontFamily" id="4082.TopAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4082.TopAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisTitleFontSize" id="4082.TopAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="TopAxisTitleItalic" id="4082.TopAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="TopAxisUseCustomLabels" id="4082.TopAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="TopAxisUseCustomRange" id="4082.TopAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.TopAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="UseCache" id="4082.UseCache" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.UseCache.bool"/>
+      </Property>
+      <Property name="UseOffscreenRendering" id="4082.UseOffscreenRendering" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.UseOffscreenRendering.bool"/>
+      </Property>
+      <Property name="UseOffscreenRenderingForScreenshots" id="4082.UseOffscreenRenderingForScreenshots" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4082.UseOffscreenRenderingForScreenshots.bool"/>
+      </Property>
+      <Property name="ViewSize" id="4082.ViewSize" number_of_elements="2">
+        <Element index="0" value="770"/>
+        <Element index="1" value="777"/>
+      </Property>
+      <Property name="ViewTime" id="4082.ViewTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="range" id="4082.ViewTime.range"/>
+      </Property>
+    </Proxy>
+    <Proxy group="views" type="XYChartView" id="4149" servers="21">
+      <Property name="BottomAxisColor" id="4149.BottomAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.BottomAxisColor.range"/>
+      </Property>
+      <Property name="BottomAxisGridColor" id="4149.BottomAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4149.BottomAxisGridColor.range"/>
+      </Property>
+      <Property name="BottomAxisLabelBold" id="4149.BottomAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.BottomAxisLabelBold.bool"/>
+      </Property>
+      <Property name="BottomAxisLabelColor" id="4149.BottomAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.BottomAxisLabelColor.range"/>
+      </Property>
+      <Property name="BottomAxisLabelFontFamily" id="4149.BottomAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.BottomAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisLabelFontSize" id="4149.BottomAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="BottomAxisLabelItalic" id="4149.BottomAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.BottomAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="BottomAxisLabelNotation" id="4149.BottomAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4149.BottomAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisLabelPrecision" id="4149.BottomAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4149.BottomAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="BottomAxisLabels" id="4149.BottomAxisLabels">
+        <Domain name="scalar_range" id="4149.BottomAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="BottomAxisLogScale" id="4149.BottomAxisLogScale" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.BottomAxisLogScale.bool"/>
+      </Property>
+      <Property name="BottomAxisRangeMaximum" id="4149.BottomAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="0.001"/>
+      </Property>
+      <Property name="BottomAxisRangeMinimum" id="4149.BottomAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="1e-07"/>
+      </Property>
+      <Property name="BottomAxisTitle" id="4149.BottomAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="BottomAxisTitleBold" id="4149.BottomAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.BottomAxisTitleBold.bool"/>
+      </Property>
+      <Property name="BottomAxisTitleColor" id="4149.BottomAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.BottomAxisTitleColor.range"/>
+      </Property>
+      <Property name="BottomAxisTitleFontFamily" id="4149.BottomAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.BottomAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="BottomAxisTitleFontSize" id="4149.BottomAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="BottomAxisTitleItalic" id="4149.BottomAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.BottomAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="BottomAxisUseCustomLabels" id="4149.BottomAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.BottomAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="BottomAxisUseCustomRange" id="4149.BottomAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.BottomAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="CacheKey" id="4149.CacheKey" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="range" id="4149.CacheKey.range"/>
+      </Property>
+      <Property name="ChartTitle" id="4149.ChartTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="ChartTitleAlignment" id="4149.ChartTitleAlignment" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4149.ChartTitleAlignment.enum">
+          <Entry value="0" text="Left"/>
+          <Entry value="1" text="Center"/>
+          <Entry value="2" text="Right"/>
+        </Domain>
+      </Property>
+      <Property name="ChartTitleBold" id="4149.ChartTitleBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.ChartTitleBold.bool"/>
+      </Property>
+      <Property name="ChartTitleColor" id="4149.ChartTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.ChartTitleColor.range"/>
+      </Property>
+      <Property name="ChartTitleFontFamily" id="4149.ChartTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.ChartTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="ChartTitleFontSize" id="4149.ChartTitleFontSize" number_of_elements="1">
+        <Element index="0" value="14"/>
+      </Property>
+      <Property name="ChartTitleItalic" id="4149.ChartTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.ChartTitleItalic.bool"/>
+      </Property>
+      <Property name="HideTimeMarker" id="4149.HideTimeMarker" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.HideTimeMarker.bool"/>
+      </Property>
+      <Property name="LeftAxisColor" id="4149.LeftAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.LeftAxisColor.range"/>
+      </Property>
+      <Property name="LeftAxisGridColor" id="4149.LeftAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4149.LeftAxisGridColor.range"/>
+      </Property>
+      <Property name="LeftAxisLabelBold" id="4149.LeftAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisLabelBold.bool"/>
+      </Property>
+      <Property name="LeftAxisLabelColor" id="4149.LeftAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.LeftAxisLabelColor.range"/>
+      </Property>
+      <Property name="LeftAxisLabelFontFamily" id="4149.LeftAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.LeftAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisLabelFontSize" id="4149.LeftAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LeftAxisLabelItalic" id="4149.LeftAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="LeftAxisLabelNotation" id="4149.LeftAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4149.LeftAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisLabelPrecision" id="4149.LeftAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4149.LeftAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="LeftAxisLabels" id="4149.LeftAxisLabels">
+        <Domain name="scalar_range" id="4149.LeftAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="LeftAxisLogScale" id="4149.LeftAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisLogScale.bool"/>
+      </Property>
+      <Property name="LeftAxisRangeMaximum" id="4149.LeftAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="6200"/>
+      </Property>
+      <Property name="LeftAxisRangeMinimum" id="4149.LeftAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="2800"/>
+      </Property>
+      <Property name="LeftAxisTitle" id="4149.LeftAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="LeftAxisTitleBold" id="4149.LeftAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.LeftAxisTitleBold.bool"/>
+      </Property>
+      <Property name="LeftAxisTitleColor" id="4149.LeftAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.LeftAxisTitleColor.range"/>
+      </Property>
+      <Property name="LeftAxisTitleFontFamily" id="4149.LeftAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.LeftAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LeftAxisTitleFontSize" id="4149.LeftAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LeftAxisTitleItalic" id="4149.LeftAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="LeftAxisUseCustomLabels" id="4149.LeftAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="LeftAxisUseCustomRange" id="4149.LeftAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LeftAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="LegendBold" id="4149.LegendBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LegendBold.bool"/>
+      </Property>
+      <Property name="LegendFontFamily" id="4149.LegendFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.LegendFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="LegendFontSize" id="4149.LegendFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="LegendItalic" id="4149.LegendItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.LegendItalic.bool"/>
+      </Property>
+      <Property name="LegendLocation" id="4149.LegendLocation" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4149.LegendLocation.enum">
+          <Entry value="0" text="TopLeft"/>
+          <Entry value="1" text="TopRight"/>
+          <Entry value="2" text="BottomRight"/>
+          <Entry value="3" text="BottomLeft"/>
+          <Entry value="4" text="Left"/>
+          <Entry value="5" text="Top"/>
+          <Entry value="6" text="Right"/>
+          <Entry value="7" text="Bottom"/>
+          <Entry value="8" text="Custom"/>
+        </Domain>
+      </Property>
+      <Property name="LegendPosition" id="4149.LegendPosition" number_of_elements="2">
+        <Element index="0" value="596"/>
+        <Element index="1" value="735"/>
+      </Property>
+      <Property name="Representations" id="4149.Representations" number_of_elements="1">
+        <Proxy value="4161"/>
+      </Property>
+      <Property name="RightAxisColor" id="4149.RightAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.RightAxisColor.range"/>
+      </Property>
+      <Property name="RightAxisGridColor" id="4149.RightAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4149.RightAxisGridColor.range"/>
+      </Property>
+      <Property name="RightAxisLabelBold" id="4149.RightAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisLabelBold.bool"/>
+      </Property>
+      <Property name="RightAxisLabelColor" id="4149.RightAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.RightAxisLabelColor.range"/>
+      </Property>
+      <Property name="RightAxisLabelFontFamily" id="4149.RightAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.RightAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisLabelFontSize" id="4149.RightAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="RightAxisLabelItalic" id="4149.RightAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="RightAxisLabelNotation" id="4149.RightAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4149.RightAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisLabelPrecision" id="4149.RightAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4149.RightAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="RightAxisLabels" id="4149.RightAxisLabels">
+        <Domain name="scalar_range" id="4149.RightAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="RightAxisLogScale" id="4149.RightAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisLogScale.bool"/>
+      </Property>
+      <Property name="RightAxisRangeMaximum" id="4149.RightAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="RightAxisRangeMinimum" id="4149.RightAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="RightAxisTitle" id="4149.RightAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="RightAxisTitleBold" id="4149.RightAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.RightAxisTitleBold.bool"/>
+      </Property>
+      <Property name="RightAxisTitleColor" id="4149.RightAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.RightAxisTitleColor.range"/>
+      </Property>
+      <Property name="RightAxisTitleFontFamily" id="4149.RightAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.RightAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="RightAxisTitleFontSize" id="4149.RightAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="RightAxisTitleItalic" id="4149.RightAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="RightAxisUseCustomLabels" id="4149.RightAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="RightAxisUseCustomRange" id="4149.RightAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.RightAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="ShowBottomAxisGrid" id="4149.ShowBottomAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowBottomAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowBottomAxisLabels" id="4149.ShowBottomAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowBottomAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowLeftAxisGrid" id="4149.ShowLeftAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowLeftAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowLeftAxisLabels" id="4149.ShowLeftAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowLeftAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowLegend" id="4149.ShowLegend" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowLegend.bool"/>
+      </Property>
+      <Property name="ShowRightAxisGrid" id="4149.ShowRightAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowRightAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowRightAxisLabels" id="4149.ShowRightAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowRightAxisLabels.bool"/>
+      </Property>
+      <Property name="ShowTopAxisGrid" id="4149.ShowTopAxisGrid" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowTopAxisGrid.bool"/>
+      </Property>
+      <Property name="ShowTopAxisLabels" id="4149.ShowTopAxisLabels" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.ShowTopAxisLabels.bool"/>
+      </Property>
+      <Property name="TooltipNotation" id="4149.TooltipNotation" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="enum" id="4149.TooltipNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="TooltipPrecision" id="4149.TooltipPrecision" number_of_elements="1">
+        <Element index="0" value="6"/>
+        <Domain name="range" id="4149.TooltipPrecision.range"/>
+      </Property>
+      <Property name="TopAxisColor" id="4149.TopAxisColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.TopAxisColor.range"/>
+      </Property>
+      <Property name="TopAxisGridColor" id="4149.TopAxisGridColor" number_of_elements="3">
+        <Element index="0" value="0.95"/>
+        <Element index="1" value="0.95"/>
+        <Element index="2" value="0.95"/>
+        <Domain name="range" id="4149.TopAxisGridColor.range"/>
+      </Property>
+      <Property name="TopAxisLabelBold" id="4149.TopAxisLabelBold" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisLabelBold.bool"/>
+      </Property>
+      <Property name="TopAxisLabelColor" id="4149.TopAxisLabelColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.TopAxisLabelColor.range"/>
+      </Property>
+      <Property name="TopAxisLabelFontFamily" id="4149.TopAxisLabelFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.TopAxisLabelFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisLabelFontSize" id="4149.TopAxisLabelFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="TopAxisLabelItalic" id="4149.TopAxisLabelItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisLabelItalic.bool"/>
+      </Property>
+      <Property name="TopAxisLabelNotation" id="4149.TopAxisLabelNotation" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="enum" id="4149.TopAxisLabelNotation.enum">
+          <Entry value="0" text="Mixed"/>
+          <Entry value="1" text="Scientific"/>
+          <Entry value="2" text="Fixed"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisLabelPrecision" id="4149.TopAxisLabelPrecision" number_of_elements="1">
+        <Element index="0" value="2"/>
+        <Domain name="range" id="4149.TopAxisLabelPrecision.range"/>
+      </Property>
+      <Property name="TopAxisLabels" id="4149.TopAxisLabels">
+        <Domain name="scalar_range" id="4149.TopAxisLabels.scalar_range"/>
+      </Property>
+      <Property name="TopAxisLogScale" id="4149.TopAxisLogScale" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisLogScale.bool"/>
+      </Property>
+      <Property name="TopAxisRangeMaximum" id="4149.TopAxisRangeMaximum" number_of_elements="1">
+        <Element index="0" value="1"/>
+      </Property>
+      <Property name="TopAxisRangeMinimum" id="4149.TopAxisRangeMinimum" number_of_elements="1">
+        <Element index="0" value="0"/>
+      </Property>
+      <Property name="TopAxisTitle" id="4149.TopAxisTitle" number_of_elements="1">
+        <Element index="0" value=""/>
+      </Property>
+      <Property name="TopAxisTitleBold" id="4149.TopAxisTitleBold" number_of_elements="1">
+        <Element index="0" value="1"/>
+        <Domain name="bool" id="4149.TopAxisTitleBold.bool"/>
+      </Property>
+      <Property name="TopAxisTitleColor" id="4149.TopAxisTitleColor" number_of_elements="3">
+        <Element index="0" value="0"/>
+        <Element index="1" value="0"/>
+        <Element index="2" value="0"/>
+        <Domain name="range" id="4149.TopAxisTitleColor.range"/>
+      </Property>
+      <Property name="TopAxisTitleFontFamily" id="4149.TopAxisTitleFontFamily" number_of_elements="1">
+        <Element index="0" value="Arial"/>
+        <Domain name="list" id="4149.TopAxisTitleFontFamily.list">
+          <String text="Arial"/>
+          <String text="Courier"/>
+          <String text="Times"/>
+        </Domain>
+      </Property>
+      <Property name="TopAxisTitleFontSize" id="4149.TopAxisTitleFontSize" number_of_elements="1">
+        <Element index="0" value="12"/>
+      </Property>
+      <Property name="TopAxisTitleItalic" id="4149.TopAxisTitleItalic" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisTitleItalic.bool"/>
+      </Property>
+      <Property name="TopAxisUseCustomLabels" id="4149.TopAxisUseCustomLabels" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisUseCustomLabels.bool"/>
+      </Property>
+      <Property name="TopAxisUseCustomRange" id="4149.TopAxisUseCustomRange" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.TopAxisUseCustomRange.bool"/>
+      </Property>
+      <Property name="UseCache" id="4149.UseCache" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.UseCache.bool"/>
+      </Property>
+      <Property name="UseOffscreenRendering" id="4149.UseOffscreenRendering" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.UseOffscreenRendering.bool"/>
+      </Property>
+      <Property name="UseOffscreenRenderingForScreenshots" id="4149.UseOffscreenRenderingForScreenshots" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="bool" id="4149.UseOffscreenRenderingForScreenshots.bool"/>
+      </Property>
+      <Property name="ViewSize" id="4149.ViewSize" number_of_elements="2">
+        <Element index="0" value="770"/>
+        <Element index="1" value="777"/>
+      </Property>
+      <Property name="ViewTime" id="4149.ViewTime" number_of_elements="1">
+        <Element index="0" value="0"/>
+        <Domain name="range" id="4149.ViewTime.range"/>
+      </Property>
+    </Proxy>
+    <ProxyCollection name="animation">
+      <Item id="263" name="AnimationScene1"/>
+      <Item id="265" name="TimeAnimationCue1"/>
+    </ProxyCollection>
+    <ProxyCollection name="layouts">
+      <Item id="1983" name="Layout #1"/>
+    </ProxyCollection>
+    <ProxyCollection name="pq_helper_proxies.3951">
+      <Item id="3963" name="RepresentationAnimationHelper"/>
+    </ProxyCollection>
+    <ProxyCollection name="representations">
+      <Item id="4116" name="XYChartRepresentation1"/>
+      <Item id="4161" name="XYChartRepresentation2"/>
+    </ProxyCollection>
+    <ProxyCollection name="sources">
+      <Item id="3951" name="PartAnalyze.csv"/>
+    </ProxyCollection>
+    <ProxyCollection name="timekeeper">
+      <Item id="259" name="TimeKeeper1"/>
+    </ProxyCollection>
+    <ProxyCollection name="views">
+      <Item id="4082" name="LineChartView1"/>
+      <Item id="4149" name="LineChartView2"/>
+    </ProxyCollection>
+    <CustomProxyDefinitions/>
+    <Links>
+      <GlobalPropertyLink global_name="SelectionColor" proxy="4116" property="Color"/>
+      <GlobalPropertyLink global_name="SelectionColor" proxy="4161" property="Color"/>
+    </Links>
+  </ServerManagerState>
+  <InteractiveViewLinks/>
+</ParaView>

@@ -36,14 +36,6 @@ INTERFACE FinalizeAnalyze
   MODULE PROCEDURE FinalizeAnalyze
 END INTERFACE
 
-INTERFACE CalcError
-  MODULE PROCEDURE CalcError
-END INTERFACE
-
-INTERFACE AnalyzeToFile
-  MODULE PROCEDURE AnalyzeToFile
-END INTERFACE
-
 INTERFACE PerformAnalyze
   MODULE PROCEDURE PerformAnalyze
 END INTERFACE
@@ -57,9 +49,9 @@ INTERFACE CalcErrorStateFileSigma
 END INTERFACE
 
 !===================================================================================================================================
+PUBLIC:: DefineParametersAnalyze
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze, CalcErrorStateFiles, CalcErrorStateFileSigma
 !===================================================================================================================================
-PUBLIC::DefineParametersAnalyze
 
 CONTAINS
 
@@ -339,6 +331,84 @@ L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
 END SUBROUTINE CalcError
 
 
+#ifdef PARTICLES
+SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+!===================================================================================================================================
+! Calculates the L2 (particle) source error by integrating the difference between the numerical and analytical solution
+! over all elements.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars          ,ONLY: sJ
+USE MOD_Analyze_Vars       ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)               :: time
+INTEGER,INTENT(IN)            :: PartSource_nVar
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)              :: L_2_PartSource(PartSource_nVar)   !< L2 error of the source
+REAL,INTENT(OUT)              :: L_Inf_PartSource(PartSource_nVar) !< LInf error of the source
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                       :: iElem,k,l,m
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: IntegrationWeight
+
+REAL                          :: PartSource_NAnalyze1(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: PartSource_NAnalyze2(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+!===================================================================================================================================
+
+! nullify
+L_Inf_PartSource(:)=-1.E10
+L_2_PartSource(:)=0.
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,PP_nElems
+  ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+      ,PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
+      ,PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
+  PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem)=PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem)
+  DO m=0,NAnalyze
+    DO l=0,NAnalyze
+      DO k=0,NAnalyze
+        IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+        L_Inf_PartSource = MAX(L_Inf_PartSource,abs(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)))
+        L_2_PartSource = L_2_PartSource+(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m)) &
+            *(PartSource_NAnalyze1(:,k,l,m) - PartSource_NAnalyze2(:,k,l,m))*IntegrationWeight
+      END DO ! k
+    END DO ! l
+  END DO ! m
+END DO ! iElem=1,PP_nElems
+#ifdef MPI
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE     , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE     , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+ELSE
+  CALL MPI_REDUCE(L_2_PartSource   , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(L_Inf_PartSource , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  ! in this case the receive value is not relevant. 
+END IF
+#endif /*MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_PartSource = SQRT(L_2_PartSource/GEO%MeshVolume)
+
+END SUBROUTINE CalcErrorPartSource
+#endif /*PARTICLES*/
+
+
 SUBROUTINE CalcErrorStateFiles(nVar,N1,N2,U1,U2)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
@@ -352,9 +422,6 @@ USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
 USE MOD_Basis         ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
 INTEGER,INTENT(IN)           :: nVar
 INTEGER,INTENT(IN)           :: N1
 INTEGER,INTENT(IN)           :: N2
@@ -368,10 +435,9 @@ REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze2(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U2_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
@@ -462,10 +528,8 @@ SUBROUTINE CalcErrorStateFileSigma(nVar,N1,U1)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: Elem_xGP,sJ
-USE MOD_Equation_Vars ,ONLY: IniExactFunc
-USE MOD_Analyze_Vars  ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_DG_Vars       ,ONLY: U
+USE MOD_Mesh_Vars     ,ONLY: sJ
+USE MOD_Analyze_Vars  ,ONLY: NAnalyze,wAnalyze
 USE MOD_Equation      ,ONLY: ExactFunc
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_ChangeBasis   ,ONLY: ChangeBasis3D
@@ -484,9 +548,8 @@ REAL                          :: L_2_Error(nVar)   !< L2 error of the solution
 ! LOCAL VARIABLES 
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze1(:,:)    ! for interpolation to Analyze points
 INTEGER                       :: iElem,k,l,m
-REAL                          :: L_Inf_Error(nVar),U_exact(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
+REAL                          :: L_Inf_Error(nVar),L_2_Error2(nVar),L_Inf_Error2(nVar)
 REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
@@ -570,7 +633,6 @@ SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars
 USE MOD_TimeDisc_Vars ,ONLY:iter
 USE MOD_Globals_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
@@ -658,10 +720,10 @@ SUBROUTINE FinalizeAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars
-USE MOD_AnalyzeField,     ONLY:FinalizePoyntingInt
-USE MOD_TimeAverage_Vars, ONLY:doCalcTimeAverage
-USE MOD_TimeAverage,      ONLY:FinalizeTimeAverage
+USE MOD_Analyze_Vars,     ONLY: Vdm_GaussN_NAnalyze,wAnalyze,CalcPoyntingInt,PPWCell,AnalyzeInitIsDone
+USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
+USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -706,7 +768,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: CalcPoyntingInt,DoFieldAnalyze,DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
+USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
 USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
@@ -716,7 +778,6 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
@@ -728,6 +789,8 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_HOSolution
 USE MOD_Particle_Tracking_vars ,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_LD_Analyze             ,ONLY: LD_data_sampling, LD_output_calc
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
+USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 #if !defined(LSERK)
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
@@ -747,6 +810,7 @@ USE MOD_Particle_Vars          ,ONLY: DelayTime
 USE MOD_AnalyzeField           ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) ||  defined(IMPA) || defined(ROS)
+USE MOD_Analyze_Vars           ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS)*/
 #ifdef CODE_ANALYZE
@@ -757,6 +821,9 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition, RelaxDeposition
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -789,15 +856,28 @@ REAL                          :: PartStateAnalytic(1:6)        !< analytic posit
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
+#if defined(LSERK) || defined(IMPA) || defined(ROS)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#endif /* LSERK && IMPA && ROS */
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
 LOGICAL                       :: DoPerformPartAnalyze
 LOGICAL                       :: DoPerformSurfaceAnalyze
 LOGICAL                       :: DoPerformErrorCalc
+#ifdef PARTICLES
+#if (defined (PP_HDG) && (PP_nVar==1))
+INTEGER                       :: PartSource_nVar=1
+REAL                          :: L_2_PartSource(1:1)
+REAL                          :: L_Inf_PartSource(1:1)
+#else
+INTEGER                       :: PartSource_nVar=4
+REAL                          :: L_2_PartSource(1:4)
+REAL                          :: L_Inf_PartSource(1:4)
+#endif
+#endif /* PARTICLES */
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
@@ -897,6 +977,11 @@ IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
+#ifdef PARTICLES
+    IF (DoDeposition .AND. RelaxDeposition) THEN
+      CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+    END IF
+#endif /*PARTICLES*/
   END IF
 END IF
 
@@ -991,6 +1076,8 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     DSMC_HOSolution = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
+      IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
+      IF(FPInitDone) FP_QualityFacSamp(:,:) = 0.
     END IF
   END IF
 END IF
@@ -1145,10 +1232,20 @@ IF(DoPerformErrorCalc)THEN
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
     END IF
   END IF
+#ifdef PARTICLES
+  IF (DoDeposition .AND. RelaxDeposition) THEN
+    ! Graphical output
+    IF(MPIroot) THEN
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PartSource_nVar,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2_PartSource  : ',L_2_PartSource
+      WRITE(UNIT_StdOut,formatStr)' L_inf_PartSource: ',L_Inf_PartSource
+    END IF
+  END IF
+#endif /* PARTICLES */
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I5,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
     AnalyzeCount = 0
     AnalyzeTime  = 0.0
     IF (OutputTime.GT.0.) THEN
@@ -1214,7 +1311,7 @@ IF (DoPartAnalyze) THEN
         !CALL FLUSH (unit_index)
         !--- insert header
       
-        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-nBBChecks     '
           OutputCounter = OutputCounter + 1
