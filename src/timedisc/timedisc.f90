@@ -4512,7 +4512,7 @@ USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
 USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars,   ONLY: CalcCouplPower,PCoupl
+USE MOD_Particle_Analyze_Vars,   ONLY: CalcCouplPower,PCoupl, PCouplAverage
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4630,8 +4630,9 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
 
-  IF (CalcCouplPower) THEN  ! if output of coupled power is active
-    PCoupl = 0.             ! PCoupl is rested
+  IF (CalcCouplPower) THEN                ! if output of coupled power is active
+    PCoupl = 0.                           ! PCoupl is reseted
+    PCouplAverage = PCouplAverage * Time  ! PCoupl is rested
   END IF
 
   DO iPart=1,PDM%ParticleVecLength
@@ -4713,6 +4714,7 @@ IF (time.GE.DelayTime) THEN
                  + PartState(iPart,5) * PartState(iPart,5) &
                  + PartState(iPart,6) * PartState(iPart,6) )
         PCoupl = PCoupl + ABS(EDiff)
+        PCouplAverage = PCouplAverage + ABS(EDiff)
       END IF
     END IF
   END DO
@@ -4868,7 +4870,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCouplPower,PCoupl
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCouplPower,PCoupl,PCouplAverage
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -5008,8 +5010,9 @@ IF (time.GE.DelayTime) THEN
   IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
 
-  IF (CalcCouplPower) THEN  ! if output of coupled power is active
-    PCoupl = 0.             ! PCoupl is rested
+  IF (CalcCouplPower) THEN                ! if output of coupled power is active
+    PCoupl = 0.                           ! PCoupl is reseted
+    PCouplAverage = PCouplAverage * Time  ! PCouplAverage is reseted
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
@@ -5089,6 +5092,7 @@ __STAMP__&
                  + PartState(iPart,5) * PartState(iPart,5) &
                  + PartState(iPart,6) * PartState(iPart,6) )
         PCoupl = PCoupl + ABS(EDiff)
+        PCouplAverage = PCouplAverage + ABS(EDiff)
       END IF
     END IF
   END DO
@@ -5271,6 +5275,7 @@ DO iStage=2,nRKStages
                    + PartState(iPart,5) * PartState(iPart,5) &
                    + PartState(iPart,6) * PartState(iPart,6) )
           PCoupl = PCoupl + ABS(EDiff)
+          PCouplAverage = PCouplAverage + ABS(EDiff)
         END IF
       END IF
     END DO
