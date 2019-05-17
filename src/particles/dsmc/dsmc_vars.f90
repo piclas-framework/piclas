@@ -70,7 +70,7 @@ TYPE tRadialWeighting
   LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
   INTEGER                     :: CloneMode                      ! 1 = Clone Delay
                                                                  ! 2 = Clone Random Delay
-  INTEGER, ALLOCATABLE       :: ClonePartNum(:)
+  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
 END TYPE tRadialWeighting

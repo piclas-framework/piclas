@@ -1123,7 +1123,7 @@ __STAMP__&
 
   CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
   IF (CollInf%ProhibitDoubleColl) THEN
-    ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+    IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
     CollInf%OldCollPartner = 0
   END IF
 
@@ -1559,6 +1559,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
@@ -1567,6 +1568,9 @@ SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(ElemNodeVol)
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(ClonedParticles)
+SDEALLOCATE(SymmetrySide)
 END SUBROUTINE FinalizeDSMC
 
 

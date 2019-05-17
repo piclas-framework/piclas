@@ -34,7 +34,9 @@ CONTAINS
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
-! 
+! Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+! revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
+! shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
