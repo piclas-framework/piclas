@@ -638,11 +638,11 @@ USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars           ,ONLY:VarTimeStep
+USE MOD_Particle_Vars,          ONLY:VarTimeStep, Symmetry2D
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_DSMC_Vars               ,ONLY:DSMC, RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY:CalcRadWeightMPF
+USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
+USE MOD_DSMC_Symmetry2D,        ONLY:CalcRadWeightMPF
 USE MOD_LD_Vars,                ONLY:useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
@@ -779,23 +779,6 @@ ELSE
   END IF
 END IF !IsAuxBC
 
-! SHOULD NOT BE NEEDED
-!#if defined(ROS)
-!IF(iStage.GT.0)THEN
-!  !IF(iStage.GT.2)THEN
-!  IF(RK_inflow(iStage).EQ.0)THEN
-!    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-!    ! hence, we perform an evil hack and beam the particle on the intersection point 
-!    ! this ensures, that the particle is located within the mesh....
-!    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
-!    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
-!    PartTrajectory          = 0.
-!    lengthPartTrajectory    = 0.
-!    RETURN
-!  END IF
-!END IF
-!#endif /*ROS*/
-
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
   SELECT CASE(PartLorentzType)
   CASE(3)
@@ -875,8 +858,10 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
                                         * (v_old(1) - PartState(PartID,4)) * MacroParticleFactor
     SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
                                         * (v_old(2) - PartState(PartID,5)) * MacroParticleFactor
-    SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                        * (v_old(3) - PartState(PartID,6)) * MacroParticleFactor
+    IF(.NOT.Symmetry2D) THEN
+      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                          * (v_old(3) - PartState(PartID,6)) * MacroParticleFactor
+    END IF
   !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
 !       IF (.NOT.CalcSurfCollis%OnlySwaps) THEN
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
@@ -1454,8 +1439,10 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Cal
       + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4) - NewVelo(1)) * MacroParticleFactor
   SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
       + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,5) - NewVelo(2)) * MacroParticleFactor
-  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,6) - NewVelo(3)) * MacroParticleFactor
+  IF(.NOT.Symmetry2D) THEN
+    SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
+        + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,6) - NewVelo(3)) * MacroParticleFactor
+  END IF
  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1

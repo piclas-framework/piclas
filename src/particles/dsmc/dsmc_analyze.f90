@@ -484,6 +484,7 @@ DO iSurfSide=1,SurfMesh%nSides
         ! No impacts on that surface -> skip the element
         CYCLE
       END IF
+      ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
       nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
