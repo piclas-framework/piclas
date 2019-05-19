@@ -638,7 +638,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species,WriteMacroSurfaceValues,PartLorentzType
-USE MOD_Particle_Vars,          ONLY:VarTimeStep, Symmetry2D
+USE MOD_Particle_Vars,          ONLY:VarTimeStep
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
@@ -852,16 +852,8 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
       MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
     END IF
   !----  Sampling Forces at walls
-!       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
-!                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
-    SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                        * (v_old(1) - PartState(PartID,4)) * MacroParticleFactor
-    SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                        * (v_old(2) - PartState(PartID,5)) * MacroParticleFactor
-    IF(.NOT.Symmetry2D) THEN
-      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                          * (v_old(3) - PartState(PartID,6)) * MacroParticleFactor
-    END IF
+    SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                        * (v_old(1:3) - PartState(PartID,4:6)) * MacroParticleFactor
   !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
 !       IF (.NOT.CalcSurfCollis%OnlySwaps) THEN
     IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
@@ -874,25 +866,12 @@ CALL Abort(&
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
         END IF
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
         !-- caution: for consistency with diffuse refl. v_old is used!
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-          = v_old(1)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-          = v_old(2)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-          = v_old(3)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-          = LastPartPos(PartID,1)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-          = LastPartPos(PartID,2)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-          = LastPartPos(PartID,3)
-        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = PartSpecies(PartID)
-        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = locBCID
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = v_old(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
       END IF
     END IF
   END IF
@@ -1435,14 +1414,8 @@ END IF
 
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
 !----  Sampling force at walls
-  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4) - NewVelo(1)) * MacroParticleFactor
-  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
-      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,5) - NewVelo(2)) * MacroParticleFactor
-  IF(.NOT.Symmetry2D) THEN
-    SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
-        + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,6) - NewVelo(3)) * MacroParticleFactor
-  END IF
+  SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4:6) - NewVelo(1:3)) * MacroParticleFactor
  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.CalcSurfCollis%OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
@@ -1501,13 +1474,14 @@ SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,A
 USE MOD_Globals,                ONLY:abort
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh,CalcSurfCollis,AnalyzeSurfCollis,PartAuxBC
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM,VarTimeStep
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues,nSpecies,CollectCharges,nCollectChargesBCs,Species
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
 USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_DSMC_Vars,              ONLY:DSMC
+USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
+USE MOD_DSMC_Symmetry2D,        ONLY:CalcRadWeightMPF
 USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
 #if defined(IMPA)
 USE MOD_Particle_Vars,          ONLY:PartIsImplicit,DoPartInNewton
@@ -1542,6 +1516,7 @@ INTEGER                           :: iCC
 REAL                              :: n_loc(1:3)
 #endif /*NOT IMPA*/
 LOGICAL                           :: IsAuxBC
+REAL                              :: MacroParticleFactor, POI_Y
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -1639,33 +1614,31 @@ CALL Abort(&
 __STAMP__&
 ,'maxSurfCollisNumber reached!')
         END IF
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
-          = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
-          = PartState(PartID,4)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
-          = PartState(PartID,5)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
-          = PartState(PartID,6)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
-          = LastPartPos(PartID,1)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
-          = LastPartPos(PartID,2)
-        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
-          = LastPartPos(PartID,3)
-        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = PartSpecies(PartID)
-        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) &
-          = locBCID
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4:6) = PartState(PartID,4:6)
+        AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7:9) = LastPartPos(PartID,1:3)
+        AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) = PartSpecies(PartID)
+        AnalyzeSurfCollis%BCid(AnalyzeSurfCollis%Number(nSpecies+1)) = locBCID
       END IF
     END IF
   END IF
   IF (targetSpecies.eq.0) THEN !delete particle -> same as PartBound%OpenBC
+    IF(RadialWeighting%DoRadialWeighting) THEN
+      POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
+      IF (VarTimeStep%UseVariableTimeStep) THEN
+        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))*VarTimeStep%ParticleTimeStep(PartID)
+      ELSE
+        MacroParticleFactor = CalcRadWeightMPF(POI_Y,PartSpecies(PartID))
+      END IF
+    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor*VarTimeStep%ParticleTimeStep(PartID)
+    ELSE
+      MacroParticleFactor = Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-          + Species(PartSpecies(PartID))%ChargeIC &
-          * Species(PartSpecies(PartID))%MacroParticleFactor
+          + Species(PartSpecies(PartID))%ChargeIC * MacroParticleFactor
         EXIT
       END IF
     END DO
@@ -1685,14 +1658,8 @@ __STAMP__&
         q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
       END IF
       !----  Sampling Forces at walls
-  !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
-  !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                            * ( PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                            * ( PartState(PartID,5)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
-                                            * ( PartState(PartID,6)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                            * PartState(PartID,4:6) * MacroParticleFactor
     END IF
     !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
     PDM%ParticleInside(PartID) = .FALSE.
@@ -1705,8 +1672,7 @@ __STAMP__&
     DO iCC=1,nCollectChargesBCs !-chargeCollect
       IF (CollectCharges(iCC)%BC .EQ. PartBound%MapToPartBC(BC(SideID))) THEN
         CollectCharges(iCC)%NumOfNewRealCharges = CollectCharges(iCC)%NumOfNewRealCharges &
-          + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) &
-          * Species(PartSpecies(PartID))%MacroParticleFactor
+          + (Species(PartSpecies(PartID))%ChargeIC-Species(targetSpecies)%ChargeIC) * MacroParticleFactor
         EXIT
       END IF
     END DO

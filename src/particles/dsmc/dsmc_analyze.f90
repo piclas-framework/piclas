@@ -390,7 +390,7 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel,VarTimeStep
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,PartSurfaceModel,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -486,6 +486,8 @@ DO iSurfSide=1,SurfMesh%nSides
       END IF
       ! Force per area in x,y,z-direction
       MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
+      ! Deleting the z-component for 2D/axisymmetric simulations
+      IF(Symmetry2D) MacroSurfaceVal(3,p,q,iSurfSide) = 0.
       nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
