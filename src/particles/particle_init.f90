@@ -982,8 +982,10 @@ CALL prms%SetSection("MacroParticle")
 
 CALL prms%CreateIntOption(      'MacroPart-nMacroParticle'  &
                                 , 'Number of macro particle, which are checked during tracing',  '0')
+CALL prms%CreateLogicalOption(  'MacroPart-AccelerationEnabled'  &
+                                , 'Enables momentum changes of macro particle',  '.FALSE.')
 CALL prms%CreateLogicalOption(  'MacroPart-FluxesEnabled'  &
-                                , 'Enables momentum, mass and energy changes of macro particle',  '.FALSE.')
+                                , 'Enables mass and energy changes of macro particle',  '.FALSE.')
 CALL prms%CreateRealArrayOption('MacroPart[$]-center'  &
                                 , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('MacroPart[$]-velocity'  &
@@ -2561,6 +2563,7 @@ __STAMP__&
   ! if implementation for triatracking intended, fix number of envelopes in halo region build (particle_mpi_halo.f90)
   UseMacroPart=.TRUE.
   MacroPartFluxesEnabled = GETLOGICAL('MacroPart-FluxesEnabled')
+  MacroPartFluxesEnabled = GETLOGICAL('MacroPart-AccelerationEnabled')
   ALLOCATE (MacroPart(1:nMacroParticle))
   DO iMP = 1,nMacroParticle
     WRITE(UNIT=hilf,FMT='(I0)') iMP
