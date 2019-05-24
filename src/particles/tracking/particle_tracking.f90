@@ -346,6 +346,10 @@ DO i = 1,PDM%ParticleVecLength
             ElemID = PartElemToElemAndSide(1  ,LocalSide,ElemID)
           END IF
         END IF
+        IF (ElemID.LT.1) THEN
+          CALL abort(&
+           __STAMP__ &
+           ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
       END IF
     END DO
 #if USE_LOADBALANCE
