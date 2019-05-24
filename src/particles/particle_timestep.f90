@@ -26,9 +26,58 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: VarTimeStep_Init, CalcVarTimeStep, VarTimeStep_CalcElemFacs, VarTimeStep_InitDistribution!, VarTimeStep_SmoothDistribution
+PUBLIC :: DefineParametersVaribleTimeStep
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particles
+!==================================================================================================================================
+SUBROUTINE DefineParametersVaribleTimeStep()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+!==================================================================================================================================
+
+CALL prms%SetSection("Variable Timestep")
+CALL prms%CreateLogicalOption('Part-VariableTimeStep', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+! Distribution
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
+                            , 'Read of maximal time factor to avoid too large time steps and problems with halo region/particle '//&
+                              'cloning')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
+                            , 'Optional: Increase number of particles by decreasing the time step',  '0')
+! Linear Scaling
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
+                            , 'TODO-DEFINE-PARAMETER')
+! 2D: Radial and axial scaling towards 
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint'  &
+                            , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront'  &
+                            , 'FRONT: Time step decreases towards the stagnation point')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack'  &
+                            , 'BACK: Time step increases away from the stagnation points')
+! 3D: Scaling along a given vector
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint'  &
+                                , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  &
+                                , 'TODO-DEFINE-PARAMETER')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction'  &
+                                , 'TODO-DEFINE-PARAMETER')
+
+END SUBROUTINE DefineParametersVaribleTimeStep
+
 
 SUBROUTINE VarTimeStep_Init()
 !===================================================================================================================================
@@ -70,12 +119,9 @@ IF(VarTimeStep%UseLinearScaling) THEN
   ELSE
     CALL abort(__STAMP__, &
       'ERROR: Variable time step with linear scaling has not been tested yet outside of 2D!')
-    VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3,'-99999. , -99999. , -99999.')
-    VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3,'-99999. , -99999. , -99999.')
-    VarTimeStep%Direction = GETREALARRAY('Part-VariableTimeStep-Direction',3,'0. , 0. , 0.')
-    IF(ALL(VarTimeStep%StartPoint.EQ.-99999.)) CALL abort(&
-      __STAMP__&
-      ,'ERROR: StartPoint must be defined for variable time step!')
+    VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
+    VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)
+    VarTimeStep%Direction = GETREALARRAY('Part-VariableTimeStep-Direction',3)
     IF(ALL(VarTimeStep%Direction.EQ.0.)) CALL abort(&
       __STAMP__&
       ,'ERROR: Direction must be defined for variable time step!')

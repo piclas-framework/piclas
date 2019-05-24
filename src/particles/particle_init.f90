@@ -993,40 +993,6 @@ CALL prms%CreateIntOption(    'Particles-DSMC-RadialWeighting-CloneMode'  &
 CALL prms%CreateIntOption(    'Particles-DSMC-RadialWeighting-CloneDelay'  &
                             , 'TODO-DEFINE-PARAMETER',  '2')
 
-CALL prms%SetSection("Variable Timestep")
-CALL prms%CreateLogicalOption('Part-VariableTimeStep', 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
-                            , 'Read of maximal time factor to avoid too large time steps and problems with halo region/particle '//&
-                              'cloning')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
-                            , 'Optional: Increase number of particles by decreasing the time step',  '0')
-                            
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront'  &
-                            , 'FRONT: Time step decreases towards the stagnation point')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack'  &
-                            , 'BACK: Time step increases away from the stagnation points')
-
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint'  &
-                                , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  &
-                                , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction'  &
-                                , 'TODO-DEFINE-PARAMETER')
-
 END SUBROUTINE DefineParametersParticles
 
 SUBROUTINE InitParticles()
@@ -3002,8 +2968,14 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
   ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
   VarTimeStep%ParticleTimeStep = 1.
   IF(VarTimeStep%UseLinearScaling) THEN
-    ! In 3D, the time step for each cell is precomputed (2D simulations: scaling in the radial direction)
-    IF(.NOT.Symmetry2D) CALL VarTimeStep_CalcElemFacs()
+    IF(Symmetry2D) THEN
+      ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
+      ALLOCATE(VarTimeStep%ElemFac(nElems))
+      VarTimeStep%ElemFac = 1.0
+    ELSE
+      ! 3D: The time step for each cell is precomputed
+      CALL VarTimeStep_CalcElemFacs()
+    END IF
   END IF
   ! IF(VarTimeStep%UseDistribution) THEN
   !   ! Apply a min-mean filter combo if the distribution was adapted

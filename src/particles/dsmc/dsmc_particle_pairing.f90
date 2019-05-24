@@ -48,7 +48,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, SpecDSMC, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues
+  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
   USE MOD_DSMC_Relaxation,        ONLY : SetMeanVibQua
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
@@ -77,6 +77,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   PairNum_Node = INT(PartNum/2)
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
+
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
@@ -158,7 +160,17 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
         END IF
       END IF
     END IF
+
     iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
+
+    IF(usevMPF) THEN
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1) &
+                                                           + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
+    ELSE IF(VarTimeStep%UseVariableTimeStep) THEN
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &
+          + VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
+    END IF
+
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
     Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &

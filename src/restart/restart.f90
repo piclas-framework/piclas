@@ -70,6 +70,11 @@ CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance', &
 CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
                                "Set the DG solution to zero (ignore the DG solution in the state file)",&
                                '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
+                              "TO-DO",&
+                              '.FALSE.')
+CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
+                              'TO-DO')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -80,7 +85,7 @@ SUBROUTINE InitRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETSTR
 #if USE_LOADBALANCE
 USE MOD_ReadInTools        ,ONLY: GETINT
 USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
@@ -121,6 +126,10 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
+
+! Macroscopic restart
+DoMacroscopicRestart = GETLOGICAL('Particles-MacroscopicRestart')
+IF(DoMacroscopicRestart) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
@@ -257,6 +266,7 @@ USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSi
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
 #endif /*PP_HDG*/
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart,MacroRestartValues
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
@@ -585,6 +595,7 @@ IF(DoRestart)THEN
   ! 2.) Read the particle solution
   ! ===========================================================================
   implemented=.FALSE.
+  IF(.NOT.DoMacroscopicRestart) THEN
   IF(useDSMC.AND.(.NOT.(useLD)))THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       PartDataSize=11
@@ -1230,6 +1241,19 @@ __STAMP__&
   ELSE
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
   END IF ! PartIntExists
+  ELSE      ! Go Fancy MacroscopicRestart
+    CALL CloseDataFile()
+    IF(CollisMode.EQ.1) THEN
+      ALLOCATE(MacroRestartValues(PP_nElems,nSpecies+1,7))
+    ELSE IF(CollisMode.GT.1)THEN
+      ALLOCATE(MacroRestartValues(PP_nElems,nSpecies+1,10))
+    END IF
+    MacroRestartValues = 0.
+    CALL MacroscopicRestart()
+    DEALLOCATE(MacroRestartValues)
+    CALL UpdateNextFreePosition()
+  END IF
+
   IF (PartSurfaceModel.GT.0) THEN
     WallmodelExists=.FALSE.
     CALL DatasetExists(File_ID,'WallModel',WallmodelExists,attrib=.TRUE.)
@@ -1578,6 +1602,56 @@ IMPLICIT NONE
   END IF
 
 END SUBROUTINE RestartClones
+
+
+SUBROUTINE MacroscopicRestart()
+!===================================================================================================================================
+! -
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_HDF5_Input,               ONLY : OpenDataFile,CloseDataFile,DatasetExists,ReadArray
+USE MOD_io_hdf5
+USE MOD_Restart_Vars,             ONLY : MacroRestartFileName, MacroRestartValues
+USE MOD_Mesh_Vars,                ONLY : offsetElem, nElems
+USE MOD_DSMC_Vars,                ONLY : CollisMode
+USE MOD_PARTICLE_Vars,            ONLY : nSpecies
+! USE MOD_part_emission,            ONLY : MacroRestart_InsertParticles
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  LOGICAL                           :: TelecExists
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,*)'Using macroscopic values from file: ',TRIM(MacroRestartFileName)
+
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! CALL ReadArray('DSMC_velx',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,1))
+! CALL ReadArray('DSMC_vely',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,2))
+! CALL ReadArray('DSMC_velz',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,3))
+! CALL ReadArray('DSMC_tempx',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,4))
+! CALL ReadArray('DSMC_tempy',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,5))
+! CALL ReadArray('DSMC_tempz',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,6))
+! CALL ReadArray('DSMC_dens',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,7))
+! IF(CollisMode.GT.1) THEN
+!   CALL ReadArray('DSMC_tvib',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,8))
+!   CALL ReadArray('DSMC_trot',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,9))
+!   CALL DatasetExists(File_ID,'DSMC_telec',TelecExists)
+!   IF(TelecExists) &
+!   CALL ReadArray('DSMC_telec',2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroRestartValues(1:nElems,1:nSpecies+1,10))
+! END IF
+
+CALL CloseDataFile()
+
+! CALL MacroRestart_InsertParticles()
+
+END SUBROUTINE MacroscopicRestart
 #endif /*PARTICLES*/
 
 

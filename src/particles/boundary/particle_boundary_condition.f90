@@ -839,6 +839,12 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
     END IF
 
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      ! Sampling of the time step at the wall to get the correct time sample duration for the force per area calculation
+      SampWall(SurfSideID)%State(12+nSpecies+1,p,q) = SampWall(SurfSideID)%State(12+nSpecies+1,p,q) &
+                                                      + VarTimeStep%ParticleTimeStep(PartID)
+    END IF
+
     IF(RadialWeighting%DoRadialWeighting) THEN
       POI_Y = LastPartPos(PartID,2) + PartTrajectory(2)*alpha
       IF (VarTimeStep%UseVariableTimeStep) THEN
@@ -1367,9 +1373,13 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
     END IF ! useDSMC
 
 
+
+! Sampling of the time step at the wall to get the correct time sample duration for the surface values
 IF (VarTimeStep%UseVariableTimeStep) THEN
   adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
-  SampWall(SurfSideID)%State(12+nSpecies+1,p,q) = SampWall(SurfSideID)%State(12+nSpecies+1,p,q) + adaptTimeStep
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(SurfSideID)%State(12+nSpecies+1,p,q) = SampWall(SurfSideID)%State(12+nSpecies+1,p,q) + adaptTimeStep
+  END IF
 ELSE
   adaptTimeStep = 1.
 END IF

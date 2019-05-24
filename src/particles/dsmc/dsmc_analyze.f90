@@ -1615,12 +1615,13 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep
+USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
 USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
+  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1772,6 +1773,14 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         END DO
       END IF
     END ASSOCIATE
+    IF(VarTimeStep%UseVariableTimeStep) THEN
+      IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+        ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
+        ! midpoint is used to calculate the time step
+        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
+      END IF
+      DSMC_MacroVal(nVarLoc*nSpecTemp+13,kk,ll,mm,iElem) = VarTimeStep%ElemFac(iElem)
+    END IF
   END DO
 
   ! write dsmc quality values
@@ -1786,8 +1795,9 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       END IF
     END IF
     DO iElem=1,nElems
+      nVarCount = nVar
       IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-        DSMC_MacroVal(nVar+1:nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
       END IF
       nVarCount = nVar + 3
       IF(RadialWeighting%DoRadialWeighting) THEN
@@ -2066,7 +2076,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -2101,6 +2111,8 @@ IF(nSpecies.EQ.1) THEN
 ELSE
   nVar=nVarloc*(nSpecies+1)
 END IF
+
+IF(VarTimeStep%UseVariableTimeStep) nVar = nVar + 1
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
@@ -2144,6 +2156,12 @@ StrVarNames(nVarCount+DSMC_TELEC      )='Total_TempElec'
 StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Total_SimPartNum'
 StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TempTransMean'
 nVarCount=nVarCount+nVarloc
+
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  StrVarNames(nVarCount+1) ='VariableTimeStep'
+  nVarCount = nVarCount + 1
+END IF
+
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'

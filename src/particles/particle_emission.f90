@@ -236,6 +236,9 @@ DO i=1,nSpecies
         ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.
         Species(i)%Init(iInit)%initialParticleNumber &
                   = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * GEO%LocalVolume)
+        ! The radial scaling of the weighting factor has to be considered
+        IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
+                                    INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor+1.),8)
       END IF
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
@@ -257,13 +260,8 @@ DO i=1,nSpecies
   END DO
 END DO
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-#ifdef MPI
-  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
-  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
-#else
-  WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
-  WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
-#endif
+  IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
+  IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
   CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
@@ -6581,6 +6579,7 @@ __STAMP__,&
     END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
+    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor+1.)
     chunkSize_tmp = INT(PartDens * GEO%LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(&

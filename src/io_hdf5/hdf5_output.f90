@@ -583,7 +583,7 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies
+USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
@@ -1041,7 +1041,16 @@ ASSOCIATE (&
     DEALLOCATE(VibQuantData)
   END IF
   CALL CloseDataFile()
-#endif /*MPI*/                          
+#endif /*MPI*/
+
+  ! Output of the element-wise time step as a separate container in state file
+  IF(VarTimeStep%UseDistribution) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2    ,&
+                          nValGlobal  = (/nGlobalElems  , 1_IK/)    ,&
+                          nVal        = (/PP_nElems     , 1_IK/)    ,&
+                          offset      = (/offsetElem    , 0_IK/)    ,&
+                          collective  = .FALSE.         , RealArray=VarTimeStep%ElemFac)
+  END IF
 
 END ASSOCIATE
 ! reswitch
