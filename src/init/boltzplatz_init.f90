@@ -257,7 +257,7 @@ USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
 USE MOD_Particle_Mesh,             ONLY:FinalizeParticleMesh
 USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
-USE MOD_PICDepoInit,               ONLY:FinalizeDeposition
+USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_TTMInit,                   ONLY:FinalizeTTM
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
