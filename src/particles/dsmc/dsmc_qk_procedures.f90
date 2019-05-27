@@ -452,10 +452,11 @@ SUBROUTINE QK_ImpactIonization(iPair,iReac,RelaxToDo)
 ! derived from the work of Liechty 2010-02
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
-USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry
-USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartMPF, VarTimeStep
-USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, RadialWeighting
+USE MOD_DSMC_ChemReact        ,ONLY: DSMC_Chemistry
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -482,25 +483,14 @@ END IF
 ! this time it is not possible to use quantizied levels as they are not equally spaced
 ! therefore we use the energy
 
-IF (RadialWeighting%DoRadialWeighting) THEN
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    Weight1 = PartMPF(React1Inx)* VarTimeStep%ParticleTimeStep(React1Inx)
-    Weight2 = PartMPF(React2Inx)* VarTimeStep%ParticleTimeStep(React2Inx)
-  ELSE
-    Weight1 = PartMPF(React1Inx)
-    Weight2 = PartMPF(React2Inx)
-  END IF
-  ReducedMass = (Species(PartSpecies(React1Inx))%MassIC *Weight1  * Species(PartSpecies(React2Inx))%MassIC * Weight2) &
-    / (Species(PartSpecies(React1Inx))%MassIC * Weight1+ Species(PartSpecies(React2Inx))%MassIC * Weight2)
-ELSE IF (VarTimeStep%UseVariableTimeStep) THEN 
-  Weight1 = VarTimeStep%ParticleTimeStep(React1Inx)
-  Weight2 = VarTimeStep%ParticleTimeStep(React2Inx)
-  ReducedMass = (Species(PartSpecies(React1Inx))%MassIC *Weight1  * Species(PartSpecies(React2Inx))%MassIC * Weight2) &
-    / (Species(PartSpecies(React1Inx))%MassIC * Weight1+ Species(PartSpecies(React2Inx))%MassIC * Weight2)
+Weight1 = GetParticleWeight(React1Inx)
+Weight2 = GetParticleWeight(React2Inx)
+
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  ReducedMass = (Species(PartSpecies(React1Inx))%MassIC*Weight1 * Species(PartSpecies(React2Inx))%MassIC*Weight2) &
+              / (Species(PartSpecies(React1Inx))%MassIC*Weight1 + Species(PartSpecies(React2Inx))%MassIC*Weight2)
 ELSE
   ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
-  Weight1 = 1.
-  Weight2 = 1.
 END IF
 
 Coll_pData(iPair)%Ec = 0.5*ReducedMass*Coll_pData(iPair)%CRela2

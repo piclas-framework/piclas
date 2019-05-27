@@ -881,8 +881,9 @@ SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
-USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf, RadialWeighting
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, PartMPF, usevMPF, VarTimeStep
+USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies
+USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -894,7 +895,7 @@ INTEGER, INTENT(IN)   :: iPartIndx(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies), PartID, SpecID
-REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3), partWeight, SumSpecPartNum
+REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3), SumSpecPartNum
 REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
 !===================================================================================================================================
 
@@ -902,7 +903,7 @@ PartV = 0.
 PartV2 = 0.
 ! Actual number of particles, required to avoid calculation of temperature from one particle of the species
 SpecPartNum_Simu = 0
-! Sum of particle number, weighted/multiplied with PartMPF, etc. or not
+! Sum of particle number, might be weighted/multiplied with PartMPF and/or VariableTimeStep
 SumSpecPartNum = 0.
 ! Setting temperature to zero
 DSMC%InstantTransTemp = 0.
@@ -910,18 +911,8 @@ DSMC%InstantTransTemp = 0.
 DO iPart=1,PartNum
   PartID = iPartIndx(iPart)
   SpecID = PartSpecies(PartID)
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      partWeight = PartMPF(PartID)*VarTimeStep%ParticleTimeStep(PartID)
-    ELSE
-      partWeight = PartMPF(PartID)
-    END IF
-    PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6) * partWeight
-    PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2 * partWeight
-  ELSE
-    PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6)
-    PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2
-  END IF
+  PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6) * GetParticleWeight(PartID)
+  PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2 * GetParticleWeight(PartID)
   SpecPartNum_Simu(SpecID) = SpecPartNum_Simu(SpecID) + 1
 END DO
 
@@ -1222,13 +1213,13 @@ SUBROUTINE DSMCHO_data_sampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
-USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC, RadialWeighting
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef, VarTimeStep, usevMPF, PartMPF
+USE MOD_DSMC_Vars              ,ONLY: DSMCSampNearInt, DSMCSampCellVolW, useDSMC
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-!USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Globals
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBPauseTime
@@ -1452,13 +1443,7 @@ CASE('cell_mean')
     IF (PDM%ParticleInside(iPart)) THEN
       iSpec = PartSpecies(iPart)
       iElem = PEM%Element(iPart)
-      partWeight = 1.
-      IF (usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-        partWeight = PartMPF(iPart)
-      END IF
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        partWeight = partWeight*VarTimeStep%ParticleTimeStep(iPart)
-      END IF
+      partWeight = GetParticleWeight(iPart)
       DSMC_HOSolution(1:3,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(1:3,kk,ll,mm,iElem,iSpec) + PartState(iPart,4:6)*partWeight
       DSMC_HOSolution(4:6,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(4:6,kk,ll,mm,iElem,iSpec) + PartState(iPart,4:6)**2*partWeight
       DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + partWeight  !density number

@@ -50,8 +50,7 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverM
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
                             , 'TODO-DEFINE-PARAMETER')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
-                            , 'Read of maximal time factor to avoid too large time steps and problems with halo region/particle '//&
-                              'cloning')
+                            , 'Maximal time factor to avoid too large time steps and problems with halo region/particle cloning')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
                             , 'TODO-DEFINE-PARAMETER')
 CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
@@ -69,12 +68,12 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront'  &
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack'  &
                             , 'BACK: Time step increases away from the stagnation points')
 ! 3D: Scaling along a given vector
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint'  &
-                                , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  &
-                                , 'TODO-DEFINE-PARAMETER')
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction'  &
-                                , 'TODO-DEFINE-PARAMETER')
+                                , 'Direction of the vector along which a linear increase is applied to the time step. '//&
+                                  'Currently only scaling along the x-axis (positive or negative direction) is allowed, '//&
+                                  'e.g. (/-1.0,0.0,0.0/)')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint', 'Starting point of the vector.')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , 'End point of the vector, to use the domain border: -99999.')
 
 END SUBROUTINE DefineParametersVaribleTimeStep
 
@@ -117,14 +116,12 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
   ELSE
-    CALL abort(__STAMP__, &
-      'ERROR: Variable time step with linear scaling has not been tested yet outside of 2D!')
     VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
     VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)
     VarTimeStep%Direction = GETREALARRAY('Part-VariableTimeStep-Direction',3)
-    IF(ALL(VarTimeStep%Direction.EQ.0.)) CALL abort(&
+    IF(ABS(VarTimeStep%Direction(1)).NE.1.0) CALL abort(&
       __STAMP__&
-      ,'ERROR: Direction must be defined for variable time step!')
+      ,'ERROR: Currently direction of linear time step scaling must be defined with (/1.0,0.0,0.0/)!')
   END IF
 END IF
 IF(VarTimeStep%UseDistribution) THEN
@@ -395,7 +392,7 @@ VarTimeStep%ElemFac = 1.0
 IF (VarTimeStep%Direction(1).GT.0.0) THEN
   DO iElem = 1, nElems
     IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%StartPoint(1)) THEN
-      VarTimeStep%ElemFac(iElem)=1.0    
+      VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(GEO%xmaxglob-VarTimeStep%StartPoint(1)) &
           * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
@@ -411,7 +408,7 @@ IF (VarTimeStep%Direction(1).GT.0.0) THEN
 ELSE
   DO iElem = 1, nElems
     IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%StartPoint(1)) THEN
-      VarTimeStep%ElemFac(iElem)=1.0    
+      VarTimeStep%ElemFac(iElem)=1.0
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-GEO%xminglob) &
           * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))

@@ -119,6 +119,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF, VarTimeStep
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
@@ -137,14 +138,8 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 !===================================================================================================================================
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      CollisionEnergy = Coll_pData(iPair)%Ec / (PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1))
-    ELSE
-      CollisionEnergy = Coll_pData(iPair)%Ec / PartMPF(iPart1)
-    END IF
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    CollisionEnergy = Coll_pData(iPair)%Ec / VarTimeStep%ParticleTimeStep(iPart1)
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec
   END IF

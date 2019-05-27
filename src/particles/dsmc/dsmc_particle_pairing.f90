@@ -56,6 +56,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
+  USE MOD_part_tools,             ONLY : GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +79,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
@@ -94,13 +95,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END IF
 
   DO iPart = 1, PartNum
-    IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + PartMPF(iPartIndx_Node(iPart))
-    ELSE
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + 1
-    END IF
+    CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
+              CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
@@ -163,12 +159,9 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
 
-    IF(usevMPF) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1) &
-                                                           + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-    ELSE IF(VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &
-          + VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
+    IF(VarTimeStep%UseVariableTimeStep) THEN
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
+                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
 
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
@@ -238,6 +231,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
   USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
+  USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -263,7 +257,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     ChemReac%RecombParticle = 0
   END IF
 
-  CollInf%Coll_SpecPartNum = 0
+  CollInf%Coll_SpecPartNum = 0.
   CollInf%Coll_CaseNum = 0
   CRelaMax = 0
   CRelaAv = 0
@@ -282,11 +276,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
       END DO
     END IF
     iPartIndx(iLoop) = iPart
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + PartMPF(iPart)
-    ELSE
-      CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1
-    END IF
+    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
     ! counter for part num of spec per cell
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                           ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
@@ -375,6 +365,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, Time
+  USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -396,7 +387,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
   PairNum_Node = INT(PartNum/2)
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
   IF (CollisMode.EQ.3) THEN
     ChemReac%RecombParticle = 0
@@ -406,45 +397,14 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
   IF (CollisMode.EQ.3) THEN
     ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
     DO iPart = 1, PartNum
-      IF (RadialWeighting%DoRadialWeighting) THEN 
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-            ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-            *PartMPF(iPartIndx_Node(iPart))*VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-        ELSE
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-            ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-            *PartMPF(iPartIndx_Node(iPart))
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-          *VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-      ELSE
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) 
-      END IF
+      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
+        + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
     END DO
   END IF
 
   DO iPart = 1, PartNum
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + PartMPF(iPartIndx_Node(iPart)) & 
-                  *VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart)) 
-      ELSE      
-        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + PartMPF(iPartIndx_Node(iPart))
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                  + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-    ELSE
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + 1
-    END IF
+    CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
+              CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 
   IF((CollisMode.GT.1).AND.(SelectionProc.EQ.2).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
@@ -512,18 +472,9 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
     END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1)  &
-          * VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &  
-          + PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
-      ELSE
-        CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1) &  
-                                                           + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-      END IF
-    ELSE IF(VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &  
-          + VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &  
+                                                          + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
 
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)    
@@ -559,19 +510,10 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
             ! are swapped but first, changing z-direction
             PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
             ! Removing the pairs from the weighting factor and the case num sums
-            IF (VarTimeStep%UseVariableTimeStep) THEN
-              CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-                -(PartMPF(Coll_pData(iPair)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1) &
-                + PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
-              CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-                - (PartMPF(Coll_pData(iPair+1)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair+1)%iPart_p1) &
-                + PartMPF(Coll_pData(iPair+1)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair+1)%iPart_p2))*0.5
-            ELSE
-              CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-                -(PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-              CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-                - (PartMPF(Coll_pData(iPair+1)%iPart_p1) + PartMPF(Coll_pData(iPair+1)%iPart_p2))*0.5
-            END IF
+            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+              -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+            CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+              - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
             CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
             CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
             ! Breaking up the next pair and swapping partners
@@ -583,12 +525,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
             cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
             iCase = CollInf%Coll_Case(cSpec1, cSpec2)
             ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-            IF (VarTimeStep%UseVariableTimeStep) THEN
-              CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1)*VarTimeStep%ParticleTimeStep(cSpec1) &
-                + PartMPF(cSpec2)*VarTimeStep%ParticleTimeStep(cSpec2))*0.5
-            ELSE
-              CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1) + PartMPF(cSpec2))*0.5
-            END IF
+            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
             CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
             Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                                      -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
@@ -602,12 +539,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
             cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
             iCase = CollInf%Coll_Case(cSpec1, cSpec2)
             ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-            IF (VarTimeStep%UseVariableTimeStep) THEN
-              CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1)*VarTimeStep%ParticleTimeStep(cSpec1) &
-                + PartMPF(cSpec2)*VarTimeStep%ParticleTimeStep(cSpec2))*0.5
-            ELSE
-              CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1) + PartMPF(cSpec2))*0.5
-            END IF
+            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
             CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1            
             Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
                                        -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
@@ -688,6 +620,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
   USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
   USE MOD_Particle_Tracking_vars  ,ONLY: DoRefMapping
   USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+  USE MOD_part_tools,             ONLY : GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -697,11 +630,12 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, nPart, SpecPartNum(nSpecies)
+  INTEGER                       :: iPart, iLoop, nPart
+  REAL                          :: SpecPartNum(nSpecies)
   TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
-SpecPartNum = 0
+SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
 
 IF (nPart.GT.1) THEN
@@ -717,10 +651,10 @@ IF (nPart.GT.1) THEN
     iPart = PEM%pNext(iPart)
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
     SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + 1
+              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
   END DO
 
-  DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum), REAL(nPart), GEO%Volume(iElem))
+  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), GEO%Volume(iElem))
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
   IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
@@ -959,8 +893,9 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, RadialWeighting, CollInf
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, PartMPF, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, VarTimeStep
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -971,7 +906,7 @@ INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iLoop, nPart, iSpec
-REAL                          :: RealParts, SpecPartNum(nSpecies), Volume, RealSampNum, MeanSpecTemp(nSpecies)
+REAL                          :: SpecPartNum(nSpecies), Volume, RealSampNum, MeanSpecTemp(nSpecies)
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -979,7 +914,6 @@ TYPE(tTreeNode), POINTER      :: TreeNode
   Volume = GEO%Volume(iElem)
 
   SpecPartNum = 0.
-  RealParts = 0.
 
   NULLIFY(TreeNode)
   nPart = PEM%pNumber(iElem)
@@ -993,25 +927,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
     DO iLoop = 1, nPart
       TreeNode%iPartIndx_Node(iLoop) = iPart
       ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          RealParts = RealParts + PartMPF(iPart)*VarTimeStep%ParticleTimeStep(iPart)
-          SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + PartMPF(TreeNode%iPartIndx_Node(iLoop)) &
-              * VarTimeStep%ParticleTimeStep(iPart)
-        ELSE
-          RealParts = RealParts + PartMPF(iPart)
-          SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + PartMPF(TreeNode%iPartIndx_Node(iLoop))
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        RealParts = RealParts + VarTimeStep%ParticleTimeStep(iPart)
-        SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-            SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + VarTimeStep%ParticleTimeStep(iPart)
-      ELSE
-        SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-                  SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + 1.
-      END IF
+      SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
       iPart = PEM%pNext(iPart)
     END DO
     
@@ -1032,11 +948,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
       END DO
     END IF
 
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, RealParts, Volume)
-    ELSE
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, REAL(nPart), Volume)
-    END IF
+    DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 
     ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
     IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
@@ -1080,276 +992,259 @@ END SUBROUTINE DSMC_pairing_quadtree
 
 RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 !===================================================================================================================================
-! Adds additional octree node/branch (fancy)
+!>
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Analyze,           ONLY : CalcMeanFreePath
-  USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
-  USE MOD_Particle_Vars,          ONLY : nSpecies, PartSpecies, PartMPF, VarTimeStep
-  USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
+USE MOD_Globals
+USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
+USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, VarTimeStep
+USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
+USE MOD_part_tools        ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
-  TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
+INTEGER, INTENT(IN)                     :: iElem
+TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
+TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, iSpec
-  INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
-  REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
-  INTEGER                       :: PartNumChildNode(4)
-  REAL                            :: NodeVolumeTemp(4), FaceVolumeTemp(4), SpecPartNum(nSpecies,4), RealParts(4),Volume(4)
-  REAL                            :: MeanSpecTemp(nSpecies,4), RealSampNum
-  LOGICAL                       :: ForceNearestNeigh
+INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, iSpec
+INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
+REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
+INTEGER                       :: PartNumChildNode(4)
+REAL                          :: NodeVolumeTemp(4), FaceVolumeTemp(4), SpecPartNum(nSpecies,4), RealParts(4),Volume(4)
+REAL                          :: MeanSpecTemp(nSpecies,4), RealSampNum
+LOGICAL                       :: ForceNearestNeigh
 !===================================================================================================================================
-  ForceNearestNeigh = .FALSE.
-  ALLOCATE(iPartIndx_ChildNode(4,TreeNode%PNum_Node))
-  ALLOCATE(MappedPart_ChildNode(4,TreeNode%PNum_Node,2))
-  PartNumChildNode(:) = 0
-  IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
-    CALL Abort(&
-      __STAMP__,&
-      'ERROR in Octree Pairing: Too many branches, machine precision reached')
+ForceNearestNeigh = .FALSE.
+ALLOCATE(iPartIndx_ChildNode(4,TreeNode%PNum_Node))
+ALLOCATE(MappedPart_ChildNode(4,TreeNode%PNum_Node,2))
+PartNumChildNode(:) = 0
+IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+  CALL Abort(&
+    __STAMP__,&
+    'ERROR in Octree Pairing: Too many branches, machine precision reached')
+END IF
+
+!         Numbering of the 4 ChildNodes of the QuadTree    
+!      _________ 
+!     |    |    |   |y
+!     | 3  | 2  |   |
+!     |----|----|   |
+!     | 4  | 1  |   |______x
+!     |____|____|
+! particle to Octree ChildNode sorting
+DO iPart=1,TreeNode%PNum_Node
+  iPartIndx = TreeNode%iPartIndx_Node(iPart)
+  IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(iPart,2).LE.TreeNode%MidPoint(2))) THEN
+    PartNumChildNode(1) = PartNumChildNode(1) + 1
+    iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
+    MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+  ELSE IF(TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
+    PartNumChildNode(2) = PartNumChildNode(2) + 1
+    iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
+    MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+  ELSE IF(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
+    PartNumChildNode(3) = PartNumChildNode(3) + 1
+    iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
+    MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(iPart,1:2)
+  ELSE
+    PartNumChildNode(4) = PartNumChildNode(4) + 1
+    iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
+    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)   
   END IF
+END DO
 
-  !         Numbering of the 4 ChildNodes of the QuadTree    
-  !      _________ 
-  !     |    |    |   |y
-  !     | 3  | 2  |   |
-  !     |----|----|   |
-  !     | 4  | 1  |   |______x
-  !     |____|____|
-  ! particle to Octree ChildNode sorting
-  DO iPart=1,TreeNode%PNum_Node
-    iPartIndx = TreeNode%iPartIndx_Node(iPart)
-    IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
-        .AND.(TreeNode%MappedPartStates(iPart,2).LE.TreeNode%MidPoint(2))) THEN
-      PartNumChildNode(1) = PartNumChildNode(1) + 1
-      iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-      MappedPart_ChildNode(1,PartNumChildNode(1),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    ELSE IF(TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) THEN
-      PartNumChildNode(2) = PartNumChildNode(2) + 1
-      iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-      MappedPart_ChildNode(2,PartNumChildNode(2),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    ELSE IF(TreeNode%MappedPartStates(iPart,2).GE.TreeNode%MidPoint(2)) THEN
-      PartNumChildNode(3) = PartNumChildNode(3) + 1
-      iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-      MappedPart_ChildNode(3,PartNumChildNode(3),1:2) = TreeNode%MappedPartStates(iPart,1:2)
-    ELSE
-      PartNumChildNode(4) = PartNumChildNode(4) + 1
-      iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-      MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)   
-    END IF
-  END DO
+IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
+  localDepth = TreeNode%NodeDepth
+  CALL DSMC_CalcSubNodeVolumes2D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+END IF
 
-  IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-    localDepth = TreeNode%NodeDepth
-    CALL DSMC_CalcSubNodeVolumes2D(iElem, localDepth, ElemNodeVol(iElem)%Root)
-  END IF
+NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
+NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
+NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
+NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
+FaceVolumeTemp(1) = NodeVol%SubNode1%Area
+FaceVolumeTemp(2) = NodeVol%SubNode2%Area
+FaceVolumeTemp(3) = NodeVol%SubNode3%Area
+FaceVolumeTemp(4) = NodeVol%SubNode4%Area
 
-  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-  FaceVolumeTemp(1) = NodeVol%SubNode1%Area
-  FaceVolumeTemp(2) = NodeVol%SubNode2%Area
-  FaceVolumeTemp(3) = NodeVol%SubNode3%Area
-  FaceVolumeTemp(4) = NodeVol%SubNode4%Area
+Volume(1:4) = NodeVolumeTemp(1:4)
 
-  Volume(1:4) = NodeVolumeTemp(1:4)
-
-  IF(DSMC%MergeSubcells) THEN
-    IF (ALL(PartNumChildNode.LT.DSMC%PartNumOctreeNodeMin)) THEN
-      ForceNearestNeigh =.TRUE.
-      DO iLoop = 1, 3
-        IF (PartNumChildNode(iLoop).LT.7) THEN
-          DO iPart=1, PartNumChildNode(iLoop)
-            iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
-            MappedPart_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart,1:2) = MappedPart_ChildNode(iLoop,iPart,1:2)
-          END DO
-          PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
-          PartNumChildNode(iLoop) = 0
-          NodeVolumeTemp(iLoop+1) = NodeVolumeTemp(iLoop+1) + NodeVolumeTemp(iLoop)
-          NodeVolumeTemp(iLoop) = 0.0
-        END IF
-      END DO
-      IF (PartNumChildNode(4).LT.7) THEN
-        DO iPart=1, PartNumChildNode(4)
-          iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
-          MappedPart_ChildNode(1,PartNumChildNode(1)+iPart,1:2) = MappedPart_ChildNode(4,iPart,1:2)
+IF(DSMC%MergeSubcells) THEN
+  IF (ALL(PartNumChildNode.LT.DSMC%PartNumOctreeNodeMin)) THEN
+    ForceNearestNeigh =.TRUE.
+    DO iLoop = 1, 3
+      IF (PartNumChildNode(iLoop).LT.7) THEN
+        DO iPart=1, PartNumChildNode(iLoop)
+          iPartIndx_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart) = iPartIndx_ChildNode(iLoop,iPart)
+          MappedPart_ChildNode(iLoop+1,PartNumChildNode(iLoop+1)+iPart,1:2) = MappedPart_ChildNode(iLoop,iPart,1:2)
         END DO
-        PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
-        PartNumChildNode(4) = 0
-        NodeVolumeTemp(1) = NodeVolumeTemp(1) + NodeVolumeTemp(4)
-        NodeVolumeTemp(4) = 0.0
-      END IF
-    END IF
-  END IF
-
-  DO iLoop = 1, 4
-  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-    ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-    SpecPartNum(:,iLoop) = 0.
-    RealParts(iLoop) = 0.
-    DO iPart = 1, PartNumChildNode(iLoop)
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          RealParts(iLoop) = RealParts(iLoop) + PartMPF(iPartIndx_ChildNode(iLoop,iPart)) &
-            *VarTimeStep%ParticleTimeStep(iPartIndx_ChildNode(iLoop,iPart))
-          SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
-             SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) &
-             + PartMPF(iPartIndx_ChildNode(iLoop,iPart))*VarTimeStep%ParticleTimeStep(iPartIndx_ChildNode(iLoop,iPart))
-        ELSE
-          RealParts(iLoop) = RealParts(iLoop) + PartMPF(iPartIndx_ChildNode(iLoop,iPart))
-          SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
-              SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) + PartMPF(iPartIndx_ChildNode(iLoop,iPart))
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        RealParts(iLoop) = RealParts(iLoop) + VarTimeStep%ParticleTimeStep(iPartIndx_ChildNode(iLoop,iPart))
-        SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
-           SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) &
-           + VarTimeStep%ParticleTimeStep(iPartIndx_ChildNode(iLoop,iPart))
-      ELSE
-        SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
-          SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) + 1
+        PartNumChildNode(iLoop+1) = PartNumChildNode(iLoop+1) + PartNumChildNode(iLoop)
+        PartNumChildNode(iLoop) = 0
+        NodeVolumeTemp(iLoop+1) = NodeVolumeTemp(iLoop+1) + NodeVolumeTemp(iLoop)
+        NodeVolumeTemp(iLoop) = 0.0
       END IF
     END DO
+    IF (PartNumChildNode(4).LT.7) THEN
+      DO iPart=1, PartNumChildNode(4)
+        iPartIndx_ChildNode(1,PartNumChildNode(1)+iPart) = iPartIndx_ChildNode(4,iPart)
+        MappedPart_ChildNode(1,PartNumChildNode(1)+iPart,1:2) = MappedPart_ChildNode(4,iPart,1:2)
+      END DO
+      PartNumChildNode(1) = PartNumChildNode(1) + PartNumChildNode(4)
+      PartNumChildNode(4) = 0
+      NodeVolumeTemp(1) = NodeVolumeTemp(1) + NodeVolumeTemp(4)
+      NodeVolumeTemp(4) = 0.0
+    END IF
+  END IF
+END IF
+
+DO iLoop = 1, 4
+! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+  SpecPartNum(:,iLoop) = 0.
+  RealParts(iLoop) = 0.
+  DO iPart = 1, PartNumChildNode(iLoop)
+    RealParts(iLoop) = RealParts(iLoop) + GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
+    SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) = &
+        SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) + GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
   END DO
-  IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
-    ! Node 1
-    NodeVol%SubNode1%NumOfNodeFormations =  NodeVol%SubNode1%NumOfNodeFormations + 1
-    IF (NodeVol%SubNode1%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-      NodeVol%SubNode1%NumOfNodeFormations = 1
-      NodeVol%SubNode1%MaxSampSizeReached = .TRUE.    
-    END IF
-    NodeVol%SubNode1%PartNum(NodeVol%SubNode1%NumOfNodeFormations,:) = SpecPartNum(:,1)
-    IF (NodeVol%SubNode1%MaxSampSizeReached) THEN
-      RealSampNum = DSMC%SampSizeMeanPartNum
-    ELSE
-      RealSampNum = NodeVol%SubNode1%NumOfNodeFormations
-    END IF
-    DO iSpec = 1, nSpecies
-      MeanSpecTemp(iSpec,1) = SUM(NodeVol%SubNode1%PartNum(:,iSpec))/RealSampNum
-    END DO
-    ! Node 2
-    NodeVol%SubNode2%NumOfNodeFormations =  NodeVol%SubNode2%NumOfNodeFormations + 1
-    IF (NodeVol%SubNode2%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-      NodeVol%SubNode2%NumOfNodeFormations = 1
-      NodeVol%SubNode2%MaxSampSizeReached = .TRUE.
-    END IF
-    NodeVol%SubNode2%PartNum(NodeVol%SubNode2%NumOfNodeFormations,:) = SpecPartNum(:,2)
-    IF (NodeVol%SubNode2%MaxSampSizeReached) THEN
-      RealSampNum = DSMC%SampSizeMeanPartNum
-    ELSE
-      RealSampNum = NodeVol%SubNode2%NumOfNodeFormations
-    END IF
-    DO iSpec = 1, nSpecies
-      MeanSpecTemp(iSpec,2) = SUM(NodeVol%SubNode2%PartNum(:,iSpec))/RealSampNum
-    END DO
-    ! Node 3
-    NodeVol%SubNode3%NumOfNodeFormations =  NodeVol%SubNode3%NumOfNodeFormations + 1
-    IF (NodeVol%SubNode3%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-      NodeVol%SubNode3%NumOfNodeFormations = 1
-      NodeVol%SubNode3%MaxSampSizeReached = .TRUE.
-    END IF
-    NodeVol%SubNode3%PartNum(NodeVol%SubNode3%NumOfNodeFormations,:) = SpecPartNum(:,3)
-    IF (NodeVol%SubNode3%MaxSampSizeReached) THEN
-      RealSampNum = DSMC%SampSizeMeanPartNum
-    ELSE
-      RealSampNum = NodeVol%SubNode3%NumOfNodeFormations
-    END IF
-    DO iSpec = 1, nSpecies
-      MeanSpecTemp(iSpec,3) = SUM(NodeVol%SubNode3%PartNum(:,iSpec))/RealSampNum
-    END DO
-    ! Node 4
-    NodeVol%SubNode4%NumOfNodeFormations =  NodeVol%SubNode4%NumOfNodeFormations + 1
-    IF (NodeVol%SubNode4%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-      NodeVol%SubNode4%NumOfNodeFormations = 1
-      NodeVol%SubNode4%MaxSampSizeReached = .TRUE.
-    END IF
-    NodeVol%SubNode4%PartNum(NodeVol%SubNode4%NumOfNodeFormations,:) = SpecPartNum(:,4)
-    IF (NodeVol%SubNode4%MaxSampSizeReached) THEN
-      RealSampNum = DSMC%SampSizeMeanPartNum
-    ELSE
-      RealSampNum = NodeVol%SubNode4%NumOfNodeFormations
-    END IF
-    DO iSpec = 1, nSpecies
-      MeanSpecTemp(iSpec,4) = SUM(NodeVol%SubNode4%PartNum(:,iSpec))/RealSampNum
-    END DO
+END DO
+IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
+  ! Node 1
+  NodeVol%SubNode1%NumOfNodeFormations =  NodeVol%SubNode1%NumOfNodeFormations + 1
+  IF (NodeVol%SubNode1%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
+    NodeVol%SubNode1%NumOfNodeFormations = 1
+    NodeVol%SubNode1%MaxSampSizeReached = .TRUE.    
   END IF
+  NodeVol%SubNode1%PartNum(NodeVol%SubNode1%NumOfNodeFormations,:) = SpecPartNum(:,1)
+  IF (NodeVol%SubNode1%MaxSampSizeReached) THEN
+    RealSampNum = DSMC%SampSizeMeanPartNum
+  ELSE
+    RealSampNum = NodeVol%SubNode1%NumOfNodeFormations
+  END IF
+  DO iSpec = 1, nSpecies
+    MeanSpecTemp(iSpec,1) = SUM(NodeVol%SubNode1%PartNum(:,iSpec))/RealSampNum
+  END DO
+  ! Node 2
+  NodeVol%SubNode2%NumOfNodeFormations =  NodeVol%SubNode2%NumOfNodeFormations + 1
+  IF (NodeVol%SubNode2%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
+    NodeVol%SubNode2%NumOfNodeFormations = 1
+    NodeVol%SubNode2%MaxSampSizeReached = .TRUE.
+  END IF
+  NodeVol%SubNode2%PartNum(NodeVol%SubNode2%NumOfNodeFormations,:) = SpecPartNum(:,2)
+  IF (NodeVol%SubNode2%MaxSampSizeReached) THEN
+    RealSampNum = DSMC%SampSizeMeanPartNum
+  ELSE
+    RealSampNum = NodeVol%SubNode2%NumOfNodeFormations
+  END IF
+  DO iSpec = 1, nSpecies
+    MeanSpecTemp(iSpec,2) = SUM(NodeVol%SubNode2%PartNum(:,iSpec))/RealSampNum
+  END DO
+  ! Node 3
+  NodeVol%SubNode3%NumOfNodeFormations =  NodeVol%SubNode3%NumOfNodeFormations + 1
+  IF (NodeVol%SubNode3%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
+    NodeVol%SubNode3%NumOfNodeFormations = 1
+    NodeVol%SubNode3%MaxSampSizeReached = .TRUE.
+  END IF
+  NodeVol%SubNode3%PartNum(NodeVol%SubNode3%NumOfNodeFormations,:) = SpecPartNum(:,3)
+  IF (NodeVol%SubNode3%MaxSampSizeReached) THEN
+    RealSampNum = DSMC%SampSizeMeanPartNum
+  ELSE
+    RealSampNum = NodeVol%SubNode3%NumOfNodeFormations
+  END IF
+  DO iSpec = 1, nSpecies
+    MeanSpecTemp(iSpec,3) = SUM(NodeVol%SubNode3%PartNum(:,iSpec))/RealSampNum
+  END DO
+  ! Node 4
+  NodeVol%SubNode4%NumOfNodeFormations =  NodeVol%SubNode4%NumOfNodeFormations + 1
+  IF (NodeVol%SubNode4%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
+    NodeVol%SubNode4%NumOfNodeFormations = 1
+    NodeVol%SubNode4%MaxSampSizeReached = .TRUE.
+  END IF
+  NodeVol%SubNode4%PartNum(NodeVol%SubNode4%NumOfNodeFormations,:) = SpecPartNum(:,4)
+  IF (NodeVol%SubNode4%MaxSampSizeReached) THEN
+    RealSampNum = DSMC%SampSizeMeanPartNum
+  ELSE
+    RealSampNum = NodeVol%SubNode4%NumOfNodeFormations
+  END IF
+  DO iSpec = 1, nSpecies
+    MeanSpecTemp(iSpec,4) = SUM(NodeVol%SubNode4%PartNum(:,iSpec))/RealSampNum
+  END DO
+END IF
 
-  DO iLoop = 1, 4
-    ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-    IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
-      ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-      ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN 
-        DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
-      ELSE
-        DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
-      END IF
-      IF((DSMC%MeanFreePath.LT.(FaceVolumeTemp(iLoop)**(1./2.))).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
-        NULLIFY(TreeNode%ChildNode)
-        ALLOCATE(TreeNode%ChildNode)
-        ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
-        ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:2))
-        TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
-        TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
-        TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:2)= &
-              MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:2)
-        IF (iLoop.LT.3) THEN
-          TreeNode%ChildNode%MidPoint(1) = 1.0
-          IF (iLoop.EQ.1) THEN
-            TreeNode%ChildNode%MidPoint(2) = -1.0
-          ELSE
-            TreeNode%ChildNode%MidPoint(2) = 1.0
-          END IF
+DO iLoop = 1, 4
+  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+  IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
+    ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
+    ! the side length of a cube (approximation) with same volume as the actual cell -> octree
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN 
+      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
+    ELSE
+      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
+    END IF
+    IF((DSMC%MeanFreePath.LT.(FaceVolumeTemp(iLoop)**(1./2.))).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
+      NULLIFY(TreeNode%ChildNode)
+      ALLOCATE(TreeNode%ChildNode)
+      ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
+      ALLOCATE(TreeNode%ChildNode%MappedPartStates(PartNumChildNode(iLoop),1:2))
+      TreeNode%ChildNode%iPartIndx_Node(1:PartNumChildNode(iLoop)) = iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop))
+      TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
+      TreeNode%ChildNode%MappedPartStates(1:PartNumChildNode(iLoop),1:2)= &
+            MappedPart_ChildNode(iLoop,1:PartNumChildNode(iLoop),1:2)
+      IF (iLoop.LT.3) THEN
+        TreeNode%ChildNode%MidPoint(1) = 1.0
+        IF (iLoop.EQ.1) THEN
+          TreeNode%ChildNode%MidPoint(2) = -1.0
         ELSE
-          TreeNode%ChildNode%MidPoint(1) = -1.0
-          IF (iLoop.EQ.3) THEN
-            TreeNode%ChildNode%MidPoint(2) = 1.0
-          ELSE
-            TreeNode%ChildNode%MidPoint(2) = -1.0
-          END IF
+          TreeNode%ChildNode%MidPoint(2) = 1.0
         END IF
-        TreeNode%ChildNode%MidPoint(3) = 0.0
-        TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
-        TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
-        ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-        IF (iLoop.EQ.1) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-        IF (iLoop.EQ.2) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-        IF (iLoop.EQ.3) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-        IF (iLoop.EQ.4) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
-        DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
-        DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
-        DEALLOCATE(TreeNode%ChildNode)
       ELSE
-        IF(DSMC%UseNearestNeighbour) THEN
-          CALL FindNearestNeigh2D(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                  PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+        TreeNode%ChildNode%MidPoint(1) = -1.0
+        IF (iLoop.EQ.3) THEN
+          TreeNode%ChildNode%MidPoint(2) = 1.0
         ELSE
-          CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                    iElem, NodeVolumeTemp(iLoop),MeanSpecTemp(:,iLoop))
+          TreeNode%ChildNode%MidPoint(2) = -1.0
         END IF
       END IF
-    ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
+      TreeNode%ChildNode%MidPoint(3) = 0.0
+      TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
+                                        + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
+      TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
+      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
+      IF (iLoop.EQ.1) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
+      IF (iLoop.EQ.2) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
+      IF (iLoop.EQ.3) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
+      IF (iLoop.EQ.4) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
+      DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
+      DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
+      DEALLOCATE(TreeNode%ChildNode)
+    ELSE
       IF(DSMC%UseNearestNeighbour) THEN
         CALL FindNearestNeigh2D(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
       ELSE
         CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                    iElem, NodeVolumeTemp(iLoop), MeanSpecTemp(:,iLoop))
+                                  iElem, NodeVolumeTemp(iLoop),MeanSpecTemp(:,iLoop))
       END IF
-    ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
-      CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
     END IF
-  END DO
+  ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
+    IF(DSMC%UseNearestNeighbour) THEN
+      CALL FindNearestNeigh2D(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
+    ELSE
+      CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
+                                  iElem, NodeVolumeTemp(iLoop), MeanSpecTemp(:,iLoop))
+    END IF
+  ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
+    CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
+  END IF
+END DO
 
 END SUBROUTINE AddQuadTreeNode
 
@@ -1755,6 +1650,7 @@ USE MOD_DSMC_Vars             ,ONLY: SamplingActive, SelectionProc, SpecDSMC
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies, PartState, usevMPF, PartMPF, WriteMacroVolumeValues, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1776,7 +1672,7 @@ REAL                          :: TempMPFFac, MPFFac
   
 nPart = PartNum
 nPair = INT(nPart/2)
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
 
 IF (CollisMode.EQ.3) THEN
   ChemReac%RecombParticle = 0
@@ -1793,45 +1689,14 @@ IF (CollisMode.EQ.3) THEN
 ! Determination of the mean vibrational energy for the cell, only needed for chemical reactions
   ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
   DO iPart = 1, PartNum
-    IF (RadialWeighting%DoRadialWeighting) THEN 
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-          *PartMPF(iPartIndx_Node(iPart))*VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-      ELSE
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-          ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-          *PartMPF(iPartIndx_Node(iPart))
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1) &
-        *VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-    ELSE
-    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1)
-    END IF
+    ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
+      + PartStateIntEn(iPartIndx_Node(iPart),1) * GetParticleWeight(iPartIndx_Node(iPart))
   END DO
 END IF
 
 DO iPart = 1, PartNum
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + PartMPF(iPartIndx_Node(iPart)) & 
-                *VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart)) 
-    ELSE      
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + PartMPF(iPartIndx_Node(iPart))
-    END IF
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-                CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
-                + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iPart))
-  ELSE
-  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = &
-            CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) + 1 
-  END IF
+  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx_Node(iPart))) &
+                                                                  + GetParticleWeight(iPartIndx_Node(iPart))
 END DO
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
@@ -1891,18 +1756,9 @@ DO iPair = 1, nPair                               ! statistical pairing
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1)  &
-        * VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &  
-        + PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
-    ELSE
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(Coll_pData(iPair)%iPart_p1) &  
-                                                          + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-    END IF
-  ELSE IF(VarTimeStep%UseVariableTimeStep) THEN
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1)  &  
-        + VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &  
+                                                        + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
 
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
@@ -1938,14 +1794,8 @@ IF(RadialWeighting%DoRadialWeighting) THEN
           ! are swapped but first, changing z-direction
           PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
           ! Removing the pairs from the weighting factor and the case num sums
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-              -(PartMPF(Coll_pData(iPair)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1) &
-              + PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
-          ELSE
-            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-              -(PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-          END IF
+          CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+            -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
           CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
           ! Breaking up the next pair and swapping partners
           tempPart = Coll_pData(iPair)%iPart_p1
@@ -1958,12 +1808,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
           cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
           iCase = CollInf%Coll_Case(cSpec1, cSpec2)
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1)*VarTimeStep%ParticleTimeStep(cSpec1) &
-              + PartMPF(cSpec2)*VarTimeStep%ParticleTimeStep(cSpec2))*0.5
-          ELSE
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1) + PartMPF(cSpec2))*0.5
-          END IF
+          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
           CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
           Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                                     -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
@@ -1977,19 +1822,10 @@ IF(RadialWeighting%DoRadialWeighting) THEN
           ! are swapped but first, changing z-direction
           PartState(Coll_pData(iPair)%iPart_p1,6) = - PartState(Coll_pData(iPair)%iPart_p1,6)
           ! Removing the pairs from the weighting factor and the case num sums
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-              -(PartMPF(Coll_pData(iPair)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p1) &
-              + PartMPF(Coll_pData(iPair)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair)%iPart_p2))*0.5
-            CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-              - (PartMPF(Coll_pData(iPair+1)%iPart_p1)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair+1)%iPart_p1) &
-              + PartMPF(Coll_pData(iPair+1)%iPart_p2)*VarTimeStep%ParticleTimeStep(Coll_pData(iPair+1)%iPart_p2))*0.5
-          ELSE
-            CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
-              -(PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2))*0.5
-            CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
-              - (PartMPF(Coll_pData(iPair+1)%iPart_p1) + PartMPF(Coll_pData(iPair+1)%iPart_p2))*0.5
-          END IF
+          CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+            -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+          CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+            - (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))*0.5
           CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
           CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
           ! Breaking up the next pair and swapping partners
@@ -2001,12 +1837,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
           cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
           iCase = CollInf%Coll_Case(cSpec1, cSpec2)
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1)*VarTimeStep%ParticleTimeStep(cSpec1) &
-              + PartMPF(cSpec2)*VarTimeStep%ParticleTimeStep(cSpec2))*0.5
-          ELSE
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1) + PartMPF(cSpec2))*0.5
-          END IF
+          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
           CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
           Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                                     -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
@@ -2020,12 +1851,7 @@ IF(RadialWeighting%DoRadialWeighting) THEN
           cSpec2 = PartSpecies(Coll_pData(iPair+1)%iPart_p2)
           iCase = CollInf%Coll_Case(cSpec1, cSpec2)
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-          IF (VarTimeStep%UseVariableTimeStep) THEN
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1)*VarTimeStep%ParticleTimeStep(cSpec1) &
-              + PartMPF(cSpec2)*VarTimeStep%ParticleTimeStep(cSpec2))*0.5
-          ELSE
-            CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (PartMPF(cSpec1) + PartMPF(cSpec2))*0.5
-          END IF
+          CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
           CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1            
           Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
                                       -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &

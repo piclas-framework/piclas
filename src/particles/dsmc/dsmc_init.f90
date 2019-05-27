@@ -348,7 +348,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -395,6 +395,13 @@ IMPLICIT NONE
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(SelectionProc.NE.1) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with the following SelectionProcedure: ' &
+,IntInfoOpt=SelectionProc)
+    END IF
+  END IF
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')  
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
@@ -424,6 +431,12 @@ __STAMP__&
   DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel          = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(DSMC%DoTEVRRelaxation) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    END IF
+  END IF
   LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -532,7 +545,7 @@ __STAMP__&
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
-  CollInf%Coll_SpecPartNum = 0
+  CollInf%Coll_SpecPartNum = 0.
   ALLOCATE(CollInf%MeanMPF(nCase))
   CollInf%MeanMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass

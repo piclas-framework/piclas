@@ -69,9 +69,10 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
   USE MOD_DSMC_Vars,              ONLY : RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, PartMPF, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartState, Species, PartSpecies, nSpecies, VarTimeStep
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly, CalcTelec
   USE MOD_Globals_Vars,           ONLY : Pi
+USE MOD_part_tools                ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,29 +121,15 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,NumDens)
     NumWeightProd = 2.
   END IF
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      Weight1 = PartMPF(React1Inx)* VarTimeStep%ParticleTimeStep(React1Inx)
-      Weight2 = PartMPF(React2Inx)* VarTimeStep%ParticleTimeStep(React2Inx)
-      IF(EductReac(3).NE.0) Weight3 = PartMPF(iPart_p3)* VarTimeStep%ParticleTimeStep(iPart_p3)
-    ELSE
-      Weight1 = PartMPF(React1Inx)
-      Weight2 = PartMPF(React2Inx)
-      IF(EductReac(3).NE.0) Weight3 = PartMPF(iPart_p3)
-    END IF
-    ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
-      / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN 
-    Weight1 = VarTimeStep%ParticleTimeStep(React1Inx)
-    Weight2 = VarTimeStep%ParticleTimeStep(React2Inx)
-    IF(EductReac(3).NE.0) Weight3 = VarTimeStep%ParticleTimeStep(iPart_p3)
+  Weight1 = GetParticleWeight(React1Inx)
+  Weight2 = GetParticleWeight(React2Inx)
+  IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
+
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ReducedMass = (Species(EductReac(1))%MassIC *Weight1  * Species(EductReac(2))%MassIC * Weight2) &
       / (Species(EductReac(1))%MassIC * Weight1+ Species(EductReac(2))%MassIC * Weight2)
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
-    Weight1 = 1.
-    Weight2 = 1.
-    IF(EductReac(3).NE.0) Weight3 = 1.
   END IF
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -430,7 +417,7 @@ USE MOD_Globals                ,ONLY: abort
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep
 USE MOD_vmpf_collision         ,ONLY: vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange, CalcXiElec
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -438,6 +425,7 @@ USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
 USE MOD_part_tools             ,ONLY: DiceUnitVector
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefmapping
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
 #endif /* CODE_ANALYZE */
@@ -519,44 +507,20 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(React3Inx) = 0
     ELSE
       PartSpecies(React3Inx) = ProductReac(3)
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          WeightProd = PartMPF(iPart_p3)* VarTimeStep%ParticleTimeStep(iPart_p3)
-        ELSE
-          WeightProd = PartMPF(iPart_p3)
-    END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        WeightProd = VarTimeStep%ParticleTimeStep(iPart_p3)
-  ELSE
-        WeightProd = 1.
-      END IF
+      WeightProd = GetParticleWeight(iPart_p3)
       NumWeightProd = 3.
     END IF
   END IF
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      Weight1 = PartMPF(React1Inx)* VarTimeStep%ParticleTimeStep(React1Inx)
-      Weight2 = PartMPF(React2Inx)* VarTimeStep%ParticleTimeStep(React2Inx)
-      IF(EductReac(3).NE.0) Weight3 = PartMPF(iPart_p3)* VarTimeStep%ParticleTimeStep(iPart_p3)
-    ELSE
-      Weight1 = PartMPF(React1Inx)
-      Weight2 = PartMPF(React2Inx)
-      IF(EductReac(3).NE.0) Weight3 = PartMPF(iPart_p3)
-    END IF
-    ReducedMass = Species(EductReac(1))%MassIC *Weight1* Species(EductReac(2))%MassIC *Weight2 &
-        / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC *Weight2)
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    Weight1 = VarTimeStep%ParticleTimeStep(React1Inx)
-    Weight2 = VarTimeStep%ParticleTimeStep(React2Inx)
-    IF(EductReac(3).NE.0) Weight3 = VarTimeStep%ParticleTimeStep(iPart_p3)
-    ReducedMass = Species(EductReac(1))%MassIC *Weight1* Species(EductReac(2))%MassIC *Weight2 &
-        / (Species(EductReac(1))%MassIC * Weight1 + Species(EductReac(2))%MassIC *Weight2)
+  Weight1 = GetParticleWeight(React1Inx)
+  Weight2 = GetParticleWeight(React2Inx)
+  IF(EductReac(3).NE.0) Weight3 = GetParticleWeight(iPart_p3)
+
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    ReducedMass = Species(EductReac(1))%MassIC*Weight1 * Species(EductReac(2))%MassIC*Weight2 &
+               / (Species(EductReac(1))%MassIC*Weight1 + Species(EductReac(2))%MassIC*Weight2)
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
-    Weight1 = 1.
-    Weight2 = 1.
-    IF(EductReac(3).NE.0) Weight3 = 1.
   END IF
 
   IF(.NOT.PRESENT(iPart_p3)) THEN 
@@ -581,10 +545,8 @@ USE MOD_Globals                ,ONLY: unit_stdout,myrank
       PartStateIntEn(React3Inx, 2) = 0.
       IF ( DSMC%ElectronicModel )  PartStateIntEn(React3Inx, 3) = 0.
       PEM%Element(React3Inx) = PEM%Element(React1Inx)
-      IF(usevMPF) PartMPF(React3Inx) = PartMPF(React1Inx)
-      IF(VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(React3Inx) = VarTimeStep%ParticleTimeStep(React1Inx)
-      END IF
+      IF(RadialWeighting%DoRadialWeighting) PartMPF(React3Inx) = PartMPF(React1Inx)
+      IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(React3Inx) = VarTimeStep%ParticleTimeStep(React1Inx)
       WeightProd = Weight1
       NumWeightProd = 3.
     END IF

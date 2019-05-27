@@ -262,7 +262,7 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
       CASE(2)
       ! ######## Clone Random Delay #############################################################################################
       ! A list, which is RadialWeighting%CloneInputDelay + 1 long, is filled with clones to be inserted. After the list
-      ! is full, a random particle from the list is inserted.
+      ! is full, NextClone gives the empty particle list, whose clones were inserted during the last SetInClones step
         IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).LE.RadialWeighting%CloneInputDelay) THEN
           DelayCounter = INT(iter,4)+RadialWeighting%CloneDelayDiff
         ELSE
@@ -320,7 +320,8 @@ SUBROUTINE DSMC_2D_SetInClones()
   USE MOD_Globals
   USE MOD_DSMC_Vars       ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
   USE MOD_DSMC_Vars       ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive
-  USE MOD_Particle_Vars   ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues
+  USE MOD_Particle_Vars   ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+  USE MOD_Particle_VarTimeStep, ONLY: CalcVarTimeStep
   USE MOD_TimeDisc_Vars   ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -330,15 +331,29 @@ SUBROUTINE DSMC_2D_SetInClones()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iPart, PositionNbr, iPolyatMole, DelayCounter
+INTEGER                           :: iPart, PositionNbr, iPolyatMole, DelayCounter
+REAL                              :: iRan
 !===================================================================================================================================
 
 SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)     ! 
+  CASE(1)
+    ! During the first iterations the delay counter refers to the empty clone array (which is filled during the following tracking)
+    ! Afterwards, the MODULUS counts up from zero to CloneInputDelay-1
     DelayCounter = MOD((INT(iter,4)+RadialWeighting%CloneDelayDiff-1),RadialWeighting%CloneInputDelay)
   CASE(2)
+    ! During the first iterations, check if number of iterations is less than the input delay and leave routine. Afterwards, a
+    ! random clone list from the previous time steps is chosen.
     IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).GT.RadialWeighting%CloneInputDelay) THEN
-      DelayCounter = RadialWeighting%NextClone
+      CALL RANDOM_NUMBER(iRan)
+      ! Choosing random clone between 0 and CloneInputDelay
+      DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      DO WHILE (DelayCounter.EQ.RadialWeighting%NextClone)
+        CALL RANDOM_NUMBER(iRan)
+        DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
+      END DO
+      RadialWeighting%NextClone = DelayCounter
+    ELSE
+      RETURN
     END IF
 END SELECT
 
@@ -375,6 +390,10 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PEM%lastElement(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   LastPartPos(PositionNbr,1:3) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(PositionNbr,1),PartState(PositionNbr,2),&
+                                                                PEM%Element(PositionNbr))
+  END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(PEM%Element(PositionNbr),5) = &

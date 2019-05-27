@@ -324,21 +324,6 @@ DO i = 1,PDM%ParticleVecLength
   END IF
 END DO ! i = 1,PDM%ParticleVecLength
 
-IF(RadialWeighting%DoRadialWeighting) THEN
-  IF (RadialWeighting%CloneMode.EQ.2) THEN
-    IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).GT.RadialWeighting%CloneInputDelay) THEN
-      CALL RANDOM_NUMBER(iRan)
-      ! Choosing random clone between 0 and CloneInputDelay
-      DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
-      DO WHILE (DelayCounter.EQ.RadialWeighting%NextClone)
-        CALL RANDOM_NUMBER(iRan)
-        DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
-      END DO
-      RadialWeighting%NextClone = DelayCounter
-    END IF
-  END IF
-END IF
-
 END SUBROUTINE ParticleTriaTracking
 
 
@@ -1108,21 +1093,6 @@ IF(PRESENT(nInnerNewton_In))THEN
   END IF
 END IF
 #endif /*IMPA*/
-
-! IF(RadialWeighting%DoRadialWeighting) THEN
-!   IF (RadialWeighting%CloneMode.EQ.2) THEN
-!     IF((INT(iter,4)+RadialWeighting%CloneDelayDiff).GT.RadialWeighting%CloneInputDelay) THEN
-!       CALL RANDOM_NUMBER(iRan)
-!       ! Choosing random clone between 0 and CloneInputDelay
-!       DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
-!       DO WHILE (DelayCounter.EQ.RadialWeighting%NextClone)
-!         CALL RANDOM_NUMBER(iRan)
-!         DelayCounter = INT((RadialWeighting%CloneInputDelay+1)*iRan)
-!       END DO
-!       RadialWeighting%NextClone = DelayCounter
-!     END IF
-!   END IF
-! END IF
 
 END SUBROUTINE ParticleTracing
 

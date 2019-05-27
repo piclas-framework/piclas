@@ -45,6 +45,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_part_tools,             ONLY : DiceUnitVector
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,27 +68,11 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      FracMassCent1 = Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-          /(Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2))
-      FracMassCent2 = Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2) &
-          /(Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2))
-    ELSE
-      FracMassCent1 = Species(iSpec1)%MassIC *PartMPF(iPart1)/(Species(iSpec1)%MassIC *PartMPF(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2))
-      FracMassCent2 = Species(iSpec2)%MassIC *PartMPF(iPart2)/(Species(iSpec1)%MassIC *PartMPF(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2))
-    END IF
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    FracMassCent1 = Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-        /(Species(iSpec1)%MassIC *VarTimeStep%ParticleTimeStep(iPart1) &
-        + Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2))
-    FracMassCent2 = Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2) &
-        /(Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-         + Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2))
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
+          + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
+    FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
+          + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
   ELSE
     FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
@@ -343,6 +328,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_part_tools,             ONLY : DiceUnitVector
+USE MOD_part_tools                ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -373,28 +359,15 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   DoVib2  = .FALSE.
   DoElec1 = .FALSE.
   DoElec2 = .FALSE.
-  
 
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      ReducedMass = (Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-        * Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2)) &
-        / (Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-        + Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2))
-    ELSE
-      ReducedMass = (Species(iSpec1)%MassIC *PartMPF(iPart1)* Species(iSpec2)%MassIC *PartMPF(iPart2))  &
-        / (Species(iSpec1)%MassIC *PartMPF(iPart1) + Species(iSpec2)%MassIC *PartMPF(iPart2))
-    END IF
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    ReducedMass = (Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-      * Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2)) &
-      / (Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-      + Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2))
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2))  &
+                / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
@@ -419,18 +392,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
     CALL RANDOM_NUMBER(iRan)
     IF(SpecDSMC(iSpec1)%RotRelaxProb.GT.iRan) THEN
       DoRot1 = .TRUE.
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) &
-            * PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1) 
-        ELSE
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * PartMPF(iPart1)
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * VarTimeStep%ParticleTimeStep(iPart1)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2)
-      END IF
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,2) * GetParticleWeight(iPart1)
       Xi = Xi + SpecDSMC(iSpec1)%Xi_Rot
       IF(SpecDSMC(iSpec1)%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
@@ -448,18 +410,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
     CALL RANDOM_NUMBER(iRan)
     IF(SpecDSMC(iSpec2)%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.
-      IF (RadialWeighting%DoRadialWeighting) THEN
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) &
-            * PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2) 
-        ELSE
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * PartMPF(iPart2)
-        END IF
-      ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * VarTimeStep%ParticleTimeStep(iPart2)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2)
-      END IF
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,2) * GetParticleWeight(iPart2)
       Xi = Xi + SpecDSMC(iSpec2)%Xi_Rot
       IF(SpecDSMC(iSpec2)%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
@@ -515,56 +466,23 @@ END IF
   ! Relaxation of first particle
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) &
-                                * PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) * PartMPF(iPart1)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) * VarTimeStep%ParticleTimeStep(iPart1)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
 #if (PP_TimeDiscMethod == 42)
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
 #else
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
     ELSE
-      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi )
+      CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
     END IF
 #endif
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) &
-                                * PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * PartMPF(iPart1)
-  END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * VarTimeStep%ParticleTimeStep(iPart1)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,3) * GetParticleWeight(iPart1)
   END IF
 
   ! Electronic relaxation of second particle
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) &
-                                * PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) * PartMPF(iPart2)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) * VarTimeStep%ParticleTimeStep(iPart2)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
 #if (PP_TimeDiscMethod == 42)
     CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
 #else
@@ -574,18 +492,7 @@ END IF
       CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi )
     END IF
 #endif
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) &
-                                * PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * PartMPF(iPart2)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * VarTimeStep%ParticleTimeStep(iPart2)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,3) * GetParticleWeight(iPart2)
   END IF
 
 #if (PP_TimeDiscMethod==42)
@@ -599,77 +506,32 @@ END IF
 !--------------------------------------------------------------------------------------------------!
 
   IF(DoVib1) THEN
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1) &
-          * PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1) 
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1) * PartMPF(iPart1)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1) * VarTimeStep%ParticleTimeStep(iPart1)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart1,1) * GetParticleWeight(iPart1)
     IF(SpecDSMC(iSpec1)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     END IF
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1) &
-          * PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1)
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1) * PartMPF(iPart1)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1) * VarTimeStep%ParticleTimeStep(iPart1)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart1,1) * GetParticleWeight(iPart1)
   END IF
 
   IF(DoVib2) THEN
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1) &
-          * PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2) 
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1) * PartMPF(iPart2)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1) * VarTimeStep%ParticleTimeStep(iPart2)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart2,1) * GetParticleWeight(iPart2)
     IF(SpecDSMC(iSpec2)%PolyatomicMol) THEN
       CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     END IF
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1) &
-          * PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2) 
-      ELSE
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1) * PartMPF(iPart2)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1) * VarTimeStep%ParticleTimeStep(iPart2)
-    ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1)
-    END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart2,1) * GetParticleWeight(iPart2)
   END IF
 
 !--------------------------------------------------------------------------------------------------! 
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------! 
   IF(DoRot1) THEN
-    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND. &
-        (SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
+    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
@@ -688,14 +550,8 @@ END IF
         FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
       END IF
     END IF
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/(PartMPF(iPart1) * VarTimeStep%ParticleTimeStep(iPart1))
-      ELSE
-        PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/PartMPF(iPart1)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/VarTimeStep%ParticleTimeStep(iPart1)
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      PartStateIntEn(iPart1,2) = PartStateIntEn(iPart1,2)/GetParticleWeight(iPart1)
     END IF
   END IF
 
@@ -720,14 +576,8 @@ END IF
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
       END IF
     END IF
-    IF (RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/(PartMPF(iPart2) * VarTimeStep%ParticleTimeStep(iPart2))
-      ELSE
-        PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/PartMPF(iPart2)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/VarTimeStep%ParticleTimeStep(iPart2)
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      PartStateIntEn(iPart2,2) = PartStateIntEn(iPart2,2)/GetParticleWeight(iPart2)
     END IF
   END IF
 
@@ -742,27 +592,11 @@ END IF
     END IF
   END IF
 
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      FracMassCent1 = Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-          /(Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2))
-      FracMassCent2 = Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2) &
-          /(Species(iSpec1)%MassIC *PartMPF(iPart1)* VarTimeStep%ParticleTimeStep(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2)* VarTimeStep%ParticleTimeStep(iPart2))
-    ELSE
-      FracMassCent1 = Species(iSpec1)%MassIC *PartMPF(iPart1)/(Species(iSpec1)%MassIC *PartMPF(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2))
-      FracMassCent2 = Species(iSpec2)%MassIC *PartMPF(iPart2)/(Species(iSpec1)%MassIC *PartMPF(iPart1) &
-           + Species(iSpec2)%MassIC *PartMPF(iPart2))
-    END IF
-  ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-    FracMassCent1 = Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-        /(Species(iSpec1)%MassIC *VarTimeStep%ParticleTimeStep(iPart1) &
-        + Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2))
-    FracMassCent2 = Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2) &
-        /(Species(iSpec1)%MassIC * VarTimeStep%ParticleTimeStep(iPart1) &
-         + Species(iSpec2)%MassIC * VarTimeStep%ParticleTimeStep(iPart2))
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
+          + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
+    FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
+          + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
   ELSE
     FracMassCent1 = CollInf%FracMassCent(iSpec1, Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(iSpec2, Coll_pData(iPair)%PairType)
@@ -824,7 +658,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
-  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
+  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
   USE MOD_part_tools,             ONLY : DiceUnitVector

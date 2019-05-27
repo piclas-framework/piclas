@@ -30,7 +30,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, GetParticleWeight
 !===================================================================================================================================
 
 CONTAINS
@@ -141,6 +141,41 @@ FUNCTION DiceUnitVector()
   DiceUnitVector(1) = aVec * COS(bVec)
   DiceUnitVector(2) = aVec * SIN(bVec)
 
-END FUNCTION DiceUnitVector 
+END FUNCTION DiceUnitVector
+
+
+REAL FUNCTION GetParticleWeight(iPart)
+!===================================================================================================================================
+!> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
+!> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
+!> moment, the regular weighting factor is not included.
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Particle_Vars           ,ONLY: usevMPF, VarTimeStep, PartMPF
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    GetParticleWeight = PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    GetParticleWeight = PartMPF(iPart)
+  END IF
+ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+  GetParticleWeight = VarTimeStep%ParticleTimeStep(iPart)
+ELSE
+  GetParticleWeight = 1.
+END IF
+
+END FUNCTION GetParticleWeight
 
 END MODULE MOD_part_tools
