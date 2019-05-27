@@ -1991,14 +1991,8 @@ __STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
-<<<<<<< HEAD
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
-=======
-      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid')       .OR.&
-         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere').OR.&
-         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
->>>>>>> master.dev
         IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
