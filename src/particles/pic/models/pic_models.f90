@@ -190,10 +190,9 @@ USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iPart, MaxElecQua, ChargedNum, SumOfFormedParticles, ElectronIndex
-REAL                :: IonizationEnergy_eV, iRan, QuantumTunnelProb, EffQuantNum
+INTEGER             :: iPart, MaxElecQua, SumOfFormedParticles, ElectronIndex
+REAL                :: IonizationEnergy_eV, iRan, QuantumTunnelProb
 REAL                :: n
-REAL                :: CriticalValue
 #ifdef CODE_ANALYZE
 INTEGER             :: ii,jj
 INTEGER,PARAMETER   :: NN=16

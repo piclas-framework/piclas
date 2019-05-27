@@ -52,15 +52,16 @@ CALL prms%SetSection("Dielectric Region")
 
 CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conservative fluxes at dielectric interfaces between a'&
-    //'dielectric region and vacuum' , '.FALSE.')
+                                                               //'dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
+CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.FALSE.')
 CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Test cases, e.g., "FishEyeLens" or "FH_lens"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
-    //' if a DOF is within a dielectric region' ,'.FALSE.')
+                                                               //' if a DOF is within a dielectric region' ,'.FALSE.')
 CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
-    //' within a dielectric region' , '-1.')
+                                                               //' within a dielectric region' , '-1.')
 CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
     //'dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
@@ -108,15 +109,16 @@ IF(.NOT.DoDielectric) THEN
   nDielectricElems=0
   RETURN
 END IF
+DielectricNoParticles            = GETLOGICAL('DielectricNoParticles','.FALSE.')
 DielectricFluxNonConserving      = GETLOGICAL('DielectricFluxNonConserving','.FALSE.')
 DielectricEpsR                   = GETREAL('DielectricEpsR','1.')
 DielectricMuR                    = GETREAL('DielectricMuR','1.')
 DielectricTestCase               = GETSTR('DielectricTestCase','default')
 DielectricRmax                   = GETREAL('DielectricRmax','1.')
-IF((DielectricEpsR.LT.0.0).OR.(DielectricMuR.LT.0.0))THEN
+IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
   CALL abort(&
   __STAMP__&
-  ,'Dielectric: MuR or EpsR cannot be negative.')
+  ,'Dielectric: MuR or EpsR cannot be negative or zero.')
 END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)     !             1./(EpsR*MuR)
@@ -231,6 +233,10 @@ IMPLICIT NONE
 INTEGER             :: i,j,k,iDielectricElem
 REAL                :: r
 !===================================================================================================================================
+! Check if there are dielectric elements
+IF(nDielectricElems.LT.1) RETURN
+
+! Allocate field variables
 ALLOCATE(         DielectricEps(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(          DielectricMu(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))
 ALLOCATE(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,1:nDielectricElems))

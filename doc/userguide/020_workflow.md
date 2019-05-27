@@ -155,13 +155,36 @@ parameter file (e.g. *parameter.ini*) is sufficient, while the DSMC method requi
 
     piclas --help
 
-General parameters such the name of project (used for filenames), the mesh file (as produced by HOPR), end time of the simulation (in seconds) are:
+General parameters such the name of project (used for filenames), the mesh file (as produced by HOPR), end time of the simulation (in seconds) and the time step, at which the particle data is written out (in seconds), are:
 
-    ProjectName=TestCase
-    MeshFile=test_mesh.h5
-    TEnd=1e-3
+    ProjectName = TestCase
+    MeshFile = test_mesh.h5
+    TEnd = 1e-3
+    Analyze_dt = 1e-4
 
-An overview of the parameters is also given in Chapter \ref{chap:parameterfile}. The options and underlying models are discussed in Chapter \ref{chap:features_models}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file.
+Generally following types are used:
+
+~~~~~~~
+INTEGER = 1
+REAL    = 1.23456
+LOGICAL = T         ! True
+LOGICAL =           ! False
+STRING  = PICLAS
+VECTOR  = (/1.0,2.0,3.0/)
+~~~~~~~
+
+The concept of the parameter file is described as followed:
+
+* Each single line is saved and examined for specific variable names
+* The examination is case-insensitive
+* Comments can be set with symbol "!" in front of the text
+* Numbers can also be set by using "pi"
+~~~~~~~
+    vector = (/1,2Pi,3Pi/)
+~~~~~~~
+* The order of defined variables is with one exception irrelevant, except for the special case when redefining boundaries. However, it is preferable to group similar variables together.
+
+The options and underlying models are discussed in Chapter \ref{chap:features_models}. Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials in Chapter \ref{chap:tutorials}.
 
 ## Simulation
 
@@ -172,8 +195,8 @@ After the mesh generation, compilation of the binary and setup of the parameter 
 The simulation may be restarted from an existing state file
 
     piclas parameter.ini [DSMCSpecies.ini] [restart_file.h5]
-    
-**Note:** When restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
+
+A state file is generated at the end of the simulation and also at every time step defined by `Analyze_dt`. **Note:** When restarting from an earlier time (or zero), all later state files possibly contained in your directory are deleted!
 
 After a successful simulation, state files will be written out in the HDF5 format preceded by the project name, file type (e.g. State, DSMCState, DSMCSurfState) and the time stamp:
 

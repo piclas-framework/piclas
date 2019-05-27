@@ -42,7 +42,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, usevMPF, PartState
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState
+!  USE MOD_Particle_Vars,          ONLY : usevMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo       ! da muss noch was getan werden (s.u.)
   USE MOD_TimeDisc_Vars,          ONLY : dt
 !  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
@@ -60,11 +61,13 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                             :: iPType, SpecToExec, NbrOfReaction
+  INTEGER                             :: iPType, NbrOfReaction
   INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
-  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, BGGasDensity_new, sigma_tot
+  REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot
   REAL(KIND=8)                        :: Volume
-  LOGICAL                             :: DoSimpleElectronColl
+!  INTEGER                             :: SpecToExec
+!  LOGICAL                             :: DoSimpleElectronColl
+!  REAL                                :: BGGasDensity_new
 #if (PP_TimeDiscMethod==42)
   INTEGER                             :: iReac, iSpec
 #endif
