@@ -350,6 +350,7 @@ DO i = 1,PDM%ParticleVecLength
           CALL abort(&
            __STAMP__ &
            ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
+        END IF
       END IF
     END DO
 #if USE_LOADBALANCE
