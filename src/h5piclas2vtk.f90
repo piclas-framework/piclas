@@ -40,7 +40,9 @@ USE MOD_HDF5_Input,          ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadA
 USE MOD_HDF5_Input,          ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
 USE MOD_Mesh_ReadIn,         ONLY: readMesh
 USE MOD_Mesh,                ONLY: FinalizeMesh
+#ifdef PARTICLES
 USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
+#endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
 USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
@@ -491,7 +493,6 @@ DO iArgs = iArgsStart,nArgs
     nElems_old         = nElems
     NodeType_State_old = NodeType_State
   END IF
-  
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     CALL ConvertElemData(InputStateFile,ReadMeshFinished,MeshInitFinished)
@@ -518,8 +519,9 @@ SDEALLOCATE(Coords_NVisu)
 SDEALLOCATE(NodeCoords)
 ! visuSurf
 CALL FinalizeMesh()
+#ifdef PARTICLES
 CALL FinalizeParticleMesh()
-
+#endif
 ! Measure processing duration
 Time=PICLASTIME()
 #ifdef MPI
@@ -731,7 +733,9 @@ USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_PreProc
 USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,exchangeFlip,fillMeshInfo
+#ifdef PARTICLES
 USE MOD_Particle_Mesh           ,ONLY: InitParticleGeometry
+#endif
 !--------------------------------------------------------------------------------------------------!
 ! perform Mapping for Surface Output
 !--------------------------------------------------------------------------------------------------!
@@ -786,7 +790,12 @@ MortarInfo=-1
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
+#ifdef PARTICLES
 CALL InitParticleGeometry()
+#else
+CALL abort(__STAMP__,&
+      'ERROR: Post-processing tool h5piclas2vtk was compiled with PARTICLES=OFF! No DSMC/ElemData output supported!')
+#endif
 
 END SUBROUTINE InitMesh_Connected
 

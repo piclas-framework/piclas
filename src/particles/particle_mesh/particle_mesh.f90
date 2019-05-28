@@ -1327,8 +1327,8 @@ SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO,PartElemToSide, PartSideToElem,PartElemToElemAndSide
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1342,8 +1342,8 @@ REAL   ,INTENT(OUT)           :: Det(6,2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, nbSideID, ind, NbElemID, nNbMortars
-LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, BehindSide, InElementCheckMortarNb
+INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
+LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
 REAL                          :: A(1:3,1:4), crossP(3)
 !===================================================================================================================================
   InElementCheck = .TRUE.
@@ -1510,8 +1510,8 @@ SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
 ! checks if particle is inside of linear element with triangulated faces
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO, PartElemToSide
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO, PartElemToSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
