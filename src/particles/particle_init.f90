@@ -1073,6 +1073,7 @@ END IF
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
+! Initialize particle solver
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD

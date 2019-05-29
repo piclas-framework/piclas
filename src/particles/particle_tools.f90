@@ -110,9 +110,10 @@ SUBROUTINE UpdateNextFreePosition()
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
+!VSS
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-!
+! Calculates random unit vector
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -125,16 +126,16 @@ FUNCTION DiceUnitVector()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                     :: DiceUnitVector(3)
-  REAL                     :: iRan, bVec, aVec
+  REAL                     :: iRan,z,prefactor,phi
 !===================================================================================================================================
   CALL RANDOM_NUMBER(iRan)
-  bVec              = 1. - 2.*iRan
-  aVec              = SQRT(1. - bVec**2.)
-  DiceUnitVector(3) = bVec
+  z                 = 1. - 2.*iRan ! z random value between [-1,1]
+  prefactor         = SQRT(1. - z**2.) 
+  DiceUnitVector(3) = z
   CALL RANDOM_NUMBER(iRan)
-  bVec              = Pi *2. * iRan
-  DiceUnitVector(1) = aVec * COS(bVec)
-  DiceUnitVector(2) = aVec * SIN(bVec)
+  phi               = Pi *2. * iRan ! phi random value between [0,2*pi]
+  DiceUnitVector(1) = prefactor * COS(phi)
+  DiceUnitVector(2) = prefactor * SIN(phi)
 
 END FUNCTION DiceUnitVector 
 

@@ -728,7 +728,7 @@ RETURN
 
 END FUNCTION CalcTVibPoly
 
-
+!VSS
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 !===================================================================================================================================
 !> Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
@@ -756,10 +756,10 @@ DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
 ! Calculation of mixture reference diameter
-
 DO iSpec = 1, nSpecies
   DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
 END DO
+
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
