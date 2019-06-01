@@ -26,7 +26,7 @@ export as cgns
 
 [GridPro](https://www.gridpro.com/) is a proprietary conforming multi-block mesh generator with hexahedral elements. However, a free academic version limited to 250 blocks is available.
 
-After mesh generation, and before naming the boundaries in the *Property Setter*, you should set the output format to STARCD. Then export as STARCD and you will get four output files. In order for HOPR to be able to read-in the mesh, the boundary names have to be set again in the *.inp file. An example of a correct *.inp is given below:
+After mesh generation, and before naming the boundaries in the *Property Setter*, you should set the output format to STARCD. Make sure to define not only labels but also different properties for the boundaries. Then export as STARCD and you will get four output files. During the export GridPro loses the label information, thus the boundary names have to be set again in the *.inp file. An example of a correct *.inp is given below:
 
     TITLE
     Converted from GridPro v4.1
@@ -44,7 +44,10 @@ HOPR can then read-in the mesh with following mode option:
 
     Mode = 4
 
-More recent versions of GridPro support also a CGNS output, however, first tries to use the CGNS meshes were not successful.
+More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. While the boundary labels have to be different, the same property type (e.g. *UserDefined*, but not *Wall*!) can be utilized. The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
+
+    ERROR: number of zones in inifile does not correspond to number of zones in meshfile(s)
+    ERROR - Could not find corresponding boundary definition of ws.Interblck
 
 ### Mesh generation with CENTAUR
 
