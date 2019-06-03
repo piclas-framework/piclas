@@ -71,10 +71,10 @@ PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
 PUBLIC:: AnalyticParticleMovement
-#endif /*CODE_ANALYZE*/
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleAnalyze
 
@@ -176,15 +176,18 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars 
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies, ManualTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -488,24 +491,27 @@ USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: iter
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
+USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 #ifdef CODE_ANALYZE
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC, PorousBC
+USE MOD_FPFlow_Vars            ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
+USE MOD_FPFlow_Vars            ,ONLY: FP_PrandtlNumber, FPInitDone
+USE MOD_BGK_Vars               ,ONLY: BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor, BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter
+USE MOD_BGK_Vars               ,ONLY: BGKInitDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -523,12 +529,13 @@ REAL                :: NumSpec(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, ETotal, totalChemEnergySum
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-REAL                :: MeanFreePath
+REAL                :: ETotal, totalChemEnergySum
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
+REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
 #ifdef MPI
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 REAL                :: sumMeanCollProb
 #endif
 REAL                :: RECBR(nSpecies),RECBR1
@@ -536,10 +543,12 @@ INTEGER             :: RECBIM(nSpecies)
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: ii, iunit, iCase, iTvib,jSpec
+INTEGER             :: iCase, iTvib,jSpec
+#ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
+INTEGER             :: ii, iunit
+#endif
 CHARACTER(LEN=350)  :: hilf
-REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -732,7 +741,7 @@ INTEGER             :: dir
           END DO
         END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300|| PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506) || PP_TimeDiscMethod==400)
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecAnalyze
@@ -824,6 +833,35 @@ INTEGER             :: dir
           OutputCounter = OutputCounter + 1
         END IF
 #endif
+        IF(FPInitDone) THEN
+          IF(DSMC%CalcQualityFactors) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MeanRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MaxRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MaxRotRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-FP-MeanPrandtlNumber',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+        END IF
+        IF(BGKInitDone) THEN
+          IF(DSMC%CalcQualityFactors) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MeanRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MaxRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-BGK-MaxRotRelaxFactor',' '
+            OutputCounter = OutputCounter + 1
+          END IF
+        END IF
 #if (PP_TimeDiscMethod==42)
         IF(CalcCollRates) THEN
           DO iSpec = 1, nSpecies
@@ -886,34 +924,38 @@ INTEGER             :: dir
         ETotal = ETotal - totalChemEnergySum
       END IF
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-    IF(DSMC%CalcQualityFactors) THEN
-      MeanFreePath = 0.0
-#ifdef MPI
-      IF((iter.GT.0).AND.PartMPI%MPIRoot) THEN
-#else
-      IF((iter.GT.0)) THEN
-#endif
-        IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpec(1:nSpecies), NumSpec(nSpecAnalyze), &
-                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
-      END IF
-    END IF
-#endif
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+  MaxCollProb = 0.0
+  MeanCollProb = 0.0
+  MeanFreePath = 0.0
+  IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
+    NumSpecTmp = NumSpec
+    IF(BGGas%BGGasSpecies.NE.0) THEN
+      ! Calculation of mean free path and reactions rates requires the number of particles the background species would have if
+      ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
+      NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
+      IF(nSpecAnalyze.GT.1)THEN
+        NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
+      END IF
+    END IF
+  END IF
   IF(DSMC%CalcQualityFactors) THEN
-    MaxCollProb = 0.0
-    MeanCollProb = 0.0
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+#ifdef MPI
+      IF (PartMPI%MPIROOT) THEN
+#endif
+        IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
+                                                              GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
+#ifdef MPI
+      END IF
+#endif
     END IF
   END IF
-#else
-  MaxCollProb = 0.0
-  MeanCollProb = 0.0
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
@@ -938,7 +980,7 @@ INTEGER             :: dir
         PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
       END IF
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
       CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -956,6 +998,30 @@ INTEGER             :: dir
         END IF
       END DO
     END IF
+    IF(FPInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        IF(FP_MeanRelaxFactorCounter.GT.0) THEN
+          FP_MeanRelaxFactor = FP_MeanRelaxFactor / REAL(FP_MeanRelaxFactorCounter)
+          FP_PrandtlNumber = FP_PrandtlNumber / REAL(FP_MeanRelaxFactorCounter)
+        END IF
+        ! Determining the maximal (MPI_MAX) relaxation factors
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
+        ! Determining the maximal (MPI_MAX) relaxation factors
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn,RECBIM   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -963,7 +1029,7 @@ INTEGER             :: dir
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       CALL MPI_REDUCE(MaxCollProb,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
       CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -973,6 +1039,23 @@ INTEGER             :: dir
       DO iPBC = 1, nPorousBC
         CALL MPI_REDUCE(PorousBC(iPBC)%Output,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
       END DO
+    END IF
+    IF(FPInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(FP_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_PrandtlNumber,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(FP_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+        CALL MPI_REDUCE(BGK_MeanRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,RECBR1,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+        CALL MPI_REDUCE(BGK_MaxRotRelaxFactor,RECBR1,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+      END IF
     END IF
   END IF
 #endif /*MPI*/
@@ -986,13 +1069,6 @@ INTEGER             :: dir
   IF(CalcCollRates) CALL CollRates(CRate)
   IF(CalcReacRates) THEN
     IF ((CollisMode.EQ.3).AND.(iter.GT.0)) THEN
-      NumSpecTmp = NumSpec
-      IF(BGGas%BGGasSpecies.NE.0) THEN
-        NumSpecTmp(BGGas%BGGasSpecies) = (BGGas%BGGasDensity * GEO%MeshVolume / Species(BGGas%BGGasSpecies)%MacroParticleFactor)
-        IF(nSpecAnalyze.GT.1)THEN
-          NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze)+NumSpecTmp(BGGas%BGGasSpecies)
-        END IF
-      END IF
       CALL ReacRates(RRate, NumSpecTmp, iter)
     END IF
   END IF
@@ -1102,7 +1178,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300|| PP_TimeDiscMethod==400|| (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506) || PP_TimeDiscMethod==400)
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecAnalyze
@@ -1182,6 +1258,28 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanFreePath
     END IF
 #endif
+    IF(FPInitDone) THEN
+      IF(DSMC%CalcQualityFactors) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MeanRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MaxRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_MaxRotRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') FP_PrandtlNumber
+      END IF
+    END IF
+    IF(BGKInitDone) THEN
+      IF(DSMC%CalcQualityFactors) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MeanRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MaxRelaxFactor
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') BGK_MaxRotRelaxFactor
+      END IF
+    END IF
 #if (PP_TimeDiscMethod==42)
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1
@@ -1212,34 +1310,27 @@ END IF
   IF( CalcPartBalance) CALL CalcParticleBalance()
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if ( PP_TimeDiscMethod ==42 )
-! hard coded
-! array not allocated
-  IF ( DSMC%ElectronicModel ) THEN
-  IF (DSMC%ReservoirSimuRate) THEN
-    IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
-  END IF
+#ifdef CODE_ANALYZE
+IF (DSMC%ElectronicModel.AND.DSMC%ReservoirSimuRate) THEN
+  ! Debug output for initialized electronic state
+  IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
+  DO iSpec = 1, nSpecies
+    IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
+        WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
+        iunit = 485
+        DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
+        OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
+        DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
+          WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
+                                              REAL( Species(iSpec)%Init(0)%initialParticleNumber)
+        END DO
+        CLOSE(iunit)
+      END IF
+    END IF
+  END DO
 END IF
 #endif
-!-----------------------------------------------------------------------------------------------------------------------------------
-#if ( PP_TimeDiscMethod ==42 )
-  ! Debug Output for initialized electronic state
-  IF ( DSMC%ElectronicModel .AND. DSMC%ReservoirSimuRate) THEN
-    DO iSpec = 1, nSpecies
-      IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-        IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
-          WRITE(DebugElectronicStateFilename,'(I2.2)') iSpec
-          iunit = 485
-          DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
-          OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
-          DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
-            WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
-                                               REAL( Species(iSpec)%Init(0)%initialParticleNumber)
-          END DO
-          CLOSE(iunit)
-        END IF
-      END IF
-    END DO
-  END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE AnalyzeParticles
@@ -1987,6 +2078,14 @@ SUBROUTINE CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 ! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
 ! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 ! PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity)
+!
+! Note that the thermal velocity corresponds to the root mean square of the total velocity (in three dimensions), which is given by 
+!
+!      v_th = SQRT(3 * kB * T / m)
+!
+! with kB : Boltzmann's constant
+!      T  : temperature
+!      m  : mass of the particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2463,6 +2562,7 @@ END SUBROUTINE ReacRates
 #endif 
 
 #if ( PP_TimeDiscMethod == 42)
+#ifdef CODE_ANALYZE
 SUBROUTINE ElectronicTransition (  Time, NumSpec )
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -2520,8 +2620,10 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE ElectronicTransition
 #endif
+#endif
 
 #if ( PP_TimeDiscMethod == 42)
+#ifdef CODE_ANALYZE
 SUBROUTINE WriteEletronicTransition ( Time )
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -2596,7 +2698,7 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE WriteEletronicTransition
 #endif
-
+#endif
 
 !  SUBROUTINE TrackingParticlePosition(time)
 !  !===================================================================================================================================
@@ -3729,7 +3831,8 @@ SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
-USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+! OLD METHOD: considering TEnd:
+! USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

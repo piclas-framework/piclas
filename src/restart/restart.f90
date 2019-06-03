@@ -282,6 +282,7 @@ USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBo
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif /*MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
+USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
 #ifdef PP_HDG
 USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
@@ -317,7 +318,7 @@ REAL                               :: StartT,EndT
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
-INTEGER                            :: FirstElemInd,LastelemInd,iInit
+INTEGER                            :: FirstElemInd,LastelemInd,iInit,j,k
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
@@ -326,7 +327,7 @@ INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
-LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
+LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
 REAL                               :: det(6,2)
 INTEGER                            :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
@@ -343,6 +344,7 @@ INTEGER                            :: locnSurfPart,offsetnSurfPart
 INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
 REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
 INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
@@ -432,6 +434,34 @@ IF(DoRestart)THEN
 #endif /*USE_QDS_DG*/
 
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#ifdef PARTICLES
+    !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
+    IF (DoDeposition .AND. RelaxDeposition) THEN
+      CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
+      IF(DGSourceExists)THEN
+        IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+          ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+          CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
+          DO iElem =1, PP_nElems
+            DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+              PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+              PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+              PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+              PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+            END DO; END DO; END DO
+          END DO
+          DEALLOCATE(PartSource_HDF5)
+        ELSE! We need to interpolate the solution to the new computational grid
+          CALL abort(&
+            __STAMP__&
+            ,' Restart with changed polynomial degree not implemented for DG_Source!')
+        END IF
+      END IF
+    END IF
+#endif /*PARTICLES*/
     ! Read in time from restart file
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
@@ -1365,7 +1395,7 @@ __STAMP__&
 #endif /*PARTICLES*/
 #ifdef PP_HDG
   iter=0
-  ! INSTEAD OF ALL THIS **** DO
+  ! INSTEAD OF ALL THIS STUFF DO
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve

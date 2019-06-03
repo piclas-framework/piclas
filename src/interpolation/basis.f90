@@ -32,6 +32,10 @@ INTERFACE INV
    MODULE PROCEDURE INV
 END INTERFACE
 
+INTERFACE INV33
+   MODULE PROCEDURE INV33
+END INTERFACE
+
 INTERFACE BuildLegendreVdm
    MODULE PROCEDURE BuildLegendreVdm
 END INTERFACE
@@ -107,6 +111,7 @@ INTERFACE EQUALTOTOLERANCE
 END INTERFACE
 
 PUBLIC::INV
+PUBLIC::INV33
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
 PUBLIC::BuildBezierVdm
@@ -180,6 +185,48 @@ __STAMP__&
 ,' Matrix inversion failed!')
 END IF
 END FUNCTION INV
+
+SUBROUTINE INV33(M,MInv,detM)
+!===================================================================================================================================
+! Computes the inverse of a 3x3 matrix
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: M(3,3)  ! ?
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: MInv(3,3),detM  ! ?
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!===================================================================================================================================
+detM =   M(1,1)*M(2,2)*M(3,3)  &
+       - M(1,1)*M(2,3)*M(3,2)  &
+       - M(1,2)*M(2,1)*M(3,3)  &
+       + M(1,2)*M(2,3)*M(3,1)  &
+       + M(1,3)*M(2,1)*M(3,2)  &
+       - M(1,3)*M(2,2)*M(3,1)
+
+IF(ABS(detM).LE.1.E-12*SUM(ABS(M)))THEN
+   MInv=0.
+   detM=0.
+   RETURN
+END IF
+
+MInv(1,1) =  (M(2,2)*M(3,3)-M(2,3)*M(3,2))
+MInv(2,1) = -(M(2,1)*M(3,3)-M(2,3)*M(3,1))
+MInv(3,1) =  (M(2,1)*M(3,2)-M(2,2)*M(3,1))
+MInv(1,2) = -(M(1,2)*M(3,3)-M(1,3)*M(3,2))
+MInv(2,2) =  (M(1,1)*M(3,3)-M(1,3)*M(3,1))
+MInv(3,2) = -(M(1,1)*M(3,2)-M(1,2)*M(3,1))
+MInv(1,3) =  (M(1,2)*M(2,3)-M(1,3)*M(2,2))
+MInv(2,3) = -(M(1,1)*M(2,3)-M(1,3)*M(2,1))
+MInv(3,3) =  (M(1,1)*M(2,2)-M(1,2)*M(2,1))
+MInv=MInv/detM
+END SUBROUTINE INV33
+
 
 !#ifdef PARTICLES
 SUBROUTINE ComputeBernSteinCoeff(N_In,NChooseK)

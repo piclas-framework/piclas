@@ -2457,7 +2457,7 @@ END SUBROUTINE ParticleThroughSideLastPosCheck
 !!===================================================================================================================================
 !PartisDone = .TRUE.
 !PlanarSideNum = 0
-!eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 10. !value can be further increased, so far "semi-empirical".
+!eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 1000. !value can be further increased, so far "semi-empirical".
 !
 !DO ilocSide=1,6
 !  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -2479,6 +2479,7 @@ END SUBROUTINE ParticleThroughSideLastPosCheck
 !END DO
 !
 !END SUBROUTINE CheckPlanarInside
+
 
 SUBROUTINE ParticleCollectCharges(initialCall_opt)
 !===================================================================================================================================

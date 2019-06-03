@@ -327,6 +327,21 @@ gnu_DSMC_check:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
 
+gnu_BGK_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+
+gnu_FPFlow_check:
+  <<: *defaults_gnu
+  stage: reggie_feature_checkin
+  tags:
+    - withmodules-concurrent
+  script:
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
 gnu_SurfaceModel_check:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
@@ -587,6 +602,22 @@ gnu_integer_kind8:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+
+gnu_PIC_deposition:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+
+gnu_PIC_innerBC_SFLocalDepoBC:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
        
 gnu_feature_SurfaceModel:
   <<: *defaults_gnu
@@ -742,6 +773,30 @@ gnu_feature_SurfaceModel:
 #     - withmodules-concurrent
 #   script:
 #     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+# 
+# intel_integer_kind8:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+# 
+# intel_PIC_deposition:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+#
+# intel_PIC_innerBC_SFLocalDepoBC:
+#   <<: *defaults_intel
+#   stage: reggie_nightly
+#   tags:
+#     - withmodules-concurrent
+#   script:
+#     - if [ -n "${DO_NIGHTLY}" ]; then module load env/intel ; cd build_intel ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

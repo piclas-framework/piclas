@@ -855,7 +855,7 @@ IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the sym
       p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
     END IF
-    
+
   !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
 !                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
@@ -987,6 +987,11 @@ USE MOD_DSMC_Vars,              ONLY:PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Vars,          ONLY:WriteMacroSurfaceValues
 USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
 USE MOD_Particle_Boundary_Vars, ONLY:AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
+#if (PP_TimeDiscMethod==400)
+USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
+#elif (PP_TimeDiscMethod==300)
+USE MOD_FPFlow_Vars,            ONLY: FPDoVibRelaxation
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1017,6 +1022,7 @@ INTEGER                              :: p,q, SurfSideID
 REAL                                 :: POI_fak,TildTrajectory(3)
 ! Polyatomic Molecules
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL                                 :: NormProb
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 ! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
@@ -1212,8 +1218,22 @@ IF (CollisMode.GT.1) THEN
 IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20)) THEN
 
   !---- Rotational energy accommodation
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.2) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    ELSE IF (SpecDSMC(PartSpecies(PartID))%Xi_Rot.EQ.3) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+      NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+      CALL RANDOM_NUMBER(RanNum)
+      DO WHILE (RanNum.GE.NormProb)
+        CALL RANDOM_NUMBER(RanNum)
+        ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
+        NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
+        CALL RANDOM_NUMBER(RanNum)
+      END DO
+      ErotWall = ErotWall*BoltzmannConst*WallTemp
+    END IF
     ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
 
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
@@ -1228,6 +1248,11 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
 
     PartStateIntEn(PartID,2) = ErotNew
 
+#if (PP_TimeDiscMethod==400)
+    IF (BGKDoVibRelaxation) THEN
+#elif (PP_TimeDiscMethod==300)
+    IF (FPDoVibRelaxation) THEN
+#endif
    !---- Vibrational energy accommodation
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
         EvibNew = 0.0
@@ -1296,6 +1321,9 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
       END IF     
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
       PartStateIntEn(PartID,1) = EvibNew
+#if ((PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300))
+    END IF
+#endif
     END IF
     END IF ! CollisMode > 1
     END IF ! useDSMC
