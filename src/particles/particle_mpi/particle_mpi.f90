@@ -2336,9 +2336,10 @@ DO iSpec=1,nSpecies
     CASE ('IMD')
        RegionOnProc=.TRUE.
     CASE DEFAULT
+      IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL abort(&
       __STAMP__&
-      ,'not implemented')
+      ,'ERROR: Given SpaceIC is not implemented!')
     END SELECT
     ! create new communicator
     color=MPI_UNDEFINED
