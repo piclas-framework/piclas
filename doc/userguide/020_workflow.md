@@ -20,7 +20,11 @@ Note that the path to the **HOPR** executable is omitted in the command (see \re
 
 ### Mesh generation with HEXPRESS
 
-export as cgns
+CAD model of complete fluid domain with FreeCAD -> Export as STL. CATIA, SolidWorks formats also supported by HEXPRESS.
+
+Export as CGNS (ADF)
+
+HOPR: CGNS 3.3.1
 
 ### Mesh generation with GridPro
 
@@ -44,7 +48,7 @@ HOPR can then read-in the mesh with following mode option:
 
     Mode = 4
 
-More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. While the boundary labels have to be different, the same property type (e.g. *UserDefined*, but not *Wall*!) can be utilized. The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
+More recent versions of GridPro also support a CGNS output. Here, the option *Export* -> *Grid* -> *CGNS* -> *Elementary* should be chosen. For different boundary labels, different property types have to be defined (Note: The property type *Wall* seems to be causing problems during the HOPR read-in and should be avoided). The following errors can be ignored as long as HOPR finishes successfully and a mesh file is written out
 
     ERROR: number of zones in inifile does not correspond to number of zones in meshfile(s)
     ERROR - Could not find corresponding boundary definition of ws.Interblck
