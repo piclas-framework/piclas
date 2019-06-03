@@ -2908,6 +2908,11 @@ END IF !nCollectChargesBCs .GT. 0
 IF (useDSMC) THEN
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   IF (BGGas%BGGasSpecies.NE.0) THEN
+    IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR: 2D/Axisymmetric and variable timestep are not implemented with a background gas yet!')
+    END IF
     IF (Species(BGGas%BGGasSpecies)%NumberOfInits.NE.0 &
       .OR. Species(BGGas%BGGasSpecies)%StartnumberOfInits.NE.0) CALL abort(&
 __STAMP__&

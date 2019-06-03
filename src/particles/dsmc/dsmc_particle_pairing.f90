@@ -89,8 +89,8 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   IF (CollisMode.EQ.3) THEN
     ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
     DO iPart = 1, PartNum
-      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) = &
-        ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) + PartStateIntEn(iPartIndx_Node(iPart),1)
+      ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart)))=ChemReac%MeanEVib_PerIter(PartSpecies(iPartIndx_Node(iPart))) &
+                                              + PartStateIntEn(iPartIndx_Node(iPart),1)*GetParticleWeight(iPartIndx_Node(iPart))
     END DO
   END IF
 
@@ -229,7 +229,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,              ONLY : DSMC, SelectionProc, RadialWeighting
   USE MOD_DSMC_Analyze,           ONLY : CalcGammaVib, CalcInstantTransTemp
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF, VarTimeStep
   USE MOD_Particle_Vars,          ONLY : KeepWallParticles, PDM
   USE MOD_part_tools,             ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -257,6 +257,8 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     ChemReac%RecombParticle = 0
   END IF
 
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
+
   CollInf%Coll_SpecPartNum = 0.
   CollInf%Coll_CaseNum = 0
   CRelaMax = 0
@@ -276,13 +278,13 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
       END DO
     END IF
     iPartIndx(iLoop) = iPart
+    ! Counter for part num of spec per cell
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-    ! counter for part num of spec per cell
-    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
-                          ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
-                        + PartStateIntEn(iPart,1) !Calculation of mean evib per cell and iter, necessary for disso prob
-    ! choose next particle in Element
-    iPart = PEM%pNext(iPart)    
+    ! Calculation of mean evib per cell and iter, necessary for disso prob
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
+                                                                  + PartStateIntEn(iPart,1) * GetParticleWeight(iPart)
+    ! Choose next particle in Element
+    iPart = PEM%pNext(iPart)
   END DO
 
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.((CollisMode.EQ.3).AND.DSMC%BackwardReacRate).OR.DSMC%CalcQualityFactors) THEN
@@ -325,6 +327,10 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     END IF
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
+    IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
+                                                          + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
+    END IF
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
     Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
@@ -473,7 +479,7 @@ SUBROUTINE FindNearestNeigh2D(iPartIndx_Node, PartNum, iElem, NodeVolume, MidPoi
 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &  
+      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                           + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     END IF
 
@@ -892,8 +898,8 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, RadialWeighting, CollInf
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, VarTimeStep
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol, CollInf
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -1757,7 +1763,7 @@ DO iPair = 1, nPair                               ! statistical pairing
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &  
+    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
 
