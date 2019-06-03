@@ -332,7 +332,7 @@ CALL prms%CreateStringOption(   'Part-Species[$]-SpaceIC'  &
                                 ' - gyrotron_circle \n'//&
                                 ' - circle_equidistant \n'//&
                                 ' - cuboid \n'//&
-                                ' - cuboid_sphere (spherical cutout of box) \n'//&
+                                ' - sphere \n'//&
                                 ' - cylinder \n'//&
                                 ' - cuboid_vpi \n'//&
                                 ' - cylinder_vpi \n'//&
@@ -1758,8 +1758,7 @@ __STAMP__&
     END IF
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
-      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.&
-         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid')) THEN
         IF (ALMOSTEQUAL(Species(iSpec)%Init(iInit)%CuboidHeightIC,-1.)) THEN ! flag is initialized with -1, compatibility issue 
           Species(iSpec)%Init(iInit)%CalcHeightFromDt=.TRUE.                 
           SWRITE(*,*) "WARNING: Cuboid height will be calculated from v and dt!"
@@ -1777,7 +1776,6 @@ __STAMP__&
 __STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid')        .AND.&
-          (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid_sphere') .AND.&
           (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder'))          &
         CALL abort(&
 __STAMP__&
@@ -1914,8 +1912,7 @@ __STAMP__&
           Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC     &
             = GETREAL('Part-Species'//TRIM(hilf3)//'-CylinderHeightIC','1.')
           !--normalize and stuff
-          IF(((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid').OR.&
-              (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid_sphere')) .OR. &
+          IF((TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).EQ.'cuboid') .OR. &
                ((((.NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1),1.) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2),0.)) &
               .OR. .NOT.ALMOSTEQUAL(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3),0.)) &
@@ -1943,7 +1940,6 @@ __STAMP__&
               - Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
           ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid')        .AND. &
-                    (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid_sphere') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
             CALL abort(&
 __STAMP__&
@@ -2042,8 +2038,7 @@ __STAMP__&
 __STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
-              IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') .OR.&
-                 (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_sphere')) THEN
+              IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
                 Species(iSpec)%Init(iInit)%initialParticleNumber &
                   = INT(Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor &
                   * Species(iSpec)%Init(iInit)%CuboidHeightIC * A_ins)
