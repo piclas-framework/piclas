@@ -66,9 +66,7 @@ INTEGER                          :: Max_Surfsites_own
 INTEGER                          :: Max_Surfsites_halo
 INTEGER                          :: iSurfSide, iSubSurf, jSubSurf, iSpec
 INTEGER                          :: SideID, PartBoundID
-INTEGER                          :: surfsquare, dist, Adsorbates
-INTEGER                          :: Surfpos, Surfnum, UsedSiteMapPos
-REAL                             :: RanNum
+INTEGER                          :: surfsquare, Adsorbates
 INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 INTEGER                          :: DistSquareNum
 LOGICAL                          :: DistNumCase
@@ -805,7 +803,7 @@ SUBROUTINE Initfcc100Mapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1101,7 +1099,7 @@ SUBROUTINE Initfcc111Mapping()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

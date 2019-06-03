@@ -570,10 +570,10 @@ REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2, Pa
 REAL    :: SurfPartIntE, Beta, a_f, b_f, c_f, ParticleTemp
 INTEGER :: SpecID
 INTEGER :: globSide, PartBoundID, DissocNum, AssocNum
-INTEGER :: iDof, iPolyAtMole
+!INTEGER :: iDof, iPolyAtMole
 !INTEGER :: iQuant
 !REAL    :: RanNum
-REAL    :: VarPartitionFuncAct, VarPartitionFuncGas, VarPartitionFuncSurf
+!REAL    :: VarPartitionFuncAct, VarPartitionFuncGas, VarPartitionFuncSurf
 REAL    :: WallTemp
 #if (PP_TimeDiscMethod==42)
 INTEGER :: iSampleReact

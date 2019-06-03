@@ -506,7 +506,7 @@ SUBROUTINE SMCR_PartDesorb()
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorptionHeat
 USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos, IsReactiveSurface
@@ -531,10 +531,10 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                           :: iSurf, iSpec, SpecID, globSide, jSubSurf, iSubSurf, PartBoundID
 INTEGER                           :: iDissocReact, iRecombReact, ReactID
-INTEGER                           :: Coord, Coord3, i, j, AdsorbID, numSites
+INTEGER                           :: Coord, Coord3, i, AdsorbID, numSites
 REAL                              :: WallTemp, RanNum
 REAL                              :: Heat_A, Heat_B, rate
-INTEGER                           :: Indx, Indy, Surfpos
+INTEGER                           :: Surfpos
 INTEGER                           :: trace, traceNum
 INTEGER , ALLOCATABLE             :: desorbnum(:), reactdesorbnum(:)
 INTEGER , ALLOCATABLE             :: adsorbnum(:)

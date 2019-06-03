@@ -213,7 +213,6 @@ USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
 USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
 USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues, PartSurfaceModel
 USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
-USE MOD_Particle_Mesh_Vars         ,ONLY: nTotalSides
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling

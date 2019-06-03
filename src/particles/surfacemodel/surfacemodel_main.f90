@@ -80,9 +80,8 @@ SUBROUTINE UpdateSurfModelVars()
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies, PartSurfaceModel
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
-USE MOD_Mesh_Vars              ,ONLY: BC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
