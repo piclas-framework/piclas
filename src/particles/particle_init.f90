@@ -2547,20 +2547,6 @@ DelayTime = GETREAL('Part-DelayTime','0.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
-! Initialization of RadialWeighting in 2D axisymmetric simulations
-! Calculate the volumes for 2D simulation
-IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
-IF(Symmetry2DAxisymmetric) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    CALL DSMC_2D_InitRadialWeighting()
-  END IF
-  IF(.NOT.TriaTracking) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
-END IF
 
 ! init interpolation
 CALL InitializeInterpolation() ! not any more required ! has to be called earliear
@@ -2804,6 +2790,23 @@ END IF
 !-- Finalizing InitializeVariables
 CALL InitFIBGM()
 !CALL InitSFIBGM()
+
+! === 2D/Axisymmetric initialization
+! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry2D) CALL DSMC_2D_InitVolumes()
+IF(Symmetry2DAxisymmetric) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Initialization of RadialWeighting in 2D axisymmetric simulations
+    CALL DSMC_2D_InitRadialWeighting()
+  END IF
+  IF(.NOT.TriaTracking) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaTracking = T')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(&
+    __STAMP__&
+    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+END IF
+
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/

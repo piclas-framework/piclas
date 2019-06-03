@@ -65,6 +65,14 @@ SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
 SymmetrySide = -1.
 
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-8)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-8'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
 DO SideID=1,nBCSides
   ! Get the SideID of the symmetry sides defined as symmetry BC ('symmetric')
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
@@ -77,7 +85,7 @@ DO SideID=1,nBCSides
     END IF
     ! Exclude the symmetry axis (y=0)
     IF(MAXVAL(GEO%NodeCoords(2,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.0.0) THEN
-      ! The z-plane with the positive/greater z component is chosen
+      ! The z-plane with the positive z component is chosen
       IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
         IF(SymmetrySide(ElemID,1).GT.0.0) THEN
           CALL abort(__STAMP__&
