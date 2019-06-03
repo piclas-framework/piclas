@@ -144,7 +144,7 @@ FUNCTION DiceUnitVector()
 END FUNCTION DiceUnitVector
 
 
-REAL FUNCTION GetParticleWeight(iPart)
+PURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 !> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
 !> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
