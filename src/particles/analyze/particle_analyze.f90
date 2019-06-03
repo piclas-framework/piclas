@@ -382,7 +382,13 @@ ELSE
 END IF
 
 CalcCouplPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
-IF(CalcCouplPower) DoPartAnalyze = .TRUE.
+IF(CalcCouplPower) THEN
+  DoPartAnalyze = .TRUE.
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
+  CALL abort(__STAMP__,&
+            'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+#endif
+END IF
 !! TEST
       Velo_null = 0.0
 !! TEST
