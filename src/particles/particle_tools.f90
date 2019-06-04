@@ -26,12 +26,15 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
+INTERFACE diceCollVector
+  MODULE PROCEDURE diceCollVector
+END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector,diceCollVector
 !===================================================================================================================================
 
 CONTAINS
@@ -110,10 +113,56 @@ SUBROUTINE UpdateNextFreePosition()
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
-!VSS
+
+SUBROUTINE diceCollVector(diceVector,alpha)
+!===================================================================================================================================
+! Calculates deflection angle and resulting deflection vector after bird1994/Hawk. Variables of functions must not be optional.
+! Therefore, this is a subroutine.
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  USE MOD_Globals_Vars,           ONLY : Pi
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  REAL,INTENT(IN), OPTIONAL  :: alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL,INTENT(OUT)           :: diceVector(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                       :: iRan, eps, cos_chi, sin_chi,alpha_aux
+!===================================================================================================================================
+! im Code die alphas hinterlegen #datenbank.
+! macht es unterschied ob a b oder b a?
+IF(.NOT.PRESENT(alpha)) THEN
+   !VHS isotropic scattering angle with random value between [-1,1]
+   alpha_aux=1.
+   WRITE(*,*) "VHS" 
+   cos_chi         = 2.*iRan**(1./alpha_aux)-1. !chi - scattering angle   
+ELSE
+   
+   IF (alpha.GE.1) THEN
+      cos_chi         = 2.*iRan**(1./alpha)-1. !chi - scattering angle   
+      IF (alpha.GT.1) WRITE(*,*) "VSS"
+      IF (alpha.EQ.1) WRITE(*,*) "VHS" 
+   ELSE !Error
+      WRITE (*,*) "Alpha must not be less than 1"
+   END IF
+END IF
+CALL RANDOM_NUMBER(iRan)
+sin_chi         = SQRT(1. - cos_chi**2.) 
+diceVector(3)   = cos_chi
+CALL RANDOM_NUMBER(iRan)
+eps             = 2.*PI*iRan ! azimuthal impact angle epsilon
+diceVector(1)   = sin_chi*cos(eps)
+diceVector(2)   = sin_chi*sin(eps)
+! pre-collision relative velocity is scaled, to have the magnitude of post-collision relative speed
+END SUBROUTINE diceCollVector
+
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-! Calculates random unit vector
+! Calculates random unit vector.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

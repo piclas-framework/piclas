@@ -418,7 +418,7 @@ IF (DSMC%DoTEVRRelaxation) THEN
       DoElec1=.false.
       DoVib1=.false.
     END IF
-  END IF
+END IF
 
   IF(.NOT.SpecDSMC(iSpec2)%PolyatomicMol) THEN
     IF(DoElec2.AND.DoVib2) THEN
@@ -622,7 +622,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
-  USE MOD_part_tools,             ONLY : DiceUnitVector
+  USE MOD_part_tools,             ONLY : DiceUnitVector,diceCollVector
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -647,7 +647,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
   REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
   REAL                          :: ProbVibMax1, ProbVibMax2                     ! according to Zhang (see paper, NDD-RotRelax-Model)
-
+  REAL                          :: alpha
 !===================================================================================================================================
 
   ! set some initial values
@@ -943,7 +943,54 @@ __STAMP__&
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
+! VSS
 
+  IF(usevMPF) THEN
+    IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
+      GEO%DeltaEvMPF(iElem) = 0.0
+    END IF
+  END IF
+
+  FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
+  FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
+
+  !Calculation of velo from center of mass - parametrisation from 3D to 2D
+  VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
+         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
+  VeloMy = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 5) &
+         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 5)
+  VeloMz = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 6) &
+         + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
+
+  !calculate random vec and new squared velocities
+  Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
+  alpha=1.5
+  write (*,*) "alpha= ",alpha
+  CALL diceCollVector(RanVec(1:3),alpha) 
+  write (*,*) "diceCollVector exited"
+  RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
+  RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
+  RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
+
+  ! deltaV particle 1
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
+          - PartState(Coll_pData(iPair)%iPart_p1, 4)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy &
+          - PartState(Coll_pData(iPair)%iPart_p1, 5)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = VeloMz + FracMassCent2*RanVeloz &
+          - PartState(Coll_pData(iPair)%iPart_p1, 6)
+ ! deltaV particle 2
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = VeloMx - FracMassCent1*RanVelox &
+          - PartState(Coll_pData(iPair)%iPart_p2, 4)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = VeloMy - FracMassCent1*RanVeloy &
+          - PartState(Coll_pData(iPair)%iPart_p2, 5)
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*RanVeloz &
+            - PartState(Coll_pData(iPair)%iPart_p2, 6)
+
+  IF(usevMPF) CALL vMPF_PostVelo(iPair, iElem)
+
+! VHS
   IF(usevMPF) THEN
     IF (iPair.EQ.PairE_vMPF(1)) THEN         ! adding energy lost due to vMPF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + GEO%DeltaEvMPF(iElem) / PartMPF(PairE_vMPF(2))
@@ -965,6 +1012,7 @@ __STAMP__&
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
   RanVec(1:3) = DiceUnitVector()
+  CALL diceCollVector(RanVec(1:3)) 
 
   RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
   RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
