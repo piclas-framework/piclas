@@ -4629,12 +4629,9 @@ IF (time.GE.DelayTime) THEN
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
-
-  IF (CalcCouplPower) THEN                ! if output of coupled power is active
-    PCoupl = 0.                           ! PCoupl is reseted
-    PCouplAverage = PCouplAverage * Time  ! PCoupl is rested
+  IF (CalcCouplPower) THEN                         ! if output of coupled power is active
+    PCoupl = 0.                                    ! PCoupl is reseted
   END IF
-
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
@@ -5009,10 +5006,8 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
-
-  IF (CalcCouplPower) THEN                ! if output of coupled power is active
-    PCoupl = 0.                           ! PCoupl is reseted
-    PCouplAverage = PCouplAverage * Time  ! PCouplAverage is reseted
+  IF (CalcCouplPower) THEN                         ! if output of coupled power is active
+    PCoupl = 0.                                    ! PCoupl is reseted
   END IF
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN

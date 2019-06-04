@@ -383,9 +383,6 @@ END IF
 
 CalcCouplPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
 IF(CalcCouplPower) DoPartAnalyze = .TRUE.
-!! TEST
-      Velo_null = 0.0
-!! TEST
 
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
@@ -661,11 +658,6 @@ INTEGER             :: dir
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv',' '
           OutputCounter = OutputCounter + 1
-!! TEST
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Strecke',' '
-          OutputCounter = OutputCounter + 1
-!! TEST
         END IF
         IF (CalcLaserInteraction) THEN
           DO iSpec=1, nSpecies
@@ -1007,30 +999,13 @@ INTEGER             :: dir
     IF(CalcCouplPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      PCoupl = PCoupl / dt
 !Moving Average of PCoupl:
-      IF(Time.EQ.0) THEN
+      IF(iter.EQ.0) THEN
         PCouplAverage = 0.0
       ELSE
         PCouplAverage = PCouplAverage / Time
       END IF
-!! Test
-      IF(iter.GT.0)THEN
-
-!        Strecke = 0.5 * 1000**2 * (1.602176634e-19)**2 / 9.1093826E-31 * Time ! Analytische Lösung paralel
-
-        Strecke = 1/((2*3.14159265359*13.56E6)**2*Time) * 1000**2 * (1.602176634e-19)**2 / 9.1093826E-31 &
-                * (SIN(2*3.14159265359*13.56E6*Time))**2
-
-
-!        StreckeOld = 0.5 * 1000**2 * (1.602176634e-19)**2 * Time
-
-!        Strecke = ( 0.5 * 1000 * 1.602176634e-19 * dt * dt / 9.1093826E-31 & 
-!                + Velo_null * dt ) &
-!                * 1000 * 1.602176634e-19 / dt
-!        Velo_null = Velo_null + 1000 * 1.602176634e-19 * dt / 9.1093826E-31
-      END IF
-!! Test
+      PCoupl = PCoupl / dt
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1173,10 +1148,6 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PCoupl
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PCouplAverage
-!! TEST
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Strecke
-!! TEST
     END IF
     IF (CalcLaserInteraction) THEN
       DO iSpec=1, nSpecies
@@ -1370,6 +1341,9 @@ IF(CalcPorousBCInfo) THEN
   DO iPBC = 1,nPorousBC
     PorousBC(iPBC)%Output(1:5) = 0.
   END DO
+END IF
+IF (CalcCouplPower) THEN                         ! if output of coupled power is active
+  PCouplAverage = PCouplAverage * Time           ! PCouplAverage is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -33,10 +33,6 @@ LOGICAL                       :: CalcTemp                            !< Computat
 LOGICAL                       :: CalcCouplPower                      !< Computation of the power that is coupled into plasma
 REAL                          :: PCoupl                              !< Power that is coupled into plasma
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average)
-!! Test
-REAL                          :: Strecke                             !< Power that is coupled into plasma
-REAL                          :: Velo_null                           !< Power that is coupled into plasma
-!! Test
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
