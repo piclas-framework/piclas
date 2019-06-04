@@ -24,6 +24,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
+LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species

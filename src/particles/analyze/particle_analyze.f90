@@ -139,8 +139,10 @@ CALL prms%CreateLogicalOption(  'Part-TrackPosition'      , 'TODO-DEFINE-PARAMET
 CALL prms%CreateLogicalOption(  'printDiff'               , 'TODO-DEFINE-PARAMETER','.FALSE.')
 CALL prms%CreateRealOption(     'printDiffTime'           , 'TODO-DEFINE-PARAMETER','12.')
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.')
-CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'TODO-DEFINE-PARAMETER\n'//&
-                                                            'Calculate species count.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the '//&
+                                                            'complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density per species for the complete domain' &
+                                                          ,'.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                             'Calculate the collision rates per '//&
                                                             'collision pair','.FALSE.')
@@ -411,6 +413,7 @@ IF(TrackParticlePosition)THEN
   END IF
 END IF
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
+CalcNumDens   = GETLOGICAL('CalcNumDens','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
 
@@ -422,7 +425,7 @@ IF(CalcReacRates) THEN
   END IF
 END IF
 
-IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
+IF(CalcNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -513,9 +516,7 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
 USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
-#ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
@@ -540,7 +541,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, iSpec, OutputCounter, iPBC
 INTEGER(KIND=8)     :: SimNumSpec(nSpecAnalyze)
-REAL                :: NumSpec(nSpecAnalyze)
+REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
@@ -586,10 +587,7 @@ INTEGER             :: dir
   END IF
   OutputCounter = 2
   unit_index = 535
-#ifdef MPI
-!#ifdef PARTICLES
   IF (PartMPI%MPIRoot) THEN
-#endif    /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
@@ -625,6 +623,13 @@ INTEGER             :: dir
           DO iSpec = 1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        IF (CalcNumDens) THEN
+          DO iSpec = 1, nSpecAnalyze
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-NumDens-Spec-', iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
         END IF
@@ -903,15 +908,14 @@ INTEGER             :: dir
         WRITE(unit_index,'(A1)') ' '
       END IF
     END IF
-#ifdef MPI
   END IF
-#endif    /* MPI */
 
 !===================================================================================================================================
 ! Analyze Routines
 !===================================================================================================================================
   ! computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec)
+  IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint)THEN
@@ -961,14 +965,10 @@ INTEGER             :: dir
     IF(iter.GT.0) THEN
       MaxCollProb = DSMC%CollProbMax
       IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-#ifdef MPI
-      IF (PartMPI%MPIROOT) THEN
-#endif
+      IF (PartMPI%MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
                                                               GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
-#ifdef MPI
       END IF
-#endif
     END IF
   END IF
 #endif
@@ -1006,11 +1006,6 @@ INTEGER             :: dir
     IF(CalcPorousBCInfo) THEN
       DO iPBC = 1, nPorousBC
         CALL MPI_REDUCE(MPI_IN_PLACE,PorousBC(iPBC)%Output,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
-        IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
-          ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
-          ! Other variales are averaged over the elements
-          PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
-        END IF
       END DO
     END IF
     IF(FPInitDone) THEN
@@ -1018,10 +1013,6 @@ INTEGER             :: dir
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        IF(FP_MeanRelaxFactorCounter.GT.0) THEN
-          FP_MeanRelaxFactor = FP_MeanRelaxFactor / REAL(FP_MeanRelaxFactorCounter)
-          FP_PrandtlNumber = FP_PrandtlNumber / REAL(FP_MeanRelaxFactorCounter)
-        END IF
         ! Determining the maximal (MPI_MAX) relaxation factors
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -1031,7 +1022,6 @@ INTEGER             :: dir
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER, MPI_SUM,0, PartMPI%COMM, IERROR)
-        IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
         ! Determining the maximal (MPI_MAX) relaxation factors
         CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
         CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -1074,6 +1064,32 @@ INTEGER             :: dir
     END IF
   END IF
 #endif /*MPI*/
+
+IF(PartMPI%MPIRoot) THEN
+  IF(CalcPorousBCInfo) THEN
+    DO iPBC = 1, nPorousBC
+      IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
+        ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
+        ! Other variales are averaged over the elements
+        PorousBC(iPBC)%Output(3:5) = PorousBC(iPBC)%Output(3:5) / PorousBC(iPBC)%Output(1)
+      END IF
+    END DO
+  END IF
+  IF(FPInitDone) THEN
+    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+      IF(FP_MeanRelaxFactorCounter.GT.0) THEN
+        FP_MeanRelaxFactor = FP_MeanRelaxFactor / REAL(FP_MeanRelaxFactorCounter)
+        FP_PrandtlNumber = FP_PrandtlNumber / REAL(FP_MeanRelaxFactorCounter)
+      END IF
+    END IF
+  END IF
+  IF(BGKInitDone) THEN
+    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+      IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
+    END IF
+  END IF
+END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1101,6 +1117,12 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(SimNumSpec(iSpec))
+      END DO
+    END IF
+    IF (CalcNumDens) THEN
+      DO iSpec=1, nSpecAnalyze
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') REAL(NumDens(iSpec))
       END DO
     END IF
     IF (CalcCharge) THEN
@@ -1362,7 +1384,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
+#ifdef MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1820,13 +1844,15 @@ SUBROUTINE CalcNumPartsOfSpec(NumSpec,SimNumSpec)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PDM,PartSpecies
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec,nSpecAnalyze
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#ifdef MPI
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*MPI*/
+#ifdef MPI
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1838,10 +1864,6 @@ INTEGER(KIND=8),INTENT(OUT)        :: SimNumSpec(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iPart
-#ifdef MPI
-REAL                               :: RD(nSpecAnalyze)
-INTEGER(KIND=8)                    :: ID(nSpecAnalyze)
-#endif /*MPI*/
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -1869,13 +1891,53 @@ IF (PartMPI%MPIRoot) THEN
   IF(CalcNumSpec) &
   CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(NumSpec     ,RD         ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(NumSpec     ,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) &
-  CALL MPI_REDUCE(SimNumSpec  ,ID         ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*MPI*/
 
 END SUBROUTINE CalcNumPartsOfSpec
+
+
+SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
+!===================================================================================================================================
+!> Computes the number density per species using the total mesh volume and if neccessary particle weights
+!> Background gas density is saved as given in the input
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: Species,usevMPF
+USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
+USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+IF (PartMPI%MPIRoot) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / GEO%MeshVolume
+  ELSE
+    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%MeshVolume
+  END IF
+
+  IF(BGGas%BGGasSpecies.NE.0) NumDens(BGGas%BGGasSpecies) = BGGas%BGGasDensity
+
+  IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
+END IF
+
+END SUBROUTINE CalcNumberDensity
 
 
 SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
@@ -2014,7 +2076,6 @@ REAL              :: TempDirec(nSpecies,3)
 #if (PP_TimeDiscMethod!=1000)
 REAL              :: PartVandV2(nSpecies, 6), Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
 INTEGER           :: i
-REAL              :: RD(nSpecies*6)
 #endif
 !===================================================================================================================================
 
@@ -2039,7 +2100,7 @@ END DO
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 ELSE
-  CALL MPI_REDUCE(PartVandV2  ,RD        ,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+  CALL MPI_REDUCE(PartVandV2  ,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 END IF
 #endif /*MPI*/
 
@@ -2289,9 +2350,7 @@ END IF
 #endif /*MPI*/
 
 ! final computation is only done for the root
-#ifdef MPI
 IF(PartMPI%MPIRoot)THEN
-#endif
   ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
     NumSpecTemp = NumSpec(iSpec)
@@ -2349,9 +2408,7 @@ IF(PartMPI%MPIRoot)THEN
     IntEn(nSpecAnalyze,2) = SUM(IntEn(:,2))
     IF(DSMC%ElectronicModel) IntEn(nSpecAnalyze,3) = SUM(IntEn(:,3))
   END IF
-#ifdef MPI
 END IF
-#endif
 
 END SUBROUTINE CalcIntTempsAndEn
 
