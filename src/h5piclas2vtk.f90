@@ -732,7 +732,10 @@ SUBROUTINE InitMesh_Connected()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_PreProc
-USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,exchangeFlip,fillMeshInfo
+USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
+#ifdef MPI
+USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
+#endif
 #ifdef PARTICLES
 USE MOD_Particle_Mesh           ,ONLY: InitParticleGeometry
 #endif

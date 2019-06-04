@@ -68,12 +68,11 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, GEO, PartSideToElem, PartElemToElemAndSide, nTotalSides
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,ElemToSide, MortarType, MortarInfo, SideToElem, Face_xGP
-USE MOD_Mesh_Vars,                   ONLY:BC, MortarSlave2MasterInfo,nSides
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Mesh_Vars,                   ONLY:MortarType
+USE MOD_Mesh_Vars,                   ONLY:BC
+USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 #if USE_LOADBALANCE
