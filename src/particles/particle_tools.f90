@@ -26,15 +26,15 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
-INTERFACE diceCollVector
-  MODULE PROCEDURE diceCollVector
+INTERFACE DiceDeflectedVector
+  MODULE PROCEDURE DiceDeflectedVector
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector,diceCollVector
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector,DiceDeflectedVector
 !===================================================================================================================================
 
 CONTAINS
@@ -114,10 +114,9 @@ SUBROUTINE UpdateNextFreePosition()
 END SUBROUTINE UpdateNextFreePosition
 
 
-SUBROUTINE diceCollVector(diceVector,alpha)
+FUNCTION DiceDeflectedVector(alpha)
 !===================================================================================================================================
-! Calculates deflection angle and resulting deflection vector after bird1994/Hawk. Variables of functions must not be optional.
-! Therefore, this is a subroutine.
+! Calculates deflection angle and resulting deflection vector after bird1994/Hawk.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -128,41 +127,37 @@ SUBROUTINE diceCollVector(diceVector,alpha)
   REAL,INTENT(IN), OPTIONAL  :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL,INTENT(OUT)           :: diceVector(3)
+  REAL                       :: DiceDeflectedVector(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                       :: iRan, eps, cos_chi, sin_chi,alpha_aux
+  REAL                       :: iRan, eps, cos_chi, sin_chi
 !===================================================================================================================================
-! im Code die alphas hinterlegen #datenbank.
-! macht es unterschied ob a b oder b a?
-IF(.NOT.PRESENT(alpha)) THEN
-   !VHS isotropic scattering angle with random value between [-1,1]
-   alpha_aux=1.
-   WRITE(*,*) "VHS" 
-   cos_chi         = 2.*iRan**(1./alpha_aux)-1. !chi - scattering angle   
-ELSE
-   
-   IF (alpha.GE.1) THEN
-      cos_chi         = 2.*iRan**(1./alpha)-1. !chi - scattering angle   
-      IF (alpha.GT.1) WRITE(*,*) "VSS"
-      IF (alpha.EQ.1) WRITE(*,*) "VHS" 
+   ! im Code die alphas hinterlegen #datenbank.
+   ! macht es unterschied ob a b oder b a?
+   CALL RANDOM_NUMBER(iRan)
+   IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN
+      !VHS 
+      cos_chi         = 2.*iRan-1.! isotropic scattering angle chi
+      WRITE(*,*) "VHS - default" 
+     ! einbauen in particle init und vars 
+   ELSEIF (alpha.GT.1) THEN
+      WRITE(*,*) "VSS- alpha greater than 1"
+      cos_chi         = 2.*iRan**(1./alpha)-1. ! deflected scattering angle chi 
    ELSE !Error
-      WRITE (*,*) "Alpha must not be less than 1"
+         WRITE (*,*) "alpha must not be less than 1."
    END IF
-END IF
-CALL RANDOM_NUMBER(iRan)
-sin_chi         = SQRT(1. - cos_chi**2.) 
-diceVector(3)   = cos_chi
-CALL RANDOM_NUMBER(iRan)
-eps             = 2.*PI*iRan ! azimuthal impact angle epsilon
-diceVector(1)   = sin_chi*cos(eps)
-diceVector(2)   = sin_chi*sin(eps)
-! pre-collision relative velocity is scaled, to have the magnitude of post-collision relative speed
-END SUBROUTINE diceCollVector
+   sin_chi                  = SQRT(1. - cos_chi**2.) 
+   DiceDeflectedVector(3)   = cos_chi
+   CALL RANDOM_NUMBER(iRan)
+   eps                      = 2.*PI*iRan ! azimuthal impact angle epsilon
+   DiceDeflectedVector(1)   = sin_chi*cos(eps)
+   DiceDeflectedVector(2)   = sin_chi*sin(eps)
+   ! pre-collision relative velocity is scaled, to have the magnitude of post-collision relative speed
+END FUNCTION DiceDeflectedVector
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-! Calculates random unit vector.
+! Calculates random unit vector, which expresses isotropic scattering as featured in VHS.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -175,16 +170,16 @@ FUNCTION DiceUnitVector()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                     :: DiceUnitVector(3)
-  REAL                     :: iRan,z,prefactor,phi
+  REAL                     :: iRan,cos_chi,sin_chi,eps
 !===================================================================================================================================
   CALL RANDOM_NUMBER(iRan)
-  z                 = 1. - 2.*iRan ! z random value between [-1,1]
-  prefactor         = SQRT(1. - z**2.) 
-  DiceUnitVector(3) = z
+  cos_chi           = 2.*iRan-1. ! z random value between [-1,1]
+  sin_chi           = SQRT(1. - cos_chi**2.) 
+  DiceUnitVector(3) = cos_chi
   CALL RANDOM_NUMBER(iRan)
-  phi               = Pi *2. * iRan ! phi random value between [0,2*pi]
-  DiceUnitVector(1) = prefactor * COS(phi)
-  DiceUnitVector(2) = prefactor * SIN(phi)
+  eps               = 2.*Pi* iRan ! phi random value between [0,2*pi]
+  DiceUnitVector(1) = sin_chi * COS(eps)
+  DiceUnitVector(2) = sin_chi * SIN(eps)
 
 END FUNCTION DiceUnitVector 
 

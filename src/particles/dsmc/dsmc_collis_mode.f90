@@ -622,7 +622,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
-  USE MOD_part_tools,             ONLY : DiceUnitVector,diceCollVector
+  USE MOD_part_tools,             ONLY : DiceUnitVector,DiceDeflectedVector
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -965,10 +965,9 @@ __STAMP__&
 
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
-  alpha=1.5
   write (*,*) "alpha= ",alpha
-  CALL diceCollVector(RanVec(1:3),alpha) 
-  write (*,*) "diceCollVector exited"
+  RanVec(1:3)=DiceDeflectedVector()
+  write (*,*) "dicedeflectedVector exited"
   RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
   RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
@@ -1012,7 +1011,6 @@ __STAMP__&
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
   RanVec(1:3) = DiceUnitVector()
-  CALL diceCollVector(RanVec(1:3)) 
 
   RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
   RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
