@@ -56,7 +56,7 @@ USE MOD_PreProc                ,ONLY: PP_N,PP_nElems
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
 #ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 #endif
@@ -107,6 +107,13 @@ IF((TRIM(InterpolationType).EQ.'nearest_gausspoint').AND. &
   __STAMP__&
   ,'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
 END IF
+IF((TRIM(DepositionType).EQ.'cell_volweight_mean').AND. &
+   (.NOT.(TriaTracking))) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR in pic_depo.f90: PIC-Deposition-Type = cell_volweight_mean only allowed with TriaTracking!')
+END IF
+
 !--- Allocate arrays for charge density collection and initialize
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
