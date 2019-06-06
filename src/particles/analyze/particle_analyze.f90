@@ -164,9 +164,7 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
                                                              'probability and pressure (normalized with the given pressure). '//&
                                                              'Values are averaged over the whole porous BC.' , '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' TODO ASIM'//&
-                                                             ' TODO ASIM'//&
-                                                             ' TODO ASIM' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -1006,12 +1004,13 @@ INTEGER             :: dir
     IF(CalcCouplPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-!Moving Average of PCoupl:
+! Moving Average of PCoupl:
       IF(iter.EQ.0) THEN
         PCouplAverage = 0.0
       ELSE
         PCouplAverage = PCouplAverage / Time
       END IF
+! current PCoupl (Delta_E / Timestep)
       PCoupl = PCoupl / dt
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
