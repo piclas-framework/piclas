@@ -97,17 +97,17 @@ IMPLICIT NONE
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP...'
 
-VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling','.FALSE.')
-VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution','.FALSE.')
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
 
 IF(VarTimeStep%UseLinearScaling) THEN
   IF(VarTimeStep%UseDistribution) CALL abort(__STAMP__, &
     'ERROR: Cannot use linear time scaling with a given distribution')
   ! Timestep is varied according to a linear function
-  VarTimeStep%ScaleFac = GETREAL('Part-VariableTimeStep-ScaleFactor','1.0')
+  VarTimeStep%ScaleFac = GETREAL('Part-VariableTimeStep-ScaleFactor')
   IF(Symmetry2D) THEN
     ! Scaling the time step in x- and r-direction with the defintion of a stagnation point
-    VarTimeStep%Use2DTimeFunc = GETLOGICAL('Part-VariableTimeStep-Use2DFunction','.FALSE.')
+    VarTimeStep%Use2DTimeFunc = GETLOGICAL('Part-VariableTimeStep-Use2DFunction')
     IF(VarTimeStep%Use2DTimeFunc) THEN
       ! FRONT: Time step decreases towards the stagnation point
       ! BACK: Time step increases away from the stagnation points
