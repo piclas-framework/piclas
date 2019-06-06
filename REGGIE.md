@@ -52,6 +52,10 @@ Overview of the test cases performed during the nightly regression testing.
 |   17    |       feature_PIC_HDG_plasma_wave       |     poisson,RK4,CN      |  Poisson-PIC,Shape-Function-1D   |            nProcs=2, Imex for CN            |  W_el LineIntegration over 2Per  |                                                                                                         |
 |  18-1   |  NIG_PIC_poisson_innerBC_SFLocalDepoBC  |         poisson         |  Poisson-PIC,Shape-Function-ND   |              nProcs=1,2,5,10,               | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/poisson_2D_depo_innerBC/readme.md)  |
 |  18-2   |  NIG_PIC_poisson_innerBC_SFLocalDepoBC  |         poisson         |  Poisson-PIC,Shape-Function-ND   |              nProcs=1,2,5,10,               | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/poisson_2D_depo_periodic/readme.md) |
+|  19-1   |  NIG_PIC_poisson_Leapfrog/parallel_plates     |    poisson,Leapfrog    |  Poisson-PIC,CalcCoupledPower   |              nProcs=1               | PartAnalyzeLeapfrog_ref.csv | [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates/readme.md) |
+|  19-2   |  NIG_PIC_poisson_Leapfrog/parallel_plates_AC  |    poisson,Leapfrog    |  Poisson-PIC,CalcCoupledPower   |              nProcs=1               | PartAnalyzeLeapfrog_ref.csv | [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates_AC/readme.md) |
+|  20-1   |  NIG_PIC_poisson_RK3/parallel_plates          |    poisson,RK3    |  Poisson-PIC,CalcCoupledPower   |              nProcs=1               | PartAnalyzeRK3_ref.csv | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates/readme.md) |
+|  20-1   |  NIG_PIC_poisson_RK3/parallel_plates_AC       |    poisson,RK3    |  Poisson-PIC,CalcCoupledPower   |              nProcs=1               | PartAnalyzeRK3_ref.csv | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md) |
 
 #### NIG_Reservoir
 
