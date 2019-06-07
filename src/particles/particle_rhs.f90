@@ -199,7 +199,10 @@ FUNCTION SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,MyRank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -258,7 +261,10 @@ FUNCTION FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -343,7 +349,10 @@ FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! CAUTION: This routines is used for HDG in combination with magnetic (external) fields
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
