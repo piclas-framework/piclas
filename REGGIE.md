@@ -28,8 +28,8 @@ Small test cases to check DSMC features: [Link to build](regressioncheck/checks/
 
 | **No.** |                 **Case**                 | **CMAKE-CONFIG** |                                                    **Feature**                                                    | **Execution** |           **Comparing**            |                                         **Readme**                                         |
 | :-----: | :--------------------------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------: | :-----------: | :--------------------------------: | :----------------------------------------------------------------------------------------: |
-|  08-1   |   SurfFlux_Tria_Adaptive_ConstPressure   |                  |                                         TriaSurfaceFlux with AdaptiveType=1/2                                         |   nProcs=4    |        Integrated mass flux        |                                                                                            |
-|  08-2   |   SurfFlux_Tria_Adaptive_ConstMassflow   |                  |                                         TriaSurfaceFlux with AdaptiveType=3,4                                         |   nProcs=1    |        Integrated mass flux        |                                                                                            |
+|  08-1   |   SurfFlux_Tria_Adaptive_ConstPressure   |                  |                                       TriaSurfaceFlux with AdaptiveType=1/2                                       |   nProcs=4    |        Integrated mass flux        |                                                                                            |
+|  08-2   |   SurfFlux_Tria_Adaptive_ConstMassflow   |                  |                                       TriaSurfaceFlux with AdaptiveType=3,4                                       |   nProcs=1    |        Integrated mass flux        |                                                                                            |
 |  08-3   |               BC_PorousBC                |                  |                                         PorousBC as a pump with 2 species                                         |   nProcs=3    | Total # of removed part through BC |                                                                                            |
 |  08-4   |                   cube                   |                  |                                                  Collismode=2,3                                                   |   nProcs=2    |                                    |                                                                                            |
 |  08-5   |            BC_InnerReflective            |                  |                                     Inner reflective BC (dielectric surfaces)                                     |   nProcs=1    |       h5diff: DSMCSurfState        |            [Link](regressioncheck/checks/CHE_DSMC/BC_InnerReflective/readme.md)            |
@@ -79,17 +79,18 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 
 Testing of different tracking routines with DSMC: [Link to build](regressioncheck/checks/NIG_tracking_DSMC/builds.ini).
 
-| **No.** |     **Case**      | **CMAKE-CONFIG** |          **Feature**          |                 **Execution**                 |          **Comparing**           | **Readme** |
-| :-----: | :---------------: | :--------------: | :---------------------------: | :-------------------------------------------: | :------------------------------: | :--------: |
-|  11-1   |     ANSA box      |                  |                               |         DoRefMapping=T,F, nProcs=1,2          | PartInt, PartPos in bounding box |            |
-|  11-2   |      curved       |                  |                               |         DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
-|  11-3   |      mortar       |                  |                               |         DoRefMapping=T,F, nProcs=1,2          | PartInt, PartPos in bounding box |            |
-|  11-4   |     periodic      |                  |                               |       DoRefMapping=T,F, nProcs=1,2,5,10       | PartInt, PartPos in bounding box |            |
-|  11-5   |  periodic_2cells  |                  |                               |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1  |     PartPos in bounding box      |            |
-|  11-6   |    semicircle     |                  |                               |         DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
-|  11-7   |    sphere_soft    |                  |                               | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2 |     PartPos in bounding box      |            |
-|  11-8   | tracing_cylinder1 |                  | mortar,curved,single particle |           DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
-|  11-9   | tracing_cylinder2 |                  | mortar,curved,single particle |           DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+| **No.** |     **Case**      | **CMAKE-CONFIG** |           **Feature**           |                 **Execution**                  |          **Comparing**           | **Readme** |
+| :-----: | :---------------: | :--------------: | :-----------------------------: | :--------------------------------------------: | :------------------------------: | :--------: |
+|  11-1   |     ANSA box      |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+|  11-2   |      curved       |                  |                                 |          DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
+|  11-3   |      mortar       |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+|  11-4   |  mortar_hexpress  |                  | Mortar mesh built with HEXPRESS |           TriaTracking=T; nProcs=2,4           |             PartInt              |            |
+|  11-5   |     periodic      |                  |                                 |       DoRefMapping=T,F, nProcs=1,2,5,10        | PartInt, PartPos in bounding box |            |
+|  11-6   |  periodic_2cells  |                  |                                 |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1   |     PartPos in bounding box      |            |
+|  11-7   |    semicircle     |                  |                                 |          DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
+|  11-8   |    sphere_soft    |                  |                                 | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |            |
+|  11-9   | tracing_cylinder1 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+|  11-10  | tracing_cylinder2 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
 
 ## Weekly
 
