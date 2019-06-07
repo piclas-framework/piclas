@@ -232,8 +232,7 @@ CALL CloseDataFile()
 END SUBROUTINE WriteDSMCToHDF5
 
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap&
-                          ,locBCID,emission_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt)
 !===================================================================================================================================
 !> Sample Wall values from Particle collisions
 !===================================================================================================================================
@@ -241,8 +240,9 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, useDSMC
-USE MOD_DSMC_Vars              ,ONLY: CollisMode
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfCollis
+USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -258,6 +258,10 @@ LOGICAL,INTENT(IN),OPTIONAL        :: emission_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+! return if sampling is not enabled
+IF (.NOT.(&
+         (DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)&
+         )) RETURN
 
 !----  Sampling for energy (translation) accommodation at walls
 SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &

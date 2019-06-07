@@ -99,6 +99,12 @@ CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
                                 , '0')
+CALL prms%CreateIntOption(      'Particles-LiquidModel', &
+                                'Define Model used for particle liquid surface interaction. If >0 then look in section LiquidModel.\n'//&
+                                '0: Maxwell scattering\n'//&
+                                '1: Maxwell scattering\n'//&
+                                '2: MD dsitributionfunciton' &
+                                , '2')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -877,11 +883,9 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidReactive'  &
-                                , 'Flag for defining solid surface to be treated catalytically (for surfacemodel>0).', '.FALSE.'&
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Reactive'  &
+                                , 'Flag for defining surface to be treated reactively.', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidSpec'  &
-                                , 'Set Species of Solid Boundary. (currently not used)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
   , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
@@ -889,11 +893,11 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidAreaIncrease'  &
                                 , 'TODO-DEFINE-PARAMETER ', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidStructure'  &
-  , 'Defines the structure of the reconstructed surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
+  , 'Defines the structure of the replicated surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
                                 , 'Set number of interaction for hollow sites.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-LiquidSpec'  &
-                                , 'Set used species of Liquid Boundary', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-Spec'  &
+                                , 'Set used species of Boundary', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
                                 , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
                                 , numberedmulti=.TRUE.)
@@ -994,7 +998,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag, PartLiquidModel
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -2193,18 +2197,17 @@ ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
+ALLOCATE(PartBound%Reactive(1:nPartBound))
+ALLOCATE(PartBound%Spec(1:nPartBound))
+ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
-ALLOCATE(PartBound%SolidReactive(1:nPartBound))
-ALLOCATE(PartBound%SolidSpec(1:nPartBound))
 ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
 ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
 ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
 ALLOCATE(PartBound%SolidStructure(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
-ALLOCATE(PartBound%LiquidSpec(1:nPartBound))
-ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
 PartBound%SolidState(1:nPartBound)=.FALSE.
-PartBound%LiquidSpec(1:nPartBound)=0
+PartBound%Spec(1:nPartBound)=0
 SolidSimFlag = .FALSE.
 LiquidSimFlag = .FALSE.
 
@@ -2304,11 +2307,10 @@ __STAMP__&
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
      PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-     PartBound%LiquidSpec(iPartBound)      = GETINT('Part-Boundary'//TRIM(hilf)//'-LiquidSpec')
+     PartBound%Spec(iPartBound)            = GETINT('Part-Boundary'//TRIM(hilf)//'-Spec')
+     PartBound%Reactive(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Reactive')
      IF(PartBound%SolidState(iPartBound))THEN
        SolidSimFlag = .TRUE.
-       PartBound%SolidReactive(iPartBound)    = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidReactive')
-       PartBound%SolidSpec(iPartBound)         = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidSpec')
        PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
        PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
        PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
@@ -2320,9 +2322,9 @@ __STAMP__&
        END IF
        PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
      END IF
-     IF (PartBound%LiquidSpec(iPartBound).GT.nSpecies) CALL abort(&
+     IF (PartBound%Spec(iPartBound).GT.nSpecies) CALL abort(&
 __STAMP__&
-     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%LiquidSpec(iPartBound))
+     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%Spec(iPartBound))
      ! Parameters for evaporation pressure using Antoine Eq.
      PartBound%ParamAntoine(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
      IF ( (.NOT.PartBound%SolidState(iPartBound)) .AND. (ALMOSTZERO(PartBound%ParamAntoine(1,iPartBound))) &
@@ -2477,7 +2479,19 @@ END IF
 IF (PartSurfaceModel.GT.0 .AND. .NOT.useDSMC) THEN
   CALL abort(&
 __STAMP__&
-,'Cannot use surfacemodel>0 with useDSMC=F!')
+,'Cannot use partsurfacemodel>0 with useDSMC=F!')
+END IF
+
+IF (LiquidSimFlag) THEN
+  !0: elastic/diffusive reflection, 1:condensation and evaporation depending on MD distribution function
+  PartLiquidModel = GETINT('Particles-LiquidModel')
+ELSE
+  PartLiquidModel = 0
+END IF
+IF (PartLiquidModel.GT.0 .AND. .NOT.useDSMC) THEN
+  CALL abort(&
+__STAMP__&
+,'Cannot use partiquidmodel>0 with useDSMC=F!')
 END IF
 
 !--- initialize randomization
@@ -3311,16 +3325,15 @@ SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%Reactive)
+SDEALLOCATE(PartBound%Spec)
+SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PartBound%SolidState)
-SDEALLOCATE(PartBound%SolidReactive)
-SDEALLOCATE(PartBound%SolidSpec)
 SDEALLOCATE(PartBound%SolidPartDens)
 SDEALLOCATE(PartBound%SolidMassIC)
 SDEALLOCATE(PartBound%SolidAreaIncrease)
 SDEALLOCATE(PartBound%SolidStructure)
 SDEALLOCATE(PartBound%SolidCrystalIndx)
-SDEALLOCATE(PartBound%LiquidSpec)
-SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PEM%Element)
 SDEALLOCATE(PEM%lastElement)
 SDEALLOCATE(PEM%pStart)

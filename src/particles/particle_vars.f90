@@ -44,6 +44,10 @@ INTEGER               :: PartSurfaceModel                                    ! M
                                                                              ! 5 SEE (secondary e- emission) by Levko2015
                                                                              ! 6 SEE (secondary e- emission) by Pagonakis2016 
                                                                              !   (orignally from Harrower1956)
+INTEGER               :: PartLiquidModel                                     ! Model used for liquid wall interaction
+                                                                             ! 0 perfect/diffusive reflection
+                                                                             ! 1 condensation coeff = 1 + evaporation
+                                                                             ! 2 tsuruta model
 LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a

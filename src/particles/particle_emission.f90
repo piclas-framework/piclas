@@ -5036,17 +5036,12 @@ __STAMP__&
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
         IF (noAdaptive) THEN
-          IF (PartSurfaceModel.GT.0 .OR. (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0)) ) THEN
-            IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              IF (PartSurfaceModel.GT.0 .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) ) THEN
+          IF ( PartBound%Reactive(PartBound%MapToPartBC(BC(SideID))) )  THEN
+            IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN 
+              ! needs to be tested in order for triasurfaceflux and tracing to work both
+              ! sumdesorbpart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
+              IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
                 ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-              ELSE IF (LiquidSimFlag .AND. (PartBound%LiquidSpec(PartBound%MapToPartBC(BC(SideID))).GT.0) &
-                  .AND. (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) )THEN
-                ExtraParts = Liquid%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
-              ELSE IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
-                CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: The code should not go here...')
               END IF
               IF (TriaSurfaceFlux) THEN
                 IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
@@ -5412,10 +5407,10 @@ __STAMP__&
             IF (noAdaptive) THEN
               ! check if surfaceflux is used for surface sampling (neccessary for desorption and evaporation)
               ! create linked list of surfaceflux-particle-info for sampling case
-              IF (PartSurfaceModel.GT.0 .OR. LiquidSimFlag) THEN
-                IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
-                    .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-                  IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+              IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)) &
+                  .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+                IF (PartBound%TargetBoundCond(CurrentBC).EQ.PartBound%ReflectiveBC) THEN
+                  IF ( PartBound%Reactive(CurrentBC) )  THEN
                     ! first check if linked list is initialized and initialize if neccessary
                     IF (.NOT. ASSOCIATED(currentSurfFluxPart)) THEN
                       ALLOCATE(currentSurfFluxPart)

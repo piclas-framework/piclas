@@ -379,7 +379,7 @@ Liquid%SumEvapPart(:,:,:,:) = 0
 DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
     IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))) CYCLE
-    IF (PartBound%LiquidSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) ))).NE.iSpec) CYCLE
+    IF (PartBound%Spec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) ))).NE.iSpec) CYCLE
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
       globSide = SurfMesh%SurfIDToSideID(iSurfSide)

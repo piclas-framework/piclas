@@ -313,7 +313,7 @@ DO iSpec = 1,nSpecies
     Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
-        IF(PartBound%SolidReactive(iPartBound))THEN
+        IF(PartBound%Reactive(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%RecombCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
@@ -330,7 +330,7 @@ DO iSpec = 1,nSpecies
   CASE(3)
     DO iPartBound=1,nPartBound
       IF((PartBound%TargetBoundCond(iPartBound).EQ.PartBound%ReflectiveBC).AND.PartBound%SolidState(iPartBound))THEN
-        IF(PartBound%SolidReactive(iPartBound))THEN
+        IF(PartBound%Reactive(iPartBound))THEN
           WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
           hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
           Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination')
@@ -413,7 +413,7 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides
 DO iSide=1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%SolidReactive(PartboundID)) THEN
+  IF (PartBound%Reactive(PartboundID)) THEN
     !IF (PartSurfaceModel.EQ.3) Adsorption%SurfMassIC(iSide) = PartBound%SolidMassIC(PartBoundID)
     Adsorption%DensSurfAtoms(iSide) = PartBound%SolidPartDens(PartBoundID)
     Adsorption%AreaIncrease(iSide)  = PartBound%SolidAreaIncrease(PartBoundID)
@@ -742,7 +742,7 @@ __STAMP__&
       DO iSurfSide = 1, SurfMesh%nSides
         SideID = SurfMesh%SurfIDToSideID(iSurfSide)
         PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (PartBound%SolidReactive(PartboundID)) THEN
+        IF (PartBound%Reactive(PartboundID)) THEN
           DO jSubSurf = 1, nSurfSample
             DO iSubSurf = 1, nSurfSample
               Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,iSpec) = SurfState_HDF5(iVar,iSubSurf,jSubSurf,iSurfSide)

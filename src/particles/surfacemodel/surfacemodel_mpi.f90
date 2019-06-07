@@ -491,7 +491,7 @@ END DO ! iProc
 DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
 SideID = SurfMesh%SurfIDToSideID(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
   DO q=1,nSurfSample
     DO p=1,nSurfSample
       SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0

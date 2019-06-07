@@ -824,7 +824,7 @@ DO iSpec=1,nSpecies
 DO iSurfSide=1,SurfMesh%nSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (PartBound%SolidReactive(PartboundID)) THEN
+  IF (PartBound%Reactive(PartboundID)) THEN
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
       Coverage(iSpec) = Coverage(iSpec) + Adsorption%Coverage(p,q,iSurfSide,iSpec)

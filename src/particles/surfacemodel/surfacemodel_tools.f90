@@ -102,7 +102,7 @@ INTEGER                          :: PartBoundID
 DO iSpec=1,nSpecies
   DO SurfSide=1,SurfMesh%nSides
     PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
-    IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+    IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -166,7 +166,7 @@ INTEGER                          :: PartBoundID
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
-  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+  IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -263,7 +263,7 @@ REAL                           :: A, B, sigma, sigma_m
 !INTEGER                        :: neighSpec, neighSpec2, Coord2, Coord3, ReactNum, nNeigh_interactions
 !===================================================================================================================================
 PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID)))
-IF (.NOT.PartBound%SolidReactive(PartboundID)) CALL Abort(&
+IF (.NOT.PartBound%Reactive(PartboundID)) CALL Abort(&
 __STAMP__,&
 'Calc_Adsorb_Heat_ERROR: Given SurfSideID is not reactive',SurfSideID)
 Coordination = Adsorption%Coordination(PartBoundID,Species)
@@ -985,7 +985,7 @@ INTEGER, INTENT(IN) :: SurfID
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IsReactiveSurface = .FALSE.
-IF (PartBound%SolidReactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) IsReactiveSurface = .TRUE.
+IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) IsReactiveSurface = .TRUE.
 END FUNCTION IsReactiveSurface
 
 

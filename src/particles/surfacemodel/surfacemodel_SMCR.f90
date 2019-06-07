@@ -184,8 +184,8 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !IF (Adaptive_ACC_FLAG) THEN
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
-    outSpec(1) = iSpec
-    outSpec(2) = 0
+    outSpec(1) = 0
+    outSpec(2) = iSpec
     AdsorptionEnthalpie = 0.
     adsorption_case = -1
     RETURN
@@ -195,8 +195,8 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !! if no trapping return and perform elastic reflection
 !CALL RANDOM_NUMBER(RanNum)
 !IF (RanNum.GT.trapping_prob) THEN
-!  outSpec(1) = iSpec
-!  outSpec(2) = 0
+!  outSpec(1) = 0
+!  outSpec(2) = iSpec
 !  AdsorptionEnthalpie = 0.
 !  adsorption_case = -1
 !  RETURN
@@ -434,8 +434,8 @@ IF (sum_probabilities .GT. RanNum) THEN
       IF (ReactNum.EQ.0) THEN
         ! if molecular adsorption set output parameters
         adsorption_case = 1
-        outSpec(1) = iSpec
-        outSpec(2) = 0
+        outSpec(1) = 0
+        outSpec(2) = iSpec
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.LE.Adsorption%DissNum) THEN
         ! if dissocciative adsorption set output parameters
         adsorption_case = 2
@@ -613,7 +613,7 @@ END DO
 DO iSurf = 1,SurfMesh%nSides
   globSide = SurfMesh%SurfIDToSideID(iSurf)
   PartBoundID = PartBound%MapToPartBC(BC(globSide))
-  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+  IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
 #if USE_LOADBALANCE
   IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
 #endif /*USE_LOADBALANCE*/

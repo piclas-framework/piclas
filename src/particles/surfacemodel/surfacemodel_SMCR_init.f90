@@ -111,7 +111,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
   PartboundID = PartBound%MapToPartBC(BC(SideID))
   DO iSubSurf = 1,nSurfSample
     DO jSubSurf = 1,nSurfSample
-      IF (PartBound%SolidReactive(PartboundID)) THEN
+      IF (PartBound%Reactive(PartboundID)) THEN
   !     IF (KeepWallParticles) THEN ! does not work with vMPF
   !       surfsquare = INT(Adsorption%DensSurfAtoms(iSurfSide) &
   !                     * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurfSide) &
@@ -211,7 +211,7 @@ DO iSurfSide = 1,SurfMesh%nTotalSides
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%NeighSite(:,:) = 0
           SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%AdsMap(Coord)%IsNearestNeigh(:,:) = .FALSE.
         END DO
-      ELSE !PartBound%SolidReactive(PartboundID)
+      ELSE !PartBound%Reactive(PartboundID)
         nSites=1 !dummy for correct allocation
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1:3)=nSites
         SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain(1:3)=0
@@ -258,7 +258,7 @@ IF (MAXVAL(Adsorption%Coverage(:,:,:,:)).GT.0) THEN
   DO iSurfSide = 1,SurfMesh%nSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidReactive(PartboundID)) CYCLE
+  IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
   DO iSubSurf = 1,nSurfSample ;  DO jSubSurf = 1,nSurfSample
     DO iSpec = 1,nSpecies
       ! adjust coverage to discrete integer value
@@ -821,7 +821,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
 SideID = SurfMesh%SurfIDToSideID(iSurfSide)
 PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
+IF (.NOT.PartBound%Reactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.1) CYCLE
 DO iSubSurf = 1,nSurfSample
 DO jSubSurf = 1,nSurfSample
   ! surfsquare chosen from nSite(1) for correct SurfIndx definitions (Nx-1)
@@ -1118,7 +1118,7 @@ INTEGER                          :: Surfpos, Indx, Indy
 DO iSurfSide = 1,SurfMesh%nTotalSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
-  IF (.NOT.PartBound%SolidReactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
+  IF (.NOT.PartBound%Reactive(PartboundID) .OR. PartBound%SolidStructure(PartBoundID).NE.2) CYCLE
   DO iSubSurf = 1,nSurfSample ; DO jSubSurf = 1,nSurfSample
     ! surfsquare chosen from nSite(3) for correct SurfIndx definitions
     surfsquare = NINT(SQRT(REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites(1))/2.))

@@ -1258,7 +1258,7 @@ __STAMP__&
         DO iSurfSide = 1,SurfMesh%nSides
           SideID = SurfMesh%SurfIDToSideID(iSurfSide)
           PartboundID = PartBound%MapToPartBC(BC(SideID))
-          IF (PartBound%SolidReactive(PartboundID)) THEN
+          IF (PartBound%Reactive(PartboundID)) THEN
             DO jsubsurf = 1,nSurfSample
               DO isubsurf = 1,nSurfSample
                 Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:) = SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:)
@@ -1320,7 +1320,7 @@ __STAMP__&
               DO iSurfSide = 1,SurfMesh%nSides
                 SideID = SurfMesh%SurfIDToSideID(iSurfSide)
                 PartboundID = PartBound%MapToPartBC(BC(SideID))
-                IF (PartBound%SolidReactive(PartboundID)) THEN
+                IF (PartBound%Reactive(PartboundID)) THEN
                   DO jsubsurf = 1,nSurfSample
                     DO isubsurf = 1,nSurfSample
                       DO iCoord = 1,Coordinations
