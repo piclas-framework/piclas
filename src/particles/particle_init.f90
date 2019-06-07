@@ -1083,7 +1083,7 @@ IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
   IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
-  IF (LiquidSimFlag) CALL InitLiquidSurfaceModel()
+  IF (PartLiquidModel.GT.0) CALL InitLiquidSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
 #endif
