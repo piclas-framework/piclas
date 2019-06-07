@@ -25,8 +25,41 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE PartEnergyToSurface
+  MODULE PROCEDURE PartEnergyToSurface
+END INTERFACE
+
+INTERFACE SurfaceToPartEnergy
+  MODULE PROCEDURE SurfaceToPartEnergy
+END INTERFACE
+
+INTERFACE LIQUIDEVAP
+  MODULE PROCEDURE LIQUIDEVAP
+END INTERFACE
+
+INTERFACE LIQUIDREFL
+  MODULE PROCEDURE LIQUIDREFL
+END INTERFACE
+
+INTERFACE ALPHALIQUID
+  MODULE PROCEDURE ALPHALIQUID
+END INTERFACE
+
+INTERFACE BETALIQUID
+  MODULE PROCEDURE BETALIQUID
+END INTERFACE
+
+INTERFACE TSURUTACONDENSCOEFF
+  MODULE PROCEDURE TSURUTACONDENSCOEFF
+END INTERFACE
+
 PUBLIC :: PartEnergyToSurface
 PUBLIC :: SurfaceToPartEnergy
+PUBLIC :: LIQUIDEVAP
+PUBLIC :: LIQUIDREFL
+PUBLIC :: ALPHALIQUID
+PUBLIC :: BETALIQUID
+PUBLIC :: TSURUTACONDENSCOEFF
 !===================================================================================================================================
 
 CONTAINS
@@ -224,6 +257,99 @@ IF (CollisMode.GT.1) THEN
 END IF
 !End internal energy accomodation
 END SUBROUTINE SurfaceToPartEnergy
+
+
+REAL FUNCTION LIQUIDEVAP(beta,x,sigma)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: beta,x,sigma
+!===================================================================================================================================
+liquidEvap=(1-beta*exp(-0.5*(x/sigma)**2))/(1-beta/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+END FUNCTION
+
+REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: alpha,beta,x,sigma
+!===================================================================================================================================
+liquidRefl= (1-alpha+alpha*beta*exp(-0.5*(x/sigma)**2))/(1-alpha*(1-beta/2))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+END FUNCTION
+
+FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+!USE MOD_SurfModel_Vars, ONLY:
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+alpha = 0.9
+END FUNCTION
+
+FUNCTION BETALIQUID(specID,temp) RESULT(beta)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+!USE MOD_SurfModel_Vars, ONLY:
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: beta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+beta = 0.280
+END FUNCTION
+
+FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: specID
+REAL,INTENT(IN)    :: normalVelo,temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: sigma
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
+END FUNCTION
 
 
 END MODULE MOD_Particle_Boundary_Tools

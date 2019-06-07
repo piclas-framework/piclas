@@ -1928,6 +1928,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
 USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_Particle_Boundary_Tools,ONLY: PartEnergyToSurface,SurfaceToPartEnergy
+USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
@@ -2123,6 +2124,17 @@ ELSE
       outSpec(2) = SpecID
       interactionCase = 1
     END IF
+  CASE (2) ! calculate condensation probability by tsuruta2005 and reflection distribution function
+    IF (PartBound%Spec(locBCID).EQ.SpecID) THEN
+      interactionCase = 4
+      velocityDistribution='liquid_refl'
+      Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+      CALL RANDOM_NUMBER(RanNum)
+      IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
+        outSpec(2) = SpecID
+        interactionCase = 1
+      END IF
+    END IF
   END SELECT
 END IF !SolidState
 
@@ -2268,6 +2280,17 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   ! set new species
   PartSpecies(PartID) = OutSpec(2)
+
+  CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(4) ! Distribution function reflection  (reflecting particle according to defined distribution function)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
+
+  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
+  PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) + n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
   CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)

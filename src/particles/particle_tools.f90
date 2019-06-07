@@ -26,12 +26,16 @@ INTERFACE UpdateNextFreePosition
   MODULE PROCEDURE UpdateNextFreePosition
 END INTERFACE
 
+INTERFACE VELOFROMDISTRIBUTION
+  MODULE PROCEDURE VELOFROMDISTRIBUTION
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION
 !===================================================================================================================================
 
 CONTAINS
@@ -137,5 +141,77 @@ FUNCTION DiceUnitVector()
   DiceUnitVector(2) = aVec * SIN(bVec)
 
 END FUNCTION DiceUnitVector 
+
+
+FUNCTION VELOFROMDISTRIBUTION(distribution,specID,temp)
+!===================================================================================================================================
+!> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
+!>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
+!>  liquid_refl: normal direction to surface with ARM from shifted reflection rayleigh, tangential from normal distribution
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals                 ,ONLY: Abort
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Boundary_Tools ,ONLY: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
+INTEGER,INTENT(IN)          :: specID       !< input species
+REAL,INTENT(IN)             :: temp         !< input temperature [K]  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL :: veloFromDistribution(1:3)
+REAL :: alpha, beta
+REAL :: y1, f, ymax
+REAL :: sigma
+REAL :: Velo1, Velo2, Velosq
+REAL :: RandVal(2)
+!===================================================================================================================================
+!-- set velocities
+SELECT CASE(TRIM(distribution))
+CASE('liquid_evap','liquid_refl')
+  ! sample normal direction with ARM from given, shifted rayleigh distribution function
+  sigma = SQRT(BoltzmannConst*temp/Species(SpecID)%MassIC)
+  y1=1
+  f=0
+  alpha=ALPHALIQUID(specID,temp)
+  beta=BETALIQUID(specID,temp)
+  DO WHILE (y1-f.GT.0)
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1=RandVal(1)*4
+    SELECT CASE(TRIM(distribution))
+    CASE('liquid_evap')
+      ymax = 0.7
+      f=LIQUIDEVAP(beta,Velo1,1.)
+    CASE('liquid_refl')
+      ymax = 1.0
+
+      f=LIQUIDREFL(alpha,beta,Velo1,1.)
+    END SELECT
+    y1=ymax*RandVal(2)
+  END DO
+  veloFromDistribution(3) = sigma*Velo1
+  ! build tangential velocities from gauss (normal) distribution
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  veloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+  veloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
+CASE DEFAULT
+  CALL abort(&
+__STAMP__&
+,'wrong velo-distri!')
+END SELECT
+
+END FUNCTION VELOFROMDISTRIBUTION
 
 END MODULE MOD_part_tools

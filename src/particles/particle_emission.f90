@@ -4050,6 +4050,7 @@ __STAMP__&
       Species(iSpec)%Surfaceflux(iSF)%velocityDistribution  = &
           TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
       IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
+          TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'liquid' .AND. &
           TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
           TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN
         CALL abort(&
@@ -4572,6 +4573,9 @@ DO iSpec=1,nSpecies
             CASE('constant')
               vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
               nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('liquid')
+              vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+              nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
             CASE('maxwell','maxwell_lpn')
               IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
                 CALL abort(&
@@ -5760,9 +5764,11 @@ SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,iSample,jSample,iSide,BCSideID,
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
 USE MOD_Particle_Vars
+USE MOD_Part_Tools,             ONLY : VELOFROMDISTRIBUTION
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Boundary_Vars, ONLY : PartBound
+USE MOD_Particle_Boundary_Tools,ONLY : BETALIQUID,LIQUIDEVAP
 !USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -5791,6 +5797,8 @@ IF(PartIns.lt.1) RETURN
 IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell' .OR. &
   TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell_lpn') THEN
   velocityDistribution='maxwell_surfaceflux'
+ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'liquid' ) THEN
+  velocityDistribution='liquid'
 ELSE IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'constant' ) THEN
   velocityDistribution='constant'
 ELSE
@@ -5910,6 +5918,31 @@ __STAMP__&
       PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
+CASE('liquid')
+  !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
+  IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+    vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+    vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
+    vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
+  ELSE IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal) THEN
+    CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
+      ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
+    vec_nIn(1:3) = -vec_nIn(1:3)
+  END IF
+  !sigma=SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC)
+  !beta=BETALIQUID(FractNbr,T)
+  !ymax=0.7
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+       Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
+       PartState(PositionNbr,4:6) = vec_t1(1:3)*Vec3D(1) + vec_t1(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
+    ELSE !PositionNbr .EQ. 0
+      CALL abort(&
+__STAMP__&
+,'!PositionNbr .EQ. 0!')
+    END IF !PositionNbr .NE. 0
+  END DO
 CASE('maxwell_surfaceflux')
   !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
   IF (.NOT.Species(FractNbr)%Surfaceflux(iSF)%SimpleRadialVeloFit) THEN
