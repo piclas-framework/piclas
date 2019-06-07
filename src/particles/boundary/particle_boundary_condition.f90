@@ -1933,7 +1933,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, Sam
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular, Liquid
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular, Liquid, surfmodel
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
 USE MOD_SEE                    ,ONLY: SEE_PartDesorb
 ! IMPLICIT VARIABLE HANDLING
@@ -2073,7 +2073,7 @@ IF(PartBound%SolidState(locBCID))THEN
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
     Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
     ! check if still enough saved particles on surface
-    IF (Adsorption%Coverage(p,q,SurfSideID,SpecID).LE.(-Adsorption%SumAdsorbPart(p,q,SurfSideID,SpecID))) THEN
+    IF (Adsorption%Coverage(p,q,SurfSideID,SpecID).LE.(-surfmodel%SumAdsorbPart(p,q,SurfSideID,SpecID))) THEN
       Adsorption_prob = Adsorption_prob + Recombination_prob
       Recombination_prob = 0.
     END IF
@@ -2146,12 +2146,12 @@ CASE(-4) ! Remove bombarding particle
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-3) ! Remove bombarding particle + electron creation
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
   adsindex = 1
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-2) ! Perfect elastic scattering + electron creation
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
   adsindex = -1
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-1) ! Perfect elastic scattering
@@ -2160,7 +2160,7 @@ CASE(-1) ! Perfect elastic scattering
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
+  surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
@@ -2170,8 +2170,8 @@ CASE(1) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
-  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
+  surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
+  surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(SpecID)%NumOfAds = Adsorption%AdsorpInfo(SpecID)%NumOfAds + 1
@@ -2196,8 +2196,8 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at contact and reaction partner removed from surface)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  !Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = Adsorption%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
-  Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = Adsorption%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
+  !surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = surfmodel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = surfmodel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
   adsindex = 2
   ! --------
   ! sampling and analyze stuff for heat flux and reaction rates

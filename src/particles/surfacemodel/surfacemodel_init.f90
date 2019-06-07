@@ -216,7 +216,7 @@ USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular
+USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular, surfmodel
 USE MOD_SurfaceModel_Tools         ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SMCR_Init                  ,ONLY: InitSMCR, InitSMCR_Chem
 #ifdef MPI
@@ -401,10 +401,11 @@ IF (PartSurfaceModel.EQ.1 .OR. PartSurfaceModel.EQ.2) THEN
             Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies))
 END IF
 ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
-          Adsorption%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          surfmodel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          surfmodel%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          surfmodel%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          surfmodel%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
+          surfmodel%SumERDesorbed(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides,1:nSpecies),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nTotalSides),&
           Adsorption%AreaIncrease(1:SurfMesh%nTotalSides),&
           Adsorption%CrystalIndx(1:SurfMesh%nTotalSides))
@@ -435,10 +436,11 @@ IF (SurfMesh%SurfOnProc) THEN
     Adsorption%ProbAds(:,:,:,:) = 0.
     Adsorption%ProbDes(:,:,:,:) = 0.
   END IF
-  Adsorption%SumDesorbPart(:,:,:,:) = 0
-  Adsorption%SumAdsorbPart(:,:,:,:) = 0
-  Adsorption%SumReactPart(:,:,:,:)  = 0
-  Adsorption%SumERDesorbed(:,:,:,:) = 0
+  surfmodel%SumEvapPart(:,:,:,:) = 0
+  surfmodel%SumDesorbPart(:,:,:,:) = 0
+  surfmodel%SumAdsorbPart(:,:,:,:) = 0
+  surfmodel%SumReactPart(:,:,:,:)  = 0
+  surfmodel%SumERDesorbed(:,:,:,:) = 0
 #ifdef MPI
   CALL InitSurfModel_MPI()
 #endif /*MPI*/
@@ -824,7 +826,7 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, Liquid
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, Liquid, surfmodel
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfModelAnalyzeInitIsDone
 USE MOD_Particle_Vars             ,ONLY: PDM, PEM
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh
@@ -860,10 +862,11 @@ SDEALLOCATE(Adsorption%AdsorpReactInfo)
 SDEALLOCATE(Adsorption%Coverage)
 SDEALLOCATE(Adsorption%ProbAds)
 SDEALLOCATE(Adsorption%ProbDes)
-SDEALLOCATE(Adsorption%SumDesorbPart)
-SDEALLOCATE(Adsorption%SumReactPart)
-SDEALLOCATE(Adsorption%SumAdsorbPart)
-SDEALLOCATE(Adsorption%SumERDesorbed)
+SDEALLOCATE(surfmodel%SumEvapPart)
+SDEALLOCATE(surfmodel%SumDesorbPart)
+SDEALLOCATE(surfmodel%SumReactPart)
+SDEALLOCATE(surfmodel%SumAdsorbPart)
+SDEALLOCATE(surfmodel%SumERDesorbed)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 SDEALLOCATE(Adsorption%AreaIncrease)
 SDEALLOCATE(Adsorption%CrystalIndx)

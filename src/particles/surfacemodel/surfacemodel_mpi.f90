@@ -160,7 +160,7 @@ SUBROUTINE ExchangeAdsorbNum()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: surfmodel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -201,9 +201,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= Adsorption%SumAdsorbPart(p,q,SurfSideID,:)
+        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= surfmodel%SumAdsorbPart(p,q,SurfSideID,:)
         iPos=iPos+nSpecies
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= Adsorption%SumERDesorbed(p,q,SurfSideID,:)
+        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= surfmodel%SumERDesorbed(p,q,SurfSideID,:)
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
@@ -249,10 +249,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
-        Adsorption%SumAdsorbPart(p,q,SurfSideID,:)=Adsorption%SumAdsorbPart(p,q,SurfSideID,:) &
+        surfmodel%SumAdsorbPart(p,q,SurfSideID,:)=surfmodel%SumAdsorbPart(p,q,SurfSideID,:) &
                                          +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
-        Adsorption%SumERDesorbed(p,q,SurfSideID,:)=Adsorption%SumERDesorbed(p,q,SurfSideID,:) &
+        surfmodel%SumERDesorbed(p,q,SurfSideID,:)=surfmodel%SumERDesorbed(p,q,SurfSideID,:) &
                                          +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
@@ -373,7 +373,7 @@ SUBROUTINE ExchangeSurfDistInfo()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SurfComm, nSurfSample, PartBound
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, surfmodel
 USE MOD_Mesh_Vars              ,ONLY: BC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING

@@ -59,6 +59,20 @@ TYPE tProperInfo
 END TYPE
 #endif
 
+TYPE tSurfaceModel
+  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbed from Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec absorbed by the Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles that reacted on the surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumERDesorbed(:,:,:,:)  ! Number of Particles desorbed through ER-type-reaction
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumEvapPart(:,:,:,:)    ! number of evaporated particles
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+END TYPE
+TYPE(tSurfaceModel)                      :: SurfModel               ! SurfModel container
+
 TYPE tAdsorption
 #if (PP_TimeDiscMethod==42)
   TYPE(tMeanInfo), ALLOCATABLE           :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
@@ -75,14 +89,6 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: ProbAds(:,:,:,:)        ! Adsorption probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:)        ! Desorption probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbing from Surface
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec adsorbing to Surface
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles desorbed through reaction
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumERDesorbed(:,:,:,:)  ! Number of Particles desorbed through ER-reaction
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density

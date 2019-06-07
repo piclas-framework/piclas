@@ -4815,7 +4815,7 @@ USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn
-USE MOD_SurfaceModel_Vars      ,ONLY : Adsorption, Liquid
+USE MOD_SurfaceModel_Vars      ,ONLY : surfmodel
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
@@ -5045,7 +5045,7 @@ __STAMP__&
               ! needs to be tested in order for triasurfaceflux and tracing to work both
               ! sumdesorbpart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
               IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
-                ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
+                ExtraParts = surfmodel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
               END IF
               IF (TriaSurfaceFlux) THEN
                 IF (iSample.EQ.1 .AND. jSample.EQ.1) THEN !first tria
