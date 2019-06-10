@@ -134,7 +134,7 @@ IF(Symmetry2DAxisymmetric.AND.(.NOT.Symmetry2D)) THEN
   Symmetry2D = .TRUE.
 END IF
 IF(Symmetry2DAxisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-DSMC-RadialWeighting')
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
 END IF

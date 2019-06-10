@@ -157,12 +157,12 @@ USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-  RadialWeighting%PartScaleFactor = GETREAL('Particles-DSMC-RadialWeighting-PartScaleFactor','1.')
-  RadialWeighting%CloneMode = GETINT('Particles-DSMC-RadialWeighting-CloneMode','1')
-  RadialWeighting%MinPartWeightShift = GETREAL('Particles-DSMC-RadialWeighting-MinPartWeightShift','1.')
-  RadialWeighting%CloneInputDelay = GETINT('Particles-DSMC-RadialWeighting-CloneDelay','1')
+  RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFactor','1.')
+  RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode','1')
+  RadialWeighting%MinPartWeightShift = GETREAL('Particles-RadialWeighting-MinPartWeightShift','1.')
+  RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay','1')
   ! Cell local radial weighting (all particles have the same weighting factor within a cell)
-  RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-DSMC-RadialWeighting-CellLocalWeighting','.FALSE.')
+  RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellLocalWeighting','.FALSE.')
 
   RadialWeighting%NextClone = 0
 
@@ -190,7 +190,8 @@ USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
     CASE DEFAULT
       CALL Abort(&
          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: Unknown clone mode!')
+        'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+          ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
   END SELECT
 
 END SUBROUTINE DSMC_2D_InitRadialWeighting
@@ -228,16 +229,18 @@ SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
 
   IF (.NOT.(PartMPF(iPart).GT.Species(PartSpecies(iPart))%MacroParticleFactor)) RETURN
 
+  ! Determine the new particle weight and decide whether to clone the particle
   NewMPF = CalcRadWeightMPF(PartState(iPart,2), PartSpecies(iPart),iPart)
   OldMPF = PartMPF(iPart)
-  CloneProb = (PartMPF(iPart)/NewMPF)-INT(PartMPF(iPart)/NewMPF)
+  CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
   CALL RANDOM_NUMBER(iRan)
   IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
     DoCloning = .TRUE.
-    IF(INT(PartMPF(iPart)/NewMPF).GT.1) THEN
+    IF(INT(OldMPF/NewMPF).GT.1) THEN
       CALL Abort(&
          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: More than one clown is not allowed!')
+        'ERROR in 2D axisymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+          ' the radial weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
     END IF
   END IF
   PartMPF(iPart) = NewMPF

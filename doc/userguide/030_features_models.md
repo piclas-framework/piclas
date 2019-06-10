@@ -402,6 +402,47 @@ The simulation time step $\Delta t$ is defined by
 
     Particles-ManualTimeStep = 1.00E-7
 
+### 2D/Axisymmetric Simulation \label{sec:2DAxi}
+
+For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
+
+To enable two-dimensional simulations, the following flag is required
+
+    Particles-Symmetry2D=T
+
+It should be noted that the two-dimensional mesh assumes a length of $\Delta z = 1$, regardless of the actual dimension in $z$. Therefore, the weighting factor should be adapted accordingly.
+
+To enable axisymmetric simulations, the following flag is required
+
+    Particles-Symmetry2DAxisymmetric=T
+
+To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$ towards $y_\mathrm{max}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
+
+    Particles-RadialWeighting=T
+    Particles-RadialWeighting-PartScaleFactor=100
+
+A radial weighting factor of 100 means that the weighting factor at $y_\mathrm{max}$ will be $100w$. Although greatly reducing the number of particles, this introduces the need to delete and create (in the following "clone") particles, which travel upwards and downwards in the $y$-direction, respectively. If the new weighting factor is smaller than the previous one, a cloning probability is calculated by
+
+$$ P_\mathrm{clone} = \frac{w_\mathrm{old}}{w_\mathrm{new}} - \mathrm{INT}\left(\frac{w_\mathrm{old}}{w_\mathrm{new}}\right)\qquad \text{for}\quad w_\mathrm{new}<w_\mathrm{old}.$$
+
+For the deletion process, a deletion probability is calculated, if the new weighting factor is greater than the previous
+
+$$ P_\mathrm{delete} = 1 - P_\mathrm{clone}\qquad \text{for}\quad w_\mathrm{old}<w_\mathrm{new}.$$
+
+If the ratio between the old and the new weighting factor is $w_\mathrm{old}/w_\mathrm{new}> 2$, the time step or the radial weighting factor should be reduced as the creation of more than one clone per particle per time step is not allowed. Analogously, if the deletion probability is above $0.5$.
+
+For the cloning procedure, two methods are implemented, where the information of the particles to be cloned are stored for a given number of iterations (`CloneDelay=10`) and inserted at the old position. The difference is whether the list is inserted chronologically (`CloneMode=1`) or randomly (`CloneMode=2`) after the first number of delay iterations.
+
+    Particles-RadialWeighting-CloneMode=2
+    Particles-RadialWeighting-CloneDelay=10
+
+This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}).
+
+An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
+
+    Particles-RadialWeighting-CellLocalWeighting = T
+
+However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to the clustered cloning processes at cell boundaries.
 
 ### Species Definition \label{sec:dsmc_species}
 
@@ -452,7 +493,7 @@ These parameters allow the simulation of non-reactive gases. Additional paramete
 
 ### Pairing & Collision Modelling \label{sec:dsmc_collision}
 
-WIP: octree, VHS
+WIP: octree, nearest neighbor, VHS
 
 ### Relaxation \label{sec:dsmc_relaxation}
 
@@ -509,7 +550,7 @@ To enable the simulation with the FP module, the respective compiler setting has
 
     PICLAS_TIMEDISCMETHOD = FP-Flow
 
-A parameter file and species initialization file is required, analagous to the DSMC setup. To enable the simulation with the FP methods, select the Fokker-Planck method, cubic (`=1`) and ES (`=2`):
+A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the FP methods, select the Fokker-Planck method, cubic (`=1`) and ES (`=2`):
 
     Particles-FP-CollModel = 2
 
@@ -559,7 +600,7 @@ To enable the simulation with the BGK module, the respective compiler setting ha
 
     PICLAS_TIMEDISCMETHOD = BGK
 
-A parameter file and species initialization file is required, analagous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`=1`), Shakov (`=2`), Standard BGK (`=3`), and Unified (`=4`):
+A parameter file and species initialization file is required, analogous to the DSMC setup. To enable the simulation with the BGK methods, select the BGK method, ES (`=1`), Shakov (`=2`), Standard BGK (`=3`), and Unified (`=4`):
 
     Particles-BGK-CollModel = 1
 
