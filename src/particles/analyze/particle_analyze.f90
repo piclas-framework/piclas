@@ -1004,14 +1004,6 @@ INTEGER             :: dir
     IF(CalcCouplPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-! Moving Average of PCoupl:
-      IF(iter.EQ.0) THEN
-        PCouplAverage = 0.0
-      ELSE
-        PCouplAverage = PCouplAverage / Time
-      END IF
-! current PCoupl (Delta_E / Timestep)
-      PCoupl = PCoupl / dt
     END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
@@ -1096,6 +1088,20 @@ INTEGER             :: dir
     END IF
   END IF
 #endif /*MPI*/
+
+IF (PartMPI%MPIRoot) THEN
+  IF(CalcCouplPower) THEN
+  ! Moving Average of PCoupl:
+    IF(iter.EQ.0) THEN
+      PCouplAverage = 0.0
+    ELSE
+      PCouplAverage = PCouplAverage / Time
+    END IF
+    ! current PCoupl (Delta_E / Timestep)
+    PCoupl = PCoupl / dt
+  END IF
+END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
