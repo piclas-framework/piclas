@@ -880,12 +880,24 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SurfaceModel'  &
+                                , 'Defining surface to be treated reactively by defining Model used '//&
+                                'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
+                                '0: Maxwell scattering\n'//&
+                                '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
+                                '2: Recombination model\n'//&
+                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
+                                '4: TODO\n'//&
+                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
+                                    'by Levko2015 for copper electrondes\n'//&
+                                '6: SEE-E (secondary e- emission due to e- bombardment) '//&
+                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
+                                '101: Maxwell scattering\n'//&
+                                '102: MD dsitributionfunction' &
+                                , '0')
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Reactive'  &
-                                , 'Flag for defining surface to be treated reactively.', '.FALSE.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidPartDens'  &
   , 'If particle boundary defined as solid set surface atom density (in [part/m^2]).', '1.0E+19', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-SolidMassIC'  &
@@ -998,7 +1010,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp,PartSurfaceModel, LiquidSimFlag, PartLiquidModel
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp!,PartSurfaceModel, LiquidSimFlag, PartLiquidModel
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -1008,8 +1020,8 @@ USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel, InitLiquidSurfaceModel
-USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC
+USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel!, InitLiquidSurfaceModel
+USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC, PartBound
 USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
 #ifdef MPI
@@ -1072,7 +1084,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(PartSurfaceModel.GT.0).OR.LiquidSimFlag.OR.(nPorousBC.GT.0)) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0)) THEN
   CALL InitParticleBoundarySampling()
 END IF
 
@@ -1082,8 +1094,9 @@ IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
-  IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
-  IF (PartLiquidModel.GT.0) CALL InitLiquidSurfaceModel()
+  CALL InitSurfaceModel()
+  !IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
+  !IF (PartLiquidModel.GT.0) CALL InitLiquidSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
 #endif
@@ -2197,6 +2210,7 @@ ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
+ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
 ALLOCATE(PartBound%Spec(1:nPartBound))
 ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
@@ -2207,9 +2221,8 @@ ALLOCATE(PartBound%SolidAreaIncrease(1:nPartBound))
 ALLOCATE(PartBound%SolidStructure(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 PartBound%SolidState(1:nPartBound)=.FALSE.
+PartBound%Reactive(1:nPartBound)=.FALSE.
 PartBound%Spec(1:nPartBound)=0
-SolidSimFlag = .FALSE.
-LiquidSimFlag = .FALSE.
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
@@ -2306,11 +2319,25 @@ __STAMP__&
      PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
+     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+     ! check for correct surfacemodel input
+     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
+       IF (.NOT.useDSMC) CALL abort(&
+__STAMP__&
+,'Cannot use surfacemodel>0 with useDSMC=F for partcle boundary: ',iPartBound)
+       SELECT CASE (PartBound%SurfaceModel(iPartBound))
+       CASE (0)
+         PartBound%Reactive(iPartBound)        = .FALSE.
+       CASE (2,3,5,6,101,102)
+         PartBound%Reactive(iPartBound)        = .TRUE.
+       CASE DEFAULT
+         CALL abort(&
+__STAMP__&
+,'Error in particle init: only allowed SurfaceModels: 0,2,3,5,6,101,102!')
+       END SELECT
+     END IF
      PartBound%SolidState(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-SolidState')
-     PartBound%Spec(iPartBound)            = GETINT('Part-Boundary'//TRIM(hilf)//'-Spec')
-     PartBound%Reactive(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Reactive')
      IF(PartBound%SolidState(iPartBound))THEN
-       SolidSimFlag = .TRUE.
        PartBound%SolidPartDens(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidPartDens')
        PartBound%SolidMassIC(iPartBound)       = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidMassIC')
        PartBound%SolidAreaIncrease(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SolidAreaIncrease')
@@ -2322,6 +2349,7 @@ __STAMP__&
        END IF
        PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
      END IF
+     PartBound%Spec(iPartBound)            = GETINT('Part-Boundary'//TRIM(hilf)//'-Spec')
      IF (PartBound%Spec(iPartBound).GT.nSpecies) CALL abort(&
 __STAMP__&
      ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%Spec(iPartBound))
@@ -2333,7 +2361,6 @@ __STAMP__&
 __STAMP__&
        ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
      END IF
-     IF (.NOT.PartBound%SolidState(iPartBound)) LiquidSimFlag = .TRUE.
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -2470,29 +2497,6 @@ END IF
 
 ! initialization of surface model flags
 KeepWallParticles = .FALSE.
-IF (SolidSimFlag) THEN
-  !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
-  PartSurfaceModel = GETINT('Particles-SurfaceModel')
-ELSE
-  PartSurfaceModel = 0
-END IF
-IF (PartSurfaceModel.GT.0 .AND. .NOT.useDSMC) THEN
-  CALL abort(&
-__STAMP__&
-,'Cannot use partsurfacemodel>0 with useDSMC=F!')
-END IF
-
-IF (LiquidSimFlag) THEN
-  !0: elastic/diffusive reflection, 1:condensation and evaporation depending on MD distribution function
-  PartLiquidModel = GETINT('Particles-LiquidModel')
-ELSE
-  PartLiquidModel = 0
-END IF
-IF (PartLiquidModel.GT.0 .AND. .NOT.useDSMC) THEN
-  CALL abort(&
-__STAMP__&
-,'Cannot use partiquidmodel>0 with useDSMC=F!')
-END IF
 
 !--- initialize randomization
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
@@ -3325,6 +3329,7 @@ SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Spec)
 SDEALLOCATE(PartBound%ParamAntoine)
