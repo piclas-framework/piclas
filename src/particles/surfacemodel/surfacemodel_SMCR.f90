@@ -40,7 +40,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst!, PI
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies, Species!, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption, surfmodel
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption, SurfModel
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh !, SampWall
@@ -174,7 +174,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !trapping_prob = abs(0.5 + 0.5*ERF(a_const*vel_coll) + ( EXP(-(a_const**2)*(vel_coll**2)) / (2*a_const*(vel_norm*PI**0.5)) ))
 !IF (trapping_prob.GT.1.) trapping_prob = 1.
 !#if (PP_TimeDiscMethod==42)
-!Adsorption%AdsorpInfo(iSpec)%Accomodation = Adsorption%AdsorpInfo(iSpec)%Accomodation + trapping_prob
+!SurfModel%Info(iSpec)%Accomodation = SurfModel%Info(iSpec)%Accomodation + trapping_prob
 !#endif
 !IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
 !  SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) = SampWall(SurfID)%Accomodation(iSpec,subsurfxi,subsurfeta) &
@@ -365,7 +365,7 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
   IF (jSpec.EQ.0) CYCLE
   IF (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(jSpec)).LT.0 ) CYCLE
   coverage_check = Adsorption%Coverage(subsurfxi,subsurfeta,SurfID,jSpec) &
-                 + surfmodel%SumAdsorbPart(subsurfxi,subsurfeta,SurfID,jSpec) &
+                 + SurfModel%SumAdsorbPart(subsurfxi,subsurfeta,SurfID,jSpec) &
                  * Species(jSpec)%MacroParticleFactor &
                  / REAL(INT(Adsorption%DensSurfAtoms(SurfID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfID),8))
   IF (coverage_check.LE.0.) CYCLE
@@ -473,18 +473,18 @@ IF (sum_probabilities .GT. RanNum) THEN
   IF (adsorption_case.GT.0) THEN
     iSampleReact = 1 + ReactNum
     IF (DSMC%ReservoirRateStatistic) THEN
-      Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) = &
-          Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
-      Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + 1.
+      SurfModel%ProperInfo(iSpec)%NumAdsReact(iSampleReact) = &
+          SurfModel%ProperInfo(iSpec)%NumAdsReact(iSampleReact) + 1.
+      SurfModel%Info(iSpec)%MeanProbAds = SurfModel%Info(iSpec)%MeanProbAds + 1.
     END IF
-    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(iSampleReact) + loc_AdsActE(iSampleReact)
-    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iSampleReact) + loc_Adsnu(iSampleReact)
-    Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iSampleReact) + 1
-    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iSampleReact) + 1.
+    SurfModel%ProperInfo(iSpec)%ProperAdsActE(iSampleReact) = &
+        SurfModel%ProperInfo(iSpec)%ProperAdsActE(iSampleReact) + loc_AdsActE(iSampleReact)
+    SurfModel%ProperInfo(iSpec)%ProperAdsnu(iSampleReact) = &
+        SurfModel%ProperInfo(iSpec)%ProperAdsnu(iSampleReact) + loc_Adsnu(iSampleReact)
+    SurfModel%ProperInfo(iSpec)%ProperAdsReactCount(iSampleReact) = &
+        SurfModel%ProperInfo(iSpec)%ProperAdsReactCount(iSampleReact) + 1
+    SurfModel%ProperInfo(iSpec)%HeatFluxAdsCount(iSampleReact) = &
+        SurfModel%ProperInfo(iSpec)%HeatFluxAdsCount(iSampleReact) + 1.
   END IF
 #endif
 END IF
@@ -509,7 +509,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption, surfmodel
 USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorptionHeat
-USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos, IsReactiveSurface
+USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos, SurfaceHasModelNum
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncSurf
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -597,10 +597,10 @@ ALLOCATE( P_react_forward(1:Adsorption%nExchReactions),&
 
 ! sample energy of surfaces before desorption treatment
 DO iSurf = 1,SurfMesh%nSides
-  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+      SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) &
           + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -609,14 +609,14 @@ DO iSurf = 1,SurfMesh%nSides
   END DO ; END DO
 END DO
 
-! loop over all surfaces and decide if catalytic boundary
+! loop over all surfaces and decide if catalytic boundary of modeltype 3
 DO iSurf = 1,SurfMesh%nSides
-  globSide = SurfMesh%SurfIDToSideID(iSurf)
-  PartBoundID = PartBound%MapToPartBC(BC(globSide))
-  IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
+  IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
 #if USE_LOADBALANCE
   IF(PerformLBSample) ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
 #endif /*USE_LOADBALANCE*/
+  globSide = SurfMesh%SurfIDToSideID(iSurf)
+  PartBoundID = PartBound%MapToPartBC(BC(globSide))
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -1286,7 +1286,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
           !----  Sampling of energies
-          SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(2,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%SurfModelState(2,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(2,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
           NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
@@ -1296,11 +1296,11 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
-        Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(2) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(2) &
+        SurfModel%ProperInfo(SpecID)%HeatFlux(2) = SurfModel%ProperInfo(SpecID)%HeatFlux(2) &
             + AdsorptionEnthalpie/BoltzmannConst
         iSampleReact = iReact + 1
-        Adsorption%AdsorpReactInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
-            Adsorption%AdsorpReactInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
+        SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
+            SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
                         + (1. / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8))
 #endif
@@ -1380,7 +1380,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
           !----  Sampling of energies
-          SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
           NumSurfReact(SpecID,iReact) = NumSurfReact(SpecID,iReact) + 1
         END IF
@@ -1390,11 +1390,11 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                         / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
-        Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(2) = Adsorption%AdsorpReactInfo(SpecID)%HeatFlux(2) &
+        SurfModel%ProperInfo(SpecID)%HeatFlux(2) = SurfModel%ProperInfo(SpecID)%HeatFlux(2) &
             + AdsorptionEnthalpie/BoltzmannConst
         iSampleReact = iReact + 1
-        Adsorption%AdsorpReactInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
-            Adsorption%AdsorpReactInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
+        SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) = &
+            SurfModel%ProperInfo(SpecID)%HeatFluxDesCount(iSampleReact) &
                         + (1. / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8))
 #endif
@@ -1461,7 +1461,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                           * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(SpecID)%MacroParticleFactor
           IF (ReactDirForward) AdsorptionEnthalpie = -AdsorptionEnthalpie
           !----  Sampling of energies
-          SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(1,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(1,iSubSurf,jSubSurf) &
                                                                 + AdsorptionEnthalpie * Species(SpecID)%MacroParticleFactor
         END IF
         ! remove first adsorbate and update map
@@ -1572,15 +1572,15 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor)
     ! calculate number of desorbing simulation particles (round to integer)
-    surfmodel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec) = &
+    SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec) = &
                         INT(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%desorbnum_tmp(iSpec))
     ! add desorbed particles to be inserted at emission
-    surfmodel%SumEvapPart(iSubSurf,jSubSurf,iSurf,iSpec) = surfmodel%SumEvapPart(iSubSurf,jSubSurf,iSurf,iSpec) &
-                        + surfmodel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
+    SurfModel%SumEvapPart(iSubSurf,jSubSurf,iSurf,iSpec) = SurfModel%SumEvapPart(iSubSurf,jSubSurf,iSurf,iSpec) &
+                        + SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
     ! Adjust tracking desorbing simulation particles
     SurfDistInfo(iSubSurf,jSubSurf,iSurf)%desorbnum_tmp(iSpec) = &
                         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%desorbnum_tmp(iSpec) &
-                        - REAL(surfmodel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec))
+                        - REAL(SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec))
     ! calculate number of reacted particles for each species
     SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) &
@@ -1588,20 +1588,20 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
                         * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
                         * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor)
     ! calculate number of reacting simulation particles on surface (round to integer)
-    surfmodel%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec) = &
+    SurfModel%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec) = &
                         INT(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec))
     ! Adjust tracking reacting simulation particles
     SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) = &
                         SurfDistInfo(iSubSurf,jSubSurf,iSurf)%reactnum_tmp(iSpec) &
-                        - REAL(surfmodel%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec))
+                        - REAL(SurfModel%SumReactPart(iSubSurf,jSubSurf,iSurf,iSpec))
     ! Sample vibrational energies
     ! due to reaction a part of energies can be transformed into other vibrational groundstates and the change is sampled
     ! the energies of the emitted particles are sampled in surfflux routine (particle_emission.f90) because calculated there
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
       DO iReact = 1,Adsorption%ReactNum
         IF (NumSurfReact(iSpec,iReact).GT.0) THEN
-          SampWall(iSurf)%Reaction(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) = &
-              SampWall(iSurf)%Reaction(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) &
+          SampWall(iSurf)%SurfModelReactCount(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) = &
+              SampWall(iSurf)%SurfModelReactCount(iReact+Adsorption%ReactNum,iSpec,iSubSurf,jSubSurf) &
               + ((REAL(NumSurfReact(iSpec,iReact)) / REAL(numSites)) * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
               * SurfMesh%SurfaceArea(iSubSurf,jSubSurf,iSurf),8)) / Species(iSpec)%MacroParticleFactor)
         END IF
@@ -1611,8 +1611,8 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     ! analyze rate data
     !-------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
-                                          + surfmodel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
+    SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes &
+                                          + SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
 #endif
   END DO ! nSpecies (analyze)
 END DO ; END DO ! nSurfSample
@@ -1620,10 +1620,10 @@ END DO ! SurfMesh%nSides
 
 ! sample energy of surfaces after desorption treatment
 DO iSurf = 1,SurfMesh%nSides
-  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+      SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) &
           - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1638,8 +1638,8 @@ DEALLOCATE(Coord_ReactP,Pos_ReactP)
 
 ! 6. communicate surface state to halo sides of neighbours
 #ifdef MPI
-  ! communicate distribution to halo-sides of neighbour procs
-  CALL ExchangeSurfDistInfo()
+! communicate distribution to halo-sides of neighbour procs
+CALL ExchangeSurfDistInfo()
 #endif
 
 END SUBROUTINE SMCR_PartDesorb
@@ -1654,7 +1654,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: Species, WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
-USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat, SpaceOccupied, SampleAdsorptionHeat, IsReactiveSurface
+USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, Calc_Adsorb_Heat, SpaceOccupied, SampleAdsorptionHeat, SurfaceHasModelNum
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: dt, TEnd, time
 USE MOD_DSMC_Vars              ,ONLY: DSMC
@@ -1674,11 +1674,11 @@ IF (.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! diffusion into equilibrium distribution
 DO iSurf=1,SurfMesh%nSides
-  IF (.NOT.IsReactiveSurface(iSurf)) CYCLE
+  IF (SurfaceHasModelNum(iSurf).NE.3) CYCLE
   DO jSubSurf=1,nSurfSample ; DO iSubSurf=1,nSurfSample
 
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+      SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) &
           + (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &
@@ -1755,7 +1755,7 @@ DO iSurf=1,SurfMesh%nSides
       DEALLOCATE(free_Neigh_pos)
     END DO
     IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-      SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) = SampWall(iSurf)%Adsorption(5,iSubSurf,jSubSurf) &
+      SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) = SampWall(iSurf)%SurfModelState(5,iSubSurf,jSubSurf) &
           - (SampleAdsorptionHeat(iSurf,iSubSurf,jSubSurf) * BoltzmannConst &
           / REAL(SurfDistInfo(iSubSurf,jSubSurf,iSurf)%nSites(3))) &
           * REAL(INT(Adsorption%DensSurfAtoms(iSurf) &

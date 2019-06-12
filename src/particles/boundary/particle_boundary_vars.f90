@@ -68,8 +68,8 @@ TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
 TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
-  INTEGER                               :: CatalyticSampSize
-  INTEGER                               :: LiquidSampSize
+  INTEGER                               :: ReactiveSampSize              ! additional sample size on the surface due to use of
+                                                                         ! reactive surface modelling (reactions, liquid, etc.)
   LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
   INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
   INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
@@ -91,20 +91,14 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 7-9   E_vib (pre, wall, re)
                                                                        ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
-  REAL,ALLOCATABLE                      :: Evaporation(:,:,:)          ! Sampling of Evaporation relevant values
-                                                                       ! 1:Enthalpie released/annihilated upon
-                                                                       ! evaporation/condensation
-                                                                       ! 2-nSpecies+1: Evaporation particle numbers for species
-  REAL,ALLOCATABLE                      :: Adsorption(:,:,:)           ! Sampling of energies from adsorption and desorption
+  REAL,ALLOCATABLE                      :: SurfModelState(:,:,:)       ! Sampling of energies from adsorption and desorption
                                                                        ! 1:Enthalpy released/annihilated upon reaction on surface
                                                                        ! 2:Enthalpy of surface due to reconstruction
-!  REAL,ALLOCATABLE                      :: Coverage(:,:,:)             ! SVampling of coverage
-                                                                       ! 3-nSpecies+2: Coverages for certain species
+  REAL,ALLOCATABLE                      :: SurfModelReactCount(:,:,:,:)! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient
+                                                                       ! (2*nReact,nSpecies,p,q) 
+                                                                       ! doubled entries due to adsorb and desorb direction counter
   REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
                                                                        ! (nSpecies,p,q)
-  REAL,ALLOCATABLE                      :: Reaction(:,:,:,:)           ! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient
-                                                                       ! (2*nReact,nSpecies,p,q) 
-                                                                       ! double entries for surface and adsorb react counter
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),
   !                                                                    ! 7-9 E_vib (pre, wall, re)
@@ -199,6 +193,18 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
+  INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction
+                                                                             ! 0 perfect/diffusive reflection
+                                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
+                                                                             ! 2 Recombination coefficient (Laux model)
+                                                                             ! 3 adsorption/desorption + chemical interaction 
+                                                                             !   (SMCR with UBI-QEP, TST)
+                                                                             ! 4 TODO
+                                                                             ! 5 SEE (secondary e- emission) by Levko2015
+                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016 
+                                                                             !   (orignally from Harrower1956)
+                                                                             ! 101 liquid condensation coeff = 1 + evaporation
+                                                                             ! 102 liquid tsuruta model
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   INTEGER , ALLOCATABLE                  :: Spec(:)                       ! Species of Boundary
   REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)             ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]

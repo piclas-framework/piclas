@@ -209,10 +209,11 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42) 
 USE MOD_Globals_Vars              ,ONLY: ProjectName
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
 #endif /* DSMC*/
 #if ( PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod==4)
-USE MOD_Particle_Vars             ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
 #endif /* DSMC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -223,9 +224,9 @@ REAL,INTENT(IN)                 :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, isRestart
+LOGICAL             :: isOpen, isRestart, doDistributionData
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, OutputCounter
+INTEGER             :: unit_index, OutputCounter, iPB
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase
 INTEGER             :: iCov, iSpec
@@ -252,6 +253,13 @@ IF (SurfMesh%nSides.EQ.0) RETURN
   IF (.NOT.DoSurfModelAnalyze) RETURN
   OutputCounter = 2
   unit_index = 636
+  doDistributionData=.FALSE.
+  DO iPB=1,nPartBound
+    IF (PartBound%SurfaceModel(iPB).EQ.3) THEN
+      doDistributionData=.TRUE.
+      EXIT
+    END IF
+  END DO
 #ifdef MPI
   IF (SurfCOMM%MPIOutputRoot) THEN
 #endif /* MPI */
@@ -278,7 +286,7 @@ IF (SurfMesh%nSides.EQ.0) RETURN
         !--- insert header
         WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
 #if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
-        IF (PartSurfaceModel.EQ.3) THEN
+        IF (doDistributionData) THEN
           IF (CalcSurfNumSpec) THEN
             CALL WriteDataHeaderInfo(unit_index,'nSimPart-Wall-Spec',OutputCounter,nSpecies)
             CALL WriteDataHeaderInfo(unit_index,'nSurfPart-Wall-Spec',OutputCounter,nSpecies)
@@ -545,7 +553,7 @@ IF (SurfMesh%nSides.EQ.0) RETURN
 ! Analyze Routines
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)
-IF (PartSurfaceModel.EQ.3) THEN
+IF (doDistributionData) THEN
   IF (CalcSurfNumSpec.OR.CalcSurfCoverage) CALL GetWallNumSpec(WallNumSpec,WallCoverage,WallNumSpec_SurfDist)
 #if (PP_TimeDiscMethod==42)
   IF (CalcAccomodation) CALL GetAccCoeff(Accomodation)
@@ -564,7 +572,7 @@ IF (PartSurfaceModel.EQ.3) THEN
         ,Adsorptionnu,ProperAdsorptionnu)
   ELSE
     DO iSpec = 1,nSpecies
-      Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+      SurfModel%Info(iSpec)%WallCollCount = 0
     END DO
   END IF
   IF (CalcSurfRates) THEN
@@ -604,7 +612,7 @@ IF (SurfCOMM%MPIOutputRoot) THEN
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption
-    IF (PartSurfaceModel.EQ.3) THEN
+IF (doDistributiondata) THEN
       IF (CalcSurfNumSpec) THEN
         CALL WriteDataInfo(unit_index,nSpecies,IntegerK8Array=WallNumSpec(:))
         CALL WriteDataInfo(unit_index,nSpecies,IntegerK8Array=WallNumSpec_SurfDist(:))
@@ -912,7 +920,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -935,16 +943,16 @@ REAL                            :: AC(nSpecies)
 Accomodation(:) = 0.
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    IF (SurfModel%Info(iSpec)%WallCollCount.GT.0) THEN
+      Accomodation(iSpec) = SurfModel%Info(iSpec)%Accomodation / REAL(SurfModel%Info(iSpec)%WallCollCount)
     ELSE
       Accomodation(iSpec) = 0.
     END IF
   END DO
 ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    IF (SurfModel%Info(iSpec)%WallCollCount.GT.0) THEN
+      Accomodation(iSpec) = SurfModel%Info(iSpec)%Accomodation / REAL(SurfModel%Info(iSpec)%WallCollCount)
     ELSE
       Accomodation(iSpec) = 0.
     END IF
@@ -961,7 +969,7 @@ END IF
 #endif /*MPI*/
 
 DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0.
+  SurfModel%Info(iSpec)%Accomodation = 0.
 END DO
 
 END SUBROUTINE GetAccCoeff
@@ -974,9 +982,9 @@ SUBROUTINE GetAdsRates(AdsorbRate,SurfCollNum,AdsorbNum,ReactRate,AdsorbActE,Pro
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -1005,20 +1013,16 @@ INTEGER                         :: ADN(nSpecies)
 
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      AdsorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfAds) / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    IF (SurfModel%Info(iSpec)%WallCollCount.GT.0) THEN
+      AdsorbRate(iSpec) = REAL(SurfModel%Info(iSpec)%NumOfAds) / REAL(SurfModel%Info(iSpec)%WallCollCount)
     ELSE
       AdsorbRate(iSpec) = 0.
     END IF
   END DO
 ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
-      IF (PartSurfaceModel.EQ.1) THEN
-        AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-      ELSE IF (PartSurfaceModel.EQ.3) THEN
-        AdsorbRate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
-      END IF
+    IF (SurfModel%Info(iSpec)%WallCollCount.GT.0) THEN
+      AdsorbRate(iSpec) = SurfModel%Info(iSpec)%MeanProbAds / REAL(SurfModel%Info(iSpec)%WallCollCount)
     ELSE
       AdsorbRate(iSpec)= 0.
     END IF
@@ -1028,9 +1032,9 @@ END IF
 iCase = 1
 DO iSpec = 1, nSpecies
   DO iReact = 1, Adsorption%ReactNum+1
-    IF (Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
-      ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(iReact) &
-          / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact)) !* REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount)
+    IF (SurfModel%ProperInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
+      ReactRate(iCase) = SurfModel%ProperInfo(iSpec)%NumAdsReact(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%AdsReactCount(iReact)) !* REAL(SurfModel%Info(iSpec)%WallCollCount)
     ELSE
       ReactRate(iCase) = 0.
     END IF
@@ -1039,36 +1043,34 @@ DO iSpec = 1, nSpecies
 END DO
 
 DO iSpec = 1,nSpecies
-  SurfCollNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%WallCollCount
-  AdsorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds
+  SurfCollNum(iSpec) = SurfModel%Info(iSpec)%WallCollCount
+  AdsorbNum(iSpec) = SurfModel%Info(iSpec)%NumOfAds
 END DO
 
-IF (PartSurfaceModel.EQ.3) THEN
-  iCase = 1
-  DO iSpec = 1,nSpecies
-    DO iReact = 1,Adsorption%ReactNum+1
-      IF (Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
-        AdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
-        Adsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(iReact))
-      ELSE
-        AdsorbActE(iCase) = 0.
-        Adsorbnu(iCase)   = 0.
-      END IF
-      IF (Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact).GT.0) THEN
-        ProperAdsorbActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
-        ProperAdsorbnu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperAdsReactCount(iReact))
-      ELSE
-        ProperAdsorbActE(iCase) = 0.
-        ProperAdsorbnu(iCase) = 0.
-      END IF
-      iCase = iCase + 1
-    END DO
+iCase = 1
+DO iSpec = 1,nSpecies
+  DO iReact = 1,Adsorption%ReactNum+1
+    IF (SurfModel%ProperInfo(iSpec)%AdsReactCount(iReact).GT.0) THEN
+      AdsorbActE(iCase) = SurfModel%ProperInfo(iSpec)%MeanAdsActE(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%AdsReactCount(iReact))
+      Adsorbnu(iCase) = SurfModel%ProperInfo(iSpec)%MeanAdsnu(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%AdsReactCount(iReact))
+    ELSE
+      AdsorbActE(iCase) = 0.
+      Adsorbnu(iCase)   = 0.
+    END IF
+    IF (SurfModel%ProperInfo(iSpec)%ProperAdsReactCount(iReact).GT.0) THEN
+      ProperAdsorbActE(iCase) = SurfModel%ProperInfo(iSpec)%ProperAdsActE(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%ProperAdsReactCount(iReact))
+      ProperAdsorbnu(iCase) = SurfModel%ProperInfo(iSpec)%ProperAdsnu(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%ProperAdsReactCount(iReact))
+    ELSE
+      ProperAdsorbActE(iCase) = 0.
+      ProperAdsorbnu(iCase) = 0.
+    END IF
+    iCase = iCase + 1
   END DO
-END IF
+END DO
 
 #ifdef MPI
 IF (SurfCOMM%MPIOutputRoot) THEN
@@ -1092,15 +1094,15 @@ END IF
 #endif /*MPI*/
 
 DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
-  Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
-  Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
-  Adsorption%AdsorpReactInfo(iSpec)%NumAdsReact(:) = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%AdsReactCount(:) = 0
-  Adsorption%AdsorpReactInfo(iSpec)%MeanAdsActE(:) = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%ProperAdsActE(:) = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%MeanAdsnu(:) = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%ProperAdsnu(:) = 0.
+  SurfModel%Info(iSpec)%WallCollCount = 0
+  SurfModel%Info(iSpec)%MeanProbAds = 0.
+  SurfModel%Info(iSpec)%NumOfAds = 0
+  SurfModel%ProperInfo(iSpec)%NumAdsReact(:) = 0.
+  SurfModel%ProperInfo(iSpec)%AdsReactCount(:) = 0
+  SurfModel%ProperInfo(iSpec)%MeanAdsActE(:) = 0.
+  SurfModel%ProperInfo(iSpec)%ProperAdsActE(:) = 0.
+  SurfModel%ProperInfo(iSpec)%MeanAdsnu(:) = 0.
+  SurfModel%ProperInfo(iSpec)%ProperAdsnu(:) = 0.
 END DO
 
 END SUBROUTINE GetAdsRates
@@ -1113,9 +1115,9 @@ SUBROUTINE GetSurfRates(DesorbRate,DesorbNum,ReactRate,SurfaceActE,ProperSurface
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -1146,8 +1148,8 @@ INTEGER                         :: DEN(nSpecies)
 
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    IF (Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount.GT.0) THEN
-      DesorbRate(iSpec) = REAL(Adsorption%AdsorpInfo(iSpec)%NumOfDes) / REAL(Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount)
+    IF (SurfModel%Info(iSpec)%WallSpecNumCount.GT.0) THEN
+      DesorbRate(iSpec) = REAL(SurfModel%Info(iSpec)%NumOfDes) / REAL(SurfModel%Info(iSpec)%WallSpecNumCount)
     ELSE
       DesorbRate(iSpec) = 0.
     END IF
@@ -1156,27 +1158,19 @@ ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   iCase = 1
   DO iSpec = 1,nSpecies
     DesorbRate(iSpec)= 0.
-    IF (PartSurfaceModel.EQ.1) THEN
-      DO iReact = 1, Adsorption%ReactNum+1
-        ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
-            / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-        iCase = iCase + 1
-      END DO
-    ELSE IF (PartSurfaceModel.EQ.3) THEN
-      DO iReact = 1, Adsorption%ReactNum+1
-        IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-          ReactRate(iCase) = Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact(iReact) &
-              / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-        ELSE
-          ReactRate(iCase) = 0.
-        END IF
-        iCase = iCase + 1
-      END DO
-    END IF
+    DO iReact = 1, Adsorption%ReactNum+1
+      IF (SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+        ReactRate(iCase) = SurfModel%ProperInfo(iSpec)%NumSurfReact(iReact) &
+            / REAL(SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact))
+      ELSE
+        ReactRate(iCase) = 0.
+      END IF
+      iCase = iCase + 1
+    END DO
   END DO
 END IF
 DO iSpec = 1,nSpecies
-  DesorbNum(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes
+  DesorbNum(iSpec) = SurfModel%Info(iSpec)%NumOfDes
 END DO
 
 #ifdef MPI
@@ -1192,21 +1186,16 @@ END IF
 #endif /*MPI*/
 
 DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-  Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+  SurfModel%Info(iSpec)%MeanProbDes = 0.
+  SurfModel%Info(iSpec)%NumOfDes = 0
 END DO
 
 iCase = 1
 DO iSpec = 1,nSpecies
   DO iReact = 1,Adsorption%ReactNum+1
-    IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-      IF (PartSurfaceModel.EQ.1) THEN
-        SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
-            / REAL(nSurfSample * nSurfSample * SurfMesh%nSides)
-      ELSE IF (PartSurfaceModel.EQ.3) THEN
-        SurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-      END IF
+    IF (SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+      SurfaceActE(iCase) = SurfModel%ProperInfo(iSpec)%MeanSurfActE(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact))
     ELSE
       SurfaceActE(iCase) = 0.
     END IF
@@ -1217,11 +1206,9 @@ END DO
 iCase = 1
 DO iSpec = 1,nSpecies
   DO iReact = 1,Adsorption%ReactNum+1
-    IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
-      IF (PartSurfaceModel.EQ.3) THEN
-        ProperSurfaceActE(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
-      END IF
+    IF (SurfModel%ProperInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
+      ProperSurfaceActE(iCase) = SurfModel%ProperInfo(iSpec)%ProperSurfActE(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%ProperSurfReactCount(iReact))
     ELSE
       ProperSurfaceActE(iCase) = 0.
     END IF
@@ -1232,11 +1219,9 @@ END DO
 iCase = 1
 DO iSpec = 1,nSpecies
   DO iReact = 1,Adsorption%ReactNum+1
-    IF (Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
-      IF (PartSurfaceModel.EQ.3) THEN
-        Surfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount(iReact))
-      END IF
+    IF (SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact).GT.0) THEN
+      Surfacenu(iCase) = SurfModel%ProperInfo(iSpec)%MeanSurfnu(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%SurfReactCount(iReact))
     ELSE
       Surfacenu(iCase) = 0.
     END IF
@@ -1247,11 +1232,9 @@ END DO
 iCase = 1
 DO iSpec = 1,nSpecies
   DO iReact = 1,Adsorption%ReactNum+1
-    IF (Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
-      IF (PartSurfaceModel.EQ.3) THEN
-        ProperSurfacenu(iCase) = Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu(iReact) &
-            / REAL(Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount(iReact))
-      END IF
+    IF (SurfModel%ProperInfo(iSpec)%ProperSurfReactCount(iReact).GT.0) THEN
+      ProperSurfacenu(iCase) = SurfModel%ProperInfo(iSpec)%ProperSurfnu(iReact) &
+          / REAL(SurfModel%ProperInfo(iSpec)%ProperSurfReactCount(iReact))
     ELSE
       ProperSurfacenu(iCase) = 0.
     END IF
@@ -1276,15 +1259,15 @@ END IF
 #endif /*MPI*/
 
 DO iSpec = 1,nSpecies
-  Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
-  Adsorption%AdsorpInfo(iSPec)%NumOfDes = 0
-  Adsorption%AdsorpReactInfo(iSpec)%MeanSurfActE = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfActE = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%MeanSurfnu = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfnu = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%NumSurfReact = 0.
-  Adsorption%AdsorpReactInfo(iSpec)%SurfReactCount = 0
-  Adsorption%AdsorpReactInfo(iSpec)%ProperSurfReactCount = 0
+  SurfModel%Info(iSpec)%MeanProbDes = 0.
+  SurfModel%Info(iSPec)%NumOfDes = 0
+  SurfModel%ProperInfo(iSpec)%MeanSurfActE = 0.
+  SurfModel%ProperInfo(iSpec)%ProperSurfActE = 0.
+  SurfModel%ProperInfo(iSpec)%MeanSurfnu = 0.
+  SurfModel%ProperInfo(iSpec)%ProperSurfnu = 0.
+  SurfModel%ProperInfo(iSpec)%NumSurfReact = 0.
+  SurfModel%ProperInfo(iSpec)%SurfReactCount = 0
+  SurfModel%ProperInfo(iSpec)%ProperSurfReactCount = 0
 END DO
 
 END SUBROUTINE GetSurfRates
@@ -1297,9 +1280,9 @@ SUBROUTINE GetSurfHeatFluxes(HeatFlux,AdsReactCount,DesReactCount)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
@@ -1325,37 +1308,31 @@ REAL                            :: RD(1:nSpecies*(Adsorption%ReactNum+1)+Adsorpt
 !===================================================================================================================================
 
 IF(SurfMesh%SurfOnProc)THEN
-  IF (PartSurfaceModel.EQ.3) THEN
-    ! analyze heatflux to surface for each species
-    DO iSpec = 1,nSpecies
-      HeatFlux(1,iSpec) = -Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(1)
-      HeatFlux(2,iSpec) = -Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(2)
+  ! analyze heatflux to surface for each species
+  DO iSpec = 1,nSpecies
+    HeatFlux(1,iSpec) = -SurfModel%ProperInfo(iSpec)%HeatFlux(1)
+    HeatFlux(2,iSpec) = -SurfModel%ProperInfo(iSpec)%HeatFlux(2)
+  END DO
+  ! analyze number of reactions for each species and each reaction
+  iCase = 1
+  DO iSpec = 1,nSpecies
+    DO iReact = 1,Adsorption%ReactNum+1
+      AdsReactCount(iCase) = SurfModel%ProperInfo(iSpec)%HeatFluxAdsCount(iReact)
+      iCase = iCase + 1
     END DO
-    ! analyze number of reactions for each species and each reaction
-    iCase = 1
-    DO iSpec = 1,nSpecies
-      DO iReact = 1,Adsorption%ReactNum+1
-        AdsReactCount(iCase) = Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(iReact)
-        iCase = iCase + 1
-      END DO
+  END DO
+  iCase = 1
+  DO iSpec = 1,nSpecies
+    DO iReact = 1,Adsorption%ReactNum+1
+      DesReactCount(iCase) = SurfModel%ProperInfo(iSpec)%HeatFluxDesCount(iReact)
+      iCase = iCase + 1
     END DO
-    iCase = 1
-    DO iSpec = 1,nSpecies
-      DO iReact = 1,Adsorption%ReactNum+1
-        DesReactCount(iCase) = Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(iReact)
-        iCase = iCase + 1
-      END DO
-    END DO
-  END IF
+  END DO
 ELSE
   HeatFlux(:,:) = 0.
   AdsReactCount(:) = 0.
   DesReactCount(:) = 0.
 END IF
-
-!print*,'heat: ',HeatFlux(1,:),HeatFlux(2,:)
-!print*,'ads: ',AdsReactCount(:)
-!print*,'des: ',DesReactCount(:)
 
 #ifdef MPI
 commSize1 = nSpecies*(Adsorption%ReactNum+1)
@@ -1375,9 +1352,9 @@ END IF
 
 IF(SurfMesh%SurfOnProc)THEN
   DO iSpec = 1,nSpecies
-    Adsorption%AdsorpReactInfo(iSpec)%HeatFlux(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxAdsCount(:) = 0.
-    Adsorption%AdsorpReactInfo(iSpec)%HeatFluxDesCount(:) = 0.
+    SurfModel%ProperInfo(iSpec)%HeatFlux(:) = 0.
+    SurfModel%ProperInfo(iSpec)%HeatFluxAdsCount(:) = 0.
+    SurfModel%ProperInfo(iSpec)%HeatFluxDesCount(:) = 0.
   END DO
 END IF
 
@@ -1393,7 +1370,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
 USE MOD_Particle_Analyze_Vars
-USE MOD_SurfaceModel_Vars     ,ONLY: Liquid
+USE MOD_SurfaceModel_Vars     ,ONLY: SurfModel
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
 #endif /*MPI*/
@@ -1416,11 +1393,8 @@ EvaporationRate = 0.
 
 DO iSpec=1,nSpecies
   EvaporationRate(iSpec) = Species(iSpec)%MassIC * Species(iSpec)%MacroParticleFactor &
-                        * REAL(Liquid%Info(iSpec)%NumOfDes - Liquid%Info(iSpec)%NumOfAds) / dt
+                        * REAL(SurfModel%Info(iSpec)%NumOfDes - SurfModel%Info(iSpec)%NumOfAds) / dt
 END DO
-
-Liquid%Info(:)%NumOfAds = 0
-Liquid%Info(:)%NumOfDes = 0
 
 #ifdef MPI
   IF (SurfCOMM%MPIOutputRoot) THEN
@@ -1440,7 +1414,7 @@ SUBROUTINE AnalyzeSurfRates(AnalyzeCase,SpecID,ReactionID,EAct,nuReact,Probabili
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars         ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars ,ONLY: Adsorption, SurfModel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)            :: AnalyzeCase      !1: meansurfrate, 2: propersurfrate
@@ -1461,32 +1435,32 @@ SELECT CASE(AnalyzeCase)
 CASE(1)
   IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   !  IF (rate*dt.GT.1) THEN
-  !    Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
-  !        Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + 1.
-  !     Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes = Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes + 1.
+  !    SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) = &
+  !        SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) + 1.
+  !     SurfModel%Info(ProdSpec1)%MeanProbDes = SurfModel%Info(ProdSpec1)%MeanProbDes + 1.
   !  ELSE
-      Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
-          Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + Probability
-  !     Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes = Adsorption%AdsorpInfo(ProdSpec1)%MeanProbDes + Probability
+      SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) = &
+          SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) + Probability
+  !     SurfModel%Info(ProdSpec1)%MeanProbDes = SurfModel%Info(ProdSpec1)%MeanProbDes + Probability
   !  END IF
   END IF
-  Adsorption%AdsorpReactInfo(SpecID)%MeanSurfActE(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%MeanSurfActE(iSampleReact) + EAct
-  Adsorption%AdsorpReactInfo(SpecID)%MeanSurfnu(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%MeanSurfnu(iSampleReact) + nuReact
-  Adsorption%AdsorpReactInfo(SpecID)%SurfReactCount(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%SurfReactCount(iSampleReact) + 1
+  SurfModel%ProperInfo(SpecID)%MeanSurfActE(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%MeanSurfActE(iSampleReact) + EAct
+  SurfModel%ProperInfo(SpecID)%MeanSurfnu(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%MeanSurfnu(iSampleReact) + nuReact
+  SurfModel%ProperInfo(SpecID)%SurfReactCount(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%SurfReactCount(iSampleReact) + 1
 CASE(2)
   IF (DSMC%ReservoirRateStatistic) THEN
-    Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(SpecID)%NumSurfReact(iSampleReact) + 1
+    SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) = &
+        SurfModel%ProperInfo(SpecID)%NumSurfReact(iSampleReact) + 1
   END IF
-  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfActE(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfActE(iSampleReact) + EAct
-  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfnu(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfnu(iSampleReact) + nuReact
-  Adsorption%AdsorpReactInfo(SpecID)%ProperSurfReactCount(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%ProperSurfReactCount(iSampleReact) + 1
+  SurfModel%ProperInfo(SpecID)%ProperSurfActE(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%ProperSurfActE(iSampleReact) + EAct
+  SurfModel%ProperInfo(SpecID)%ProperSurfnu(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%ProperSurfnu(iSampleReact) + nuReact
+  SurfModel%ProperInfo(SpecID)%ProperSurfReactCount(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%ProperSurfReactCount(iSampleReact) + 1
 CASE DEFAULT
   CALL abort(&
 __STAMP__,&
