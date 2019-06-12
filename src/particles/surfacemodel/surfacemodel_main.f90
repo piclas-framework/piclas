@@ -285,7 +285,8 @@ DO iSpec = 1,nSpecies
           pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
           ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
           PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
-                   * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt
+                   * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt &
+                   * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
           WallPartNum = PartEvap
         CASE DEFAULT
           WallPartNum = 0

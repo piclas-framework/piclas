@@ -67,7 +67,7 @@ CALL prms%CreateStringOption(  'Particles-SurfCoverageFile'&
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-InitialCoverage'&
   , 'Initial coverage used for species [$] and surfaces of boundary [$] in case of no surface-state-file init' &
   , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationAccomodation'&
+CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-ReactionAccomodation'&
   , 'Define energy accomodation coefficient.\n'//&
     'Describes the percentage of reaction enthalpy of surface reaction transmitted to surface.','1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Adsorption-EDissBond', 'Bond dissociation energy (K) needed for calculation of'//&
@@ -150,18 +150,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Intensification-K'&
 
 CALL prms%SetSection("Surfacemodel2")
 
-!CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-PartnerSpec'&
-!                                          , 'TODO-DEFINE-PARAMETER\n'//&
-!                                            'Partner recombination species (nSpecies)','-1', numberedmulti=.TRUE.)
-!CALL prms%CreateIntOption(      'Part-Species[$]-Recomb-ResultSpec'&
-!                                          , 'TODO-DEFINE-PARAMETER\n'//&
-!                                            'Resulting recombination species (nSpecies)','-1', numberedmulti=.TRUE.)
-
+CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'&
+                               'Resulting recombination species (one of nSpecies)','-1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff'&
                                           , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationEnergy'&
-                                         , 'TODO-DEFINE-PARAMETER\n'//&
-                                            'Energy transformed by reaction (nPartBound,nSpecies)','0.', numberedmulti=.TRUE.)
 
 
 CALL prms%SetSection("SMCR")
@@ -281,27 +273,56 @@ DO iSpec = 1,nSpecies
     hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     SELECT CASE(PartBound%SurfaceModel(iPartBound))
 !-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+      CALL abort(&
+__STAMP__&
+,'surfacemode=1 not working!')
+    !  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
+    !            Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
+    !DO iSpec = 1,nSpecies
+    !  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    !  Adsorption%MaxCoverage(:,iSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
+    !  Adsorption%InitStick(:,iSpec)       = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
+    !  Adsorption%PrefactorStick(:,iSpec)  = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
+    !  Adsorption%Adsorbexp(:,iSpec)       = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
+    !  Adsorption%Nu_a(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
+    !  Adsorption%Nu_b(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
+    !  Adsorption%DesorbEnergy(:,iSpec)    = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
+    !  Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
+    !END DO
+!-----------------------------------------------------------------------------------------------------------------------------------
     CASE(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-      !IF (.NOT.ALLOCATED(Adsorption%RecombData)) ALLOCATE( Adsorption%RecombCoeff(1:2,1:nSpecies))
-      IF (.NOT.ALLOCATED(Adsorption%RecombCoeff)) ALLOCATE( Adsorption%RecombCoeff(1:nPartBound,1:nSpecies))
-      !IF (.NOT.ALLOCATED(Adsorption%RecombEnergy)) ALLOCATE( Adsorption%RecombEnergy(1:nPartBound,1:nSpecies))
-      IF (.NOT.ALLOCATED(Adsorption%RecombAccomodation)) ALLOCATE( Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies))
-      Adsorption%RecombCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff','0.')
-      !Adsorption%RecombEnergy(iPartBound,iSpec)       = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationEnergy','0.')
-      Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
-      !IF ((Adsorption%RecombData(2,iSpec).EQ.-1).AND.(Adsorption%RecombCoeff(iPartBound,iSpec).NE.0.)) THEN
-      !  CALL abort(&
-      !      __STAMP__,&
-      !      'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
-      !END IF
+      IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactCoeff)) ALLOCATE( Adsorption%ReactCoeff(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
+      Adsorption%ResultSpec(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      Adsorption%ReactCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff')
+      Adsorption%ReactAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-ReactionAccomodation')
+      IF ((Adsorption%ResultSpec(iPartBound,iSpec).EQ.-1).AND.(Adsorption%ReactCoeff(iPartBound,iSpec).NE.0.)) THEN
+        CALL abort(&
+__STAMP__,&
+'Resulting species for species '//TRIM(hilf)//' not defined although recombination coefficient .GT. 0')
+      END IF
+      IF (Adsorption%ResultSpec(iPartBound,iSpec).EQ.iSpec) THEN
+        CALL abort(&
+__STAMP__,&
+'Resulting species for species '//TRIM(hilf)//' equal to incident species not possible for surfacemodel=2')
+      END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (.NOT.ALLOCATED(Adsorption%HeatOfAdsZero)) ALLOCATE( Adsorption%HeatOfAdsZero(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%Coordination)) ALLOCATE( Adsorption%Coordination(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%DiCoord)) ALLOCATE( Adsorption%DiCoord(1:nPartBound,1:nSpecies))
-      IF (.NOT.ALLOCATED(Adsorption%RecombAccomodation)) ALLOCATE( Adsorption%RecombAccomodation(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
       Adsorption%Coordination(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-Coordination')
       Adsorption%DiCoord(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DiCoordination')
       ! check posibilities of coodrination of dicoord pairing. some pairing unphysical
@@ -343,55 +364,38 @@ __STAMP__&
           END SELECT
         END SELECT
       END IF
-      Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K','0.')
-      Adsorption%RecombAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationAccomodation')
+      Adsorption%HeatOfAdsZero(iPartbound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfAdsorption-K')
+      Adsorption%ReactAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-ReactionAccomodation')
       IF (Adsorption%Coordination(iPartBound,iSpec).EQ.0)THEN
         WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
         CALL abort(&
-            __STAMP__,&
-            'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+__STAMP__,&
+'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
+      END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(101)
+!-----------------------------------------------------------------------------------------------------------------------------------
+      IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactCoeff)) ALLOCATE( Adsorption%ReactCoeff(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
+      Adsorption%ResultSpec(iPartBound,iSpec)        = 0
+      Adsorption%ReactCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-CondensationCoeff')
+      Adsorption%ReactAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-ReactionAccomodation')
+      IF ((Adsorption%ResultSpec(iPartBound,iSpec).EQ.-1).AND.(Adsorption%ReactCoeff(iPartBound,iSpec).NE.0.)) THEN
+        CALL abort(&
+__STAMP__,&
+'Used condensation coefficient is zero for species '//TRIM(hilf)//' \n --> use surfacemodel=0 for corresponding boundary or set >0')
+      END IF
+      IF (Adsorption%ResultSpec(iPartBound,iSpec).EQ.iSpec) THEN
+        CALL abort(&
+__STAMP__,&
+'Resulting species for species '//TRIM(hilf)//' equal to incident species not possible for surfacemodel=2')
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
   END DO
 END DO
-
-!IF (ALLOCATED(Adsorption%RecombData)) THEN
-!  DO iSpec = 1,nSpecies
-!    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-!    Adsorption%RecombData(1,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-PartnerSpec','-1')
-!    Adsorption%RecombData(2,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Recomb-ResultSpec','-1')
-!  END DO
-!END IF
-
-
-
-!SELECT CASE(PartSurfaceModel)
-!CASE(1)
-!  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
-!            Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
-!END SELECT
-!DO iSpec = 1,nSpecies
-!  WRITE(UNIT=hilf,FMT='(I0)') iSpec
-!  SELECT CASE(PartSurfaceModel)
-!  CASE(1)
-!    Adsorption%MaxCoverage(:,iSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
-!    Adsorption%InitStick(:,iSpec)       = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
-!    Adsorption%PrefactorStick(:,iSpec)  = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
-!    Adsorption%Adsorbexp(:,iSpec)       = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
-!    Adsorption%Nu_a(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
-!    Adsorption%Nu_b(:,iSpec)            = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
-!    Adsorption%DesorbEnergy(:,iSpec)    = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
-!    Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
-!  END SELECT
-!END DO
 
 ! allocate and initialize adsorption variables
 ALLOCATE( SurfModel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
@@ -1268,6 +1272,9 @@ SDEALLOCATE(SurfModel%SumERDesorbed)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
 SDEALLOCATE(Adsorption%AreaIncrease)
 SDEALLOCATE(Adsorption%CrystalIndx)
+SDEALLOCATE(Adsorption%ReactCoeff)
+SDEALLOCATE(Adsorption%ReactEnergy)
+SDEALLOCATE(Adsorption%ReactAccomodation)
 ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
 SDEALLOCATE(Adsorption%MaxCoverage)
 SDEALLOCATE(Adsorption%InitStick)
@@ -1277,11 +1284,6 @@ SDEALLOCATE(Adsorption%Nu_a)
 SDEALLOCATE(Adsorption%Nu_b)
 SDEALLOCATE(Adsorption%DesorbEnergy)
 SDEALLOCATE(Adsorption%Intensification)
-! parameters for surface recombination model (surfacemodel=2)
-SDEALLOCATE(Adsorption%RecombCoeff)
-SDEALLOCATE(Adsorption%RecombAccomodation)
-!SDEALLOCATE(Adsorption%RecombEnergy)
-!SDEALLOCATE(Adsorption%RecombData)
 ! parameters for UBI-QEP model (surfacemodel=3)
 SDEALLOCATE(Adsorption%HeatOfAdsZero)
 SDEALLOCATE(Adsorption%DissocReact)

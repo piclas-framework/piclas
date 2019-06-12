@@ -1980,7 +1980,7 @@ REAL                             :: ErotNew, ErotWall, EVibNew, EVibWall
 !INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
 !   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
 !   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
-INTEGER                          :: iReact
+INTEGER                          :: iReact, RecombReactID
 !REAL                             :: NormProb
 REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
@@ -2086,10 +2086,15 @@ CASE (2)
       outSpec(2) = SpecID
     ELSE
       interactionCase = 3
-      outSpec(1) = Adsorption%RecombData(1,SpecID)
-      outSpec(2) = Adsorption%RecombData(2,SpecID)
-      reactionEnthalpie = - Adsorption%RecombEnergy(locBCID,SpecID) * Adsorption%RecombAccomodation(locBCID,SpecID) &
-                          * BoltzmannConst
+      DO iReact = Adsorption%DissNum+1,(Adsorption%ReactNum)
+        RecombReactID = iReact-Adsorption%DissNum
+        IF (Adsorption%RecombReact(2,RecombReactID,SpecID).EQ.Adsorption%ResultSpec(locBCID,SpecID)) THEN
+          EXIT
+        END IF
+      END DO
+      outSpec(1) = Adsorption%RecombReact(1,RecombReactID,SpecID)
+      outSpec(2) = Adsorption%RecombReact(2,RecombReactID,SpecID)
+      reactionEnthalpie = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
     END IF
   END IF
 CASE (3)
@@ -2113,7 +2118,7 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
   !   interactionCase = -2 ! perfect elastic scattering + particle creation
   !   WRITE (*,*) "SpecID,outSpec(1),outSpec(2),interactionCase =", SpecID,outSpec(1),outSpec(2),interactionCase
   ! END IF
-CASE (101)
+CASE (101) ! constant condensation coefficient
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN
@@ -2177,14 +2182,12 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
     !----  Sampling of reactionEnthalpie
     SampWall(SurfSideID)%SurfModelState(4,p,q) = SampWall(SurfSideID)%SurfModelState(4,p,q) &
                                            + reactionEnthalpie * Species(SpecID)%MacroParticleFactor
-    ! Sample recombination reaction counter
-    IF ( PartBound%SurfaceModel(locBCID).EQ.3) THEN
-      DO iReact = 1,Adsorption%DissNum
-        IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.outSpec(1) .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
-          SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) = SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) + 1
-        END IF
-      END DO
-    END IF
+    ! Sample reaction counter
+    DO iReact = 1,Adsorption%DissNum
+      IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.outSpec(1) .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+        SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) + 1
+      END IF
+    END DO
   END IF
   CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
@@ -2204,23 +2207,14 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 #endif
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     ! Sample recombination reaction counter
-    SELECT CASE (PartBound%SurfaceModel(locBCID))
-    CASE (2)
-      DO iReact = 1,Adsorption%RecombNum
-        IF (Adsorption%RecombData(2,SpecID).EQ.outSpec(2))THEN
-          SampWall(SurfSideID)%SurfModelReactCount(1,SpecID,p,q) = SampWall(SurfSideID)%SurfModelReactCount(1,SpecID,p,q) + 1
-        END IF
-      END DO
-    CASE (3)
-      DO iReact = 1,Adsorption%RecombNum
-        IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.outSpec(2))THEN
-          SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
-              SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
-        END IF
-      END DO
-    END SELECT
+    DO iReact = 1,Adsorption%RecombNum
+      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+        SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
+            SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
+      END IF
+    END DO
     !----  Sampling of reactionEnthalpie
-    reactionEnthalpie = reactionEnthalpie * Adsorption%RecombAccomodation(locBCID,SpecID)
+    reactionEnthalpie = reactionEnthalpie * Adsorption%ReactAccomodation(locBCID,SpecID)
     SampWall(SurfSideID)%SurfModelState(3,p,q) = SampWall(SurfSideID)%SurfModelState(3,p,q) &
                                            + reactionEnthalpie * Species(SpecID)%MacroParticleFactor
   END IF

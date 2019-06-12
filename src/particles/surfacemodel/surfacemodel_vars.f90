@@ -81,8 +81,6 @@ TYPE(tSurfaceModel)                      :: SurfModel               ! SurfModel 
 
 TYPE tAdsorption
 #if (PP_TimeDiscMethod==42)
-  TYPE(tMeanInfo), ALLOCATABLE           :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
-  TYPE(tProperInfo), ALLOCATABLE         :: AdsorpReactInfo(:)      ! Adsorption info for species n (nSpecies)
   LOGICAL                                :: LateralInactive         ! Flag for deactivation of lateral interactions in Q_a
   LOGICAL                                :: CoverageReduction       ! Flag for activating coverage reduction per iteration
   INTEGER, ALLOCATABLE                   :: CovReductionStep(:)     ! Step size for coverage reduction
@@ -99,6 +97,11 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   REAL    , ALLOCATABLE                  :: AreaIncrease(:)         ! Factor for increasing surface density
   INTEGER , ALLOCATABLE                  :: CrystalIndx(:)          ! Number of binding atoms in hollow site
+
+  REAL    , ALLOCATABLE                  :: ReactCoeff(:,:)         ! Recaction coeffiecient (nPartBound,nSpecies)
+  INTEGER , ALLOCATABLE                  :: ResultSpec(:,:)         ! Resulting species after surfacemodel treatment (nPartBound,nSpecies)
+  REAL    , ALLOCATABLE                  :: ReactEnergy(:,:)        ! Reaction energy on surface (nPartBound,nSpecies)
+  REAL    , ALLOCATABLE                  :: ReactAccomodation(:,:)  ! Energy Accomodation coefficient (nPartBound,nSpecies)
   ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
   REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
@@ -108,12 +111,6 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
-  ! parameters for Recombination model (surfacemodel=2)
-  REAL    , ALLOCATABLE                  :: RecombCoeff(:,:)        ! Recombinationcoeff (nPartBound,nSpecies)
-  REAL    , ALLOCATABLE                  :: RecombAccomodation(:,:) ! Energy Accomodation coefficient (nPartBound,nSpecies)
-  REAL    , ALLOCATABLE                  :: RecombEnergy(:,:)       ! Energy transformed by reaction (nPartBound,nSpecies)
-  INTEGER , ALLOCATABLE                  :: RecombData(:,:)         ! 1: Partner recombination species (nSpecies)
-                                                                    ! 2: Resulting recombination species (nSpecies)
   ! parameters for UBI-QEP model (surfacemodel=3)
   REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces
   INTEGER                                :: DissNum                 ! max number of dissociative surface reactions per species

@@ -129,7 +129,11 @@ DO iSpec=1,nSpecies
 !----------------------------------------------------------------------------------------------------------------------------------!
         CASE (2) ! Recombination Model described by Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
-          Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec)-Adsorption%ProbDes(p,q,SurfSide,iSpec)
+          Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)-Adsorption%ProbDes(p,q,SurfSide,iSpec)
+!----------------------------------------------------------------------------------------------------------------------------------!
+        CASE (101) ! simple condensation coefficient
+!----------------------------------------------------------------------------------------------------------------------------------!
+          Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)
         END SELECT
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if (PP_TimeDiscMethod==42)
@@ -165,7 +169,7 @@ IMPLICIT NONE
 INTEGER                          :: SurfSide, iSpec, p, q
 REAL                             :: Theta, nu_des, rate, WallTemp
 REAL                             :: E_des
-INTEGER                          :: PartBoundID
+INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec, kSpec
 !===================================================================================================================================
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
@@ -209,18 +213,32 @@ DO SurfSide=1,SurfMesh%nSides
           END IF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
-        CASE (2) ! Recombination Model described by Laux
+        CASE (2) ! Recombination Model described by Fasoulas/Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
-          IF (Adsorption%RecombData(1,iSpec).LE.0) THEN
+          DO iReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
+            RecombReactID = iReactNum-Adsorption%DissNum
+            ! resulting species
+            kSpec = Adsorption%RecombReact(2,RecombReactID,iSpec)
+            IF (kSpec.EQ.Adsorption%ResultSpec(PartBoundID,iSpec)) THEN
+              ! reaction partner
+              jSpec = Adsorption%RecombReact(1,RecombReactID,iSpec)
+              EXIT
+            END IF
+          END DO
+          IF (jSpec.LE.0) THEN
             Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
           ELSE
-            IF (Adsorption%Coverage(p,q,SurfSide,Adsorption%RecombData(1,iSpec)).LE.0) THEN
+            IF (Adsorption%Coverage(p,q,SurfSide,jSpec).LE.0) THEN
               Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
             ELSE
-              Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec) &
-                  * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
+              Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec) &
+                  * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide,jSpec) ) )
             END IF
           END IF
+!----------------------------------------------------------------------------------------------------------------------------------!
+        CASE (101) ! simple condensation coefficient
+!----------------------------------------------------------------------------------------------------------------------------------!
+          Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)
         END SELECT
       END DO
     END DO
