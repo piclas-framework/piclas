@@ -30,7 +30,7 @@ LOGICAL                       :: CalcEkin                            !< Compute 
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
-LOGICAL                       :: CalcCouplPower                      !< Computation of the power that is coupled into plasma
+LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 REAL                          :: PCoupl                              !< Power that is coupled into plasma
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
