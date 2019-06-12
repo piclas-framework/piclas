@@ -87,24 +87,6 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  ,         'Manual timestep [sec]', '0.0')
 CALL prms%CreateRealOption(     'Part-AdaptiveWeightingFactor', 'Weighting factor theta for weighting of average'//&
                                                                 ' instantaneous values with those of previous iterations.', '0.001')
-CALL prms%CreateIntOption(      'Particles-SurfaceModel', &
-                                'Define Model used for particle surface interaction. If >0 then look in section SurfaceModel.\n'//&
-                                '0: Maxwell scattering\n'//&
-                                '1: Kisliuk / Polanyi Wigner (currently not working)\n'//&
-                                '2: Recombination model\n'//&
-                                '3: adsorption/desorption + chemical interaction (SMCR with UBI-QEP, TST and TCE)\n'//&
-                                '4: TODO\n'//&
-                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
-                                    'by Levko2015 for copper electrondes\n'//&
-                                '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
-                                , '0')
-CALL prms%CreateIntOption(      'Particles-LiquidModel', &
-                                'Define Model used for particle liquid surface interaction. If >0 then look in section LiquidModel.\n'//&
-                                '0: Maxwell scattering\n'//&
-                                '1: Maxwell scattering\n'//&
-                                '2: MD dsitributionfunciton' &
-                                , '2')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateIntOption(      'Part-nMacroRestartFiles' ,       'Number of Restart files used for calculation', '0')
 CALL prms%CreateStringOption(   'Part-MacroRestartFile[$]' ,      'relative path to Restart file [$] used for calculation','none' &
@@ -880,7 +862,7 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample'  &
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SurfaceModel'  &
+CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used '//&
                                 'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -894,7 +876,7 @@ CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SurfaceModel'  &
                                     'by Pagonakis2016 for molybdenum (originally from Harrower1956)'&
                                 '101: Maxwell scattering\n'//&
                                 '102: MD dsitributionfunction' &
-                                , '0')
+                                , '0', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-SolidState'  &
                                 , 'Flag defining if reflective BC is solid [TRUE] or liquid [FALSE].'&
                                 , '.TRUE.', numberedmulti=.TRUE.)
