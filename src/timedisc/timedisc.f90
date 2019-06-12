@@ -978,7 +978,7 @@ IF (time.GE.DelayTime) THEN
       PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
       PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
       ! Don't push the velocity component of neutral particles!
-      IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+      IF(CHARGEDPARTICLE(iPart))THEN
         Pt_temp(iPart,4) = Pt(iPart,1) 
         Pt_temp(iPart,5) = Pt(iPart,2) 
         Pt_temp(iPart,6) = Pt(iPart,3)
@@ -1163,7 +1163,7 @@ DO iStage=2,nRKStages
         PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
         PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
         ! Don't push the velocity component of neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        IF(CHARGEDPARTICLE(iPart))THEN
           Pt_temp(iPart,4) =        Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
           Pt_temp(iPart,5) =        Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
           Pt_temp(iPart,6) =        Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
@@ -4509,7 +4509,7 @@ USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
 USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars,   ONLY: CalcCouplPower,PCoupl, PCouplAverage
+USE MOD_Particle_Analyze_Vars,   ONLY: CalcCoupledPower,PCoupl, PCouplAverage
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
@@ -4626,12 +4626,11 @@ IF (time.GE.DelayTime) THEN
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL CalcPartRHS()
-  IF (CalcCouplPower) THEN                         ! if output of coupled power is active
-    PCoupl = 0.                                    ! PCoupl is reseted
-  END IF
+  IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
+    !WRITE (*,*) "Pt(iPart,1:3) =", Pt(iPart,1:3)
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
         EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
               * ( PartState(iPart,4) * PartState(iPart,4) &
                 + PartState(iPart,5) * PartState(iPart,5) &
@@ -4645,13 +4644,17 @@ IF (time.GE.DelayTime) THEN
         dtFrac = dt
 #if (PP_TimeDiscMethod==509)
         IF (PDM%IsNewPart(iPart)) THEN
-          !-- v(n) => v(n-0.5) by a(n):
-          PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
-          PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
-          PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
+          ! Don't push the velocity component of neutral particles!
+          IF(CHARGEDPARTICLE(iPart))THEN
+            !-- v(n) => v(n-0.5) by a(n):
+            PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
+            PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
+            PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
+          END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
-          IF (ABS(dt-dt_old).GT.1.0E-6*dt_old) THEN
+          IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
+               CHARGEDPARTICLE(iPart)) THEN ! Don't push the velocity component of neutral particles!
             PartState(iPart,4:6)  = PartState(iPart,4:6) + Pt(iPart,1:3) * (dt_old-dt)*0.5
           END IF
         END IF
@@ -4663,10 +4666,13 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,1) = PartState(iPart,1) + ( PartState(iPart,4) + Pt(iPart,1) * dtFrac*0.5 ) * dtFrac
         PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(iPart,2) * dtFrac*0.5 ) * dtFrac
         PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(iPart,3) * dtFrac*0.5 ) * dtFrac
-        !-- v(BC) => v(n+0.5) by a(BC):
-        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
-        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
-        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * (dtFrac - dt*0.5)
+        ! Don't push the velocity component of neutral particles!
+        IF(CHARGEDPARTICLE(iPart))THEN
+          !-- v(BC) => v(n+0.5) by a(BC):
+          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
+          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
+          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * (dtFrac - dt*0.5)
+        END IF
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoForceFreeSurfaceFlux
         !-- x(n) => x(n+1) by v(n+0.5)=v(BC)
@@ -4675,10 +4681,13 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
-        !-- v(n-0.5) => v(n+0.5) by a(n):
-        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
-        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
-        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+        ! Don't push the velocity component of neutral particles!
+        IF(CHARGEDPARTICLE(iPart))THEN
+          !-- v(n-0.5) => v(n+0.5) by a(n):
+          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
+          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
+          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+        END IF
         !-- x(n) => x(n+1) by v(n+0.5):
         PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
         PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
@@ -4692,16 +4701,19 @@ IF (time.GE.DelayTime) THEN
       IF (DoForceFreeSurfaceFlux .AND. DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
-        !-- v(n) => v(n+1) by a(n):
-        PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
-        PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
-        PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dtFrac
+        ! Don't push the velocity component of neutral particles!
+        IF(CHARGEDPARTICLE(iPart))THEN
+          !-- v(n) => v(n+1) by a(n):
+          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
+          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
+          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dtFrac
+        END IF
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
           PDM%dtFracPush(iPart) = .FALSE.
         END IF
       END IF
 #endif /*(PP_TimeDiscMethod==509)*/
-      IF (CalcCouplPower) THEN  ! if output of coupled power is active
+      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
         EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &     
                * ( PartState(iPart,4) * PartState(iPart,4) &
@@ -4712,6 +4724,7 @@ IF (time.GE.DelayTime) THEN
       END IF
     END IF
   END DO
+  !read*
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -4864,7 +4877,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCouplPower,PCoupl,PCouplAverage
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl,PCouplAverage
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -5003,12 +5016,10 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   IF(DoFieldIonization) CALL FieldIonization()
   CALL CalcPartRHS()
-  IF (CalcCouplPower) THEN                         ! if output of coupled power is active
-    PCoupl = 0.                                    ! PCoupl is reseted
-  END IF
+  IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN ! if output of coupled power is active and particle carries charge
         EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
               * ( PartState(iPart,4) * PartState(iPart,4) &
                 + PartState(iPart,5) * PartState(iPart,5) &
@@ -5029,7 +5040,7 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
         PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
         ! Don't push the velocity component of neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+        IF(CHARGEDPARTICLE(iPart))THEN
           Pt_temp(iPart,4) = Pt(iPart,1)
           Pt_temp(iPart,5) = Pt(iPart,2)
           Pt_temp(iPart,6) = Pt(iPart,3)
@@ -5047,9 +5058,12 @@ __STAMP__&
 ,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
         END IF
         Pa_rebuilt(:,:)=0.
-        DO iStage_loc=1,iStage
-          Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
-        END DO
+        ! Don't push the velocity component of neutral particles!
+        IF(CHARGEDPARTICLE(iPart))THEN
+          DO iStage_loc=1,iStage
+            Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
+          END DO
+        END IF
         v_rebuilt(:,:)=0.
         DO iStage_loc=iStage-1,0,-1
           IF (iStage_loc.EQ.iStage-1) THEN
@@ -5067,17 +5081,20 @@ __STAMP__&
           END IF
         END DO
         Pt_temp(iPart,1:3) = Pv_rebuilt(1:3,iStage)
-        Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
         PartState(iPart,1) = PartState(iPart,1) + Pt_temp(iPart,1)*b_dt(iStage)*RandVal
         PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)*RandVal
         PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)*RandVal
-        PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
-        PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
-        PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
+        ! Don't push the velocity component of neutral particles!
+        IF(CHARGEDPARTICLE(iPart))THEN
+          Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
+          PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
+          PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
+          PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
+        END IF
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
-      IF (CalcCouplPower) THEN  ! if output of coupled power is active
+      IF (CalcCoupledPower.AND.CHARGEDPARTICLE(iPart)) THEN  ! if output of coupled power is active and particle carries charge
         EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
                + 0.5 * Species(PartSpecies(iPart))%MassIC &     
                * ( PartState(iPart,4) * PartState(iPart,4) &
@@ -5199,7 +5216,7 @@ DO iStage=2,nRKStages
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        IF (CalcCouplPower) THEN                                     ! if output of coupled power is active
+        IF (CalcCoupledPower) THEN                                     ! if output of coupled power is active
           EDiff = (-1.) * 0.5 * Species(PartSpecies(iPart))%MassIC & ! kinetic energy before Particle Push (negative)
                 * ( PartState(iPart,4) * PartState(iPart,4) &
                   + PartState(iPart,5) * PartState(iPart,5) &
@@ -5213,7 +5230,7 @@ DO iStage=2,nRKStages
           PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
           PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
-          IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+          IF(CHARGEDPARTICLE(iPart))THEN
             Pt_temp(iPart,4) = Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
             Pt_temp(iPart,5) = Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
             Pt_temp(iPart,6) = Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
@@ -5231,9 +5248,12 @@ DO iStage=2,nRKStages
           END IF
           IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
           Pa_rebuilt(:,:)=0.
-          DO iStage_loc=1,iStage
-            Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
-          END DO
+          ! Don't push the velocity component of neutral particles!
+          IF(CHARGEDPARTICLE(iPart))THEN
+            DO iStage_loc=1,iStage
+              Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
+            END DO
+          END IF
           v_rebuilt(:,:)=0.
           DO iStage_loc=iStage-1,0,-1
             IF (iStage_loc.EQ.iStage-1) THEN
@@ -5251,16 +5271,19 @@ DO iStage=2,nRKStages
             END IF
           END DO
           Pt_temp(iPart,1:3) = Pv_rebuilt(1:3,iStage)
-          Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
           PartState(iPart,1) = PartState(iPart,1) + Pt_temp(iPart,1)*b_dt(iStage)*RandVal
           PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)*RandVal
           PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)*RandVal
-          PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
-          PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
-          PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
+          ! Don't push the velocity component of neutral particles!
+          IF(CHARGEDPARTICLE(iPart))THEN
+            Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
+            PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
+            PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
+            PartState(iPart,6) = PartState(iPart,6) + Pt_temp(iPart,6)*b_dt(iStage)*RandVal
+          END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
-        IF (CalcCouplPower) THEN  ! if output of coupled power is active
+        IF (CalcCoupledPower) THEN  ! if output of coupled power is active
           EDiff = EDiff &       ! kinetic energy after Particle Push (positive)
                  + 0.5 * Species(PartSpecies(iPart))%MassIC &     
                  * ( PartState(iPart,4) * PartState(iPart,4) &
