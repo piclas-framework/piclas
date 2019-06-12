@@ -91,9 +91,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfCoverageRecvBuf(iProc)%content = 0.
   END IF
   IF(SurfModelExchange%nCoverageSidesSend(iProc).NE.0) THEN
-    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesSend(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList(SurfModelExchange%nCoverageSidesSend(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesSend(iProc)))
     SurfCoverageSendBuf(iProc)%content = 0.
   END IF
 END DO
