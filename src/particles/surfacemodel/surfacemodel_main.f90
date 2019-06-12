@@ -25,7 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: Evaporation
 PUBLIC :: SurfaceModel_main
 PUBLIC :: UpdateSurfModelVars
 !===================================================================================================================================
@@ -37,57 +36,51 @@ SUBROUTINE SurfaceModel_main()
 !> Main Routine treating all surface and calculating desorbing / evaporating number of particles
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars ,ONLY: PartSurfaceModel, SolidSimFlag, LiquidSimFlag
-USE MOD_SMCR          ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_SMCR                   ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
-!first do solid surfaces
-IF (SolidSimFlag) THEN
-  SELECT CASE (PartSurfaceModel)
-  CASE (1)
-    CALL Calc_DesorbPartNum()
-  CASE (3)
-    CALL SMCR_Diffusion()
-    CALL SMCR_PartDesorb()
-  END SELECT
-END IF
-
-!then do liquid surfaces
-IF (LiquidSimFlag) CALL Evaporation()
+IF (.NOT.ANY(PartBound%Reactive)) RETURN
+! evaporating particles for surface models using mean values on surfaces
+CALL CalcEvapPartNum()
+! desorbing particles for surface model 3
+CALL SMCR_Diffusion()
+CALL SMCR_PartDesorb()
 
 END SUBROUTINE SurfaceModel_main
+
 
 SUBROUTINE UpdateSurfModelVars()
 !===================================================================================================================================
 !> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
 !> Only procs with surface enter function, all other exit routine
-!> 1. Communicate number of particles that were adsorbed on halo-sides of neighbour procs, 
+!> 1. Communicate number of particles that were absorbed by halo-sides of neighbour procs (SumAdsorbPart and SumERDesorbed), 
 !>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
 !> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
 !>      to adjust number of adsorbates on reconstructed Monte Carlo surface
-!> 3. Sample macroscopic surface coverage values
-!> 4. Reinitialized surface reaction counters
-!> 5. Calculated global adsorption probabilities for surfacemodel=1,2
-!> 6. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
-!>    and need coverage info for adsorption calculation
+!> 2.2  Sample macroscopic surface coverage values
+!> 3. Reset/Adjust surface model sum counters
+!> 4. Calculate global mean probabilities for surface models
+!> 5. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
+!>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: tend,time
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, surfmodel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
-USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface
+USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, SurfaceHasModelNum
 #ifdef MPI
 USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, ExchangeSurfDistInfo
 #endif /*MPI*/
@@ -106,146 +99,144 @@ REAL                             :: tLBStart
 REAL                             :: desorbnum_covreduce
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
+IF (.NOT.ANY(Partbound%Reactive)) RETURN
 
-IF (PartSurfaceModel.GT.0) THEN
-  IF (.NOT.SurfMesh%SurfOnProc) RETURN
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  IF (.NOT.KeepWallParticles) THEN
+IF (.NOT.KeepWallParticles) THEN
 #ifdef MPI
-! 1. communicate number of particles that were adsorbed on halo-sides of neighbour procs
-    CALL ExchangeAdsorbNum()
+!----- 1.
+  CALL ExchangeAdsorbNum()
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_SURFCOMM,tLBStart)
+  CALL LBSplitTime(LB_SURFCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
-    ! adjust coverages of all species on surfaces
-    DO iSpec = 1,nSpecies
+
+  ! adjust coverages of all species on surfaces
+  DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
-      IF (DSMC%ReservoirRateStatistic) Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = 0
+    IF (DSMC%ReservoirRateStatistic) SurfModel%Info(iSpec)%WallSpecNumCount = 0
 #endif
-! 2. go through all sides and adjust coverages
-      DO iSurfSide = 1,SurfMesh%nSides
-        IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
-        DO q = 1,nSurfSample
-          DO p = 1,nSurfSample
+!----- 2.
+    DO iSurfSide = 1,SurfMesh%nSides
+      IF (.NOT.IsReactiveSurface(iSurfSide)) CYCLE
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
 #if (PP_TimeDiscMethod==42)
-            ! write number of adsorbates into info array
-            IF (DSMC%ReservoirRateStatistic) THEN
-              maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-              Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount = Adsorption%AdsorpInfo(iSpec)%WallSpecNumCount &
-                                                            + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                                                            * maxPart/Species(iSpec)%MacroParticleFactor)
-            END IF
+          ! write number of adsorbates into info array
+          IF (DSMC%ReservoirRateStatistic) THEN
+            maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+            SurfModel%Info(iSpec)%WallSpecNumCount = SurfModel%Info(iSpec)%WallSpecNumCount &
+                                                          + INT( Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                                                          * maxPart/Species(iSpec)%MacroParticleFactor)
+          END IF
 #endif
-            SELECT CASE (PartSurfaceModel)
-            CASE(1)
-              maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  + ( surfmodel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-                  - (surfmodel%SumDesorbPart(p,q,iSurfSide,iSpec) - surfmodel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                  * Species(iSpec)%MacroParticleFactor / maxPart
-            CASE(2)
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  + surfmodel%SumAdsorbPart(p,q,iSurfSide,iSpec)
-            CASE(3)
+          SELECT CASE (SurfaceHasModelNum(iSurfSide))
+          CASE(1)
+            maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
+            Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                + ( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+                - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                * Species(iSpec)%MacroParticleFactor / maxPart
+          CASE(2)
+            Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                + SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)
+          CASE(3)
 #if (PP_TimeDiscMethod==42)
-              IF (Adsorption%CoverageReduction) THEN
-                ! calculate number of desorbed particles for each species
-                desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
-                    * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
-                    * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
-                coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                    - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
-                    / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
-                IF(coverage_tmp.GT.0.) THEN
-                  Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
-                  new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
-                  CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
-                END IF
-              END IF
-#endif
-              maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+            IF (Adsorption%CoverageReduction) THEN
+              ! calculate number of desorbed particles for each species
+              desorbnum_covreduce = (REAL(Adsorption%CovReductionStep(iSpec))/REAL(SurfDistInfo(p,q,iSurfSide)%nSites(3))) &
+                  * REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) &
+                  * SurfMesh%SurfaceArea(p,q,iSurfSide),8)) / Species(iSpec)%MacroParticleFactor
               coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  + REAL(( surfmodel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
-                  - (surfmodel%SumDesorbPart(p,q,iSurfSide,iSpec) - surfmodel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                  * Species(iSpec)%MacroParticleFactor) / maxPart
-              IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
-                coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                    !+ REAL(( - (surfmodel%SumDesorbPart(p,q,iSurfSide,iSpec) - surfmodel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
-                    !* Species(iSpec)%MacroParticleFactor) / maxPart
-              ELSE
-                coverage_corrected = coverage_tmp
+                  - REAL(desorbnum_covreduce) * Species(iSpec)%MacroParticleFactor &
+                  / REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+              IF(coverage_tmp.GT.0.) THEN
+                Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_tmp
+                new_adsorbates = -1*Adsorption%CovReductionStep(iSpec)
+                CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec)
               END IF
-! 2.1  adjust number of mapped adsorbates on reconstructed surface if SumAdsorbPart > 0
-              IF (surfmodel%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
-                ! calculate number of adsorbed particles on reconstructed surface for each species
-                numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
-                SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                      + (REAL(surfmodel%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
-                      / maxPart) * REAL(numSites)
-              END IF ! SumAdsorbPart!=0
-              ! convert to integer adsorbates
-              new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
-              IF (new_adsorbates.NE.0) THEN
-                ! Adjust tracking of adsorbing background particles
-                CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
-                SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
-                                                                  - new_adsorbates
-              END IF
-              Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
-            END SELECT
-! 3. sample adsorption coverage
-            IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
-                .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-              SampWall(iSurfSide)%Adsorption(5+iSpec,p,q) = SampWall(iSurfSide)%Adsorption(5+iSpec,p,q) &
-                                                          + Adsorption%Coverage(p,q,iSurfSide,iSpec)
             END IF
-          END DO
+#endif
+            maxPart = REAL(INT(Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide),8))
+            coverage_tmp = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                + REAL(( SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec) &
+                - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                * Species(iSpec)%MacroParticleFactor) / maxPart
+            IF (coverage_tmp.LT.0.) THEN ! can only happen for (ER + desorption) or (ER + MPF_surf<MPF_gas) --> SumAdsorbPart<0
+              coverage_corrected = 0. !Adsorption%Coverage(p,q,iSurfSide,iSpec) &
+                  !+ REAL(( - (SurfModel%SumDesorbPart(p,q,iSurfSide,iSpec) - SurfModel%SumReactPart(p,q,iSurfSide,iSpec)) ) &
+                  !* Species(iSpec)%MacroParticleFactor) / maxPart
+            ELSE
+              coverage_corrected = coverage_tmp
+            END IF
+!----- 2.1
+            IF (SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec).NE.0) THEN
+              ! calculate number of adsorbed particles on reconstructed surface for each species
+              numSites = SurfDistInfo(p,q,iSurfSide)%nSites(3) !number of simulated surface atoms
+              SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                    + (REAL(SurfModel%SumAdsorbPart(p,q,iSurfSide,iSpec)) * Species(iSpec)%MacroParticleFactor &
+                    / maxPart) * REAL(numSites)
+            END IF ! SumAdsorbPart!=0
+            ! convert to integer adsorbates
+            new_adsorbates = INT(SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec))
+            IF (new_adsorbates.NE.0) THEN
+              ! Adjust tracking of adsorbing background particles
+              CALL SMCR_AdjustMapNum(p,q,iSurfSide,new_adsorbates,iSpec,SampleFlag=.TRUE.)
+              SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) = SurfDistInfo(p,q,iSurfSide)%adsorbnum_tmp(iSpec) &
+                                                                - new_adsorbates
+            END IF
+            Adsorption%Coverage(p,q,iSurfSide,iSpec) = coverage_corrected
+          END SELECT
+!----- 2.2
+          IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd))&
+              .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+            SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) &
+                                                        + Adsorption%Coverage(p,q,iSurfSide,iSpec)
+          END IF
         END DO
       END DO
     END DO
-! 4. Reinitialize surface reaction counters
-    surfmodel%SumEvapPart(:,:,:,:) =  surfmodel%SumERDesorbed(:,:,1:SurfMesh%nSides,:)
-    surfmodel%SumDesorbPart(:,:,:,:) = 0
-    surfmodel%SumERDesorbed(:,:,:,:) = 0
-    surfmodel%SumAdsorbPart(:,:,:,:) = 0
-    surfmodel%SumReactPart(:,:,:,:) = 0
-  END IF
-! 5. calculate probabiities
-  IF (PartSurfaceModel.EQ.1) THEN
-    CALL CalcAdsorbProb()
-    IF (KeepWallParticles) CALL CalcDesorbprob()
-  ELSE IF (PartSurfaceModel.EQ.2) THEN
-    CALL CalcDesorbProb()
-    CALL CalcAdsorbProb()
-  END IF
+  END DO
+!----- 3.
+  ! SumEvapPart is nullified in particle emission (surface flux) after inserting particles at corresponding surfaces
+  SurfModel%SumEvapPart(:,:,:,:) = SurfModel%SumEvapPart(:,:,:,:) + SurfModel%SumERDesorbed(:,:,1:SurfMesh%nSides,:)
+  SurfModel%SumERDesorbed(:,:,:,:) = 0
+  SurfModel%SumDesorbPart(:,:,:,:) = 0
+  SurfModel%SumAdsorbPart(:,:,:,:) = 0
+  SurfModel%SumReactPart(:,:,:,:) = 0
+END IF
+!----- 4.
+CALL CalcDesorbProb()
+CALL CalcAdsorbProb()
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_SURF,tLBStart)
+CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! 6. communicate surface state to halo sides of neighbours
+!----- 5.
 #ifdef MPI
-  ! communicate coverage and probabilities to halo sides of neighbour procs
-  IF (PartSurfaceModel.EQ.2) CALL ExchangeCoverageInfo()
-  ! communicate distribution to halo-sides of neighbour procs
-  IF (PartSurfaceModel.EQ.3) CALL ExchangeSurfDistInfo()
+! communicate coverage and probabilities to halo sides of neighbour procs
+CALL ExchangeCoverageInfo()
+! communicate distribution to halo-sides of neighbour procs
+CALL ExchangeSurfDistInfo()
 #endif
-
-END IF
 
 END SUBROUTINE UpdateSurfModelVars
 
 
-SUBROUTINE Calc_DesorbPartNum()
+SUBROUTINE CalcEvapPartNum()
 !===================================================================================================================================
-!> calculation of desorbing particle number when mean desorption probabilities are used (surfacemodel 1)
+!> calculation of number of evaporating/desorbing particles when mean surface densities are used (mean probabilities)
 !===================================================================================================================================
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PartSurfaceModel
+USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel
-USE MOD_SurfaceModel_Tools     ,ONLY: CalcDesorbProb
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
+USE MOD_SurfaceModel_Tools     ,ONLY: SurfaceHasModelNum
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_TimeDisc_Vars          ,ONLY: dt
 #if USE_LOADBALANCE
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
@@ -255,181 +246,92 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum
-REAL                             :: PartAds, PartDes, RanNum, Tpois, PartEvapInfo
+INTEGER                          :: iSurfSide, iSpec, p, q, NPois, PartEvapInfo
+REAL                             :: WallPartNum, PartEvap, RanNum, Tpois, LiquidSurfTemp
+REAL                             :: A, B, C, pressureVapor
 #if USE_LOADBALANCE
-INTEGER                          :: globSide, ElemID
+INTEGER                          :: ElemID
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
-#if (PP_TimeDiscMethod==42)
-Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
-Adsorption%AdsorpInfo(:)%NumOfDes = 0
-#endif
-CALL CalcDesorbProb()
 
 DO iSpec = 1,nSpecies
   DO iSurfSide = 1,SurfMesh%nSides
 #if USE_LOADBALANCE
     IF(PerformLBSample) THEN
-      globSide = SurfMesh%SurfIDToSideID(iSurfSide)
-      ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
+      ElemID = PartSideToElem(S2E_ELEM_ID,SurfMesh%SurfIDToSideID(iSurfSide))
       nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
     END IF
 #endif /*USE_LOADBALANCE*/
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
-        IF (Adsorption%Coverage(p,q,iSurfSide,iSpec).GT.0) THEN
-          WallPartNum = INT(Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
-                    * SurfMesh%SurfaceArea(p,q,iSurfSide) &
-                    / Species(iSpec)%MacroParticleFactor)
-          IF (WallPartNum .GT. 0) THEN
-          PartAds = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
+        SELECT CASE (SurfaceHasModelNum(iSurfSide))
+        CASE(1)
+          IF (Adsorption%Coverage(p,q,iSurfSide,iSpec).GT.0) THEN
+            WallPartNum = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                       / Species(iSpec)%MacroParticleFactor
-
-          IF (PartSurfaceModel.EQ.1) THEN
-            PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+            PartEvap = WallPartNum * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+          ELSE
+            PartEvap = 0.
           END IF
-            IF (PartDes.GT.PartAds) THEN
-              surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) + INT(PartAds)
-            ELSE
-              CALL RANDOM_NUMBER(RanNum)
-              IF (EXP(-PartDes).LE.TINY(PartDes) &
-#if (PP_TimeDiscMethod==42)
-              .OR. Adsorption%TPD &
-#endif
-              ) THEN
-                surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)&
-                +INT(PartDes + RanNum)
-              ELSE !poisson-sampling instead of random rounding (reduces numeric non-equlibrium effects [Tysanner and Garcia 2004]
-                Npois=0
-                Tpois=1.0
-                DO
-                  Tpois=RanNum*Tpois
-                  IF (Tpois.LT.TINY(Tpois)) THEN
-                    surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)&
-                    +INT(PartDes + RanNum)
-                    EXIT
-                  END IF
-                  IF (Tpois.GT.EXP(-PartDes)) THEN
-                    Npois=Npois+1
-                    CALL RANDOM_NUMBER(RanNum)
-                  ELSE
-                    surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)+Npois
-                    EXIT
-                  END IF
-                END DO
-              END IF
-            END IF !PartDes.GT.WallPartNum
-            IF (surfmodel%SumEvapPart(p,q,iSurfSide,iSpec).GT.WallPartNum  &
-            .OR.surfmodel%SumEvapPart(p,q,iSurfSide,iSpec).LT.0) THEN
-              surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = WallPartNum
-            END IF
-          ELSE !not PartAds.GT.0
-            surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = 0
-          END IF !PartAds.GT.0
-#if (PP_TimeDiscMethod==42)
-          Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
-                                                + surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)
-#endif
-        END IF
-      END DO
-    END DO
-  END DO
-END DO
+        CASE(101,102)
+          LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+          ! Antoine parameters defined in ini file are chosen so pressure given is in bar
+          A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+          B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+          C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+          ! Use Antoine Eq. to calculate pressure vapor
+          pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
+          ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
+          PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
+                   * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt
+          WallPartNum = PartEvap
+        CASE DEFAULT
+          WallPartNum = 0
+        END SELECT
 
-END SUBROUTINE Calc_DesorbPartNum
-
-
-SUBROUTINE Evaporation()
-!===================================================================================================================================
-!> calculation of evaporating particle number when particles are deleted at condensation and inserted at evaporation
-!===================================================================================================================================
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
-USE MOD_SurfaceModel_Vars      ,ONLY: Liquid, surfmodel
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
-USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_TimeDisc_Vars          ,ONLY: dt
-#if USE_LOADBALANCE
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
-USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
-#endif /*USE_LOADBALANCE*/
-!===================================================================================================================================
-IMPLICIT NONE
-!===================================================================================================================================
-! Local variable declaration
-INTEGER                          :: iSurfSide, iSpec, p, q, Npois
-REAL                             :: PartEvap, RanNum, Tpois, PartEvapInfo
-REAL                             :: LiquidSurfTemp
-REAL                             :: pressure_vapor, A, B, C
-#if USE_LOADBALANCE
-INTEGER                          :: globSide, ElemID
-#endif /*USE_LOADBALANCE*/
-!===================================================================================================================================
-IF (.NOT.SurfMesh%SurfOnProc) RETURN
+        IF (WallPartNum.GT.0) THEN
+          IF (PartEvap.GT.WallPartNum .OR. PartEvap.LT.0.) THEN
+            PartEvapInfo = INT(WallPartNum)
+          ELSE
+            CALL RANDOM_NUMBER(RanNum)
+            IF (EXP(-PartEvap).LE.TINY(PartEvap) &
 #if (PP_TimeDiscMethod==42)
-Liquid%Info(:)%NumOfDes = 0
+                .OR. Adsorption%TPD &
 #endif
-DO iSpec = 1,nSpecies
-  DO iSurfSide = 1,SurfMesh%nSides
-    IF (PartBound%SolidState(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))) CYCLE
-    IF (PartBound%Spec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) ))).NE.iSpec) CYCLE
-#if USE_LOADBALANCE
-    IF(PerformLBSample) THEN
-      globSide = SurfMesh%SurfIDToSideID(iSurfSide)
-      ElemID = PartSideToElem(S2E_ELEM_ID,globSide)
-      nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
-    END IF
-#endif /*USE_LOADBALANCE*/
-    LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(iSurfSide))))
-    DO q = 1,nSurfSample
-      DO p = 1,nSurfSample
-        ! Antoine parameters defined in ini file are chosen so pressure given is in bar
-        A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-        B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-        C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-        ! Use Antoine Eq. to calculate pressure vapor
-        pressure_vapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
-        ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
-        PartEvap = pressure_vapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
-                 * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt
-        CALL RANDOM_NUMBER(RanNum)
-        IF (EXP(-PartEvap).LE.TINY(PartEvap)) THEN
-          surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)&
-          +INT(PartEvap + RanNum)
-          PartEvapInfo = INT(PartEvap + RanNum)
-        ELSE !poisson-sampling instead of random rounding (reduces numeric non-equlibrium effects [Tysanner and Garcia 2004]
-          Npois=0
-          Tpois=1.0
-          DO
-            Tpois=RanNum*Tpois
-            IF (Tpois.LT.TINY(Tpois)) THEN
-              surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)&
-              +INT(PartEvap + RanNum)
+                ) THEN
               PartEvapInfo = INT(PartEvap + RanNum)
-              EXIT
+            ELSE !poisson-sampling instead of random rounding (reduces numeric non-equlibrium effects [Tysanner and Garcia 2004]
+              Npois=0
+              Tpois=1.0
+              DO
+                Tpois=RanNum*Tpois
+                IF (Tpois.LT.TINY(Tpois)) THEN
+                  PartEvapInfo = INT(PartEvap + RanNum)
+                  EXIT
+                END IF
+                IF (Tpois.GT.EXP(-PartEvap)) THEN
+                  Npois=Npois+1
+                  CALL RANDOM_NUMBER(RanNum)
+                ELSE
+                  PartEvapInfo = Npois
+                  EXIT
+                END IF
+              END DO
             END IF
-            IF (Tpois.GT.EXP(-PartEvap)) THEN
-              Npois=Npois+1
-              CALL RANDOM_NUMBER(RanNum)
-            ELSE
-              surfmodel%SumEvapPart(p,q,iSurfSide,iSpec) = surfmodel%SumEvapPart(p,q,iSurfSide,iSpec)+Npois
-              PartEvapInfo = Npois
-              EXIT
-            END IF
-          END DO
-        END IF
+          END IF !PartEvap.GT.WallPartNum
+          SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) = SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) + INT(PartEvapInfo)
 #if (PP_TimeDiscMethod==42)
-        Liquid%Info(iSpec)%NumOfDes = Liquid%Info(iSpec)%NumOfDes + PartEvapInfo
+          SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes + INT(PartEvapInfo)
 #endif
+        END IF !WallPartNum.GT.0
       END DO
     END DO
   END DO
 END DO
 
-END SUBROUTINE Evaporation
+END SUBROUTINE CalcEvapPartNum
 
 
 END MODULE MOD_SurfaceModel

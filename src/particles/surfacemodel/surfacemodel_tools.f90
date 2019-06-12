@@ -61,6 +61,10 @@ INTERFACE IsReactiveSurface
   MODULE PROCEDURE IsReactiveSurface
 END INTERFACE
 
+INTERFACE SurfaceHasModelNum
+  MODULE PROCEDURE SurfaceHasModelNum
+END INTERFACE
+
 INTERFACE SMCR_AdjustMapNum
   MODULE PROCEDURE SMCR_AdjustMapNum
 END INTERFACE
@@ -74,6 +78,7 @@ PUBLIC :: SpaceOccupied
 PUBLIC :: UpdateSurfPos
 PUBLIC :: SampleAdsorptionHeat
 PUBLIC :: IsReactiveSurface
+PUBLIC :: SurfaceHasModelNum
 PUBLIC :: SMCR_AdjustMapNum
 !===================================================================================================================================
 
@@ -84,8 +89,8 @@ SUBROUTINE CalcAdsorbProb()
 !> Calculcation of adsorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption,SurfModel
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 #if (PP_TimeDiscMethod==42)  
@@ -105,10 +110,10 @@ DO iSpec=1,nSpecies
     IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
+        SELECT CASE (PartBound%SurfaceModel(PartboundID))
 !----------------------------------------------------------------------------------------------------------------------------------!
-        IF (PartSurfaceModel.EQ.1) THEN
+        CASE (1) ! Kisluik Sticking Model from Kolasinski's Surface Science (book)
 !----------------------------------------------------------------------------------------------------------------------------------!
-!   Kisluik Sticking Model from Kolasinski's Surface Science (book)
           ! enhance later to co-adsorption
           Theta_req = (1.0 - Adsorption%Coverage(p,q,SurfSide,iSpec)/Adsorption%MaxCoverage(SurfSide,iSpec)) &
                     **Adsorption%Adsorbexp(SurfSide,iSpec)
@@ -122,15 +127,14 @@ DO iSpec=1,nSpecies
             Adsorption%ProbAds(p,q,SurfSide,iSpec) = S_0 / (1.0 + Kfactor * ( 1.0/Theta_req - 1.0))
           END IF
 !----------------------------------------------------------------------------------------------------------------------------------!
-        ELSE IF (PartSurfaceModel.EQ.2) THEN
+        CASE (2) ! Recombination Model described by Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
-! Recombination Model described by Laux
           Adsorption%ProbAds(p,q,SurfSide,iSpec) = Adsorption%RecombCoeff(PartBoundID,iSpec)-Adsorption%ProbDes(p,q,SurfSide,iSpec)
-        END IF
+        END SELECT
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds+Adsorption%ProbAds(p,q,SurfSide,iSpec)
+          SurfModel%Info(iSpec)%MeanProbAds = SurfModel%Info(iSpec)%MeanProbAds+Adsorption%ProbAds(p,q,SurfSide,iSpec)
         END IF
 #endif
       END DO
@@ -145,9 +149,9 @@ SUBROUTINE CalcDesorbProb()
 !> Calculcation of desorption probability for different model (wallmodel 1 and 2)
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: PlanckConst, BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #if (PP_TimeDiscMethod==42)  
@@ -182,10 +186,9 @@ DO SurfSide=1,SurfMesh%nSides
   DO iSpec = 1,nSpecies
     DO q = 1,nSurfSample
       DO p = 1,nSurfSample
+        SELECT CASE (PartBound%SurfaceModel(PartboundID))
 !----------------------------------------------------------------------------------------------------------------------------------!
-        IF (PartSurfaceModel.EQ.1) THEN
-!----------------------------------------------------------------------------------------------------------------------------------!
-!   Polanyi-Wigner-eq. from Kolasinski's Surface Science (book)
+        CASE (1) ! Polanyi-Wigner-eq. from Kolasinski's Surface Science (book)
 !----------------------------------------------------------------------------------------------------------------------------------!
           Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)! / Adsorption%MaxCoverage(SurfSide,iSpec)
           !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden          
@@ -201,14 +204,12 @@ DO SurfSide=1,SurfMesh%nSides
           END IF
 #if (PP_TimeDiscMethod==42)
           IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes &
+            SurfModel%Info(iSpec)%MeanProbDes = SurfModel%Info(iSpec)%MeanProbDes &
                                                      + Adsorption%ProbDes(p,q,SurfSide,iSpec)
           END IF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
-        ELSE IF (PartSurfaceModel.EQ.2) THEN
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Recombination Model described by Laux
+        CASE (2) ! Recombination Model described by Laux
 !----------------------------------------------------------------------------------------------------------------------------------!
           IF (Adsorption%RecombData(1,iSpec).LE.0) THEN
             Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.
@@ -220,7 +221,7 @@ DO SurfSide=1,SurfMesh%nSides
                   * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
             END IF
           END IF
-        END IF ! PartSurfaceModel  
+        END SELECT
       END DO
     END DO
   END DO
@@ -540,7 +541,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species ,PartState
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 !USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
 !USE MOD_DSMC_ChemReact ,ONLY: gammainc
@@ -792,28 +793,28 @@ END SELECT
 iSampleReact = 1 + ReactNum
 IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(CalcAdsorbReactProb.GT.0.)) THEN
   !IF (calcAdsorbReactProb.GT.1) THEN
-  !  Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) = &
-  !      Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) + 1.
+  !  SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) = &
+  !      SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) + 1.
   !ELSE
-    Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) = &
-        Adsorption%AdsorpReactInfo(SpecID)%NumAdsReact(iSampleReact) + CalcAdsorbReactProb
+    SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) = &
+        SurfModel%ProperInfo(SpecID)%NumAdsReact(iSampleReact) + CalcAdsorbReactProb
   !END IF
 END IF
-Adsorption%AdsorpReactInfo(SpecID)%MeanAdsActE(iSampleReact) = &
-    Adsorption%AdsorpReactInfo(SpecID)%MeanAdsActE(iSampleReact) + (E_Activation - E_Activation_max) /BoltzmannConst
+SurfModel%ProperInfo(SpecID)%MeanAdsActE(iSampleReact) = &
+    SurfModel%ProperInfo(SpecID)%MeanAdsActE(iSampleReact) + (E_Activation - E_Activation_max) /BoltzmannConst
 loc_ActE = (E_Activation - E_Activation_max) /BoltzmannConst
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-  Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f
+  SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f
   loc_nu = a_f
 ELSE
   ParticleTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
-  Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact) = &
-      Adsorption%AdsorpReactInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f*c_f*ParticleTemp**b_f
+  SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) = &
+      SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f*c_f*ParticleTemp**b_f
   loc_nu = a_f*c_f*ParticleTemp**b_f
 END IF
-Adsorption%AdsorpReactInfo(SpecID)%AdsReactCount(iSampleReact) = &
-    Adsorption%AdsorpReactInfo(SpecID)%AdsReactCount(iSampleReact) + 1
+SurfModel%ProperInfo(SpecID)%AdsReactCount(iSampleReact) = &
+    SurfModel%ProperInfo(SpecID)%AdsReactCount(iSampleReact) + 1
 #endif
 
 END FUNCTION CalcAdsorbReactProb
@@ -988,6 +989,26 @@ IsReactiveSurface = .FALSE.
 IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))) IsReactiveSurface = .TRUE.
 END FUNCTION IsReactiveSurface
 
+INTEGER FUNCTION SurfaceHasModelNum(SurfID)
+!===================================================================================================================================
+!> Checks if SurfID has reactive boundary flag
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: SurfID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SurfaceHasModelNum = PartBound%SurfaceModel(PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfID))))
+END FUNCTION SurfaceHasModelNum
+
 
 SUBROUTINE SMCR_AdjustMapNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,SpecID,SampleFlag)
 !===================================================================================================================================
@@ -1028,7 +1049,7 @@ ELSE
 END IF
 IF (LocSampleFlag) THEN
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
+    SampWall(SurfSideID)%SurfModelState(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%SurfModelState(5,subsurfxi,subsurfeta) &
         + (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
         / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &
@@ -1113,7 +1134,7 @@ END IF
 
 IF (LocSampleFlag) THEN
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
-    SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%Adsorption(5,subsurfxi,subsurfeta) &
+    SampWall(SurfSideID)%SurfModelState(5,subsurfxi,subsurfeta) = SampWall(SurfSideID)%SurfModelState(5,subsurfxi,subsurfeta) &
         - (SampleAdsorptionHeat(SurfSideID,subsurfxi,subsurfeta) * BoltzmannConst &
         / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3))) &
         * REAL(INT(Adsorption%DensSurfAtoms(SurfSideID) &

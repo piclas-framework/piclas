@@ -778,7 +778,7 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_AnalyzeField           ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars              ,ONLY: MeshFile
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
@@ -795,9 +795,8 @@ USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars          ,ONLY: PartSurfaceModel
 USE MOD_Particle_Boundary_Vars ,ONLY: AnalyzeSurfCollis, CalcSurfCollis, nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SampWall, PartBound
 USE MOD_DSMC_Analyze           ,ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze           ,ONLY: CalcSurfaceValues
 #endif
@@ -1090,10 +1089,10 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
     CALL CalcSurfaceValues
     DO iSide=1,SurfMesh%nTotalSides
       SampWall(iSide)%State=0.
-      IF (PartSurfaceModel.GT.0) THEN
-        SampWall(iSide)%Adsorption=0.
+      IF (ANY(PartBound%Reactive)) THEN
+        SampWall(iSide)%SurfModelState=0.
         SampWall(iSide)%Accomodation=0.
-        SampWall(iSide)%Reaction=0.
+        SampWall(iSide)%SurfModelReactCount=0.
       END IF
       IF(nPorousBC.GT.0) THEN
         SampWall(iSide)%PumpCapacity=0.

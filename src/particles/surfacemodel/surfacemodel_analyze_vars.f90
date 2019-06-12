@@ -29,14 +29,14 @@ LOGICAL                       :: CalcSurfNumSpec                     ! Calculate
 LOGICAL                       :: CalcEvaporation                     ! Calculate rate of evaporation [kg/s]
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
-LOGICAL                       :: CalcAdsorbRates                     ! Calculate the adsorption probabilities of species
-LOGICAL                       :: CalcAdsorbProb                      ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcAdsorbnu                        ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcAdsorbRates                     ! Calculate the adsorption probabilities of species (k_r)
+LOGICAL                       :: CalcAdsorbProb                      ! Calculate the surface reaction rate per reaction (P_r)
+LOGICAL                       :: CalcAdsorbnu                        ! Calculate the surface reaction rate per reaction (nu_r)
+LOGICAL                       :: CalcAdsorbE                         ! Calculate the surface reaction rate per reaction (E_r)
 LOGICAL                       :: CalcSurfRates                       ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcSurfnu                          ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (k_r)
-LOGICAL                       :: CalcHeatflux                        ! Calculate the surface reaction rate per reaction (k_r)
+LOGICAL                       :: CalcSurfProb                        ! Calculate the surface reaction rate per reaction (P_r)
+LOGICAL                       :: CalcSurfnu                          ! Calculate the surface reaction rate per reaction (nu_r)
+LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (E_r)
+LOGICAL                       :: CalcHeatflux                        ! Calculate the surface reaction rate per reaction (q)
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

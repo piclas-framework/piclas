@@ -43,7 +43,7 @@ SUBROUTINE InitSurfModel_MPI()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfExchange
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExchange
@@ -65,7 +65,7 @@ ALLOCATE(SurfModelExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
 SurfModelExchange%nSidesSend = SurfExchange%nSidesSend
 SurfModelExchange%nSidesRecv = SurfExchange%nSidesRecv
 
-! allocate send and receive buffer
+! allocate send and receive buffer for sum arrays for adsorbing particles from halo sides to local sides of neighbours
 ALLOCATE(AdsorbSendBuf(SurfCOMM%nMPINeighbors))
 ALLOCATE(AdsorbRecvBuf(SurfCOMM%nMPINeighbors))
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -75,31 +75,35 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   AdsorbRecvBuf(iProc)%content_int=0
 END DO ! iProc
 
-IF (PartSurfaceModel.EQ.2) THEN
-  ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
-  ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
-  ALLOCATE(SurfModelExchange%nCoverageSidesSend(SurfCOMM%nMPINeighbors))
-  ALLOCATE(SurfModelExchange%nCoverageSidesRecv(SurfCOMM%nMPINeighbors))
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    SurfModelExchange%nCoverageSidesSend(iProc) = SurfModelExchange%nSidesRecv(iProc)
-    SurfModelExchange%nCoverageSidesRecv(iProc) = SurfModelExchange%nSidesSend(iProc)
-    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesSend(iProc)))
-    ALLOCATE(SurfCoverageRecvBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesRecv(iProc)))
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList(SurfModelExchange%nCoverageSidesSend(iProc)))
+! currently only needed for SurfaceModel=2
+! represents inverse communication where information is send from local sides to halo sides (local sides of halo procs)
+ALLOCATE(SurfCoverageSendBuf(SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfCoverageRecvBuf(SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfModelExchange%nCoverageSidesSend(SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfModelExchange%nCoverageSidesRecv(SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  SurfModelExchange%nCoverageSidesSend(iProc) = SurfModelExchange%nSidesRecv(iProc)
+  SurfModelExchange%nCoverageSidesRecv(iProc) = SurfModelExchange%nSidesSend(iProc)
+  IF(SurfModelExchange%nCoverageSidesRecv(iProc).NE.0) THEN
     ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(SurfModelExchange%nCoverageSidesRecv(iProc)))
     SurfCOMM%MPINeighbor(iProc)%CoverageRecvList(:)=SurfCOMM%MPINeighbor(iProc)%SendList(:)
-    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
-    SurfCoverageSendBuf(iProc)%content = 0.
+    ALLOCATE(SurfCoverageRecvBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesRecv(iProc)))
     SurfCoverageRecvBuf(iProc)%content = 0.
-  END DO
-END IF
+  END IF
+  IF(SurfModelExchange%nCoverageSidesSend(iProc).NE.0) THEN
+    ALLOCATE(SurfCoverageSendBuf(iProc)%content(1:3*nSpecies*(nSurfSample**2)*SurfModelExchange%nCoverageSidesSend(iProc)))
+    SurfCOMM%MPINeighbor(iProc)%CoverageSendList(:)=SurfCOMM%MPINeighbor(iProc)%RecvList(:)
+    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%CoverageSendList(SurfModelExchange%nCoverageSidesSend(iProc)))
+    SurfCoverageSendBuf(iProc)%content = 0.
+  END IF
+END DO
 
 END SUBROUTINE InitSurfModel_MPI
 
 
 SUBROUTINE InitSMCR_MPI()
 !===================================================================================================================================
-!> Initializing MPI for Surface Model
+!> Initializing MPI for Surface Model (SMCR model specific communicating distribution data)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -155,12 +159,13 @@ SUBROUTINE ExchangeAdsorbNum()
 !> structure is similar to surface sampling/particle communication
 !> each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
 !> the receiving process adds the new data to his own sides
+!>  Exchanged are SumAdsorbPart and SumERDesorbed arrays
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars      ,ONLY: surfmodel
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfComm, nSurfSample
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -201,9 +206,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= surfmodel%SumAdsorbPart(p,q,SurfSideID,:)
+        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= SurfModel%SumAdsorbPart(p,q,SurfSideID,:)
         iPos=iPos+nSpecies
-        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= surfmodel%SumERDesorbed(p,q,SurfSideID,:)
+        AdsorbSendBuf(iProc)%content_int(iPos+1:iPos+nSpecies)= SurfModel%SumERDesorbed(p,q,SurfSideID,:)
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
@@ -249,10 +254,10 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
-        surfmodel%SumAdsorbPart(p,q,SurfSideID,:)=surfmodel%SumAdsorbPart(p,q,SurfSideID,:) &
+        SurfModel%SumAdsorbPart(p,q,SurfSideID,:)=SurfModel%SumAdsorbPart(p,q,SurfSideID,:) &
                                          +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
-        surfmodel%SumERDesorbed(p,q,SurfSideID,:)=surfmodel%SumERDesorbed(p,q,SurfSideID,:) &
+        SurfModel%SumERDesorbed(p,q,SurfSideID,:)=SurfModel%SumERDesorbed(p,q,SurfSideID,:) &
                                          +AdsorbRecvBuf(iProc)%content_int(iPos+1:iPos+nSpecies)
         iPos=iPos+nSpecies
       END DO ! p=0,nSurfSample
@@ -373,7 +378,7 @@ SUBROUTINE ExchangeSurfDistInfo()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, SurfComm, nSurfSample, PartBound
 USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfDistSendBuf, SurfDistRecvBuf, SurfModelExchange
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, surfmodel
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 USE MOD_Mesh_Vars              ,ONLY: BC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -489,9 +494,9 @@ END DO ! iProc
 
 ! assign bond order to surface atoms in the surfacelattice for halo sides
 DO iSurfSide = SurfMesh%nSides+1,SurfMesh%nTotalSides
-SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-PartboundID = PartBound%MapToPartBC(BC(SideID))
-IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
+  SideID = SurfMesh%SurfIDToSideID(iSurfSide)
+  PartboundID = PartBound%MapToPartBC(BC(SideID))
+  IF (PartBound%SurfaceModel(PartboundID).NE.3) CYCLE
   DO q=1,nSurfSample
     DO p=1,nSurfSample
       SurfDistInfo(p,q,iSurfSide)%SurfAtomBondOrder(:,:,:) = 0

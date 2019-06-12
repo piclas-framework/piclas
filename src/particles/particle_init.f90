@@ -1010,7 +1010,7 @@ USE MOD_IO_HDF5,                    ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars,                  ONLY: nElems
 USE MOD_LoadBalance_Vars,           ONLY: nPartsPerElem
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp!,PartSurfaceModel, LiquidSimFlag, PartLiquidModel
+USE MOD_Particle_Vars,              ONLY: MacroRestartData_tmp
 USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux, AdaptiveBCAnalyze
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
@@ -1020,7 +1020,7 @@ USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
 USE MOD_InitializeBackgroundField,  ONLY: InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel!, InitLiquidSurfaceModel
+USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel
 USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC, PartBound
 USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
@@ -1095,8 +1095,6 @@ IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
   CALL InitSurfaceModel()
-  !IF (PartSurfaceModel.GT.0) CALL InitSurfaceModel()
-  !IF (PartLiquidModel.GT.0) CALL InitLiquidSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   CALL InitFPFlow()
 #endif
@@ -2222,6 +2220,7 @@ ALLOCATE(PartBound%SolidStructure(1:nPartBound))
 ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 PartBound%SolidState(1:nPartBound)=.FALSE.
 PartBound%Reactive(1:nPartBound)=.FALSE.
+PartBound%SurfaceModel(1:nPartBound)=0
 PartBound%Spec(1:nPartBound)=0
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))

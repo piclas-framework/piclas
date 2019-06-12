@@ -4247,7 +4247,6 @@ USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel              ,ONLY: Evaporation
 #ifdef MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -4267,7 +4266,6 @@ INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
-  IF (LiquidSimFlag) CALL Evaporation()
   ! Calculate desobing particles for Surfaceflux
   CALL ParticleSurfaceflux()
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -4378,7 +4376,6 @@ USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
 USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
-USE MOD_SurfaceModel           ,ONLY: Evaporation
 #ifdef MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -4398,7 +4395,6 @@ INTEGER               :: iPart
 REAL                  :: RandVal, dtFrac
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
-  IF (LiquidSimFlag) CALL Evaporation()
   ! Calculate desobing particles for Surfaceflux
   CALL ParticleSurfaceflux()
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)

@@ -26,7 +26,7 @@ LOGICAL                                  :: ModelERSpecular         ! Flag defin
 LOGICAL                                  :: BlockingNeigh(3,3)      ! defines which of neighbour sites can block current site
                                                                     ! (nCurrentCoords,nNeighCoords) relevant for SMCR
 #if (PP_TimeDiscMethod==42)
-! defintion of Adsorbation variables
+! definition of surfacmodel mean info container
 TYPE tMeanInfo
   REAL                                   :: MeanProbAds             ! mean adsorption probability
   REAL                                   :: MeanProbDes             ! mean desorption probability
@@ -37,6 +37,7 @@ TYPE tMeanInfo
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
 END TYPE
 
+! definition of proper info container allocated for each reflective surface
 TYPE tProperInfo
   REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
   REAL     , ALLOCATABLE                 :: NumSurfReact(:)         ! mean probability for reaction on surface
@@ -60,16 +61,21 @@ END TYPE
 #endif
 
 TYPE tSurfaceModel
+#if (PP_TimeDiscMethod==42)
+  TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! surfacemodel info for species n (nSpecies)
+  TYPE(tProperInfo), ALLOCATABLE         :: ProperInfo(:)           ! proper surfacemodel info for species n (nSpecies)
+#endif
+  ! are all reset in updateSurfaceVars except SumEvapPart, which is reset in particle emission after particle inserting
   INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbed from Surface
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+                                                                    ! (nSurfSample,nSurfSample,nlocalSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec absorbed by the Surface
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles that reacted on the surface
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumERDesorbed(:,:,:,:)  ! Number of Particles desorbed through ER-type-reaction
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+                                                                    ! (nSurfSample,nSurfSample,ntotalSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumEvapPart(:,:,:,:)    ! number of evaporated particles
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+                                                                    ! (nSurfSample,nSurfSample,nlocalSurfSide,nSpecies)
 END TYPE
 TYPE(tSurfaceModel)                      :: SurfModel               ! SurfModel container
 
@@ -109,10 +115,10 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: RecombData(:,:)         ! 1: Partner recombination species (nSpecies)
                                                                     ! 2: Resulting recombination species (nSpecies)
   ! parameters for UBI-QEP model (surfacemodel=3)
-  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces for surface n
-  INTEGER                                :: DissNum                 ! max number of dissociative surface reactions for one species
-  INTEGER                                :: RecombNum               ! max number of associative surface reactions for one species
-  INTEGER                                :: ReactNum                ! max number of diss/assoc surface reactions for one species
+  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces
+  INTEGER                                :: DissNum                 ! max number of dissociative surface reactions per species
+  INTEGER                                :: RecombNum               ! max number of associative surface reactions per species
+  INTEGER                                :: ReactNum                ! max number of diss/assoc surface reactions per species
   INTEGER , ALLOCATABLE                  :: DissocReact(:,:,:)      ! Resulting species for given dissoc (2,MaxDissNum,nSpecies)
   REAL    , ALLOCATABLE                  :: Diss_Prefactor(:,:)
   REAL    , ALLOCATABLE                  :: Diss_Powerfactor(:,:)
@@ -133,9 +139,9 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: DiCoord(:,:)            ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
   REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
   REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
-  INTEGER                                :: NumOfDissocReact
-  INTEGER                                :: NumOfRecombReact
-  INTEGER                                :: NumOfExchReact
+  INTEGER                                :: NumOfDissocReact        ! sum of all possible dissociation reactions on surfaces
+  INTEGER                                :: NumOfRecombReact        ! sum of all possible recombination reactions on surfaces
+  INTEGER                                :: NumOfExchReact          ! sum of all possible exchange reactions on surfaces
   ! TST Factor calculation variables
   LOGICAL , ALLOCATABLE                  :: TST_Calc(:,:)
 END TYPE
@@ -177,23 +183,6 @@ TYPE tSurfaceDistributionInfo
                                                                     ! (1:nCoordination)
 END TYPE
 TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
-
-TYPE tLiquid
-  INTEGER , ALLOCATABLE                  :: SumCondensPart(:,:,:,:) ! number of condensed particles
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  INTEGER , ALLOCATABLE                  :: SumEvapPart(:,:,:,:)    ! number of evaporated particles
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: HeatOfCondens(:)        ! heat of condensation (K) on liquid for surface n
-  REAL    , ALLOCATABLE                  :: ProbCondens(:,:,:,:)    ! Condensation probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: ProbEvap(:,:,:,:)       ! Evaporation probability of surface n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-
-#if (PP_TimeDiscMethod==42)
-  TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! Info for species n (nSpecies)
-#endif
-END TYPE
-TYPE(tLiquid)                            :: Liquid
 
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

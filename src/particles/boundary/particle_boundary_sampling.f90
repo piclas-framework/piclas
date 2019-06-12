@@ -74,7 +74,7 @@ USE MOD_ReadInTools             ,ONLY:GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars           ,ONLY:nSpecies
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
@@ -116,7 +116,7 @@ nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
 ! IF (NGeo.GT.nSurfSample) THEN
 !   nSurfSample = NGeo
 ! END IF
-IF (PartSurfaceModel.GT.0) THEN
+IF (ANY(PartBound%Reactive)) THEN
   IF (nSurfSample.NE.BezierSampleN) THEN
   CALL abort(&
 __STAMP__&
@@ -1080,9 +1080,9 @@ SUBROUTINE ExchangeSurfData()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY:nSpecies,LiquidSimFlag,PartSurfaceModel
+USE MOD_Particle_Vars               ,ONLY:nSpecies
 USE MOD_SurfaceModel_Vars           ,ONLY:Adsorption
-USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall
+USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample,SampWall,PartBound
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1093,20 +1093,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues, nCatalyticValues, nLiquidValues
+INTEGER                         :: nValues, nReactiveValues
 INTEGER                         :: iPos,p,q,iProc,iReact
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
 nValues = SurfMesh%SampSize*nSurfSample**2
 ! additional array entries for Coverage, Accomodation and recombination coefficient
-nCatalyticValues=0
-IF(PartSurfaceModel.GT.0) nCatalyticValues = SurfMesh%CatalyticSampSize*(nSurfSample)**2
-! additional array entries for liquid surfaces
-nLiquidValues=0
-IF(LiquidSimFlag) nLiquidValues = SurfMesh%LiquidSampSize*nSurfSample**2
+nReactiveValues=0
+IF(ANY(PartBound%Reactive)) nReactiveValues = SurfMesh%ReactiveSampSize*(nSurfSample)**2
 
-nValues=nValues+nCatalyticValues+nLiquidValues
+nValues=nValues+nReactiveValues
 
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -1133,30 +1130,23 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
-        IF (PartSurfaceModel.GT.0) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies)= SampWall(SurfSideID)%Adsorption(:,p,q)
+        IF (ANY(PartBound%Reactive)) THEN
+          SurfSendBuf(iProc)%content(iPos+1:iPos+5+nSpecies)= SampWall(SurfSideID)%SurfModelState(:,p,q)
           iPos=iPos+5+nSpecies
           SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Accomodation(:,p,q)
           iPos=iPos+nSpecies
           DO iReact=1,2*Adsorption%ReactNum
-            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%Reaction(iReact,:,p,q)
+            SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies)= SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)
             iPos=iPos+nSpecies
           END DO
-        END IF
-        IF (LiquidSimFlag) THEN
-          SurfSendBuf(iProc)%content(iPos+1:iPos+nSpecies+1)= SampWall(SurfSideID)%Evaporation(:,p,q)
-          iPos=iPos+nSpecies+1
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
     SampWall(SurfSideID)%State(:,:,:)=0.
-    IF (PartSurfaceModel.GT.0) THEN
-      SampWall(SurfSideID)%Adsorption(:,:,:)=0.
+    IF (ANY(PartBound%Reactive)) THEN
+      SampWall(SurfSideID)%SurfModelState(:,:,:)=0.
       SampWall(SurfSideID)%Accomodation(:,:,:)=0.
-      SampWall(SurfSideID)%Reaction(:,:,:,:)=0.
-    END IF
-    IF (LiquidSimFlag) THEN
-      SampWall(SurfSideID)%Evaporation(:,:,:)=0.
+      SampWall(SurfSideID)%SurfModelReactCount(:,:,:,:)=0.
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
@@ -1202,23 +1192,18 @@ DO iProc=1,SurfCOMM%nMPINeighbors
         SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &
                                          +SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
-        IF (PartSurfaceModel.GT.0) THEN
-          SampWall(SurfSideID)%Adsorption(:,p,q)=SampWall(SurfSideID)%Adsorption(:,p,q) &
+        IF (ANY(PartBound%Reactive)) THEN
+          SampWall(SurfSideID)%SurfModelState(:,p,q)=SampWall(SurfSideID)%SurfModelState(:,p,q) &
                                                 +SurfRecvBuf(iProc)%content(iPos+1:iPos+5+nSpecies)
           iPos=iPos+5+nSpecies
           SampWall(SurfSideID)%Accomodation(:,p,q)=SampWall(SurfSideID)%Accomodation(:,p,q) &
                                                   +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
           iPos=iPos+nSpecies
           DO iReact=1,2*Adsorption%ReactNum
-            SampWall(SurfSideID)%Reaction(iReact,:,p,q)=SampWall(SurfSideID)%Reaction(iReact,:,p,q) &
+            SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,:,p,q) &
                                                        +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies)
             iPos=iPos+nSpecies
           END DO
-        END IF
-        IF (LiquidSimFlag) THEN
-          SampWall(SurfSideID)%Evaporation(:,p,q)=SampWall(SurfSideID)%Evaporation(:,p,q) &
-                                                     +SurfRecvBuf(iProc)%content(iPos+1:iPos+nSpecies+1)
-          iPos=iPos+nSpecies+1
         END IF
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
@@ -1288,9 +1273,9 @@ USE MOD_Globals_Vars,               ONLY:ProjectName
 USE MOD_SurfaceModel_Vars,          ONLY:Adsorption
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide,offsetInnerSurfSide,nPorousBC
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
-USE MOD_Particle_Vars,              ONLY:nSpecies,PartSurfaceModel
+USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName, PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1325,7 +1310,7 @@ FileString=TRIM(FileName)//'.h5'
 ! Create dataset attribute "SurfVarNames"
 nVar2D = 5
 nVar2D_Spec = 1
-IF(PartSurfaceModel.GT.0) THEN
+IF(ANY(PartBound%Reactive)) THEN
   nAdsSamples = 5
   nVar2D = nVar2D + nAdsSamples
   nVar2D_Spec = nVar2D_Spec + 2 + 2*Adsorption%ReactNum
@@ -1359,7 +1344,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   DO iSpec=1,nSpecies
     WRITE(SpecID,'(I3.3)') iSpec
     Str2DVarNames(nVarCount+1) ='Spec'//TRIM(SpecID)//'_Counter'
-    IF (PartSurfaceModel.GT.0) THEN
+    IF(ANY(PartBound%Reactive)) THEN
       Str2DVarNames(nVarCount+2) ='Spec'//TRIM(SpecID)//'_Accomodation'
       Str2DVarNames(nVarCount+3) ='Spec'//TRIM(SpecID)//'_Coverage'
       DO iReact=1,Adsorption%ReactNum
@@ -1381,7 +1366,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   Str2DVarNames(nVarCount+4) ='HeatFlux'
   Str2DVarNames(nVarCount+5) ='Counter_Total'
   nVarCount = nVarCount + 5
-  IF (PartSurfaceModel.GT.0) THEN
+  IF(ANY(PartBound%Reactive)) THEN
     Str2DVarNames(nVarCount+1) ='HeatFlux_Portion_LH'
     Str2DVarNames(nVarCount+2) ='HeatFlux_Portion_SurfDiss'
     Str2DVarNames(nVarCount+3) ='HeatFlux_Portion_ER'
@@ -1721,9 +1706,9 @@ SDEALLOCATE(SurfMesh%SurfIDToSideID)
 !SDEALLOCATE(SampWall%Counter)
 DO iSurfSide=1,SurfMesh%nTotalSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
-  SDEALLOCATE(SampWall(iSurfSide)%Adsorption)
+  SDEALLOCATE(SampWall(iSurfSide)%SurfModelState)
   SDEALLOCATE(SampWall(iSurfSide)%Accomodation)
-  SDEALLOCATE(SampWall(iSurfSide)%Reaction)
+  SDEALLOCATE(SampWall(iSurfSide)%SurfModelReactCount)
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
