@@ -340,15 +340,19 @@ REAL          :: xFactor
         IF(.NOT.PRESENT(xPos).OR..NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
           'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
         IF (xPos.LT.VarTimeStep%StagnationPoint) THEN
-          xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/GEO%xminglob*VarTimeStep%TimeScaleFac2DFront)
+          ! xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/GEO%xminglob*VarTimeStep%TimeScaleFac2DFront)
+          xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/(VarTimeStep%StagnationPoint-GEO%xminglob) &
+                        * (VarTimeStep%TimeScaleFac2DFront - 1.0))
         ELSE
-          xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/GEO%xmaxglob*VarTimeStep%TimeScaleFac2DBack)
+          ! xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/GEO%xmaxglob*VarTimeStep%TimeScaleFac2DBack)
+          xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/(GEO%xmaxglob-VarTimeStep%StagnationPoint) &
+                        * (VarTimeStep%TimeScaleFac2DBack - 1.0))
         END IF
-        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*VarTimeStep%ScaleFac)*(1.+xFactor)
+        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))*(1.+xFactor)
       ELSE
         IF(.NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
           'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
-        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*VarTimeStep%ScaleFac)
+        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))
       END IF
     ELSE
       IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
