@@ -91,9 +91,15 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 7-9   E_vib (pre, wall, re)
                                                                        ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
-  REAL,ALLOCATABLE                      :: SurfModelState(:,:,:)       ! Sampling of energies from adsorption and desorption
-                                                                       ! 1:Enthalpy released/annihilated upon reaction on surface
-                                                                       ! 2:Enthalpy of surface due to reconstruction
+  REAL,ALLOCATABLE                      :: SurfModelState(:,:,:)       ! Sampling of reaction enthalpies and coverage
+                                                                       ! first index represents
+                                                                       ! 1: Enthalpy recombination reaction on surface
+                                                                       ! 2: Enthalpy dissociative reaction on surface
+                                                                       ! 3: Enthalpy recombination reaction via collision
+                                                                       ! 4: Enthalpy dissociative reaction via collision
+                                                                       ! 5: Enthalpy additional enthalpy (eq. adsorption)
+                                                                       ! 5+iSpecies: Coverage of iSpecies
+                                                                       !    adsorption%coverage added in updatesurfacevars
   REAL,ALLOCATABLE                      :: SurfModelReactCount(:,:,:,:)! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient
                                                                        ! (2*nReact,nSpecies,p,q) 
                                                                        ! doubled entries due to adsorb and desorb direction counter
@@ -206,8 +212,6 @@ TYPE tPartBoundary
                                                                              ! 101 liquid condensation coeff = 1 + evaporation
                                                                              ! 102 liquid tsuruta model
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
-  INTEGER , ALLOCATABLE                  :: Spec(:)                       ! Species of Boundary
-  REAL    , ALLOCATABLE                  :: ParamAntoine(:,:)             ! Parameters for Antoine Eq (vapor pressure) [3,nPartBound]
   LOGICAL , ALLOCATABLE                  :: SolidState(:)                 ! flag defining if reflective BC is solid or liquid
   REAL    , ALLOCATABLE                  :: SolidPartDens(:)
   REAL    , ALLOCATABLE                  :: SolidMassIC(:)

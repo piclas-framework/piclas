@@ -191,6 +191,11 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-HeatOfAdsorption-K
   , 'Define heat of adsorption [K] on clear surface for binding atom of species [$] on boundary [$].\n'// &
     '[Assumption of on-top side bind, surfacemodel=3]','0.', numberedmulti=.TRUE.)
 
+CALL prms%SetSection("Liquid-Surface")
+
+CALL prms%CreateLogicalOption(     'Part-Species[$]-PartBound[$]-LiquidSpec'&
+  , 'Sets the flag for being treated as surface species. If marked, antoine parameters must to be defined'&
+  ,'.FALSE.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -200,10 +205,10 @@ SUBROUTINE InitSurfaceModel()
 !> Initialize surface model variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                    ,ONLY: abort
+USE MOD_Globals
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
 USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
-USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
+USE MOD_Particle_Vars              ,ONLY: nSpecies, Species, PDM, WriteMacroSurfaceValues
 USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
@@ -303,7 +308,7 @@ __STAMP__&
       IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%ReactCoeff)) ALLOCATE( Adsorption%ReactCoeff(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
-      Adsorption%ResultSpec(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      Adsorption%ResultSpec(iPartBound,iSpec)        = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       Adsorption%ReactCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-RecombinationCoeff')
       Adsorption%ReactAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-ReactionAccomodation')
       IF ((Adsorption%ResultSpec(iPartBound,iSpec).EQ.-1).AND.(Adsorption%ReactCoeff(iPartBound,iSpec).NE.0.)) THEN
@@ -378,18 +383,20 @@ __STAMP__,&
       IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%ReactCoeff)) ALLOCATE( Adsorption%ReactCoeff(1:nPartBound,1:nSpecies))
       IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
-      Adsorption%ResultSpec(iPartBound,iSpec)        = 0
-      Adsorption%ReactCoeff(iPartBound,iSpec)        = GETREAL('Part-Species'//TRIM(hilf2)//'-CondensationCoeff')
-      Adsorption%ReactAccomodation(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-ReactionAccomodation')
-      IF ((Adsorption%ResultSpec(iPartBound,iSpec).EQ.-1).AND.(Adsorption%ReactCoeff(iPartBound,iSpec).NE.0.)) THEN
+      IF (.NOT.ALLOCATED(Adsorption%ReactEnergy)) ALLOCATE( Adsorption%ReactEnergy(1:nPartBound,1:nSpecies))
+      Adsorption%ResultSpec(iPartBound,iSpec) = 0
+      Adsorption%ReactEnergy(iPartBound,iSpec) = 0
+      Adsorption%ReactCoeff(iPartBound,iSpec) = GETREAL('Part-Species'//TRIM(hilf2)//'-CondensationCoeff')
+      Adsorption%ReactAccomodation(iPartBound,iSpec) = 1.
+      IF (.NOT.ALLOCATED(Adsorption%SurfaceSpec)) ALLOCATE(Adsorption%SurfaceSpec(1:nPartBound,1:nSpecies))
+      Adsorption%SurfaceSpec(iPartBound,iSpec) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-LiquidSpec')
+      ! check parameters used for evaporation pressure of Antoine Eq
+      IF (Adsorption%SurfaceSpec(iPartBound,iSpec) .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(1))) &
+           .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(2))) &
+           .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(3))) ) THEN
         CALL abort(&
-__STAMP__,&
-'Used condensation coefficient is zero for species '//TRIM(hilf)//' \n --> use surfacemodel=0 for corresponding boundary or set >0')
-      END IF
-      IF (Adsorption%ResultSpec(iPartBound,iSpec).EQ.iSpec) THEN
-        CALL abort(&
-__STAMP__,&
-'Resulting species for species '//TRIM(hilf)//' equal to incident species not possible for surfacemodel=2')
+__STAMP__&
+,'Antoine Parameters not defined for species: ',iPartBound)
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT

@@ -1920,13 +1920,12 @@ USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
-USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles
+USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, PolyatomMolDSMC
-USE MOD_DSMC_Vars              ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools,ONLY: PartEnergyToSurface,SurfaceToPartEnergy
 USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
@@ -1963,25 +1962,15 @@ INTEGER                          :: SurfSideID, SpecID
 REAL                             :: Norm_velo!, Norm_Ec
 INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
-!   REAL                             :: IntersectionPos(1:3)
 REAL                             :: TransArray(1:6),IntArray(1:6), reactionEnthalpie
-REAL                             :: oldVelo(1:3) !VelXold, VelYold, VelZold
-INTEGER                          :: locBCID, VibQuant!, VibQuantWall
-!   INTEGER                          :: VibQuantNew
-!   REAL                             :: VibQuantNewR
+REAL                             :: oldVelo(1:3)
+INTEGER                          :: locBCID
 REAL                             :: VeloReal, EtraOld
 REAL                             :: EtraWall, EtraNew
 REAL                             :: WallVelo(1:3), WallTemp
 REAL                             :: TransACC!, VibACC, RotACC
-REAL                             :: ErotNew, ErotWall, EVibNew, EVibWall
 ! Polyatomic Molecules
-!REAL, ALLOCATABLE                :: RanNumPoly(:)
-!INTEGER                          :: iPolyatMole, iDOF
-!INTEGER, ALLOCATABLE             :: VibQuantWallPoly(:)
-!   REAL, ALLOCATABLE                :: VibQuantNewRPoly(:)
-!   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantTemp(:)
 INTEGER                          :: iReact, RecombReactID
-!REAL                             :: NormProb
 REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3)
@@ -2126,7 +2115,7 @@ CASE (101) ! constant condensation coefficient
     interactionCase = 1
   END IF
 CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
-  IF (PartBound%Spec(locBCID).EQ.SpecID) THEN
+  IF (Adsorption%SurfaceSpec(locBCID,SpecID)) THEN
     interactionCase = 4
     velocityDistribution='liquid_refl'
     Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)

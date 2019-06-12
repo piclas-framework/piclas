@@ -276,18 +276,22 @@ DO iSpec = 1,nSpecies
             PartEvap = 0.
           END IF
         CASE(101,102)
-          LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-          ! Antoine parameters defined in ini file are chosen so pressure given is in bar
-          A = PartBound%ParamAntoine(1,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-          B = PartBound%ParamAntoine(2,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-          C = PartBound%ParamAntoine(3,PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
-          ! Use Antoine Eq. to calculate pressure vapor
-          pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
-          ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
-          PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
-                   * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt &
-                   * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
-          WallPartNum = PartEvap
+          IF (Adsorption%SurfaceSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )),iSpec)) THEN
+            LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+            ! Antoine parameters defined in ini file are chosen so pressure given is in bar
+            A = Species(iSpec)%ParamAntoine(1)
+            B = Species(iSpec)%ParamAntoine(2)
+            C = Species(iSpec)%ParamAntoine(3)
+            ! Use Antoine Eq. to calculate pressure vapor
+            pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
+            ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
+            PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
+                     * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt &
+                     * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+            WallPartNum = PartEvap
+          ELSE
+            WallPartNum = 0
+          END IF
         CASE DEFAULT
           WallPartNum = 0
         END SELECT

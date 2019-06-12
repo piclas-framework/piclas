@@ -229,8 +229,7 @@ CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter, iPB
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase
-INTEGER             :: iCov, iSpec
-CHARACTER(LEN=350)  :: hilf
+INTEGER             :: iSpec
 REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies), Accomodation(nSpecies)
 REAL                :: EvaporationRate(nSpecies)
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
@@ -920,8 +919,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*MPI*/
@@ -985,7 +983,6 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*MPI*/
@@ -1118,7 +1115,6 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*MPI*/
@@ -1281,9 +1277,8 @@ SUBROUTINE GetSurfHeatFluxes(HeatFlux,AdsReactCount,DesReactCount)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh
+USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 #endif /*MPI*/
@@ -1414,7 +1409,7 @@ SUBROUTINE AnalyzeSurfRates(AnalyzeCase,SpecID,ReactionID,EAct,nuReact,Probabili
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars         ,ONLY: DSMC
-USE MOD_SurfaceModel_Vars ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars ,ONLY: SurfModel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)            :: AnalyzeCase      !1: meansurfrate, 2: propersurfrate

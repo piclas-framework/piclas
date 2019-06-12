@@ -89,8 +89,8 @@ REAL,INTENT(OUT)   :: TransArray(1:6),IntArray(1:6)
 REAL    :: oldVelo(1:3)
 REAL    :: VeloReal
 REAL    :: EtraOld, EtraWall, EtraNew
-REAL    :: ErotOld, ErotWall, ErotNew
-REAL    :: EvibOld, EvibWall, EvibNew
+REAL    :: ErotWall, ErotNew
+REAL    :: EvibWall, EvibNew
 REAL    :: RanNum
 INTEGER :: VibQuant, iDOF, iPolyatMole
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -168,9 +168,9 @@ REAL,INTENT(OUT)   :: TransArray(1:6),IntArray(1:6)
 ! LOCAL VARIABLES
 !REAL    :: oldVelo(1:3)
 REAL    :: VeloReal
-REAL    :: EtraOld, EtraWall, EtraNew
-REAL    :: ErotOld, ErotWall, ErotNew
-REAL    :: EvibOld, EvibWall, EvibNew
+!REAL    :: EtraOld, EtraWall, EtraNew
+REAL    :: ErotWall, ErotNew
+REAL    :: EvibWall, EvibNew
 REAL    :: RanNum
 REAL    :: NormProb
 INTEGER :: VibQuant, iDOF, iPolyatMole

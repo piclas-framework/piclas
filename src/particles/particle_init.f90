@@ -303,6 +303,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
                                 , 'Particle Mass (without MPF) of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption(  'Part-Species[$]-ParamAntoine'  &
+                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
@@ -890,11 +893,6 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidStructure'  &
   , 'Defines the structure of the replicated surface [surfacemodel=3]:\n 1: fcc(100)\n 2: fcc(111)', '2', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SolidCrystalIndx'  &
                                 , 'Set number of interaction for hollow sites.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-Spec'  &
-                                , 'Set used species of Boundary', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-ParamAntoine'  &
-                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
@@ -1545,6 +1543,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
+      Species(iSpec)%ParamAntoine(1:3)     = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-ParamAntoine',3,'0. , 0. , 0.')
 #if defined(IMPA)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
 #endif
@@ -2192,8 +2191,6 @@ ALLOCATE(PartBound%AmbientDynamicVisc(1:nPartBound))
 ALLOCATE(PartBound%AmbientThermalCond(1:nPartBound))
 ALLOCATE(PartBound%SurfaceModel(1:nPartBound))
 ALLOCATE(PartBound%Reactive(1:nPartBound))
-ALLOCATE(PartBound%Spec(1:nPartBound))
-ALLOCATE(PartBound%ParamAntoine(1:3,1:nPartBound))
 ALLOCATE(PartBound%SolidState(1:nPartBound))
 ALLOCATE(PartBound%SolidPartDens(1:nPartBound))
 ALLOCATE(PartBound%SolidMassIC(1:nPartBound))
@@ -2203,7 +2200,6 @@ ALLOCATE(PartBound%SolidCrystalIndx(1:nPartBound))
 PartBound%SolidState(1:nPartBound)=.FALSE.
 PartBound%Reactive(1:nPartBound)=.FALSE.
 PartBound%SurfaceModel(1:nPartBound)=0
-PartBound%Spec(1:nPartBound)=0
 
 ALLOCATE(PartBound%Adaptive(1:nPartBound))
 ALLOCATE(PartBound%AdaptiveType(1:nPartBound))
@@ -2329,18 +2325,6 @@ __STAMP__&
          hilf2 ='3'
        END IF
        PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
-     END IF
-     PartBound%Spec(iPartBound)            = GETINT('Part-Boundary'//TRIM(hilf)//'-Spec')
-     IF (PartBound%Spec(iPartBound).GT.nSpecies) CALL abort(&
-__STAMP__&
-     ,'Particle Boundary Liquid Species not defined. Liquid Species: ',PartBound%Spec(iPartBound))
-     ! Parameters for evaporation pressure using Antoine Eq.
-     PartBound%ParamAntoine(1:3,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
-     IF ( (.NOT.PartBound%SolidState(iPartBound)) .AND. (ALMOSTZERO(PartBound%ParamAntoine(1,iPartBound))) &
-          .AND. (ALMOSTZERO(PartBound%ParamAntoine(2,iPartBound))) .AND. (ALMOSTZERO(PartBound%ParamAntoine(3,iPartBound))) ) THEN
-        CALL abort(&
-__STAMP__&
-       ,'Antoine Parameters not defined for Liquid Particle Boundary: ',iPartBound)
      END IF
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
        !read Species to be changed at wall (in, out), out=0: delete
@@ -3312,8 +3296,6 @@ SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%Reactive)
-SDEALLOCATE(PartBound%Spec)
-SDEALLOCATE(PartBound%ParamAntoine)
 SDEALLOCATE(PartBound%SolidState)
 SDEALLOCATE(PartBound%SolidPartDens)
 SDEALLOCATE(PartBound%SolidMassIC)
