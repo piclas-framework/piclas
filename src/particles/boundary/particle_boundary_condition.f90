@@ -1910,7 +1910,7 @@ END SELECT
 END FUNCTION PARTSWITCHELEMENT
 
 
-SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,flip,IsSpeciesSwap,&
+SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi,eta,PartID,sideID_IN,flip,IsSpeciesSwap,&
                               adsindex,BCSideID,Opt_Reflected,TriNum)
 !===================================================================================================================================
 !> Routine for Selection of Surface interaction
@@ -1939,17 +1939,18 @@ USE MOD_SEE                    ,ONLY: SEE_PartDesorb
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(INOUT)            :: adsindex
-REAL,INTENT(INOUT)               :: PartTrajectory(1:3), LengthPartTrajectory, alpha
-REAL,INTENT(IN)                  :: xi, eta
-INTEGER,INTENT(IN)               :: PartID, GlobSideID
-INTEGER,INTENT(IN)               :: flip
-LOGICAL,INTENT(IN)               :: IsSpeciesSwap
-INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
-INTEGER,INTENT(IN),OPTIONAL      :: TriNum
+INTEGER,INTENT(INOUT)       :: adsindex
+REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
+REAL,INTENT(IN)             :: xi, eta
+INTEGER,INTENT(IN)          :: PartID
+INTEGER,INTENT(IN)          :: sideID_IN
+INTEGER,INTENT(IN)          :: flip
+LOGICAL,INTENT(IN)          :: IsSpeciesSwap
+INTEGER,INTENT(IN),OPTIONAL :: BCSideID
+INTEGER,INTENT(IN),OPTIONAL :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT),OPTIONAL     :: Opt_Reflected
+LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: RanNum
@@ -1977,6 +1978,7 @@ REAL                             :: POI_fak, TildTrajectory(3)
 CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
 !===================================================================================================================================
 
+! find normal vector two perpendicular tangential vectors
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1990,21 +1992,22 @@ IF(PRESENT(BCSideID))THEN
   END SELECT
 ELSE
   IF (TriaTracking) THEN
-    CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=GlobSideID)
+    CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=sideID_IN)
   ELSE
-    SELECT CASE(SideType(GlobSideID))
+    SELECT CASE(SideType(sideID_IN))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
-      n_loc=SideNormVec(1:3,GlobSideID)
-        tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,GlobSideID)-BezierControlPoints3D(:,0,0,GlobSideID))
+      n_loc=SideNormVec(1:3,sideID_IN)
+        tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,sideID_IN)-BezierControlPoints3D(:,0,0,sideID_IN))
         tang2=CROSSNORM(n_loc,tang1)
     CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,sideID_IN)
     CASE(CURVED)
-      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,sideID_IN)
     END SELECT
     IF(flip.NE.0) n_loc=-n_loc
   END IF
 END IF
+
 ! check if BC was already crossed
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
@@ -2014,7 +2017,7 @@ ELSE
 END IF
 
 ! additional states
-locBCID=PartBound%MapToPartBC(BC(GlobSideID))
+locBCID=PartBound%MapToPartBC(BC(sideID_IN))
 ! get BC values
 WallVelo     = PartBound%WallVelo(1:3,locBCID)
 WallTemp     = PartBound%WallTemp(locBCID)
@@ -2034,7 +2037,7 @@ ELSE
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
 END IF
 
-SurfSideID = SurfMesh%SideIDToSurfID(GlobSideID)
+SurfSideID = SurfMesh%SideIDToSurfID(sideID_IN)
 SpecID = PartSpecies(PartID)
 #if (PP_TimeDiscMethod==42)  
 ! Update wallcollision counter

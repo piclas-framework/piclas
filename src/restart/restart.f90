@@ -348,7 +348,8 @@ INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDa
 INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
 INTEGER                            :: iCoord, SpecID, iSurfSide, isubsurf, jsubsurf, iInterAtom
-INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nSurfBC_HDF5!, Wallmodel_HDF5
+INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nVarSurf_HDF5, nSurfBC_HDF5, nSurfSides_HDF5, N_HDF5
+CHARACTER(LEN=255)                 :: NodeType_HDF5
 LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 #endif /*PARTICLES*/
@@ -1212,40 +1213,40 @@ __STAMP__&
   ELSE
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
   END IF ! PartIntExists
+  WallModelExists(:)=.FALSE.
   IF (ANY(PartBound%Reactive)) THEN
     ! check if datasets for restarting of surface model from state exists in state file used for restart
-    WallModelExists(:)=.TRUE.
     SurfModelTypeExists=.FALSE.
     CALL DatasetExists(File_ID,'SurfModelType',SurfModelTypeExists)
     CALL CloseDataFile()
     IF (SurfModelTypeExists) THEN
-      ALLOCATE(SurfModelType(SurfMesh%nSides))
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            nSides          => INT(SurfMesh%nSides,IK) ,&
-            nSpecies        => INT(nSpecies,IK) ,&
-            offsetSurfSide  => INT(offsetSurfSide,IK) )
-        CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
-                       offsetSurfSide,1,IntegerArray_i4=SurfModelType)
-      END ASSOCIATE
-      DO iSurfSide=1,SurfMesh%nSides
-        SideID = SurfMesh%SurfIDToSideID(iSurfSide)
-        PartboundID = PartBound%MapToPartBC(BC(SideID))
-        IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
-          WallModelExists(PartBoundID)=.FALSE.
-          EXIT
-        END IF
-      END DO
-    ELSE
-      WallModelExists(:)=.FALSE.
+      SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
+      CALL GetDataProps('SurfModelType',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
+      SWRITE(UNIT_stdOut,'(A)')' DONE!'
+      IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
+        SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
+      ELSE
+        ALLOCATE(SurfModelType(SurfMesh%nSides))
+        ! Associate construct for integer KIND=8 possibility
+        ASSOCIATE (&
+              nSides          => INT(SurfMesh%nSides,IK) ,&
+              nSpecies        => INT(nSpecies,IK) ,&
+              offsetSurfSide  => INT(offsetSurfSide,IK) )
+          CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
+                         offsetSurfSide,1,IntegerArray_i4=SurfModelType)
+        END ASSOCIATE
+        WallModelExists(:)=.TRUE.
+        DO iSurfSide=1,SurfMesh%nSides
+          SideID = SurfMesh%SurfIDToSideID(iSurfSide)
+          PartboundID = PartBound%MapToPartBC(BC(SideID))
+          IF (PartBound%SurfaceModel(PartboundID).NE.SurfModelType(iSurfSide)) THEN
+            WallModelExists(PartBoundID)=.FALSE.
+            EXIT
+          END IF
+        END DO
+      END IF ! nsurfsides_hdf5 != nglobalsurfsides
     END IF
-    !WallmodelExists=.FALSE.
-    !CALL DatasetExists(File_ID,'WallModel',WallmodelExists,attrib=.TRUE.)
-    !IF (WallmodelExists) THEN
-    !  CALL ReadAttribute(File_ID,'WallModel',1,IntegerScalar=WallModel_HDF5)
-    !  IF (WallModel_HDF5.NE.PartSurfaceModel) WallmodelExists=.FALSE.
-    !END IF
-    !IF (WallModelExists) THEN
+    IF (ANY(WallModelExists(:))) THEN
       SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...' 
       ! do sanity checks of data in h5 file before proceeding
       CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
@@ -1402,9 +1403,9 @@ __STAMP__&
           END IF ! SurfPartIntExists
         !END IF ! PartSurfaceModel.EQ.3
       END IF ! SurfCalcDataExists
-    !ELSE
-    !  SWRITE(UNIT_stdOut,*)'Data for current wallmodel does not exists in restart file'
-    !END IF ! WallModel_HDF5.NE.PartSurfaceModel
+    ELSE
+      SWRITE(UNIT_stdOut,*)'Data for current wallmodel does not exists in restart file'
+    END IF ! WallModel_HDF5.NE.PartSurfaceModel
   END IF
 #endif /*PARTICLES*/
 
