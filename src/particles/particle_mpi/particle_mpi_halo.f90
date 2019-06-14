@@ -303,13 +303,13 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToElemGlob,OffSetElem
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToElemGlob,OffSetElem, MortarType, MortarInfo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix,nPartSides,PartElemToSide,PartSideToElem &
                                        ,SidePeriodicType
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
 USE MOD_Mappings,                  ONLY:SideToAdjointLocSide
-USE MOD_Particle_Tracking_Vars,    ONLY:CartesianPeriodic
+USE MOD_Particle_Tracking_Vars,    ONLY:CartesianPeriodic, TriaTracking
 !USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -331,6 +331,7 @@ LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
 INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint!,flip,AdjointLocSideID(2)
+INTEGER                  :: ind, nbSideID, nMortarElems, SideIDMortar
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -665,6 +666,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END IF
 END IF  ! nperiodicvectors>0
 
+
 ! finally, all elements connected to this side have to be marked
 ! this is a sanity step and could be omitted
 DO iSide=1,nPartSides
@@ -677,13 +679,64 @@ DO iSide=1,nPartSides
         NbOfElems=NbOfElems+1
         ElemIndex(ElemID)=NbofElems
       END IF
+      
+      IF (TriaTracking) THEN
+        DO iLocSide = 1, 6
+          nbSideID =  PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)  
+          SideIDMortar = MortarType(2,nbSideID)     
+          IF (SideIDMortar.GT.0) THEN              
+            IF (MortarType(1,nbSideID).EQ.1) THEN
+              nMortarElems = 4            
+            ELSE  
+              nMortarElems = 2
+            END IF
+            DO ind = 1, nMortarElems
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              iElem = PartSideToElem(S2E_ELEM_ID   ,nbSideID)
+              IF (iElem.LT.0) iElem = PartSideToElem(S2E_NB_ELEM_ID   ,nbSideID)
+              IF((iElem.GT.0).AND.(iElem.LE.PP_nElems))THEN
+                IF(ElemIndex(iElem).EQ.0)THEN
+                  NbOfElems=NbOfElems+1
+                  ElemIndex(iElem)=NbofElems
+                END IF
+              END IF
+            END DO 
+          END IF
+        END DO
+      END IF
     END IF
+
     ! slave
     ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
     IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
       IF(ElemIndex(ElemID).EQ.0)THEN
         NbOfElems=NbOfElems+1
         ElemIndex(ElemID)=NbofElems
+      END IF
+
+      IF (TriaTracking) THEN
+        DO iLocSide = 1, 6
+          nbSideID =  PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)  
+          SideIDMortar = MortarType(2,nbSideID)     
+          IF (SideIDMortar.GT.0) THEN              
+            IF (MortarType(1,nbSideID).EQ.1) THEN
+              nMortarElems = 4            
+            ELSE  
+              nMortarElems = 2
+            END IF
+            DO ind = 1, nMortarElems
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              iElem = PartSideToElem(S2E_ELEM_ID   ,nbSideID)
+              IF (iElem.LT.0) iElem = PartSideToElem(S2E_NB_ELEM_ID   ,nbSideID)
+              IF((iElem.GT.0).AND.(iElem.LE.PP_nElems))THEN
+                IF(ElemIndex(iElem).EQ.0)THEN
+                  NbOfElems=NbOfElems+1
+                  ElemIndex(iElem)=NbofElems
+                END IF
+              END IF
+            END DO 
+          END IF
+        END DO
       END IF
     END IF
   END IF

@@ -212,18 +212,16 @@ USE MOD_Mesh_Vars,          ONLY:BoundaryType
 USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
 USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
-#ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
-#endif
-USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
 USE MOD_IO_HDF5
 #ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime
+USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
+USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,   ONLY:nSurfacePartsPerElem
+#endif
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -267,11 +265,14 @@ INTEGER,ALLOCATABLE            :: MPISideCount(:)
 #endif
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists,ElemTimeExists
+LOGICAL                        :: isMortarMeshExists
+#ifdef MPI
 INTEGER                        :: nVal(15),iVar
+LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+#endif
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -402,6 +403,7 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
+  DEALLOCATE(WeightSum_proc)
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.
@@ -410,8 +412,6 @@ ELSE
 END IF
 
 SDEALLOCATE(ElemGlobalTime)
-
-
 
 #ifdef PARTICLES
 ! Re-allocate nPartsPerElem depending on new number of elements
