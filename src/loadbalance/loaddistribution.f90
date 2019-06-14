@@ -222,11 +222,23 @@ ALLOCATE(PartsInElem(1:nGlobalElems))
 PartsInElem=0
 
 #ifdef PARTICLES
+
+! ALLOCATE(timeWeight(nGlobalelems))
+! timeWeight = 1.0
+! IF(VarTimeStep%UseDistribution) THEN
+!   ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
+!   ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
+!   IF(VarTimeStep%AdaptDistribution) THEN
+!     timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
+!   END IF
+! END IF
+
 IF (PartIntExists) THEN
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
     PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
     IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
+    ! IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
   END DO
 END IF
 #endif /*PARTICLES*/

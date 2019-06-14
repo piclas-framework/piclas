@@ -941,7 +941,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
       DSMC%NumOfElemFormations(iElem) =  DSMC%NumOfElemFormations(iElem) + 1
       IF (DSMC%NumOfElemFormations(iElem).GT.DSMC%SampSizeMeanPartNum) THEN
         DSMC%NumOfElemFormations(iElem) = 1
-        DSMC%MaxSampSizeReached(iElem) = .TRUE.    
+        DSMC%MaxSampSizeReached(iElem) = .TRUE.
       END IF
       DSMC%PartNumMean(DSMC%NumOfElemFormations(iElem),:, iElem) = SpecPartNum(:)
       IF (DSMC%MaxSampSizeReached(iElem)) THEN

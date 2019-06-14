@@ -232,6 +232,10 @@ USE MOD_ReadInTools
 USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
 USE MOD_StringTools,        ONLY:STRICMP
 #endif
+#ifdef PARTICLES
+USE MOD_Particle_Vars       ,ONLY:VarTimeStep
+USE MOD_Particle_VarTimeStep,ONLY:VarTimeStep_InitDistribution
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -272,6 +276,7 @@ INTEGER                        :: nVal(15),iVar
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -305,6 +310,12 @@ SDEALLOCATE(PartDistri)
 ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
+
+IF(VarTimeStep%UseDistribution) THEN
+! Initialize variable time step distribution (done before domain decomposition to include time step as weighting for load balance)
+! Get the time step factor distribution or calculate it from quality factors from the DSMC state (from the MacroRestartFileName)
+  CALL VarTimeStep_InitDistribution()
+END IF
 
 IF (DoRestart) THEN 
   !--------------------------------------------------------------------------------------------------------------------------------!
@@ -447,14 +458,31 @@ nElems=nGlobalElems   ! Local number of Elements
 offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
 #endif /* MPI */
 
-
-
-
-
-!IPWRITE (*,*) "MPI_BARRIER"
-!#ifdef MPI
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-!#endif /* MPI */
+!----------------------------------------------------------------------------------------------------------------------------
+!                              VARIABLE TIME STEP
+!----------------------------------------------------------------------------------------------------------------------------
+IF(VarTimeStep%UseDistribution) THEN
+  IF(ALLOCATED(VarTimeStep%ElemFac)) THEN
+    ALLOCATE(GlobVarTimeStep(nGlobalElems))
+    GlobVarTimeStep(1:nGlobalelems) = VarTimeStep%ElemFac(1:nGlobalelems)
+    ! Allocate new array for the time step distribution (going from global time step distribution to proc local with nElems)
+    DEALLOCATE(VarTimeStep%ElemFac)
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    ! And now get the new variable time steps for the respective elements
+    VarTimeStep%ElemFac(1:nElems) = GlobVarTimeStep(offsetElem+1:offsetElem+nElems)
+    ! Global distribution is not required anymore
+    DEALLOCATE(GlobVarTimeStep)
+  ELSE
+    ! Allocate the array for the element-wise time step factor
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    VarTimeStep%ElemFac = 1.0
+#ifdef MPI
+    ! Allocate the array for the element-wise weighting factor
+    ALLOCATE(VarTimeStep%ElemWeight(nElems))
+    VarTimeStep%ElemWeight = 1.0
+#endif
+  END IF
+END IF
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()

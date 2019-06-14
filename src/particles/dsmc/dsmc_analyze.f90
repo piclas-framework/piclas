@@ -1758,14 +1758,6 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         END DO
       END IF
     END ASSOCIATE
-    IF(VarTimeStep%UseVariableTimeStep) THEN
-      IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
-        ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
-        ! midpoint is used to calculate the time step
-        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
-      END IF
-      DSMC_MacroVal(nVarLoc*nSpecTemp+13,kk,ll,mm,iElem) = VarTimeStep%ElemFac(iElem)
-    END IF
   END DO
 
   ! write dsmc quality values
@@ -1785,6 +1777,15 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
         DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
       END IF
       nVarCount = nVar + 3
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+          ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
+          ! midpoint is used to calculate the time step
+          VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
+        END IF
+        DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = VarTimeStep%ElemFac(iElem)
+        nVarCount = nVarCount + 1
+      END IF
       IF(RadialWeighting%DoRadialWeighting) THEN
         IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
           DSMC_MacroVal(nVarCount+1:nVarCount+2,kk,ll,mm,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
@@ -2097,10 +2098,9 @@ ELSE
   nVar=nVarloc*(nSpecies+1)
 END IF
 
-IF(VarTimeStep%UseVariableTimeStep) nVar = nVar + 1
-
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
+  IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%DoRadialWeighting) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 4
   IF(FPInitDone) nVar_quality = nVar_quality + 5
@@ -2142,16 +2142,15 @@ StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Total_SimPartNum'
 StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TempTransMean'
 nVarCount=nVarCount+nVarloc
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
-  StrVarNames(nVarCount+1) ='VariableTimeStep'
-  nVarCount = nVarCount + 1
-END IF
-
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
   nVarCount=nVarCount+3
+  IF(VarTimeStep%UseVariableTimeStep) THEN
+    StrVarNames(nVarCount+1) ='VariableTimeStep'
+    nVarCount = nVarCount + 1
+  END IF
   IF(RadialWeighting%DoRadialWeighting) THEN
     StrVarNames(nVarCount+1) = '2D_ClonesInCell'
     StrVarNames(nVarCount+2) = '2D_IdenticalParticles'

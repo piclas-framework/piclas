@@ -151,17 +151,22 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
                                          ,'Only TD=Reservoir (42). ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
-                                         ,'Use octree method for dynamic grid resolution', '.FALSE.')
+                                         ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
+                                          'and the particle number', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
                                          ,'Resolve grid until the maximum number of particles in a subcell equals'//&
-                                          ' OctreePartNumNode.', '80')
+                                          ' OctreePartNumNode')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
-                                          'OctreePartNumNodeMin.', '50')
+                                          'OctreePartNumNodeMin')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
                                          ,' TO-DO', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
-                                         ,' TO-DO', '.FALSE.')
+                                         ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
+                                          'same particle pairs in order to reduce the statistical dependence')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
+                                         ,'2D/Axisymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
+                                          'the minimum particle per subcell requirement', '.FALSE.')
 
 
 CALL prms%SetSection("DSMC Species")
@@ -398,9 +403,15 @@ IMPLICIT NONE
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     IF(SelectionProc.NE.1) THEN
       CALL abort(__STAMP__&
-,'ERROR: Radial weighting or variable time step is not implemented with the following SelectionProcedure: ' &
+,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
 ,IntInfoOpt=SelectionProc)
     END IF
+  END IF
+
+  DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
+  IF(DSMC%MergeSubcells.AND.(.NOT.Symmetry2D)) THEN
+    CALL abort(__STAMP__&
+,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
   END IF
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')  
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
@@ -1118,14 +1129,22 @@ __STAMP__&
     END IF
   END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
+  ELSE
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
-  ! 50 / 8 -> ca. 6-7 particles per cell
-  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+  ELSE
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  END IF
   IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
     CALL abort(&
     __STAMP__&
-    ,'Particles-OctreePartNumNodeMin is less than 20')
+    ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
@@ -1133,11 +1152,18 @@ __STAMP__&
 ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
-
-  CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
-  IF (CollInf%ProhibitDoubleColl) THEN
-    IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
-    CollInf%OldCollPartner = 0
+  IF(Symmetry2D) THEN
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
+    IF (CollInf%ProhibitDoubleColl) THEN
+      IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+      CollInf%OldCollPartner = 0
+    END IF
+  ELSE
+    IF (CollInf%ProhibitDoubleColl) THEN
+      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
+      CALL abort(__STAMP__,&
+                'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
+    END IF
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

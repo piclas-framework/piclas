@@ -1017,13 +1017,23 @@ ASSOCIATE (&
                              communicator = PartMPI%COMM  , RealArray = PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     CALL DistributedWriteArray(FileName , &
-                               DataSetName ='VibQuantData', rank=2            , &
-                               nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
-                               nVal        =(/locnPart    , MaxQuantNum  /)   , &
-                               offset      =(/offsetnPart , 0_IK  /)          , &
-                               collective  =.FALSE.       , offSetDim=1       , &
-                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
+                              DataSetName ='VibQuantData', rank=2            , &
+                              nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
+                              nVal        =(/locnPart    , MaxQuantNum  /)   , &
+                              offset      =(/offsetnPart , 0_IK  /)          , &
+                              collective  =.FALSE.       , offSetDim=1       , &
+                              communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
+  END IF
+  ! Output of the element-wise time step as a separate container in state file
+  IF(VarTimeStep%UseDistribution) THEN
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName = 'PartTimeStep'  , rank=2      , &
+                              nValGlobal  = (/nGlobalElems  , 1_IK/)      , &
+                              nVal        = (/PP_nElems     , 1_IK/)      , &
+                              offset      = (/offsetElem    , 0_IK/)      , &
+                              collective  =.FALSE.          , offSetDim=1 , &
+                              communicator=PartMPI%COMM     , RealArray=VarTimeStep%ElemFac)
   END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1040,17 +1050,16 @@ ASSOCIATE (&
                           collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
-  CALL CloseDataFile()
-#endif /*MPI*/
-
-  ! Output of the element-wise time step as a separate container in state file
+    ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2    ,&
-                          nValGlobal  = (/nGlobalElems  , 1_IK/)    ,&
-                          nVal        = (/PP_nElems     , 1_IK/)    ,&
-                          offset      = (/offsetElem    , 0_IK/)    ,&
+    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2, &
+                          nValGlobal  = (/nGlobalElems  , 1_IK/), &
+                          nVal        = (/PP_nElems     , 1_IK/)   ,&
+                          offset      = (/offsetElem    , 0_IK/)  ,&
                           collective  = .FALSE.         , RealArray=VarTimeStep%ElemFac)
   END IF
+  CALL CloseDataFile()
+#endif /*MPI*/
 
 END ASSOCIATE
 ! reswitch

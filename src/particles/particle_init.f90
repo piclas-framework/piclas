@@ -981,16 +981,16 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
 
 CALL prms%SetSection("Particle Symmetry")
 CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
-                                                      'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
+                              'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
-                                                      'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
-                                                      'simulation based on the particle position.', '.FALSE.')
+                              'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
                               'be twice as large at the outer radial domain boudary than at the rotational axis', '1.')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
-                                                      'where every particle has the same weighting within a cell', '.FALSE.')
+                              'where every particle has the same weighting within a cell', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-MinPartWeightShift'  &
                             , 'Factor between 0 and 1 to reduce the radial weighting towards the rotational axis', '1.')
 CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode'  &
@@ -2988,7 +2988,7 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
       ALLOCATE(VarTimeStep%ElemFac(nElems))
       VarTimeStep%ElemFac = 1.0
     ELSE
-      ! 3D: The time step for each cell is precomputed
+      ! 3D: The time step for each cell is precomputed, ElemFac is allocated in the routine
       CALL VarTimeStep_CalcElemFacs()
     END IF
   END IF

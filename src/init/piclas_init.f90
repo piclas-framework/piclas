@@ -138,14 +138,6 @@ IF(Symmetry2DAxisymmetric) THEN
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
 END IF
-!--- Variable time step
-VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
-IF (VarTimeStep%UseVariableTimeStep)  THEN
-  CALL VarTimeStep_Init()
-ELSE
-  VarTimeStep%UseLinearScaling = .FALSE.
-  VarTimeStep%UseDistribution = .FALSE.
-END IF
 
 useLD=GETLOGICAL('UseLD','.FALSE.')
 IF(useLD) useDSMC=.TRUE.
@@ -167,6 +159,16 @@ ELSE
   CALL InitMortar()
   CALL InitRestart()
 END IF
+
+!--- Variable time step
+VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
+IF (VarTimeStep%UseVariableTimeStep)  THEN
+  CALL VarTimeStep_Init()
+ELSE
+  VarTimeStep%UseLinearScaling = .FALSE.
+  VarTimeStep%UseDistribution = .FALSE.
+END IF
+
 CALL InitMesh()
 #ifdef MPI
 CALL InitMPIVars()

@@ -495,6 +495,8 @@ These parameters allow the simulation of non-reactive gases. Additional paramete
 
 WIP: octree, nearest neighbor, VHS
 
+Particles-DSMC-ProhibitDoubleCollision [@Shevyrin2005,@Akhlaghi2018]
+
 ### Relaxation \label{sec:dsmc_relaxation}
 
 WIP

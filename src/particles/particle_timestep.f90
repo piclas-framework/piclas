@@ -46,15 +46,16 @@ CALL prms%CreateLogicalOption('Part-VariableTimeStep', 'TODO-DEFINE-PARAMETER', 
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP'  &
-                            , 'TODO-DEFINE-PARAMETER')
+                            , 'TODO-DEFINE-PARAMETER', '0.25')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
-                            , 'TODO-DEFINE-PARAMETER')
+                            , 'TODO-DEFINE-PARAMETER', '0.8')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
                             , 'Maximal time factor to avoid too large time steps and problems with halo region/particle cloning')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
                             , 'TODO-DEFINE-PARAMETER')
 CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
-                            , 'Optional: Increase number of particles by decreasing the time step',  '0')
+                            , 'Optional: Define a minimum number of particles per cells to increase the number of particles by '//&
+                              'decreasing the time step', '0')
 ! Linear Scaling
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
@@ -128,14 +129,14 @@ IF(VarTimeStep%UseDistribution) THEN
   ! Read-in of the maximal collision probability from the DSMC state file and calculate the appropriate time step
   ! Particle time step is utilized for this purpose, although element-wise time step is stored in VarTimeStep%ElemFacs
   ! Flag if the time step distribution should be adapted (else read-in, if array does not exist: abort)
-  VarTimeStep%AdaptDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution-Adapt','.FALSE.')
-  VarTimeStep%TargetMCSoverMFP = GETREAL('Part-VariableTimeStep-Distribution-TargetMCSoverMFP','0.25')
-  VarTimeStep%TargetMaxCollProb = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxCollProb','0.8')
+  VarTimeStep%AdaptDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution-Adapt')
+  VarTimeStep%TargetMCSoverMFP = GETREAL('Part-VariableTimeStep-Distribution-TargetMCSoverMFP')
+  VarTimeStep%TargetMaxCollProb = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxCollProb')
   ! Read of maximal time factor to avoid too large time steps and problems with halo region/particle cloning
-  VarTimeStep%DistributionMaxTimeFactor = GETREAL('Part-VariableTimeStep-Distribution-MaxFactor','1.')
-  VarTimeStep%DistributionMinTimeFactor = GETREAL('Part-VariableTimeStep-Distribution-MinFactor','0.001')
+  VarTimeStep%DistributionMaxTimeFactor = GETREAL('Part-VariableTimeStep-Distribution-MaxFactor')
+  VarTimeStep%DistributionMinTimeFactor = GETREAL('Part-VariableTimeStep-Distribution-MinFactor')
   ! Optional: Increase number of particles by decreasing the time step
-  VarTimeStep%DistributionMinPartNum = GETINT('Part-VariableTimeStep-Distribution-MinPartNum','0')
+  VarTimeStep%DistributionMinPartNum = GETINT('Part-VariableTimeStep-Distribution-MinPartNum')
 END IF
 IF((.NOT.VarTimeStep%UseLinearScaling).AND.(.NOT.VarTimeStep%UseDistribution)) THEN
   CALL abort(&
@@ -159,21 +160,24 @@ SUBROUTINE VarTimeStep_InitDistribution()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray
 USE MOD_io_hdf5
-USE MOD_Mesh_Vars,              ONLY: nGlobalElems
-USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry2D, nSpecies
-USE MOD_Restart_Vars,           ONLY: DoRestart, RestartFile
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,ReadAttribute,GetDataProps
+USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry2D
+USE MOD_Restart_Vars,           ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
+USE MOD_StringTools             ,ONLY:STRICMP
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                           :: iElem
+INTEGER                           :: iElem, iVar
 LOGICAL                           :: TimeStepExists, QualityExists, TimeStepModified
-REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:,:)
+REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:)
 REAL                              :: TimeFracTemp
+CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
+INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum
+REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
@@ -181,129 +185,159 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
 TimeStepExists = .FALSE.
 QualityExists = .FALSE.
 
-! Allocate the array for the element-wise time step factor
-ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
-VarTimeStep%ElemFac = 1.0
-#ifdef MPI
-! Allocate the array for the element-wise weighting factor
-ALLOCATE(VarTimeStep%ElemWeight(nGlobalElems))
-VarTimeStep%ElemWeight = 1.0
-#endif
-
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
-  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=PartMPI%COMM)
+  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL DatasetExists(File_ID,'PartTimeStep',TimeStepExists)
   IF(TimeStepExists) THEN
+    ! Allocate the array for the element-wise time step factor
+    ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
+    VarTimeStep%ElemFac = 1.0
+    ! Read-in of the time step
     ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK))
       CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
     END ASSOCIATE
     SWRITE(UNIT_stdOut,*)'Variable Time Step: Read-in of timestep distribution from state file.'
+#ifdef MPI
+    ! Allocate the array for the element-wise weighting factor
+    ALLOCATE(VarTimeStep%ElemWeight(nGlobalElems))
+    VarTimeStep%ElemWeight = 1.0
+#endif
   ELSEIF(.NOT.VarTimeStep%AdaptDistribution) THEN
     CALL abort(__STAMP__, &
       'ERROR: Variable time step requires a given timestep distribution or -Distribution-Adapt=T!')
   END IF
   CALL CloseDataFile()
-ELSE
+ELSE  ! No Restart
   IF(.NOT.VarTimeStep%AdaptDistribution) THEN
-    SWRITE(UNIT_stdOut,'(A)') '| Variable Time Step: No restart and no adaption of time step distribution selected.'
+    SWRITE(UNIT_stdOut,'(A)') '| Variable Time Step: No restart with given distribution and no adaption of the time step selected.'
     SWRITE(UNIT_stdOut,'(A)') '| Variable Time Step: Time step distribution is initialized uniformly with 1.'
+    ! This is performed after each processor knows how many elements it will receive.
   END IF
-END IF
+END IF ! DoRestart = T/F
 
-! WORK IN PROGRESS
-! IF(VarTimeStep%AdaptDistribution) THEN
-!   IF(TRIM(MacroRestartFileName).EQ.'no-file-given') THEN
-!     CALL abort(__STAMP__,&
-!     'ERROR: No filename for your fancy time travelling unicorn restart defined!')
-!   END IF
-!   SWRITE(UNIT_stdOut,'(A)') &
-!     ' | Variable Time Step: Adapting the time step according to quality factors in the given DSMC state file.'
-!   IF((.NOT.DoMacroscopicRestart).OR.(.NOT.DoRestart)) THEN
-!     CALL abort(__STAMP__,&
-!     'ERROR: It is required to use a restart and macrorestart when adapting the time step distribution!')
-!   END IF
-!   ! Open DSMC state file
-! #ifdef MPI
-!   CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.)
-! #else
-!   CALL OpenDataFile(MacroRestartFileName,create=.FALSE.)
-! #endif
-!   ! Read-in of DSMC quality factors to calculate the required timestep for particle time step
-!   ! 1: MaxCollProb, 2: MeanCollProb, 3: MCSoverMFP
-!   ALLOCATE(DSMCQualityFactors(nGlobalElems,1:3))
-!   DSMCQualityFactors = 0.
-!   CALL DatasetExists(File_ID,'DSMC_quality',QualityExists)
-!   IF(QualityExists) THEN
-!     CALL ReadArray('DSMC_quality',2,(/nGlobalElems, 3/),0,1,RealArray=DSMCQualityFactors(1:nGlobalElems,1:3))
-!   ELSE
-!     CALL abort(__STAMP__, &
-!     'ERROR: Variable time step using a distribution requires quality factors within the DSMC state!')
-!   END IF
-!   ! Get the particle numbers per cell
-!   ALLOCATE(PartNum(nGlobalElems,nSpecies+1))
-!   CALL ReadArray('DSMC_partnum',2,(/nGlobalElems,nSpecies+1/),0,1,RealArray=PartNum(1:nGlobalElems,1:nSpecies+1))
-!   ! Calculating the time step per element based on the read-in max collision prob and mean collision separation
-!   DO iElem = 1, nGlobalElems
-!     TimeStepModified = .FALSE.
-!     ! Skipping cells, where less than 2 particles were sampled
-!     IF(PartNum(iElem,nSpecies+1).LT.2.0) CYCLE
-! #ifdef MPI
-!     ! Storing the old time step factor temporarily
-!     VarTimeStep%ElemWeight(iElem) = VarTimeStep%ElemFac(iElem)
-! #endif
-!     ! Storing either a 1 or the read-in time step factor in a temporary variable
-!     TimeFracTemp = VarTimeStep%ElemFac(iElem)
-!     ! Adapting the time step in order to achieve MaxCollProb < 0.8
-!     IF(DSMCQualityFactors(iElem,1).GT.VarTimeStep%TargetMaxCollProb) THEN
-!       TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
-!       TimeStepModified = .TRUE.
-!     END IF
-!     ! Adapting the time step in order to reduce the mean collision separation
-!     IF(DSMCQualityFactors(iElem,3).GT.VarTimeStep%TargetMCSoverMFP) THEN
-!       IF(Symmetry2D) THEN
-!         TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,3))**2)
-!       ELSE
-!         TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,3))**3)
-!       END IF
-!       TimeStepModified = .TRUE.
-!     END IF
-!     ! Decrease time step according to a given minimal particle number (optional: default is 0)
-!     IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
-!       IF(PartNum(iElem,nSpecies+1).LT.VarTimeStep%DistributionMinPartNum) THEN
-!         TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem,nSpecies+1)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
-!         TimeStepModified = .TRUE.
-!       END IF
-!     END IF
-!     ! Limiting the minimal time step factor to the given value
-!     TimeFracTemp = MAX(TimeFracTemp,VarTimeStep%DistributionMinTimeFactor)
-!     ! If time step was not adapted due to particle number, collision probability or mean collision separation
-!     ! Choose appropriate time step to satisfy target MCSoverMFP, MaxCollProb and MinPartNum
-!     IF(.NOT.TimeStepModified) THEN
-!       TimeFracTemp = MIN(VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1),  &
-!                          PartNum(iElem,nSpecies+1)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
-!       IF(DSMCQualityFactors(iElem,3).GT.0.0) THEN
-!         IF(Symmetry2D) THEN
-!           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,3))**2)
-!         ELSE
-!           TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,3))**3)
-!         END IF
-!       END IF
-!     END IF
-!     ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
-!     VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)
-! #ifdef MPI
-!     ! Calculating the weight, multiplied with the particle number from state file during readMesh
-!     ! (covering the case when a time step distribution is read-in and adapted -> elements have been already once load-balanced with
-!     ! the old time step, consequently weight should only include difference between old and new time step)
-!     VarTimeStep%ElemWeight(iElem) = VarTimeStep%ElemWeight(iElem) / VarTimeStep%ElemFac(iElem)
-! #endif
-!   END DO
-!   ! Close the DSMC state file and deallocate not required variables
-!   CALL CloseDataFile()
-!   SDEALLOCATE(DSMCQualityFactors)
-!   SDEALLOCATE(PartNum)
-! END IF      ! Adapt Distribution
+IF(VarTimeStep%AdaptDistribution) THEN
+  SWRITE(UNIT_stdOut,'(A)') &
+    ' | Variable Time Step: Adapting the time step according to quality factors in the given DSMC state file.'
+  IF((.NOT.DoMacroscopicRestart).OR.(.NOT.DoRestart)) THEN
+    CALL abort(__STAMP__,&
+    'ERROR: It is required to use a restart and macroscopic restart when adapting the time step distribution!')
+  END IF
+  ! Open DSMC state file
+  CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+  CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
+
+  ! Arrays might have been allocated if a time step was found in the state file
+  IF(.NOT.ALLOCATED(VarTimeStep%ElemFac)) THEN
+    ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
+    VarTimeStep%ElemFac = 1.0
+  END IF
+#ifdef MPI
+  IF(.NOT.ALLOCATED(VarTimeStep%ElemWeight)) THEN
+    ALLOCATE(VarTimeStep%ElemWeight(nGlobalElems))
+    VarTimeStep%ElemWeight = 1.0
+  END IF
+#endif
+
+  IF(nVar_HDF5.LE.0) THEN
+    SWRITE(*,*) 'ERROR: Something is wrong with our MacroscopicRestart file:', TRIM(MacroRestartFileName)
+    CALL abort(__STAMP__,&
+    'ERROR: Number of variables in the ElemData array appears to be zero!')
+  END IF
+
+  ALLOCATE(VarNames_tmp(1:nVar_HDF5))
+  CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
+
+  DO iVar=1,nVar_HDF5
+    IF (STRICMP(VarNames_tmp(iVar),"DSMC_MaxCollProb")) THEN
+      nVar_MaxCollProb = iVar
+    END IF
+    IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
+      nVar_MCSoverMFP = iVar
+    END IF
+    IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
+      nVar_TotalPartNum = iVar
+    END IF
+  END DO
+
+  ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nGlobalElems))
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+    nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+    nGlobalElems     => INT(nGlobalElems,IK)    )
+    CALL ReadArray('ElemData',2,(/nVar_HDF5,nGlobalElems/),0,2,RealArray=ElemData_HDF5(:,:))
+  END ASSOCIATE
+
+  ALLOCATE(DSMCQualityFactors(nGlobalElems,1:2), PartNum(nGlobalElems))
+  DSMCQualityFactors(:,1) = ElemData_HDF5(nVar_MaxCollProb,:)
+  DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
+  PartNum(:)              = ElemData_HDF5(nVar_TotalPartNum,:)
+  DEALLOCATE(ElemData_HDF5)
+
+  ! Calculating the time step per element based on the read-in max collision prob and mean collision separation
+  DO iElem = 1, nGlobalElems
+    TimeStepModified = .FALSE.
+    ! Skipping cells, where less than 2 particles were sampled
+    IF(PartNum(iElem).LT.2.0) CYCLE
+#ifdef MPI
+    ! Storing the old time step factor temporarily
+    VarTimeStep%ElemWeight(iElem) = VarTimeStep%ElemFac(iElem)
+#endif
+    ! Storing either a 1 or the read-in time step factor in a temporary variable
+    TimeFracTemp = VarTimeStep%ElemFac(iElem)
+    ! Adapting the time step in order to achieve MaxCollProb < 0.8
+    IF(DSMCQualityFactors(iElem,1).GT.VarTimeStep%TargetMaxCollProb) THEN
+      TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+      TimeStepModified = .TRUE.
+    END IF
+    ! Adapting the time step in order to reduce the mean collision separation
+    IF(DSMCQualityFactors(iElem,2).GT.VarTimeStep%TargetMCSoverMFP) THEN
+      IF(Symmetry2D) THEN
+        TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
+      ELSE
+        TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**3)
+      END IF
+      TimeStepModified = .TRUE.
+    END IF
+    ! Decrease time step according to a given minimal particle number (optional: default is 0)
+    IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
+      IF(PartNum(iElem).LT.VarTimeStep%DistributionMinPartNum) THEN
+        TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
+        TimeStepModified = .TRUE.
+      END IF
+    END IF
+    ! Limiting the minimal time step factor to the given value
+    TimeFracTemp = MAX(TimeFracTemp,VarTimeStep%DistributionMinTimeFactor)
+    ! If time step was not adapted due to particle number, collision probability or mean collision separation
+    ! Choose appropriate time step to satisfy target MCSoverMFP, MaxCollProb and MinPartNum
+    IF(.NOT.TimeStepModified) THEN
+      TimeFracTemp = VarTimeStep%TargetMaxCollProb*VarTimeStep%ElemFac(iElem) / DSMCQualityFactors(iElem,1)
+      IF(DSMCQualityFactors(iElem,2).GT.0.0) THEN
+        IF(Symmetry2D) THEN
+          TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**2)
+        ELSE
+          TimeFracTemp = MIN(TimeFracTemp,VarTimeStep%ElemFac(iElem)*(VarTimeStep%TargetMCSoverMFP/DSMCQualityFactors(iElem,2))**3)
+        END IF
+      END IF
+      IF(VarTimeStep%DistributionMinPartNum.GT.0) THEN
+        TimeFracTemp = MIN(TimeFracTemp,PartNum(iElem)/VarTimeStep%DistributionMinPartNum*VarTimeStep%ElemFac(iElem))
+      END IF
+    END IF
+    ! Finally, limiting the maximal time step factor to the given value and saving it to the right variable
+    VarTimeStep%ElemFac(iElem) = MIN(TimeFracTemp,VarTimeStep%DistributionMaxTimeFactor)
+#ifdef MPI
+    ! Calculating the weight, multiplied with the particle number from state file during readMesh
+    ! (covering the case when a time step distribution is read-in and adapted -> elements have been already once load-balanced with
+    ! the old time step, consequently weight should only include difference between old and new time step)
+    VarTimeStep%ElemWeight(iElem) = VarTimeStep%ElemWeight(iElem) / VarTimeStep%ElemFac(iElem)
+#endif
+  END DO
+  ! Close the DSMC state file and deallocate not required variables
+  CALL CloseDataFile()
+  SDEALLOCATE(DSMCQualityFactors)
+  SDEALLOCATE(PartNum)
+END IF      ! Adapt Distribution
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 
