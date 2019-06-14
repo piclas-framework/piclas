@@ -106,7 +106,7 @@ CASE(1) !1->4
         DO dir2=1,3
           Mortar_Ja2(dir1,dir2,:,q)=MATMUL(M_0_12_h(:,:,iNb),Face_Ja(dir1,dir2,:,q))
         END DO !dir2=1,3
-        Mortar_xGP2(dir1,:,q)      =MATMUL(M_0_12(  :,:,iNb),Face_xGP(dir1,:,q))
+        Mortar_xGP2(dir1,:,q)      =MATMUL(TRANSPOSE(M_0_12(  :,:,iNb)),Face_xGP(dir1,:,q))
       END DO !dir1=1,3
     END DO !q=0,Nloc
     !now in eta
@@ -120,7 +120,7 @@ CASE(1) !1->4
           DO dir2=1,3
             Mortar_Ja(dir1,dir2,p,:,ind)=MATMUL(M_0_12_h(:,:,jNb),Mortar_Ja2(dir1,dir2,p,:))
           END DO !dir2=1,3
-          Mortar_xGP(dir1,p,:,ind)      =MATMUL(M_0_12(  :,:,jNb),Mortar_xGP2(dir1,p,:))
+          Mortar_xGP(dir1,p,:,ind)      =MATMUL(TRANSPOSE(M_0_12(  :,:,jNb)),Mortar_xGP2(dir1,p,:))
         END DO !dir1=1,3
       END DO !p=0,Nloc
     END DO !jNb
@@ -136,7 +136,7 @@ CASE(2) !1->2 in eta
         DO dir2=1,3
           Mortar_Ja(dir1,dir2,p,:,jNb)=MATMUL(M_0_12_h(:,:,jNb),Face_Ja(dir1,dir2,p,:))
         END DO !dir2=1,3
-        Mortar_xGP(dir1,p,:,jNb)      =MATMUL(M_0_12(  :,:,jNb),Face_xGP(dir1,p,:))
+        Mortar_xGP(dir1,p,:,jNb)      =MATMUL(TRANSPOSE(M_0_12(  :,:,jNb)),Face_xGP(dir1,p,:))
       END DO !dir1=1,3
     END DO !p=0,Nloc
   END DO !jNb
@@ -151,7 +151,7 @@ CASE(3) !1->2 in xi
         DO dir2=1,3
           Mortar_Ja(dir1,dir2,:,q,iNb)=MATMUL(M_0_12_h(:,:,iNb),Face_Ja(dir1,dir2,:,q))
         END DO !dir2=1,3
-        Mortar_xGP(dir1,:,q,iNb)      =MATMUL(M_0_12(  :,:,iNb),Face_xGP(dir1,:,q))
+        Mortar_xGP(dir1,:,q,iNb)      =MATMUL(TRANSPOSE(M_0_12(  :,:,iNb)),Face_xGP(dir1,:,q))
       END DO !dir1=1,3
     END DO !q=0,Nloc
   END DO !iNb
