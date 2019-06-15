@@ -19,10 +19,13 @@ MODULE  MOD_PICInterpolation
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InterpolateFieldToParticle,InitializeInterpolation,InterpolateFieldToSingleParticle,InterpolateVariableExternalField
+PUBLIC :: InterpolateFieldToParticle
+PUBLIC :: InitializeParticleInterpolation
+PUBLIC :: InterpolateFieldToSingleParticle
+PUBLIC :: InterpolateVariableExternalField
 !===================================================================================================================================
-INTERFACE InitializeInterpolation
-  MODULE PROCEDURE InitializeInterpolation
+INTERFACE InitializeParticleInterpolation
+  MODULE PROCEDURE InitializeParticleInterpolation
 END INTERFACE
 
 INTERFACE InterpolateFieldToParticle
@@ -40,7 +43,7 @@ END INTERFACE
 
 CONTAINS
 
-SUBROUTINE InitializeInterpolation
+SUBROUTINE InitializeParticleInterpolation
 !===================================================================================================================================
 ! Initialize the interpolation variables first
 !===================================================================================================================================
@@ -64,6 +67,8 @@ REAL                      :: scaleExternalField
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
 IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
@@ -101,7 +106,7 @@ IF(DoInterpolationAnalytic)THEN
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(&
         __STAMP__ &
-        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_init.f90')
+        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
 END IF
 #endif /*CODE_ANALYZE*/
@@ -125,9 +130,11 @@ CASE('nearest_gausspoint')
 CASE DEFAULT
   CALL abort(&
   __STAMP__ &
-  ,'Unknown InterpolationType in pic_init.f90')
+  ,'Unknown InterpolationType in pic_interpolation.f90')
 END SELECT
-END SUBROUTINE InitializeInterpolation
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
+END SUBROUTINE InitializeParticleInterpolation
 
 
 SUBROUTINE InterpolateFieldToParticle(doInnerParts)
