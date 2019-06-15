@@ -119,8 +119,9 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '1.4)  shape_function_cylindrical\n'       //&
                                                              '1.5)  shape_function_spherical\n'         //&
                                                              '1.6)  shape_function_simple\n'            //&
-                                                             '      requires PIC-shapefunction-radius\n'//& 
-                                                             '               PIC-shapefunction-alpha\n' //&
+                                                             '      1.1) to 1.6) require\n'            //&
+                                                             '        PIC-shapefunction-radius\n'//& 
+                                                             '        PIC-shapefunction-alpha\n' //&
                                                              '      1.2) and 1.3) require\n'            //&
                                                              '        PIC-shapefunction1d-direction\n'  //&
                                                              '      1.4) and 1.5) require\n'            //&
@@ -136,7 +137,8 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '6.2)  cartmesh_splines\n'                 //&
                                                              '      requires PIC-BGMdeltas\n'           //&
                                                              '               PIC-FactorBGM\n'           //&
-                                                             '7.)   nearest-blurrycenter'                 &
+                                                             '7.)   nearest-blurrycenter\n'             //&
+                                                             '8.)   cell_volweight_mean'                &
                                                            , 'nearest-blurrycenter') ! Default
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
