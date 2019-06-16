@@ -1449,8 +1449,10 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + partWeight  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            DSMC_HOSolution(8:9,kk,ll,mm,iElem,iSpec)=DSMC_HOSolution(8:9,kk,ll,mm,iElem,iSpec)+PartStateIntEn(iPart,1:2)*partWeight
+          IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+            DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
+              + (PartStateIntEn(iPart,1) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
+            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec)+PartStateIntEn(iPart,2)*partWeight
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
@@ -1582,7 +1584,7 @@ CASE('cell_volweight')
 CASE DEFAULT
  CALL abort(&
 __STAMP__&
-,'Unknown DepositionType in pic_depo.f90')
+,'Unknown SamplingType in dsmc_analyze.f90')
 END SELECT
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -1697,21 +1699,22 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                 IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                   IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
                     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                      IF( (PartEvib/PartNum) .GT. SpecDSMC(iSpec)%EZeroPoint ) THEN
-                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum, iSpec)
+                      IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
+                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
                       ELSE
                         Macro_TempVib = 0.0
                       END IF
                     ELSE
                       TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                      IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      IF ((PartEvib /PartNum).LE.0.0) THEN
                         Macro_TempVib = 0.0
                       ELSE
-                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
                       END IF
                     END IF
                   ELSE                                            ! TSHO-model
-                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, &
+                      PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
                   Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
                   MolecPartNum = MolecPartNum + Macro_PartNum

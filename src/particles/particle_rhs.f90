@@ -87,7 +87,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -96,7 +96,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -106,7 +106,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
@@ -170,7 +170,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
@@ -180,7 +180,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(ABS(Species(PartSpecies(iPart))%ChargeIC).LE.0.0) CYCLE
+        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=ACCELERATION_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
@@ -199,7 +199,10 @@ FUNCTION SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,MyRank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -258,7 +261,10 @@ FUNCTION FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -343,7 +349,10 @@ FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! CAUTION: This routines is used for HDG in combination with magnetic (external) fields
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Globals,           ONLY : abort
+#ifdef MPI
+USE MOD_Globals,           ONLY : MyRank
+#endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING

@@ -303,13 +303,13 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToElemGlob,OffSetElem
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToElemGlob,OffSetElem, MortarType, MortarInfo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix,nPartSides,PartElemToSide,PartSideToElem &
                                        ,SidePeriodicType
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
 USE MOD_Mappings,                  ONLY:SideToAdjointLocSide
-USE MOD_Particle_Tracking_Vars,    ONLY:CartesianPeriodic
+USE MOD_Particle_Tracking_Vars,    ONLY:CartesianPeriodic, TriaTracking
 !USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -331,6 +331,7 @@ LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 REAL                     :: distance(1:3)
 INTEGER                  :: iElem,firstBezierPoint,lastBezierPoint!,flip,AdjointLocSideID(2)
+INTEGER                  :: ind, nbSideID, nMortarElems, SideIDMortar
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -665,6 +666,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END IF
 END IF  ! nperiodicvectors>0
 
+
 ! finally, all elements connected to this side have to be marked
 ! this is a sanity step and could be omitted
 DO iSide=1,nPartSides
@@ -677,13 +679,64 @@ DO iSide=1,nPartSides
         NbOfElems=NbOfElems+1
         ElemIndex(ElemID)=NbofElems
       END IF
+      
+      IF (TriaTracking) THEN
+        DO iLocSide = 1, 6
+          nbSideID =  PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)  
+          SideIDMortar = MortarType(2,nbSideID)     
+          IF (SideIDMortar.GT.0) THEN              
+            IF (MortarType(1,nbSideID).EQ.1) THEN
+              nMortarElems = 4            
+            ELSE  
+              nMortarElems = 2
+            END IF
+            DO ind = 1, nMortarElems
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              iElem = PartSideToElem(S2E_ELEM_ID   ,nbSideID)
+              IF (iElem.LT.0) iElem = PartSideToElem(S2E_NB_ELEM_ID   ,nbSideID)
+              IF((iElem.GT.0).AND.(iElem.LE.PP_nElems))THEN
+                IF(ElemIndex(iElem).EQ.0)THEN
+                  NbOfElems=NbOfElems+1
+                  ElemIndex(iElem)=NbofElems
+                END IF
+              END IF
+            END DO 
+          END IF
+        END DO
+      END IF
     END IF
+
     ! slave
     ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
     IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
       IF(ElemIndex(ElemID).EQ.0)THEN
         NbOfElems=NbOfElems+1
         ElemIndex(ElemID)=NbofElems
+      END IF
+
+      IF (TriaTracking) THEN
+        DO iLocSide = 1, 6
+          nbSideID =  PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)  
+          SideIDMortar = MortarType(2,nbSideID)     
+          IF (SideIDMortar.GT.0) THEN              
+            IF (MortarType(1,nbSideID).EQ.1) THEN
+              nMortarElems = 4            
+            ELSE  
+              nMortarElems = 2
+            END IF
+            DO ind = 1, nMortarElems
+              nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+              iElem = PartSideToElem(S2E_ELEM_ID   ,nbSideID)
+              IF (iElem.LT.0) iElem = PartSideToElem(S2E_NB_ELEM_ID   ,nbSideID)
+              IF((iElem.GT.0).AND.(iElem.LE.PP_nElems))THEN
+                IF(ElemIndex(iElem).EQ.0)THEN
+                  NbOfElems=NbOfElems+1
+                  ElemIndex(iElem)=NbofElems
+                END IF
+              END IF
+            END DO 
+          END IF
+        END DO
       END IF
     END IF
   END IF
@@ -704,7 +757,7 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc, PartHaloNodeToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nBCSides, BC,nGeo,ElemBaryNGeo,CurvedElem, nNodes
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalNodes,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nPartSides,ElemHasAuxBCs
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,nTotalBCSides,ElemType
@@ -742,6 +795,7 @@ TYPE tMPISideMessage
   INTEGER,ALLOCATABLE       :: SideBCType(:)
   INTEGER,ALLOCATABLE       :: BC(:)
   INTEGER,ALLOCATABLE       :: NativeElemID(:)
+  INTEGER,ALLOCATABLE       :: NativeNodeID(:)
   REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: SideSlabNormals                  ! normal vectors of bounding slab box
   REAL,ALLOCATABLE,DIMENSION(:,:)    :: SideSlabIntervals               ! intervalls beta1, beta2, beta3
   LOGICAL,ALLOCATABLE,DIMENSION(:)   :: BoundingBoxIsEmpty
@@ -1193,6 +1247,21 @@ IF (RecvMsg%nElems.GT.0) THEN
     ,'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
   RecvMsg%NativeElemID(:)=0
 END IF
+! NativeNodeID 
+IF (SendMsg%nElems.GT.0) THEN
+  ALLOCATE(SendMsg%NativeNodeID(1:SendMsg%nNodes),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMsg%NativeNodeID',SendMsg%nNodes,999.)
+  SendMsg%NativeNodeID(:)=0
+END IF
+IF (RecvMsg%nElems.GT.0) THEN
+  ALLOCATE(RecvMsg%NativeNodeID(1:RecvMsg%nNodes),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%NativeNodeID',RecvMsg%nNodes,999.)
+  RecvMsg%NativeNodeID(:)=0
+END IF
 ! SideSlabNormals Mapping
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideSlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see piclas.h 
@@ -1350,6 +1419,13 @@ DO iElem = 1,nElems
   END IF
 END DO 
 
+! NativeNodeID 
+DO iNode = 1,nNodes
+  IF (NodeIndex(iNode).NE.0) THEN
+    SendMsg%NativeNodeID(NodeIndex(iNode)) = iNode
+  END IF
+END DO
+
 dataSize=3*(NGeo+1)*(NGeo+1)
 dataSize2=3*(NGeo+1)*(NGeo+1)*(NGeo+1)
 dataSize3=9*(NGeo+1)*(NGeo+1)*(NGeo+1)
@@ -1391,6 +1467,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
         CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,IERROR)
     IF (SendMsg%nNodes.GT.0) &
         CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+    IF (SendMsg%nNodes.GT.0) &
+        CALL MPI_SEND(SendMsg%NativeNodeID,SendMsg%nNodes,MPI_INTEGER,iProc,1127,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1454,6 +1532,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
         CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nNodes.GT.0) &
         CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nNodes.GT.0) &
+        CALL MPI_RECV(RecvMsg%NativeNodeID ,RecvMsg%nNodes        ,MPI_INTEGER,iProc,1127,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1517,6 +1597,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
         CALL MPI_RECV(RecvMsg%ConcaveElemSide,RecvMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nNodes.GT.0) &
         CALL MPI_RECV(RecvMsg%NodeCoords,RecvMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
+    IF (RecvMsg%nNodes.GT.0) &
+        CALL MPI_RECV(RecvMsg%NativeNodeID ,RecvMsg%nNodes        ,MPI_INTEGER,iProc,1127,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
@@ -1576,6 +1658,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
         CALL MPI_SEND(SendMsg%ConcaveElemSide,SendMsg%nElems*6,MPI_LOGICAL,iProc,1116,PartMPI%COMM,IERROR)
     IF (SendMsg%nNodes.GT.0) &
         CALL MPI_SEND(SendMsg%NodeCoords,SendMsg%nNodes*3,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+    IF (SendMsg%nNodes.GT.0) &
+        CALL MPI_SEND(SendMsg%NativeNodeID,SendMsg%nNodes,MPI_INTEGER,iProc,1127,PartMPI%COMM,IERROR)
   END IF
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
@@ -1807,11 +1891,6 @@ ELSE ! DoRefMappping=F
           END DO
         END IF
       END DO ! ilocSide
-      IF (TriaTracking) THEN
-        DO iNode = 1,8
-          GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
-        END DO
-      END IF
       ! set native elemID
       PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
@@ -1822,6 +1901,9 @@ ELSE ! DoRefMappping=F
         ElemHasAuxBCs(newElemID,:)  = RecvMsg%ElemHasAuxBCs(iElem,:)
       END IF
       IF (TriaTracking) THEN
+        DO iNode = 1,8
+          GEO%ElemToNodeID(iNode,newElemID) = tmpnNodes + RecvMsg%ElemToNodeID(iNode,iElem)
+        END DO
         GEO%ConcaveElemSide(1:6,newElemID)    = RecvMsg%ConcaveElemSide(1:6,iElem)
       END IF
       ! list from ElemToElemGlob mapped to process local element
@@ -1832,6 +1914,8 @@ ELSE ! DoRefMappping=F
       DO iNode = 1,RecvMsg%nNodes
         ! first, new NodeID=entry of RecvMsg+tmpnNodes
         GEO%NodeCoords(:,tmpnNodes+iNode) = RecvMsg%NodeCoords(:,iNode)
+        PartHaloNodeToProc(NATIVE_ELEM_ID,tmpnNodes+iNode)=RecvMsg%NativeNodeID(iNode)
+        PartHaloNodeToProc(NATIVE_PROC_ID,tmpnNodes+iNode)=iProc
       END DO
     END IF
     ! build rest: PartElemToElem, PartLocSideID
@@ -1862,8 +1946,8 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem
+USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc, PartHaloNodeToProc
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,MortarType,ElemBaryNGeo,CurvedElem,nNodes
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList,GEO,ElemType,ElemHasAuxBCs
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,SideNormVec,SideDistance
@@ -2299,6 +2383,29 @@ __STAMP__&
   GEO%ConcaveElemSide=.FALSE.
   GEO%ConcaveElemSide(1:6,1:nOldElems) = DummyConcaveElemSide(1:6,1:nOldElems)
   DEALLOCATE(DummyConcaveElemSide)
+  ! HaloToProc
+  IF(.NOT.ALLOCATED(PartHaloNodeToProc))THEN
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate PartHaloNodeToProc')
+    PartHaloNodeToProc=-1
+  ELSE
+    ALLOCATE(DummyHaloToProc(1:3,nNodes+1:nOldNodes))
+    IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
+      __STAMP__&
+      ,'Could not allocate DummyHaloToProc (Nodes)')
+    DummyHaloToProc=PartHaloNodeToProc
+    DEALLOCATE(PartHaloNodeToProc)
+    ALLOCATE(PartHaloNodeToProc(1:3,nNodes+1:nTotalNodes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
+      ,'Could not reallocate PartHaloNodeToProc')
+    ! copy array to new
+    PartHaloNodeToProc=-1
+    PartHaloNodeToProc(1:3,nNodes+1:nOldNodes)    =DummyHaloToProc(1:3,nNodes+1:nOldNodes)
+    DEALLOCATE(DummyHaloToProc)
+  END IF
 END IF
 
 ! ElemBaryNGeo

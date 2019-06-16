@@ -109,7 +109,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
-#endif
+#endif /*USE_LOADBALANCE*/
 #ifdef PP_HDG
 LOGICAL                     :: DG_SolutionUExists
 #endif /* PP_HDG */
@@ -1594,7 +1594,7 @@ USE MOD_io_hdf5
 USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
 USE MOD_Restart_Vars              ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
-USE MOD_Particle_Vars             ,ONLY: nSpecies, VarTimeStep
+USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_part_emission             ,ONLY: MacroRestart_InsertParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

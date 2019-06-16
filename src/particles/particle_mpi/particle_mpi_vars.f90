@@ -38,6 +38,11 @@ INTEGER,ALLOCATABLE :: PartHaloSideToProc(:,:)                               ! c
                                                                              ! LOCAL_PROC_ID =3 - local neighbor id
                                                                              ! LOCAL_SEND_ID =4 - ?
 
+INTEGER,ALLOCATABLE :: PartHaloNodeToProc(:,:)                               ! containing native sideid and native proc id
+                                                                             ! 1 - Native_Side_ID
+                                                                             ! 2 - Rank of Proc
+                                                                             ! 3 - local neighbor id
+
 
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
@@ -68,6 +73,11 @@ TYPE tPartMPIConnect
 END TYPE
 #endif /*MPI*/
 
+TYPE tNodeSendList
+  INTEGER                               :: COMMProcID
+  INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
+END TYPE
 
 TYPE tPartMPIVAR
 #ifdef MPI
@@ -81,6 +91,9 @@ TYPE tPartMPIVAR
   INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
   LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
   INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
+  INTEGER                                :: nMPINodeNeighbors                ! number of MPI-Neighbors with HALO
+  LOGICAL,ALLOCATABLE                    :: isMPINodeNeighbor(:)             ! list of possible neighbors
+  TYPE(tNodeSendList),ALLOCATABLE        :: MPINodeNeighbor(:)               ! list containing rank of MPI-neighbors and mappings
   INTEGER,ALLOCATABLE                    :: GlobalToLocal(:)                 ! map from global proc id to local
 END TYPE
 
@@ -107,6 +120,9 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! P
 
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! SurfRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! SurfSendBuf with all requried types
+
+TYPE(tMPIMessage),ALLOCATABLE  :: NodeRecvBuf(:)                             ! NodeRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: NodeSendBuf(:)                             ! NodeSendBuf with all requried types
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCRecvBuf(:)                         ! SurfRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: PorousBCSendBuf(:)                         ! SurfSendBuf with all requried types
@@ -138,6 +154,14 @@ TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! Receive request message handle,  1 - Number, 2-Message
 END TYPE
 TYPE (tSurfMPIExchange)          :: SurfExchange
+
+TYPE tNodeMPIExchange
+  INTEGER,ALLOCATABLE            :: nNodesSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nNodesRecv(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+END TYPE
+TYPE (tNodeMPIExchange)          :: NodeExchange
 
 
 INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local rank id for communication
