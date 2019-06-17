@@ -2090,7 +2090,7 @@ CASE (2)
     END IF
   END IF
 CASE (3)
-  Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+  Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
   CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,interactionCase,outSpec,reactionEnthalpie)
 CASE (4)
@@ -2111,22 +2111,20 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
   !   WRITE (*,*) "SpecID,outSpec(1),outSpec(2),interactionCase =", SpecID,outSpec(1),outSpec(2),interactionCase
   ! END IF
 CASE (101) ! constant condensation coefficient
+  outSpec(2) = SpecID
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN
-    outSpec(2) = SpecID
     interactionCase = 1
   END IF
 CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
-  IF (Adsorption%SurfaceSpec(locBCID,SpecID)) THEN
-    interactionCase = 4
-    velocityDistribution='liquid_refl'
-    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,5)*n_loc(2) + PartState(PartID,6)*n_loc(3)
-    CALL RANDOM_NUMBER(RanNum)
-    IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
-      outSpec(2) = SpecID
-      interactionCase = 1
-    END IF
+  outSpec(2) = SpecID
+  interactionCase = 4
+  velocityDistribution='liquid_refl'
+  Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
+  CALL RANDOM_NUMBER(RanNum)
+  IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
+    interactionCase = 1
   END IF
 END SELECT
 
