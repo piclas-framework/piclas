@@ -225,7 +225,7 @@ TYPE(tBGGas)                        :: BGGas
 
 TYPE tPairData
   REAL              :: CRela2                               ! squared relative velo of the particles in a pair
-  REAL              :: Prob                                 ! colision probability
+  REAL              :: Prob                                 ! collision probability
   INTEGER           :: iPart_p1                             ! first particle of the pair
   INTEGER           :: iPart_p2                             ! second particle of the pair
   INTEGER           :: PairType                             ! type of pair (=iCase, CollInf%Coll_Case)
