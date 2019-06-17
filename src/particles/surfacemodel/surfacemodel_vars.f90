@@ -145,6 +145,17 @@ TYPE tAdsorption
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
+TYPE tSpeciesSurface
+  REAL                                   :: ParamAntoine(1:3)                ! Parameter for Anointe Eq (vapor pressure)
+  INTEGER                                :: condensCase
+  REAL                                   :: liquidTkrit
+  REAL                                   :: liquidTmelt
+  REAL                                   :: liquidAlpha
+  REAL                                   :: liquidBeta
+  REAL                                   :: liquidBetaCoeff(1:6)
+END TYPE
+TYPE(tSpeciesSurface), ALLOCATABLE       :: SpecSurf(:)
+
 TYPE tAdsorbateMapping
   INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex
                                                                     ! (1:SitesRemain) --> free site positions

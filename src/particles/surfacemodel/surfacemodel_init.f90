@@ -197,6 +197,21 @@ CALL prms%CreateLogicalOption(     'Part-Species[$]-PartBound[$]-LiquidSpec'&
   , 'Sets the flag for being treated as surface species. If marked, antoine parameters must to be defined'&
   ,'.FALSE.', numberedmulti=.TRUE.)
 
+CALL prms%CreateRealArrayOption(  'Part-Species[$]-ParamAntoine'  &
+                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-condensCase'&
+                                          , 'TODO-DEFINE-PARAMETER','1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-liquidAlpha'&
+                                          , 'TODO-DEFINE-PARAMETER','1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-liquidBeta'&
+                                          , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption(  'Part-Species[$]-liquidBetaCoeff'  &
+                                          , 'TODO-DEFINE-PARAMETER','0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-liquidTkrit'&
+                                          , 'TODO-DEFINE-PARAMETER','100', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-liquidTmelt'&
+                                          , 'TODO-DEFINE-PARAMETER','50', numberedmulti=.TRUE.)
+
 END SUBROUTINE DefineParametersSurfModel
 
 
@@ -208,12 +223,12 @@ SUBROUTINE InitSurfaceModel()
 USE MOD_Globals
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
 USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
-USE MOD_Particle_Vars              ,ONLY: nSpecies, Species, PDM, WriteMacroSurfaceValues
+USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
 USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
-USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL
+USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL,GETREALARRAY
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular, SurfModel
+USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular, SurfModel, SpecSurf
 USE MOD_SurfaceModel_Tools         ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SMCR_Init                  ,ONLY: InitSMCR
 #ifdef MPI
@@ -270,6 +285,28 @@ Adsorption%TPD_beta = GETREAL('Surface-Adsorption-TPD-Beta','0.')
 Adsorption%TPD_Temp = 0.
 #endif
 
+! initialize species data
+IF (.NOT.ALLOCATED(SpecSurf)) ALLOCATE(SpecSurf(nSpecies))
+DO iSpec = 1,nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  SpecSurf(iSpec)%ParamAntoine(1:3) = GETREALARRAY('Part-Species'//TRIM(hilf)//'-ParamAntoine',3,'0. , 0. , 0.')
+  SpecSurf(iSpec)%condensCase = GETINT('Part-Species'//TRIM(hilf)//'-condensCase')
+  SpecSurf(iSpec)%liquidTkrit = GETREAL('Part-Species'//TRIM(hilf)//'-liquidTkrit')
+  SpecSurf(iSpec)%liquidTmelt = GETREAL('Part-Species'//TRIM(hilf)//'-liquidTmelt')
+  SELECT CASE (SpecSurf(iSpec)%condensCase)
+  CASE (1)
+    SpecSurf(iSpec)%liquidAlpha = GETREAL('Part-Species'//TRIM(hilf)//'-liquidAlpha')
+    SpecSurf(iSpec)%liquidBeta = GETREAL('Part-Species'//TRIM(hilf)//'-liquidBeta')
+  CASE (2)
+    SpecSurf(iSpec)%liquidBetaCoeff = GETREALARRAY('Part-Species'//TRIM(hilf)//'-liquidBetaCoeff',6,'0.,0.,0.,0.,0.,0.')
+  CASE DEFAULT
+    CALL abort(&
+__STAMP__&
+,'condensation case must be 1 or 2 for species: ',iSpec)
+  END SELECT
+END DO
+
+! initialize model specific variables
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   DO iPartBound=1,nPartBound
@@ -391,18 +428,41 @@ __STAMP__,&
       IF (.NOT.ALLOCATED(Adsorption%SurfaceSpec)) ALLOCATE(Adsorption%SurfaceSpec(1:nPartBound,1:nSpecies))
       Adsorption%SurfaceSpec(iPartBound,iSpec) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-LiquidSpec')
       ! check parameters used for evaporation pressure of Antoine Eq
-      IF (Adsorption%SurfaceSpec(iPartBound,iSpec) .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(1))) &
-           .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(2))) &
-           .AND. (ALMOSTZERO(Species(iSpec)%ParamAntoine(3))) ) THEN
+      IF (Adsorption%SurfaceSpec(iPartBound,iSpec) .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(1))) &
+           .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(2))) &
+           .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(3))) ) THEN
         CALL abort(&
 __STAMP__&
 ,'Antoine Parameters not defined for species: ',iPartBound)
+      END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(102)
+!-----------------------------------------------------------------------------------------------------------------------------------
+      IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactCoeff)) ALLOCATE( Adsorption%ReactCoeff(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactEnergy)) ALLOCATE( Adsorption%ReactEnergy(1:nPartBound,1:nSpecies))
+      IF (.NOT.ALLOCATED(Adsorption%ReactAccomodation)) ALLOCATE( Adsorption%ReactAccomodation(1:nPartBound,1:nSpecies))
+      Adsorption%ResultSpec(iPartBound,iSpec) = 0
+      Adsorption%ReactEnergy(iPartBound,iSpec) = 0
+      Adsorption%ReactCoeff(iPartBound,iSpec) = 1.
+      Adsorption%ReactAccomodation(iPartBound,iSpec) = 1.
+      IF (.NOT.ALLOCATED(Adsorption%SurfaceSpec)) ALLOCATE(Adsorption%SurfaceSpec(1:nPartBound,1:nSpecies))
+      Adsorption%SurfaceSpec(iPartBound,iSpec) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-LiquidSpec')
+      ! check parameters used for evaporation pressure of Antoine Eq
+      IF (Adsorption%SurfaceSpec(iPartBound,iSpec) .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(1))) &
+           .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(2))) &
+           .AND. (ALMOSTZERO(SpecSurf(iSpec)%ParamAntoine(3))) ) THEN
+        CALL abort(&
+__STAMP__&
+,'Antoine Parameters not defined for Boundary: ',iPartBound)
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
   END DO
 END DO
+
+
 
 ! allocate and initialize adsorption variables
 ALLOCATE( SurfModel%SumEvapPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
@@ -472,9 +532,12 @@ SUBROUTINE InitSurfChem()
 ! MODULES
 USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT, GETREALARRAY, GETINTARRAY
+#if (PP_TimeDiscMethod==42)
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
+#endif
 #if !(USE_LOADBALANCE)
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
 #endif
@@ -1235,7 +1298,7 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
-USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, SurfModel
+USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, SurfModel, SpecSurf
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfModelAnalyzeInitIsDone
 USE MOD_Particle_Vars             ,ONLY: PDM, PEM
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh
@@ -1268,6 +1331,7 @@ SDEALLOCATE(PEM%wNumber)
 SDEALLOCATE(SurfModel%Info)
 SDEALLOCATE(SurfModel%ProperInfo)
 #endif
+SDEALLOCATE(SpecSurf)
 SDEALLOCATE(Adsorption%Coverage)
 SDEALLOCATE(Adsorption%ProbAds)
 SDEALLOCATE(Adsorption%ProbDes)
@@ -1282,6 +1346,7 @@ SDEALLOCATE(Adsorption%CrystalIndx)
 SDEALLOCATE(Adsorption%ReactCoeff)
 SDEALLOCATE(Adsorption%ReactEnergy)
 SDEALLOCATE(Adsorption%ReactAccomodation)
+SDEALLOCATE(Adsorption%SurfaceSpec)
 ! parameters for Kisliuk and Polanyi Wigner model (surfacemodel=1)
 SDEALLOCATE(Adsorption%MaxCoverage)
 SDEALLOCATE(Adsorption%InitStick)

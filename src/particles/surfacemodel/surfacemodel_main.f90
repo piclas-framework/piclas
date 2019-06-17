@@ -232,7 +232,7 @@ SUBROUTINE CalcEvapPartNum()
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
 USE MOD_SurfaceModel_Tools     ,ONLY: SurfaceHasModelNum
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
@@ -279,9 +279,9 @@ DO iSpec = 1,nSpecies
           IF (Adsorption%SurfaceSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )),iSpec)) THEN
             LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
             ! Antoine parameters defined in ini file are chosen so pressure given is in bar
-            A = Species(iSpec)%ParamAntoine(1)
-            B = Species(iSpec)%ParamAntoine(2)
-            C = Species(iSpec)%ParamAntoine(3)
+            A = SpecSurf(iSpec)%ParamAntoine(1)
+            B = SpecSurf(iSpec)%ParamAntoine(2)
+            C = SpecSurf(iSpec)%ParamAntoine(3)
             ! Use Antoine Eq. to calculate pressure vapor
             pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
             ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface

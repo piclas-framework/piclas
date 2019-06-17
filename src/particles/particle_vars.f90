@@ -305,7 +305,6 @@ TYPE tSpecies                                                                ! P
   TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
-  REAL                                   :: ParamAntoine(1:3)                ! Parameter for Anointe Eq (vapor pressure)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)

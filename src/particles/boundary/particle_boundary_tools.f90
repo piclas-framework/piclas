@@ -292,7 +292,7 @@ FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
 !
 !===================================================================================================================================
 ! MODULES
-!USE MOD_SurfModel_Vars, ONLY:
+USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -305,7 +305,13 @@ REAL :: alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-alpha = 0.9
+SELECT CASE (SpecSurf(specID)%condensCase)
+CASE (1)
+  alpha = SpecSurf(specID)%liquidAlpha
+CASE (2)
+  alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
+END SELECT
+
 END FUNCTION
 
 FUNCTION BETALIQUID(specID,temp) RESULT(beta)
@@ -313,7 +319,7 @@ FUNCTION BETALIQUID(specID,temp) RESULT(beta)
 !
 !===================================================================================================================================
 ! MODULES
-!USE MOD_SurfModel_Vars, ONLY:
+USE MOD_SurfaceModel_Vars ,ONLY: SpecSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -326,7 +332,17 @@ REAL :: beta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-beta = 0.280
+SELECT CASE (SpecSurf(specID)%condensCase)
+CASE (1)
+  beta = SpecSurf(specID)%liquidBeta
+CASE (2)
+  beta = SpecSurf(specID)%liquidBetaCoeff(1)*temp**5 &
+       + SpecSurf(specID)%liquidBetaCoeff(2)*temp**4 &
+       + SpecSurf(specID)%liquidBetaCoeff(3)*temp**3 &
+       + SpecSurf(specID)%liquidBetaCoeff(4)*temp**2 &
+       + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
+       + SpecSurf(specID)%liquidBetaCoeff(6)
+END SELECT
 END FUNCTION
 
 FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
@@ -334,8 +350,8 @@ FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars     ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

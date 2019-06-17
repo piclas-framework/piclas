@@ -190,7 +190,6 @@ CASE('liquid_evap','liquid_refl')
       f=LIQUIDEVAP(beta,Velo1,1.)
     CASE('liquid_refl')
       ymax = 1.0
-
       f=LIQUIDREFL(alpha,beta,Velo1,1.)
     END SELECT
     y1=ymax*RandVal(2)

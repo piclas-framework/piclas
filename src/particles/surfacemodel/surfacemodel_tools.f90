@@ -236,7 +236,7 @@ DO SurfSide=1,SurfMesh%nSides
             END IF
           END IF
 !----------------------------------------------------------------------------------------------------------------------------------!
-        CASE (101) ! simple condensation coefficient
+        CASE (101,102) ! simple condensation coefficient
 !----------------------------------------------------------------------------------------------------------------------------------!
           Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ReactCoeff(PartBoundID,iSpec)
         END SELECT

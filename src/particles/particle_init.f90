@@ -303,13 +303,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
                                 , 'Particle Mass (without MPF) of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Number of Microparticle per Macroparticle for species [$]', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption(  'Part-Species[$]-ParamAntoine'  &
-                                , 'Parameters for Antoine Eq (vapor pressure)', '0. , 0. , 0.'&
-                                , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Flag if specific particle is implicit', '.FALSE.', numberedmulti=.TRUE.)
-
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForInit'&
                                 , 'Flag to use species[$] for initialization.', '.TRUE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseForEmission'  &
@@ -1543,7 +1539,6 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
-      Species(iSpec)%ParamAntoine(1:3)     = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-ParamAntoine',3,'0. , 0. , 0.')
 #if defined(IMPA)
       Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
 #endif
