@@ -114,10 +114,10 @@ SUBROUTINE UpdateNextFreePosition()
 END SUBROUTINE UpdateNextFreePosition
 
 
-FUNCTION DiceDeflectedVector(alpha)
+FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
 !===================================================================================================================================
 ! Calculates deflection angle and resulting deflection vector after bird1994.
-! Subsequent coordinate transformation from independent coordinate system to Center of Mass system of colliding particles.
+! Subsequent coordinate transformation from independent coordinate system to original coordinate system.
 ! Matrix-wise coordinate transformation A*b=(2.22) since it is faster executed, than running transformation line-wise
 !(bird1994,p.36)
 !===================================================================================================================================
@@ -127,23 +127,23 @@ FUNCTION DiceDeflectedVector(alpha)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN), OPTIONAL  :: alpha
+  REAL,INTENT(IN)            :: absCRela ! absolute value of pre-coll relative velocity. bird (2.3),(2.8) 
+  REAL,INTENT(IN)            :: ur,vr,wr ! pre-coll relative velocity CRela=(/ur,vr,wr/)
+  REAL,INTENT(IN), OPTIONAL  :: alpha    ! VSS parameter
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                       :: DiceDeflectedVector(3)
+  REAL                       :: DiceDeflectedVector(3) ! post-coll relative velocity vector DiceDeflectedVector. bird (CRelaN)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
- REAL                   :: u_r_new,v_r_new,w_r_new
- REAL                   ::  cr ! absolute value of pre-collision relative velocity CRela=c(ipart)-c(jpart)
- ! pre-collision relative velocity is scaled, to have the magnitude of post-collision relative speed
- REAL                   :: iRan, eps, cos_chi, sin_chi
- INTEGER,DIMENSION(3,3) :: trafoMatrix
- INTEGER,DIMENSION(3)   :: deflectedVector ! post-collision relative velocity vector in an independent vector system
-
+ REAL                        :: iRan, eps, cos_chi, sin_chi
+ REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
    ! im Code die alphas hinterlegen #datenbank.
    ! macht es unterschied ob a b oder b a?
    ! oder readin
+   
+   ! determination of DiceDeflectedVector in the independent coordinate system
    CALL RANDOM_NUMBER(iRan)
    IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN
       !VHS 
@@ -158,34 +158,40 @@ FUNCTION DiceDeflectedVector(alpha)
          !either abort or vhs default.
    END IF
    sin_chi                  = SQRT(1. - cos_chi**2.) 
-   DiceDeflectedVector(3)   = cos_chi
+   DiceDeflectedVector(3)   = absCRela*cos_chi
    CALL RANDOM_NUMBER(iRan)
    eps                      = 2.*PI*iRan ! azimuthal impact angle epsilon between [0,2*pi]
-   DiceDeflectedVector(1)   = sin_chi*cos(eps)
-   DiceDeflectedVector(2)   = sin_chi*sin(eps)
+   DiceDeflectedVector(1)   = absCRela*sin_chi*cos(eps)
+   DiceDeflectedVector(2)   = absCRela*sin_chi*sin(eps)
 
-
-
-!Initialization rotation matrix
-trafoMatrix(1,1)=u_r_new/cr
-trafoMatrix(1,2)=0
-trafoMatrix(1,3)=sqrt(v_r_new**2+w_r_new**2)/cr
-trafoMatrix(2,1)=v_r_new/cr
-trafoMatrix(2,2)=w_r_new/sqrt(v_r_new**2+w_r_new**2)
-trafoMatrix(2,3)=-u_r_new*v_r_new/(u_r_new*sqrt(v_r_new**2+w_r_new**2))
-trafoMatrix(3,1)=w_r_new/cr
-trafoMatrix(3,2)=-v_r_new/sqrt(v_r_new**2+w_r_new**2)
-trafoMatrix(3,3)=-u_r_new*v_r_new/(u_r_new*sqrt(v_r_new**2+w_r_new**2))
-
-
-! Diced deflected vector in the independent coordinate system
-deflectedVector(1)=cr*cos_chi
-deflectedVector(2)=cr*sin_chi*cos(eps)
-deflectedVector(3)=cr*sin_chi*sin(eps)
-
-!DiceDeflectedVetor (=CRelaN,bird) in the original coordinate system
-DiceDeflectedVector(:)=MATMUL(trafoMatrix,deflectedVector)
-!write(*,*) trafoMatrix !debug
+   !Transformation to original coordinate system via bird (2.22)
+   IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
+      ! In case the independent coordinate system points into the same direction as the original coordinate system the
+      ! DiceDeflectedVector needs to be scaled only.
+      !Initialization scaling matrix
+      trafoMatrix(1,1)=ur/absCRela
+      trafoMatrix(1,2)=0
+      trafoMatrix(1,3)=0
+      trafoMatrix(2,1)=0
+      trafoMatrix(2,2)=1
+      trafoMatrix(2,3)=0
+      trafoMatrix(3,1)=0
+      trafoMatrix(3,2)=0
+      trafoMatrix(3,3)=1
+   ELSE
+      !Initialization rotation matrix
+      trafoMatrix(1,1)=ur/absCRela
+      trafoMatrix(1,2)=0
+      trafoMatrix(1,3)=sqrt(vr**2+wr**2)/absCRela
+      trafoMatrix(2,1)=vr/absCRela
+      trafoMatrix(2,2)=wr/sqrt(vr**2+wr**2)
+      trafoMatrix(2,3)=-ur*vr/(ur*sqrt(vr**2+wr**2))
+      trafoMatrix(3,1)=wr/absCRela
+      trafoMatrix(3,2)=-vr/sqrt(vr**2+wr**2)
+      trafoMatrix(3,3)=-ur*vr/(ur*sqrt(vr**2+wr**2))
+   END IF
+   
+   DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
 
 END FUNCTION DiceDeflectedVector
 
