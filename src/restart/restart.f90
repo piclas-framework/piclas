@@ -1218,11 +1218,9 @@ __STAMP__&
     ! check if datasets for restarting of surface model from state exists in state file used for restart
     SurfModelTypeExists=.FALSE.
     CALL DatasetExists(File_ID,'SurfModelType',SurfModelTypeExists)
-    CALL CloseDataFile()
     IF (SurfModelTypeExists) THEN
       SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER OF SURFACE-SIDES IN RESTART FILE... '
       CALL GetDataProps('SurfModelType',nVarSurf_HDF5,N_HDF5,nSurfSides_HDF5,NodeType_HDF5)
-      SWRITE(UNIT_stdOut,'(A)')' DONE!'
       IF (nSurfSides_HDF5.NE.SurfMesh%nGlobalSides) THEN
         SWRITE(UNIT_stdOut,'(A,A)') ' NUMBER OF SURFACE-SIDES IN RESTART FILE NOT EQUAL TO CALCULATION ... RESTARTING FROM INI'
       ELSE
@@ -1230,7 +1228,6 @@ __STAMP__&
         ! Associate construct for integer KIND=8 possibility
         ASSOCIATE (&
               nSides          => INT(SurfMesh%nSides,IK) ,&
-              nSpecies        => INT(nSpecies,IK) ,&
               offsetSurfSide  => INT(offsetSurfSide,IK) )
           CALL ReadArray('SurfaceModelType',1,(/nSides/) ,&
                          offsetSurfSide,1,IntegerArray_i4=SurfModelType)
@@ -1247,7 +1244,7 @@ __STAMP__&
       END IF ! nsurfsides_hdf5 != nglobalsurfsides
     END IF
     IF (ANY(WallModelExists(:))) THEN
-      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...' 
+      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...'
       ! do sanity checks of data in h5 file before proceeding
       CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
       nSurfBC_HDF5 = INT(HSize(1),4)
@@ -1286,9 +1283,11 @@ __STAMP__&
             DO jsubsurf = 1,nSurfSample
               DO isubsurf = 1,nSurfSample
                 Adsorption%Coverage(iSubSurf,jSubSurf,iSurfSide,:) = SurfCalcData(1,iSubSurf,jSubSurf,iSurfSide,:)
-                SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:) = SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:)
-                SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:) = SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:)
-                SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)  = SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:)
+                IF (PartBound%SurfaceModel(PartBoundID).EQ.3) THEN
+                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%adsorbnum_tmp(:) = SurfCalcData(2,iSubSurf,jSubSurf,iSurfSide,:)
+                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%desorbnum_tmp(:) = SurfCalcData(3,iSubSurf,jSubSurf,iSurfSide,:)
+                  SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%reactnum_tmp(:)  = SurfCalcData(4,iSubSurf,jSubSurf,iSurfSide,:)
+                END IF
               END DO
             END DO
           END IF
