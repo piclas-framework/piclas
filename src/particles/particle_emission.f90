@@ -5153,6 +5153,9 @@ __STAMP__&
             CASE('constant')
               vSF = VeloIC * projFak !Velo proj. to inwards normal
               nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+            CASE('liquid')
+              vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+              nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
             CASE('maxwell','maxwell_lpn')
               IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
                 v_thermal = 1.
@@ -5209,6 +5212,9 @@ __STAMP__&
           CASE('constant')
             vSF = VeloIC * projFak !Velo proj. to inwards normal
             nVFR = MAX(SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+          CASE('liquid')
+            vSF = v_thermal / (2.0*SQRT(PI)) !mean flux velocity through normal sub-face
+            nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to inwards normal of sub-side
           CASE('maxwell','maxwell_lpn')
             IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
               v_thermal = 1.
@@ -5932,8 +5938,10 @@ CASE('liquid')
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-       Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
-       PartState(PositionNbr,4:6) = vec_t1(1:3)*Vec3D(1) + vec_t2(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
+      Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
+      PartState(PositionNbr,4:6) = vec_nIn(1:3)*(a*SQRT(2*BoltzmannConst*T/Species(FractNbr)%MassIC)+Vec3D(3)) &
+                                 + vec_t1(1:3)*(Velo_t1+Vec3D(1)) &
+                                 + vec_t2(1:3)*(Velo_t2+Vec3D(2))
     ELSE !PositionNbr .EQ. 0
       CALL abort(&
 __STAMP__&
