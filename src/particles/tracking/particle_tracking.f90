@@ -1833,6 +1833,9 @@ ELSE
   ! update particle element
   dolocSide=.TRUE.
   Moved = PARTSWITCHELEMENT(xi,eta,hitlocSide,SideID,ElemID)
+  IF (Moved(1).LT.1 .OR. Moved(2).LT.1) CALL abort(&
+__STAMP__ &
+,'ERROR in SelectInterSectionType. No Neighbour Elem or Neighbour Side found --> increase haloregion')
   ElemID=Moved(1)
   TrackInfo%CurrElem=ElemID
   dolocSide(Moved(2))=.FALSE.
