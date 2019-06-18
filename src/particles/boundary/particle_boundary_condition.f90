@@ -1978,7 +1978,7 @@ REAL                             :: POI_fak, TildTrajectory(3)
 CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
 !===================================================================================================================================
 
-! find normal vector two perpendicular tangential vectors
+! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -2280,7 +2280,8 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
-  PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) + n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+  ! important: n_loc points outwards
+  PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
   CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)

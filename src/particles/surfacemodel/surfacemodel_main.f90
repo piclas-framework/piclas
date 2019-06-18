@@ -234,6 +234,7 @@ USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
 USE MOD_SurfaceModel_Tools     ,ONLY: SurfaceHasModelNum
+USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_TimeDisc_Vars          ,ONLY: dt
@@ -249,6 +250,8 @@ IMPLICIT NONE
 INTEGER                          :: iSurfSide, iSpec, p, q, NPois, PartEvapInfo
 REAL                             :: WallPartNum, PartEvap, RanNum, Tpois, LiquidSurfTemp
 REAL                             :: A, B, C, pressureVapor
+INTEGER                          :: iPart, PartEvap_temp
+REAl                             :: veloPart, sigma
 #if USE_LOADBALANCE
 INTEGER                          :: ElemID
 #endif /*USE_LOADBALANCE*/
@@ -288,6 +291,17 @@ DO iSpec = 1,nSpecies
             PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
                      * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt &
                      * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+            IF (SurfaceHasModelNum(iSurfSide).EQ.102) THEN
+              sigma=SQRT(BoltzmannConst*LiquidSurfTemp/Species(iSpec)%MassIC)
+              PartEvap_temp = PartEvap
+              PartEvap = 0
+              DO iPart = 1,PartEvap_temp
+                CALL RANDOM_NUMBER(RanNum)
+                veloPart = SQRT(-2*LOG(RanNum))*sigma
+                CALL RANDOM_NUMBER(RanNum)
+                IF ( (TSURUTACONDENSCOEFF(iSpec,veloPart,LiquidSurfTemp).GE.RanNum) ) PartEvap=PartEvap+1
+              END DO
+            END IF
             WallPartNum = PartEvap
           ELSE
             WallPartNum = 0

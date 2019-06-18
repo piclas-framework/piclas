@@ -5040,11 +5040,10 @@ __STAMP__&
           ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
         END IF
         IF (noAdaptive) THEN
-          IF ( PartBound%Reactive(PartBound%MapToPartBC(BC(SideID))) )  THEN
+          IF ( PartBound%Reactive(currentBC) )  THEN
             IF (SurfMesh%SideIDToSurfID(SideID).GT.0) THEN
-              ! needs to be tested in order for triasurfaceflux and tracing to work both
-              ! sumdesorbpart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
-              IF (.NOT.TriaSurfaceFlux.OR.(iSample.EQ.1 .AND. jSample.EQ.1)) THEN
+              ! sumEvapPart for triatracking is only allocated over (1,1,nsurfsides,nspecies)
+              IF (.NOT.TriaSurfaceFlux .OR. (iSample.EQ.1 .AND. jSample.EQ.1)) THEN
                 ExtraParts = SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
                 SurfModel%SumEvapPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec) = 0
               END IF
@@ -5184,7 +5183,7 @@ __STAMP__&
             T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
           CASE(2) ! adaptive Outlet/freestream
             ElemPartDensity = Adaptive_MacroVal(DSMC_NUMDENS,ElemID,iSpec)
-            pressure = PartBound%AdaptivePressure(Species(iSpec)%Surfaceflux(iSF)%BC)
+            pressure = PartBound%AdaptivePressure(currentBC)
             T = pressure / (BoltzmannConst * SUM(Adaptive_MacroVal(DSMC_NUMDENS,ElemID,:)))
           CASE(3) ! pressure outlet (pressure defined)
           CASE DEFAULT
@@ -5930,14 +5929,11 @@ CASE('liquid')
       ,xi=PartState(PositionNbr,4),eta=PartState(PositionNbr,5),SideID=SideID )
     vec_nIn(1:3) = -vec_nIn(1:3)
   END IF
-  !sigma=SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC)
-  !beta=BETALIQUID(FractNbr,T)
-  !ymax=0.7
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
        Vec3D(1:3) = VELOFROMDISTRIBUTION('liquid_evap',FractNbr,T)
-       PartState(PositionNbr,4:6) = vec_t1(1:3)*Vec3D(1) + vec_t1(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
+       PartState(PositionNbr,4:6) = vec_t1(1:3)*Vec3D(1) + vec_t2(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
     ELSE !PositionNbr .EQ. 0
       CALL abort(&
 __STAMP__&

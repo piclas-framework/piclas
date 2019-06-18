@@ -165,31 +165,54 @@ REAL,INTENT(IN)             :: temp         !< input temperature [K]
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: veloFromDistribution(1:3)
-REAL :: alpha, beta
-REAL :: y1, f, ymax
-REAL :: sigma
-REAL :: Velo1, Velo2, Velosq
-REAL :: RandVal(2)
+REAL, PARAMETER :: xmin=0., xmax=5.
+REAL            :: veloFromDistribution(1:3)
+REAL            :: alpha, beta
+REAL            :: y1, f, ymax, i, binsize
+REAL            :: sigma, val(1:2)
+REAL            :: Velo1, Velo2, Velosq
+REAL            :: RandVal(2)
 !===================================================================================================================================
+
 !-- set velocities
 SELECT CASE(TRIM(distribution))
 CASE('liquid_evap','liquid_refl')
   ! sample normal direction with ARM from given, shifted rayleigh distribution function
   sigma = SQRT(BoltzmannConst*temp/Species(SpecID)%MassIC)
-  y1=1
-  f=0
   alpha=ALPHALIQUID(specID,temp)
   beta=BETALIQUID(specID,temp)
-  DO WHILE (y1-f.GT.0)
-    CALL RANDOM_NUMBER(RandVal)
-    Velo1=RandVal(1)*4
+  ! define ymax used in ARM
+  IF (beta.GE.1 .AND. TRIM(distribution).EQ.'liquid_evap') THEN
+    i = xmin
+    binsize = (xmax-xmin)/100.
+    ymax = LIQUIDEVAP(beta,i,1.)
+    DO WHILE (i.LE.xmax) !
+      val(1)=LIQUIDEVAP(beta,i,1.)
+      val(2)=LIQUIDEVAP(beta,i+binsize,1.)
+      IF (val(2).GT.val(1)) THEN
+        ymax = val(2)
+      END IF
+      i=i+binsize
+    END DO
+    ymax = ymax*1.1
+  ELSE
     SELECT CASE(TRIM(distribution))
     CASE('liquid_evap')
       ymax = 0.7
+    CASE('liquid_refl')
+      ymax = 0.9
+    END SELECT
+  END IF
+  ! do ARM loop
+  y1=1
+  f=0
+  DO WHILE (y1-f.GT.0)
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1=xmin+RandVal(1)*(xmax-xmin)
+    SELECT CASE(TRIM(distribution))
+    CASE('liquid_evap')
       f=LIQUIDEVAP(beta,Velo1,1.)
     CASE('liquid_refl')
-      ymax = 1.0
       f=LIQUIDREFL(alpha,beta,Velo1,1.)
     END SELECT
     y1=ymax*RandVal(2)

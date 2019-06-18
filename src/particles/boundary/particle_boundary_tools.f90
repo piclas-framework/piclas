@@ -269,8 +269,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN) :: beta,x,sigma
+REAL            :: betaLoc
 !===================================================================================================================================
-liquidEvap=(1-beta*exp(-0.5*(x/sigma)**2))/(1-beta/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+betaLoc = beta
+IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
+IF (betaLoc.LT.0.) betaLoc = 0.
+
+liquidEvap=(1-betaLoc*exp(-0.5*(x/sigma)**2))/(1-betaLoc/2)  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+IF (liquidEvap.LT.0.) liquidEvap = 0.
 END FUNCTION
 
 REAL FUNCTION LIQUIDREFL(alpha,beta,x,sigma)
@@ -283,8 +289,27 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN) :: alpha,beta,x,sigma
+REAL            :: betaLoc, alphaLoc
 !===================================================================================================================================
-liquidRefl= (1-alpha+alpha*beta*exp(-0.5*(x/sigma)**2))/(1-alpha*(1-beta/2))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+betaLoc = beta
+IF (betaLoc.GE.2.) betaLoc = 2. - 1e-10
+IF (betaLoc.LT.0.) betaLoc = 0.
+alphaLoc = alpha
+IF (alphaLoc.GT.1.) alphaLoc = 1.
+IF (alphaLoc.LT.0.) alphaLoc = 0.
+
+if (alphaLoc.GE.1.) then
+  if (betaLoc.LE.0) then
+    liquidRefl = x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+  else
+    liquidRefl = (betaLoc*exp(-0.5*(x/sigma)**2))/(1.-(1.-betaLoc/2.))  *   x/sigma**2  *  exp(-0.5*(x/sigma)**2)
+  end if
+else
+  liquidRefl = (1.-alphaLoc+alphaLoc*betaLoc*exp(-0.5*(x/sigma)**2))/(1.-alphaLoc*(1.-betaLoc/2.)) &
+             * x/sigma**2 * exp(-0.5*(x/sigma)**2)
+end if
+
+IF (liquidRefl.LT.0.) liquidRefl = 0.
 END FUNCTION
 
 FUNCTION ALPHALIQUID(specID,temp) RESULT(alpha)
@@ -311,7 +336,8 @@ CASE (1)
 CASE (2)
   alpha = exp(-((4-BETALIQUID(specID,temp))/(2*(2-BETALIQUID(specID,temp)))-1))
 END SELECT
-
+IF (alpha.GT.1.) alpha = 1.
+IF (alpha.LT.0.) alpha = 0.
 END FUNCTION
 
 FUNCTION BETALIQUID(specID,temp) RESULT(beta)
@@ -343,6 +369,8 @@ CASE (2)
        + SpecSurf(specID)%liquidBetaCoeff(5)*temp    &
        + SpecSurf(specID)%liquidBetaCoeff(6)
 END SELECT
+IF (beta.GE.2.) beta = 2. - 1e-10
+IF (beta.LT.0.) beta=0.
 END FUNCTION
 
 FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
@@ -350,8 +378,8 @@ FUNCTION TSURUTACONDENSCOEFF(SpecID,normalVelo,temp) RESULT(sigma)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars     ,ONLY: Species
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars ,ONLY: Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -365,6 +393,8 @@ REAL :: sigma
 ! LOCAL VARIABLES
 !===================================================================================================================================
 sigma = ALPHALIQUID(specID,temp)*(1-BETALIQUID(specID,temp)*exp(-normalVelo**2*Species(specID)%MassIC/(2*Boltzmannconst*temp)))
+IF (sigma.LT.0.) sigma = 0.
+IF (sigma.GT.1.) sigma = 1.
 END FUNCTION
 
 
