@@ -494,7 +494,7 @@ DO iSurfSide=1,SurfMesh%nSides
                                                       / SampWall(iSurfSide)%State(12+iSpec,p,q))
           END IF
           ! calculate coverage
-          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) * dt / TimeSample
+          MacroSurfaceSpecVal(3,p,q,iSurfSide,iSpec) = SampWall(iSurfSide)%SurfModelState(5+iSpec,p,q) / Adsorption%NumCovSamples
           ! calculate reaction counters
           DO iReact=1,Adsorption%ReactNum
             ! first part are surface collision processes

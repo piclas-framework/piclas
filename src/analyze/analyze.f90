@@ -782,6 +782,7 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceVa
 USE MOD_Analyze_Vars           ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Analyze       ,ONLY: AnalyzeParticles,CalculatePartElemData,WriteParticleTrackingData
 USE MOD_Particle_Analyze_Vars  ,ONLY: PartAnalyzeStep,DoPartAnalyze,TrackParticlePosition
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_SurfaceModel_Analyze_Vars,ONLY: SurfaceAnalyzeStep
 USE MOD_SurfaceModel_Analyze   ,ONLY: AnalyzeSurface
 USE MOD_DSMC_Vars              ,ONLY: DSMC, iter_macvalout,iter_macsurfvalout
@@ -1098,6 +1099,7 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWall(iSide)%PumpCapacity=0.
       END IF
     END DO
+    Adsorption%NumCovsamples=0
     IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
       AnalyzeSurfCollis%Data=0.
       AnalyzeSurfCollis%Spec=0

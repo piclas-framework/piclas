@@ -88,6 +88,7 @@ TYPE tAdsorption
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
 #endif
+  INTEGER                                :: NumCovSamples           ! number of times coverage was sampled since last macrooutput
   LOGICAL , ALLOCATABLE                  :: SurfaceSpec(:,:)        ! set species as species of the surface
   REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)

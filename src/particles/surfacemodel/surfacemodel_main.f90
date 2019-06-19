@@ -208,6 +208,7 @@ IF (.NOT.KeepWallParticles) THEN
   SurfModel%SumAdsorbPart(:,:,:,:) = 0
   SurfModel%SumReactPart(:,:,:,:) = 0
 END IF
+Adsorption%NumCovSamples = Adsorption%NumCovSamples + 1
 !----- 4.
 CALL CalcDesorbProb()
 CALL CalcAdsorbProb()
