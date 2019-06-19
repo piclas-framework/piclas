@@ -738,6 +738,7 @@ SDEALLOCATE(ListDistance)
 SDEALLOCATE(isTracingTrouble)
 SDEALLOCATE(ElemTolerance)
 SDEALLOCATE(ElemToGlobalElemID)
+SDEALLOCATE(ElemHaloInfoProc)
 
 ParticleMeshInitIsDone=.FALSE.
 
