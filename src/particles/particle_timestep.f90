@@ -350,8 +350,8 @@ REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY: VarTimeStep, Symmetry2D
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry2D
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -366,43 +366,41 @@ INTEGER, INTENT(IN), OPTIONAL   :: iElem
 REAL          :: xFactor
 !===================================================================================================================================
 
-  CalcVarTimeStep = 1.
+CalcVarTimeStep = 1.
 
-  IF(VarTimeStep%UseLinearScaling) THEN
-    IF(Symmetry2D) THEN
-      IF (VarTimeStep%Use2DTimeFunc) THEN
-        IF(.NOT.PRESENT(xPos).OR..NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
-          'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
-        IF (xPos.LT.VarTimeStep%StagnationPoint) THEN
-          ! xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/GEO%xminglob*VarTimeStep%TimeScaleFac2DFront)
-          xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/(VarTimeStep%StagnationPoint-GEO%xminglob) &
-                        * (VarTimeStep%TimeScaleFac2DFront - 1.0))
-        ELSE
-          ! xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/GEO%xmaxglob*VarTimeStep%TimeScaleFac2DBack)
-          xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/(GEO%xmaxglob-VarTimeStep%StagnationPoint) &
-                        * (VarTimeStep%TimeScaleFac2DBack - 1.0))
-        END IF
-        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))*(1.+xFactor)
+IF(VarTimeStep%UseLinearScaling) THEN
+  IF(Symmetry2D) THEN
+    IF (VarTimeStep%Use2DTimeFunc) THEN
+      IF(.NOT.PRESENT(xPos).OR..NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
+        'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
+      IF (xPos.LT.VarTimeStep%StagnationPoint) THEN
+        xFactor = ABS((VarTimeStep%StagnationPoint-xPos)/(VarTimeStep%StagnationPoint-GEO%xminglob) &
+                      * (VarTimeStep%TimeScaleFac2DFront - 1.0))
       ELSE
-        IF(.NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
-          'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
-        CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))
+        xFactor = ABS((xPos-VarTimeStep%StagnationPoint)/(GEO%xmaxglob-VarTimeStep%StagnationPoint) &
+                      * (VarTimeStep%TimeScaleFac2DBack - 1.0))
       END IF
+      CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))*(1.+xFactor)
     ELSE
-      IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
-        'ERROR: Element number is required in the call of CalcVarTimeStep for distribution/scaling in 3D!')
-      CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
+      IF(.NOT.PRESENT(yPos)) CALL abort(__STAMP__,&
+        'ERROR: Position in x-direction is required in the call of CalcVarTimeStep for linear scaling in 2D!')
+      CalcVarTimeStep = (1. + yPos/GEO%ymaxglob*(VarTimeStep%ScaleFac-1.0))
     END IF
-  ELSE IF(VarTimeStep%UseDistribution) THEN
-    IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
-      'ERROR: Element number is required in the call of CalcVarTimeStep for distribution!')
-    CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
   ELSE
-    CALL abort(__STAMP__,&
-      'ERROR: CalcVarTimeStep should not be utilized without LinearScaling/Distribution flag!')
+    IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
+      'ERROR: Element number is required in the call of CalcVarTimeStep for distribution/scaling in 3D!')
+    CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
   END IF
+ELSE IF(VarTimeStep%UseDistribution) THEN
+  IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
+    'ERROR: Element number is required in the call of CalcVarTimeStep for distribution!')
+  CalcVarTimeStep = VarTimeStep%ElemFac(iElem)
+ELSE
+  CALL abort(__STAMP__,&
+    'ERROR: CalcVarTimeStep should not be utilized without LinearScaling/Distribution flag!')
+END IF
 
-  RETURN
+RETURN
 
 END FUNCTION CalcVarTimeStep
 

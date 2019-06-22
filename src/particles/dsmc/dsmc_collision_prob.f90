@@ -35,7 +35,7 @@ PUBLIC :: DSMC_prob_calc
 
 CONTAINS
 
-SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume, MeanSpecNum)
+SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
 ! Routine calculating the collision probability
 !===================================================================================================================================
@@ -53,7 +53,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume, MeanSpecNum)
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                 :: iElem, iPair
   REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
-  REAL, INTENT(IN), OPTIONAL          :: MeanSpecNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -77,24 +76,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume, MeanSpecNum)
     Volume = GEO%Volume(iElem)
   END IF
 
-  IF (PRESENT(MeanSpecNum)) THEN
-    IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
-      CALL RANDOM_NUMBER(iRan)
-      IF (iRan.GT.0.5) THEN
-        SpecNum1 = MeanSpecNum(iSpec_p1) !number of particles of spec 1
-        SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2) !number of particles of spec 2  
-      ELSE
-        SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1) !number of particles of spec 1
-        SpecNum2 = MeanSpecNum(iSpec_p2) !number of particles of spec 2
-      END IF
-    ELSE
-      SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)
-      SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
-    END IF
-  ELSE
-    SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)
-    SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
-  END IF
+  SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)
+  SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
 
   Weight1 = GetParticleWeight(iPart_p1)
   Weight2 = GetParticleWeight(iPart_p2)

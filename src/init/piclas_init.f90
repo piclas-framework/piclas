@@ -64,7 +64,6 @@ USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
 USE MOD_Restart,            ONLY:InitRestart
 USE MOD_Restart_Vars,       ONLY:DoRestart
-!USE MOD_ReadInTools,        ONLY:IgnoredStrings
 USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
@@ -80,9 +79,6 @@ USE MOD_RecordPoints,       ONLY:InitRecordPoints
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver,       ONLY:InitLinearSolver
 #endif /*ROS or IMPA*/
-!#ifdef IMEX
-!USE MOD_CSR,                ONLY:InitCSR
-!#endif /*IMEX*/
 USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
 #ifdef MPI
 USE MOD_MPI,                ONLY:InitMPIvars
@@ -121,7 +117,6 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
 
 #ifdef PARTICLES
 ! DSMC handling:

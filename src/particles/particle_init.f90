@@ -2994,11 +2994,13 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
       CALL VarTimeStep_CalcElemFacs()
     END IF
   END IF
-  ! IF(VarTimeStep%UseDistribution) THEN
-  !   ! Apply a min-mean filter combo if the distribution was adapted
-  !   ! (is performed here to have the element neighbours already defined)
-  !   IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
-  ! END IF
+  IF(VarTimeStep%UseDistribution) THEN
+    ! ! Apply a min-mean filter combo if the distribution was adapted
+    ! ! (is performed here to have the element neighbours already defined)
+    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
+    ! Disable AdaptDistribution to avoid adapting during a load balance restart
+    IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
+  END IF
 END IF
 
 END SUBROUTINE InitializeVariables

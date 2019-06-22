@@ -189,10 +189,6 @@ TYPE tDSMC
                                                             !       1: TSHO 
   LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
-  INTEGER                       :: SampSizeMeanPartNum
-  REAL,ALLOCATABLE              :: PartNumMean(:,:,:)
-  INTEGER, ALLOCATABLE          :: NumOfElemFormations(:)
-  LOGICAL, ALLOCATABLE          :: MaxSampSizeReached(:)
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
   LOGICAL                       :: UseNearestNeighbour      ! Flag for Nearest Neighbour or classic statistical pairing
@@ -611,8 +607,6 @@ TYPE tNodeVolume
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL,ALLOCATABLE                        :: PartNum(:,:)
-    INTEGER                                 :: NumOfNodeFormations
-    LOGICAL                                 :: MaxSampSizeReached
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

@@ -688,14 +688,14 @@ IF (nPart.GT.1) THEN
       IF(DSMC%UseNearestNeighbour) THEN
         CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
       ELSE
-!      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem),MeanSpecTemp)
+!      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
       END IF
     END IF
   ELSE  IF (nPart.GT.1) THEN
     IF(DSMC%UseNearestNeighbour) THEN
       CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem))
     ELSE
-!      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem),MeanSpecTemp)
+!      CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
     END IF
   END IF
 
@@ -875,7 +875,7 @@ __STAMP__&
                 PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
         ELSE
 !          CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-!                  PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop),MeanSpecTemp)
+!                  PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
         END IF
       END IF
     ELSE IF (PartNumChildNode(iLoop).GT.1) THEN    
@@ -884,7 +884,7 @@ __STAMP__&
               PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
       ELSE
 !        CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-!                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop),MeanSpecTemp)
+!                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
       END IF
     END IF
   END DO
@@ -912,7 +912,7 @@ INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iLoop, nPart, iSpec
-REAL                          :: SpecPartNum(nSpecies), Volume, RealSampNum, MeanSpecTemp(nSpecies)
+REAL                          :: SpecPartNum(nSpecies), Volume, RealSampNum
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -937,23 +937,6 @@ TYPE(tTreeNode), POINTER      :: TreeNode
       iPart = PEM%pNext(iPart)
     END DO
     
-    IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
-      DSMC%NumOfElemFormations(iElem) =  DSMC%NumOfElemFormations(iElem) + 1
-      IF (DSMC%NumOfElemFormations(iElem).GT.DSMC%SampSizeMeanPartNum) THEN
-        DSMC%NumOfElemFormations(iElem) = 1
-        DSMC%MaxSampSizeReached(iElem) = .TRUE.
-      END IF
-      DSMC%PartNumMean(DSMC%NumOfElemFormations(iElem),:, iElem) = SpecPartNum(:)
-      IF (DSMC%MaxSampSizeReached(iElem)) THEN
-        RealSampNum = DSMC%SampSizeMeanPartNum
-      ELSE
-        RealSampNum = DSMC%NumOfElemFormations(iElem)
-      END IF
-      DO iSpec = 1, nSpecies
-        MeanSpecTemp(iSpec) = SUM(DSMC%PartNumMean(:,iSpec, iElem))/RealSampNum
-      END DO
-    END IF
-
     DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 
     ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
@@ -976,14 +959,14 @@ TYPE(tTreeNode), POINTER      :: TreeNode
         IF(DSMC%UseNearestNeighbour) THEN
           CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
         ELSE
-          CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem),MeanSpecTemp)
+          CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
         END IF
       END IF
     ELSE  IF (nPart.GT.1) THEN
       IF(DSMC%UseNearestNeighbour) THEN
         CALL FindNearestNeigh2D(TreeNode%iPartIndx_Node, nPart, iElem, GEO%Volume(iElem),  (/0.0,0.0,0.0/), 1)
       ELSE
-        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem),MeanSpecTemp)
+        CALL FindStatisticalNeigh(TreeNode%iPartIndx_Node,nPart,iElem, GEO%Volume(iElem))
       END IF
     ELSE IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) THEN
       CollInf%OldCollPartner(TreeNode%iPartIndx_Node(1)) = 0
@@ -1022,8 +1005,7 @@ INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, iSpec
 INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
 INTEGER                       :: PartNumChildNode(4)
-REAL                          :: NodeVolumeTemp(4), FaceVolumeTemp(4), SpecPartNum(nSpecies,4), RealParts(4),Volume(4)
-REAL                          :: MeanSpecTemp(nSpecies,4), RealSampNum
+REAL                          :: NodeVolumeTemp(4), FaceVolumeTemp(4), SpecPartNum(nSpecies,4), RealParts(4), Volume(4)
 LOGICAL                       :: ForceNearestNeigh
 !===================================================================================================================================
 ForceNearestNeigh = .FALSE.
@@ -1033,17 +1015,17 @@ PartNumChildNode(:) = 0
 IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
     __STAMP__,&
-    'ERROR in Octree Pairing: Too many branches, machine precision reached')
+    'ERROR in QuadTree Pairing: Too many branches, machine precision reached')
 END IF
 
-!         Numbering of the 4 ChildNodes of the QuadTree    
+!         Numbering of the 4 ChildNodes of the QuadTree
 !      _________ 
 !     |    |    |   |y
 !     | 3  | 2  |   |
 !     |----|----|   |
 !     | 4  | 1  |   |______x
 !     |____|____|
-! particle to Octree ChildNode sorting
+
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
   IF ((TreeNode%MappedPartStates(iPart,1).GE.TreeNode%MidPoint(1)) &
@@ -1121,68 +1103,6 @@ DO iLoop = 1, 4
         SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart)),iLoop) + GetParticleWeight(iPartIndx_ChildNode(iLoop,iPart))
   END DO
 END DO
-IF (DSMC%SampSizeMeanPartNum.GT.1) THEN
-  ! Node 1
-  NodeVol%SubNode1%NumOfNodeFormations =  NodeVol%SubNode1%NumOfNodeFormations + 1
-  IF (NodeVol%SubNode1%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-    NodeVol%SubNode1%NumOfNodeFormations = 1
-    NodeVol%SubNode1%MaxSampSizeReached = .TRUE.    
-  END IF
-  NodeVol%SubNode1%PartNum(NodeVol%SubNode1%NumOfNodeFormations,:) = SpecPartNum(:,1)
-  IF (NodeVol%SubNode1%MaxSampSizeReached) THEN
-    RealSampNum = DSMC%SampSizeMeanPartNum
-  ELSE
-    RealSampNum = NodeVol%SubNode1%NumOfNodeFormations
-  END IF
-  DO iSpec = 1, nSpecies
-    MeanSpecTemp(iSpec,1) = SUM(NodeVol%SubNode1%PartNum(:,iSpec))/RealSampNum
-  END DO
-  ! Node 2
-  NodeVol%SubNode2%NumOfNodeFormations =  NodeVol%SubNode2%NumOfNodeFormations + 1
-  IF (NodeVol%SubNode2%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-    NodeVol%SubNode2%NumOfNodeFormations = 1
-    NodeVol%SubNode2%MaxSampSizeReached = .TRUE.
-  END IF
-  NodeVol%SubNode2%PartNum(NodeVol%SubNode2%NumOfNodeFormations,:) = SpecPartNum(:,2)
-  IF (NodeVol%SubNode2%MaxSampSizeReached) THEN
-    RealSampNum = DSMC%SampSizeMeanPartNum
-  ELSE
-    RealSampNum = NodeVol%SubNode2%NumOfNodeFormations
-  END IF
-  DO iSpec = 1, nSpecies
-    MeanSpecTemp(iSpec,2) = SUM(NodeVol%SubNode2%PartNum(:,iSpec))/RealSampNum
-  END DO
-  ! Node 3
-  NodeVol%SubNode3%NumOfNodeFormations =  NodeVol%SubNode3%NumOfNodeFormations + 1
-  IF (NodeVol%SubNode3%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-    NodeVol%SubNode3%NumOfNodeFormations = 1
-    NodeVol%SubNode3%MaxSampSizeReached = .TRUE.
-  END IF
-  NodeVol%SubNode3%PartNum(NodeVol%SubNode3%NumOfNodeFormations,:) = SpecPartNum(:,3)
-  IF (NodeVol%SubNode3%MaxSampSizeReached) THEN
-    RealSampNum = DSMC%SampSizeMeanPartNum
-  ELSE
-    RealSampNum = NodeVol%SubNode3%NumOfNodeFormations
-  END IF
-  DO iSpec = 1, nSpecies
-    MeanSpecTemp(iSpec,3) = SUM(NodeVol%SubNode3%PartNum(:,iSpec))/RealSampNum
-  END DO
-  ! Node 4
-  NodeVol%SubNode4%NumOfNodeFormations =  NodeVol%SubNode4%NumOfNodeFormations + 1
-  IF (NodeVol%SubNode4%NumOfNodeFormations.GT.DSMC%SampSizeMeanPartNum) THEN
-    NodeVol%SubNode4%NumOfNodeFormations = 1
-    NodeVol%SubNode4%MaxSampSizeReached = .TRUE.
-  END IF
-  NodeVol%SubNode4%PartNum(NodeVol%SubNode4%NumOfNodeFormations,:) = SpecPartNum(:,4)
-  IF (NodeVol%SubNode4%MaxSampSizeReached) THEN
-    RealSampNum = DSMC%SampSizeMeanPartNum
-  ELSE
-    RealSampNum = NodeVol%SubNode4%NumOfNodeFormations
-  END IF
-  DO iSpec = 1, nSpecies
-    MeanSpecTemp(iSpec,4) = SUM(NodeVol%SubNode4%PartNum(:,iSpec))/RealSampNum
-  END DO
-END IF
 
 DO iLoop = 1, 4
   ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
@@ -1222,7 +1142,7 @@ DO iLoop = 1, 4
       TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
                                         + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
       TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
-      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
+      ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further quadtree division)
       IF (iLoop.EQ.1) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
       IF (iLoop.EQ.2) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
       IF (iLoop.EQ.3) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
@@ -1236,7 +1156,7 @@ DO iLoop = 1, 4
                 PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
       ELSE
         CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                  iElem, NodeVolumeTemp(iLoop),MeanSpecTemp(:,iLoop))
+                                  iElem, NodeVolumeTemp(iLoop))
       END IF
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
@@ -1245,7 +1165,7 @@ DO iLoop = 1, 4
             PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop), TreeNode%MidPoint(1:3), TreeNode%NodeDepth)
     ELSE
       CALL FindStatisticalNeigh(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)),PartNumChildNode(iLoop), &
-                                  iElem, NodeVolumeTemp(iLoop), MeanSpecTemp(:,iLoop))
+                                  iElem, NodeVolumeTemp(iLoop))
     END IF
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
@@ -1275,14 +1195,14 @@ SUBROUTINE DSMC_init_octree()
 !===================================================================================================================================
   ALLOCATE(ElemNodeVol(nElems))
 
-  !Calculate recursive Volumes  
+  !Calculate recursive Volumes
   DO iElem = 1, nElems
-    ALLOCATE(ElemNodeVol(iElem)%Root)    
+    ALLOCATE(ElemNodeVol(iElem)%Root)
     DO NodeDepth = 1, 2
       IF (Symmetry2D) THEN
-        CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
+        CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       ELSE
-        CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)    
+        CALL DSMC_CalcSubNodeVolumes(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
       END IF
     END DO
   END DO
@@ -1600,11 +1520,6 @@ IF (OldNodeNum.NE.NodeDepth) THEN
     CALL AddNodeVolumes2D(NodeDepth, Node%SubNode4, DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
    END IF
 ELSE
-  ALLOCATE(Node%PartNum(DSMC%SampSizeMeanPartNum, nSpecies))
-  Node%PartNum(1:DSMC%SampSizeMeanPartNum, 1:nSpecies) = 0.
-  Node%NumOfNodeFormations = 0
-  Node%MaxSampSizeReached = .FALSE.
-    
   VolPos(:) = 0
   DO j=1, NodeDepth
     ! x direction
@@ -1642,7 +1557,7 @@ END IF
 END SUBROUTINE AddNodeVolumes2D
 
 
-SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume,MeanSpecNum)
+SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! Classic statistical pairing method for the use in the octree routines
 !===================================================================================================================================
@@ -1665,7 +1580,6 @@ REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(IN)                     :: PartNum
 INTEGER, INTENT(IN)                     :: iElem
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(IN)                        :: MeanSpecNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1876,7 +1790,7 @@ DO iPair = 1, nPair
     IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0).AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
       CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
     ELSE
-      CALL DSMC_prob_calc(iElem, iPair, NodeVolume, MeanSpecNum)
+      CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     END IF
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.ge.iRan) THEN

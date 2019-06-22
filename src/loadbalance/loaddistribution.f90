@@ -167,6 +167,7 @@ USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
 USE MOD_Restart_Vars     ,ONLY: RestartFile
+USE MOD_Particle_Vars     ,ONLY: VarTimeStep
 #endif /*PARTICLES*/
 USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -202,6 +203,7 @@ INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 #endif /*PARTICLES*/
 REAL                           :: TargetWeight_loc
+REAL                           :: timeWeight(1:nGlobalElems)
 !===================================================================================================================================
 WeightSum = 0.0
 CurWeight = 0.0
@@ -223,22 +225,20 @@ PartsInElem=0
 
 #ifdef PARTICLES
 
-! ALLOCATE(timeWeight(nGlobalelems))
-! timeWeight = 1.0
-! IF(VarTimeStep%UseDistribution) THEN
-!   ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
-!   ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
-!   IF(VarTimeStep%AdaptDistribution) THEN
-!     timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
-!   END IF
-! END IF
+timeWeight = 1.0
+IF(VarTimeStep%UseDistribution) THEN
+  ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
+  ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
+  IF(VarTimeStep%AdaptDistribution) THEN
+    timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
+  END IF
+END IF
 
 IF (PartIntExists) THEN
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
     PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
-    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight + 1.0
-    ! IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
+    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
   END DO
 END IF
 #endif /*PARTICLES*/

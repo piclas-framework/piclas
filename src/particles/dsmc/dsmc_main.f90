@@ -110,13 +110,8 @@ SUBROUTINE DSMC_main(DoElement)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
     IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0 
-      DSMC%CollProbMean = 0.0
-      DSMC%CollProbMeanCount = 0
-      DSMC%CollSepDist = 0.0
-      DSMC%CollSepCount = 0
-      DSMC%MeanFreePath = 0.0
-      DSMC%MCSoverMFP = 0.0
+      DSMC%CollProbMax = 0.0; DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
     END IF
     IF (CollisMode.NE.0) THEN
       ChemReac%nPairForRec = 0
