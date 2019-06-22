@@ -64,7 +64,6 @@ REAL                          :: CRelaAv                    ! Average relative v
   
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
-  REAL                        :: MinPartWeightShift
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
   LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations

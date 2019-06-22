@@ -238,7 +238,7 @@ DO i=1,nSpecies
                   = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * GEO%LocalVolume)
         ! The radial scaling of the weighting factor has to be considered
         IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
-                                    INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor+1.),8)
+                                    INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
       END IF
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
@@ -710,11 +710,12 @@ __STAMP__&
 END DO
 
 END SUBROUTINE ParticleInserting
-                                                                                                   
+
+
 #ifdef MPI
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle,mode)
 #else
-SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)                                             
+SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 #endif /* MPI*/
 !===================================================================================================================================
 ! Set particle position
@@ -4436,16 +4437,15 @@ DO iBC=1,nDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(RadialWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = (RadialWeighting%MinPartWeightShift &
-                                    + GEO%ElemMidPoint(2,ElemID)/GEO%ymaxglob*RadialWeighting%PartScaleFactor)
+                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + GEO%ElemMidPoint(2,ElemID)&
+                                                                        / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
               ELSE
-                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = RadialWeighting%MinPartWeightShift  &
-                  + (ymax**2/(GEO%ymaxglob*2.)*RadialWeighting%PartScaleFactor &
-                  - ymin**2/(GEO%ymaxglob*2.)*RadialWeighting%PartScaleFactor)/(ymax - ymin)
+                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.          &
+                  + (ymax**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
+                  -  ymin**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(ymax - ymin)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
-              BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = RadialWeighting%MinPartWeightShift &
-                                                    + ymax/(GEO%ymaxglob)*RadialWeighting%PartScaleFactor
+              BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
             END IF
           END IF
         ELSE
@@ -6544,7 +6544,7 @@ __STAMP__,&
     END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor+1.)
+    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
     chunkSize_tmp = INT(PartDens * GEO%LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(&

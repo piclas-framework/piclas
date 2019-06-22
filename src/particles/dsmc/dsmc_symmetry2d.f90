@@ -138,8 +138,7 @@ END SUBROUTINE DSMC_2D_InitVolumes
 
 SUBROUTINE DSMC_2D_InitRadialWeighting()
 !===================================================================================================================================
-! Determines the weighting factor multiplicator for each cell based on the radial distance of the cell middle point,
-! the number of zones and the base multiplicator
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -156,53 +155,52 @@ USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+! Linear increasing weighting factor in the radial direction up to the domain boundary
+RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFactor')
+RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
+RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
+! Cell local radial weighting (all particles have the same weighting factor within a cell)
+RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellLocalWeighting')
 
-  RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFactor','1.')
-  RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode','1')
-  RadialWeighting%MinPartWeightShift = GETREAL('Particles-RadialWeighting-MinPartWeightShift','1.')
-  RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay','1')
-  ! Cell local radial weighting (all particles have the same weighting factor within a cell)
-  RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellLocalWeighting','.FALSE.')
+RadialWeighting%NextClone = 0
 
-  RadialWeighting%NextClone = 0
-
-  SELECT CASE(RadialWeighting%CloneMode)
-    CASE(1)
-      IF(RadialWeighting%CloneInputDelay.LT.1) THEN
-        CALL Abort(&
-           __STAMP__,&
-          'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
-      END IF
-      ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
-      ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
-      RadialWeighting%ClonePartNum = 0
-      IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 1
-    CASE(2)
-      IF(RadialWeighting%CloneInputDelay.LT.2) THEN
-        CALL Abort(&
-           __STAMP__,&
-          'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
-      END IF
-      ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
-      ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
-      RadialWeighting%ClonePartNum = 0
-      IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 0
-    CASE DEFAULT
+SELECT CASE(RadialWeighting%CloneMode)
+  CASE(1)
+    IF(RadialWeighting%CloneInputDelay.LT.1) THEN
       CALL Abort(&
-         __STAMP__,&
-        'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
-          ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-  END SELECT
+          __STAMP__,&
+        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
+    END IF
+    ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
+    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
+    RadialWeighting%ClonePartNum = 0
+    IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 1
+  CASE(2)
+    IF(RadialWeighting%CloneInputDelay.LT.2) THEN
+      CALL Abort(&
+          __STAMP__,&
+        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
+    END IF
+    ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
+    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
+    RadialWeighting%ClonePartNum = 0
+    IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 0
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+END SELECT
 
 END SUBROUTINE DSMC_2D_InitRadialWeighting
 
 
 SUBROUTINE DSMC_2D_RadialWeighting(iPart,iElem)
 !===================================================================================================================================
-! Routine for the treatment of particles with enabled radial weighting
-! Cloning: when the local MPF is lower than the MPF of the particle, a clone is created. Multiple clone procedures are available.
-!          Additionally, the z-component of the clone is inverted to create an artificial relative velocity.
-! Deleting: if the local MPF is higher than the MPF of the particle, the particle is deleted with a 1 - W_part/W_local probability
+!> Routine for the treatment of particles with enabled radial weighting
+!> Cloning: when the local MPF is lower than the MPF of the particle, a clone is created. Multiple clone procedures are available.
+!>          Additionally, the z-component of the clone is inverted to create an artificial relative velocity.
+!> Deleting: if the local MPF is higher than the MPF of the particle, the particle is deleted with a 1 - W_part/W_local probability
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -325,7 +323,8 @@ END SUBROUTINE DSMC_2D_RadialWeighting
 
 SUBROUTINE DSMC_2D_SetInClones()
 !===================================================================================================================================
-! Clones insertion is delayed by at least one time step
+!> Insertion of cloned particles during the previous time steps. Clones insertion is delayed by at least one time step to avoid the
+!> avalanche phenomenon (identical particles travelling on the same path, not colliding due to zero relative velocity).
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -419,7 +418,7 @@ END SUBROUTINE DSMC_2D_SetInClones
 
 REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 !===================================================================================================================================
-! Calculates the actual area of an element for the 2D simulations (plane/axisymmetric)
+! Calculates the actual area of an element for 2D simulations (plane/axisymmetric)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -474,7 +473,8 @@ END FUNCTION DSMC_2D_CalcSymmetryArea
 
 REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
-! 
+!> Determines the weighting factor when using an additional radial weighting for axisymmetric simulations. Linear increase from the
+!> rotational axis (y=0) to the outer domain boundary (y=ymax).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -502,8 +502,8 @@ ELSE
   yPosIn = yPos
 END IF
 
-CalcRadWeightMPF = (RadialWeighting%MinPartWeightShift &
-                    + yPosIn/GEO%ymaxglob*RadialWeighting%PartScaleFactor)*Species(iSpec)%MacroParticleFactor
+CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+
 RETURN
 
 END FUNCTION CalcRadWeightMPF

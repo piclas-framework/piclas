@@ -988,16 +988,14 @@ CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial w
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
                               'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
-                              'be twice as large at the outer radial domain boudary than at the rotational axis', '1.')
+                              'be twice as large at the outer radial domain boudary than at the rotational axis')
 CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
                               'where every particle has the same weighting within a cell', '.FALSE.')
-CALL prms%CreateRealOption(   'Particles-RadialWeighting-MinPartWeightShift'  &
-                            , 'Factor between 0 and 1 to reduce the radial weighting towards the rotational axis', '1.')
-CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode'  &
-                            , 'Radial weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &
+                              'Radial weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
                               '1: Chronological, 2: Random', '2')
-CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneDelay'  &
-                            , 'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneDelay', &
+                              'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
                               'at the position they were cloned', '2')
 
 END SUBROUTINE DefineParametersParticles
