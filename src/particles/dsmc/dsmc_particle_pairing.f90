@@ -911,11 +911,10 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, iSpec
-REAL                          :: SpecPartNum(nSpecies), Volume, RealSampNum
+INTEGER                       :: iPart, iLoop, nPart
+REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
-
 
   Volume = GEO%Volume(iElem)
 
@@ -1001,7 +1000,7 @@ TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, iSpec
+INTEGER                       :: iPart, iLoop, iPartIndx, localDepth
 INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
 INTEGER                       :: PartNumChildNode(4)
@@ -1458,8 +1457,8 @@ RECURSIVE SUBROUTINE AddNodeVolumes2D(NodeDepth, Node, DetJac, VdmLocal, iElem, 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: Pi
-USE MOD_DSMC_Vars       ,ONLY: tOctreeVdm, tNodeVolume, DSMC
-USE MOD_Particle_Vars   ,ONLY: Symmetry2DAxisymmetric, nSpecies
+USE MOD_DSMC_Vars       ,ONLY: tOctreeVdm, tNodeVolume
+USE MOD_Particle_Vars   ,ONLY: Symmetry2DAxisymmetric
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
