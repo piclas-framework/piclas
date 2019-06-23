@@ -279,29 +279,13 @@ gnu_poisson:
 #                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_PIC_gyrotron_variable_Bz:
+gnu_PIC_maxwell_RK4:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules-concurrent
   script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
-
-gnu_PIC_single_particle_PML:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
-    
-gnu_PIC_IMD_coupling:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
+    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
@@ -311,14 +295,6 @@ gnu_PIC_maxwell_implicitBC:
   script:
     - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
 
-gnu_PIC_initial_ionization:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
-    
 gnu_DSMC_check:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
