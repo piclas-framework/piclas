@@ -304,14 +304,31 @@ AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
 
 ## Particle-In-Cell \label{sec:pic}
 
-### Deposition \label{sec:pic_deposition}
+### Charge and Current Deposition \label{sec:pic_deposition}
 
 Charge and current deposition can be performed using different methods, among others, shape
-functions, B-splines or locally volume-weighted.
+functions, B-splines or locally volume-weighted approaches.
+
+#### Linear Distribution Over Cell Interfaces
+A linear deposition method that also considers neighbouring elements can be selected by
+
+    PIC-Deposition-Type = cell_volweight_mean
+
+The method also considers the corner nodes of each element to which all neighbouring elements
+contribute, hence, resulting in a non-local deposition scheme.
 
 #### Shape Function
 
-High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006].
+High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006]. The standard 3D shape function is selected by
+
+    PIC-Deposition-Type = shape_function
+
+or
+
+    PIC-Deposition-Type = shape_function_simple
+
+where `shape_function_simple` is faster for small numbers of elements per processor (high parallelization).
+
 The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
 using a local deposition method near boundaries. The deposition of particles in elements where the shape
 function might be truncated is changed to *cell_volweight* for these elements via
