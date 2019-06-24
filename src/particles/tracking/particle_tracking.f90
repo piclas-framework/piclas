@@ -349,7 +349,7 @@ DO i = 1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-          IF ((BCType.EQ.2).OR.(BCType.EQ.6)) THEN
+          IF ((BCType.EQ.2).OR.(BCType.EQ.10)) THEN
             DoneLastElem(:,:) = 0
           ELSE
             DO ind2= 5, 1, -1
