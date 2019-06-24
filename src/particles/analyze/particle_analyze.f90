@@ -1009,12 +1009,6 @@ INTEGER             :: dir
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      IF(nSpecies.GT.1) THEN
-        nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
-        nPartOut(nSpecies+1)    = SUM(nPartOut(1:nSpecies))
-        PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
-        PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
-      END IF
     END IF
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1094,8 +1088,16 @@ INTEGER             :: dir
   END IF
 #endif /*MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Perform averaging of the MPI communicated variables on the root only
+! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
 IF(PartMPI%MPIRoot) THEN
+  IF (CalcPartBalance)THEN
+    IF(nSpecies.GT.1) THEN
+      nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
+      nPartOut(nSpecies+1)    = SUM(nPartOut(1:nSpecies))
+      PartEkinIn(nSpecies+1)  = SUM(PartEkinIn(1:nSpecies))
+      PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
+    END IF
+  END IF
   IF(CalcPorousBCInfo) THEN
     DO iPBC = 1, nPorousBC
       IF(PorousBC(iPBC)%Output(1).GT.0.0) THEN
