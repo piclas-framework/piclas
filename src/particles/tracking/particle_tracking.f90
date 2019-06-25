@@ -300,6 +300,7 @@ DO i = 1,PDM%ParticleVecLength
                       SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
                       LocalSide = LocSidesTemp(ind2)
                       TriNum = TriNumTemp(ind2)
+                      oldElemIsMortar = .FALSE.
                     ELSE
                       IF(detM.EQ.0) CYCLE   ! For the extremely unlikely case that the particle landed exactly on the side
                       ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
@@ -311,6 +312,7 @@ DO i = 1,PDM%ParticleVecLength
                         SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
                         LocalSide = LocSidesTemp(ind2)
                         TriNum = TriNumTemp(ind2)
+                        oldElemIsMortar = .FALSE.
                       END IF
                     END IF
                   END IF  ! InElementCheck
