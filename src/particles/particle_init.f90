@@ -3356,9 +3356,6 @@ mat = 0.
 FORALL(j = 1:3) mat(j,j) = 1.
 END SUBROUTINE
 
-
-
-
 SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !===================================================================================================================================
 !> Initialize pseudo random numbers: Create Random_seed array
