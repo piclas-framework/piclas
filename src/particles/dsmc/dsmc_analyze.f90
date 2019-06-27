@@ -728,10 +728,9 @@ RETURN
 
 END FUNCTION CalcTVibPoly
 
-!VSS
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 !===================================================================================================================================
-!> Calculation of the mean free path for the hard sphere and variable hard sphere (if omega and temperature are given)
+!> Calculation of the mean free path for the hard sphere HS and variable hard sphere VHS (if omega and temperature are given)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -793,9 +792,72 @@ ELSE
   END DO
 END IF
 RETURN
-
 END FUNCTION CalcMeanFreePath
 
+REAL FUNCTION CalcMeanFreePathVSS(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
+!===================================================================================================================================
+!> Calculation of the mean free path for the variable soft sphere VSS (if omega and temperature are given)
+!> to be solved. nichts zu mixture. werde also d_ref (4.62) für d einbauen und dann die MFP mit 4.60 sigma_ref berechnen, um
+!letztlich den mean free path zu berechnen. Welche Formel da stimmt, weiß ich noch nicht.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: Pi
+USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
+REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iSpec, jSpec
+REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
+!===================================================================================================================================
+DrefMixture = 0.0
+CalcMeanFreePath = 0.0
+
+! Calculation of mixture reference diameter
+DO iSpec = 1, nSpecies
+  DrefMixture = 
+END DO
+! to be solved macht überhaupt keinen sinn für vss. dazu steht nichts im bird
+! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
+! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
+IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
+  omega = opt_omega
+  Temp = opt_temp
+    DO iSpec = 1, nSpecies
+      MFP_Tmp = 0.0
+      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+        DO jSpec = 1, nSpecies
+          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+            MFP_Tmp 
+          END IF
+        END DO
+        CalcMeanFreePath = 
+      END IF
+    END DO
+ELSE
+  DO iSpec = 1, nSpecies
+    MFP_Tmp = 0.0
+    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+      DO jSpec = 1, nSpecies
+        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+          MFP_Tmp = 
+        END IF
+      END DO
+      CalcMeanFreePath = 
+    END IF
+  END DO
+END IF
+RETURN
+END FUNCTION CalcMeanFreePathVSS
 
 SUBROUTINE CalcGammaVib()
 !===================================================================================================================================

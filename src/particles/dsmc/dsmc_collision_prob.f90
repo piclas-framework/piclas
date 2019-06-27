@@ -86,25 +86,25 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
-      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
-      IF (BGGas%BGGasSpecies.NE.0) THEN       
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) ! number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) ! number of particles of spec 2
+      IF (BGGas%BGGasSpecies.NE.0) THEN          ! Collision probability, Laux 1995 (2.44),(2.47)
         Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  & 
                         ! weighting Fact, here only one MPF is used!!!
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
+                * dt / Volume                   &  ! timestep (should be scaled in time_disc)  divided by cell volume
+                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) 
                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
-      ELSE
+      ELSE                                       ! Collision probability, Laux 1995 (2.44),(2.47)
         Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  & 
-                        ! weighting Fact, here only one MPF is used!!!
+                        ! weighting Factor, here only one MPF is used!!!
                 / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
-                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
+                * dt / Volume           &          ! timestep (should be scaled in time_disc)  divided by cell volume
+                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) 
                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-                * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron

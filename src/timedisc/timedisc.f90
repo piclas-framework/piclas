@@ -215,7 +215,8 @@ TimediscInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTimeDisc
-
+    !                                                                                                                                                                                          
+ 581       ! A
 
 
 SUBROUTINE TimeDisc()
@@ -1405,8 +1406,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
-INTEGER :: iPart
-REAL    :: RandVal, dtFrac
+INTEGER               :: iPart
+REAL                  :: RandVal, dtFrac
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1414,16 +1415,13 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
   IF (DoSurfaceFlux) THEN
     ! treat surface with respective model
     CALL SurfaceModel_main()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
     CALL ParticleSurfaceflux()
-
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1434,6 +1432,7 @@ REAL                  :: tLBStart
           LastPartPos(iPart,2)=PartState(iPart,2)
           LastPartPos(iPart,3)=PartState(iPart,3)
           PEM%lastElement(iPart)=PEM%Element(iPart)
+          ! PartState 1,2,3 = position - PartState 4,5,6 = deltaV
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
@@ -1462,7 +1461,6 @@ REAL                  :: tLBStart
     CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
-
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbOfParticles()

@@ -113,13 +113,14 @@ SUBROUTINE UpdateNextFreePosition()
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
-
 FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
 !===================================================================================================================================
-! Calculates deflection angle and resulting deflection vector after bird1994.
-! Subsequent coordinate transformation from independent coordinate system to original coordinate system.
+! Calculates deflection angle and resulting deflection vector after Bird 1994.
+! VHS: isotropic scattering vector
+! VSS: anisotropic scattering vector
+! Subsequent coordinate transformation from independent collision coordinate system to original coordinate system.
 ! Matrix-wise coordinate transformation A*b=(2.22) since it is faster executed, than running transformation line-wise
-!(bird1994,p.36)
+!(Bird1994,p.36)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -127,13 +128,13 @@ FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)            :: absCRela ! absolute value of pre-coll relative velocity. bird (2.3),(2.8) 
+  REAL,INTENT(IN)            :: absCRela ! absolute value of pre-coll relative velocity. Bird (2.3),(2.8) 
   REAL,INTENT(IN)            :: ur,vr,wr ! pre-coll relative velocity CRela=(/ur,vr,wr/)
   REAL,INTENT(IN), OPTIONAL  :: alpha    ! VSS parameter
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                       :: DiceDeflectedVector(3) ! post-coll relative velocity vector DiceDeflectedVector. bird (CRelaN)
+  REAL                       :: DiceDeflectedVector(3) ! post-coll relative velocity vector DiceDeflectedVector. Bird (CRelaN)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
  REAL                        :: iRan, eps, cos_chi, sin_chi
@@ -151,35 +152,37 @@ FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
       WRITE(*,*) "VHS - default" 
      ! einbauen in particle init und vars 
    ELSEIF (alpha.GT.1) THEN
-      WRITE(*,*) "VSS - alpha greater than 1"
+      WRITE(*,*) "VSS - anisotropic scattering (alpha greater than 1)"
       cos_chi         = 2.*iRan**(1./alpha)-1. ! deflected (anisotrop) scattering angle chi 
    ELSE !Error
          WRITE (*,*) "alpha must not be less than 1."
          !either abort or vhs default.
    END IF
-   sin_chi                  = SQRT(1. - cos_chi**2.) 
-   DiceDeflectedVector(3)   = absCRela*cos_chi
+   sin_chi                  = SQRT(1. - cos_chi**2.)
+   ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
+   DiceDeflectedVector(1)   = absCRela*cos_chi
    CALL RANDOM_NUMBER(iRan)
    eps                      = 2.*PI*iRan ! azimuthal impact angle epsilon between [0,2*pi]
-   DiceDeflectedVector(1)   = absCRela*sin_chi*cos(eps)
-   DiceDeflectedVector(2)   = absCRela*sin_chi*sin(eps)
+   DiceDeflectedVector(2)   = absCRela*sin_chi*cos(eps)
+   DiceDeflectedVector(3)   = absCRela*sin_chi*sin(eps)
 
-   !Transformation to original coordinate system via bird (2.22)
+   !Transformation to original coordinate system via Bird (2.22)
    IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
-      ! In case the independent coordinate system points into the same direction as the original coordinate system the
-      ! DiceDeflectedVector needs to be scaled only.
-      !Initialization scaling matrix
+      ! In case the impact plane system points into the same direction as the original coordinate system the
+      ! DiceDeflectedVector needs to be scaled. 
+      ! Initializing scaling matrix
       trafoMatrix(1,1)=ur/absCRela
       trafoMatrix(1,2)=0
       trafoMatrix(1,3)=0
       trafoMatrix(2,1)=0
-      trafoMatrix(2,2)=1
+      trafoMatrix(2,2)=vr/absCRela
       trafoMatrix(2,3)=0
       trafoMatrix(3,1)=0
       trafoMatrix(3,2)=0
-      trafoMatrix(3,3)=1
+      trafoMatrix(3,3)=wr/absCRela
+      ! ANDY - to be solved 
    ELSE
-      !Initialization rotation matrix
+      !Initializing rotation matrix
       trafoMatrix(1,1)=ur/absCRela
       trafoMatrix(1,2)=0
       trafoMatrix(1,3)=sqrt(vr**2+wr**2)/absCRela
@@ -190,9 +193,8 @@ FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
       trafoMatrix(3,2)=-vr/sqrt(vr**2+wr**2)
       trafoMatrix(3,3)=-ur*vr/(ur*sqrt(vr**2+wr**2))
    END IF
-   
+   ! Transformation and scaling
    DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
-
 END FUNCTION DiceDeflectedVector
 
 FUNCTION DiceUnitVector()

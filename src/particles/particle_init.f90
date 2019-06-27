@@ -483,7 +483,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-OneDTwoStreamTransRatio' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-vpiDomainType'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
+                                  'Specifying Keyword for virtual pre-inserting region\n'//&
                                   'implemented: - perpendicular_extrusion (default)\n'//&
                                   ' - freestream\n'//&
                                   ' - orifice\n'//&
@@ -538,7 +538,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-ElemTElecFileID'  &
                                 , numberedmulti=.TRUE.)
 
 
-CALL prms%SetSection("Particle Species Ninits")
+CALL prms%SetSection("Particle Species nInits")
 ! if Ninit>0 some variables have to be defined twice
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Init[$]-UseForInit' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -692,7 +692,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-OneDTwoStreamTransRatio
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-vpiDomainType'  &
                                    , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying Keyword for virtual Pre-Inserting region\n'//&
+                                  'Specifying Keyword for virtual pre-inserting region\n'//&
                                   'implemented: - perpendicular_extrusion (default)\n'//&
                                   ' - freestream\n'//&
                                   ' - orifice\n'//&
@@ -1182,7 +1182,7 @@ ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
+  ,'ERROR in particle_init.f90: Cannot allocate particle arrays!')
 END IF
 Pt_temp=0.
 #endif 
@@ -1375,7 +1375,7 @@ ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
 __STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
+  ,'ERROR in particle_init.f90: Cannot allocate particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
@@ -1471,7 +1471,7 @@ DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
 IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
   IF(DSMC%TimeFracSamp.GT.0.0) CALL abort(&
 __STAMP__&
-    ,'ERROR: Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
+    ,'ERROR: Init Macrosampling: WriteMacroValues and time fraction sampling enabled at the same time')
   IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal = .TRUE.
 END IF
 DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','0')
@@ -1795,18 +1795,18 @@ __STAMP__&
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
         CALL abort(&
 __STAMP__&
-        ,' Wrong emission-type for virtual Pre-Inserting region!')
+        ,' Wrong emission-type for virtual pre-inserting region!')
       IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell_lpn') &
         CALL abort(&
 __STAMP__&
-        ,' Only maxwell_lpn is implemened as velocity-distribution for virtual Pre-Inserting region!')
+        ,' Only maxwell_lpn is implemened as velocity-distribution for virtual pre-inserting region!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
         CALL abort(&
 __STAMP__&
-          ,' virtual Pre-Inserting is not supported for initial ParticleInserting. Use additional Init!')
-      !-- Virtual Pre-Inserting is used correctly !
+          ,' virtual pre-inserting is not supported for initial ParticleInserting. Use additional Init!')
+      !-- Virtual pre-inserting is used correctly !
       Species(iSpec)%Init(iInit)%VirtPreInsert = .TRUE.
-      SWRITE(*,*) "Virtual Pre-Inserting is used for Species, Init ", iSpec, iInit
+      SWRITE(*,*) "Virtual pre-inserting is used for Species, Init ", iSpec, iInit
       IF (Species(iSpec)%Init(iInit)%PartDensity .EQ. 0.) THEN
         SWRITE(*,*) "WARNING: If VPI-BC is open, a backflow might not be compensated"
         SWRITE(*,*) "         (use PartDensity instead of ParticleEmission)!"
@@ -2528,7 +2528,7 @@ END DO ! iSpec = 1, nSpecies
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
-!-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
+!-- Read Flag if warnings to be displayed for rejected velocities when virtual pre-inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 
 

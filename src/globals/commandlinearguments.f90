@@ -20,7 +20,7 @@ MODULE MOD_Commandline_Arguments
 IMPLICIT NONE
 
 ! Global variables for command line argument parsing
-INTEGER                              :: nArgs              ! number of command line argumens
+INTEGER                              :: nArgs              ! number of command line arguments
 CHARACTER(LEN=255),ALLOCATABLE       :: Args(:)
 
 INTERFACE ParseCommandlineArguments

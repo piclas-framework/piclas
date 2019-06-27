@@ -35,6 +35,105 @@ PUBLIC :: DSMC_perform_collision
 
 CONTAINS
 
+SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
+!===================================================================================================================================
+! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,            ONLY : Abort
+  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
+  USE MOD_DSMC_Vars,          ONLY : DSMC
+  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues
+  USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPair
+  INTEGER, INTENT(IN)           :: iElem
+  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
+  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  LOGICAL                       :: RelaxToDo
+!===================================================================================================================================
+  
+  IF(DSMC%CalcQualityFactors) THEN  
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
+      DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) &
+                                         - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
+                                         +(PartState(Coll_pData(iPair)%iPart_p1,2) &
+                                         - PartState(Coll_pData(iPair)%iPart_p2,2))**2 &
+                                         +(PartState(Coll_pData(iPair)%iPart_p1,3) &
+                                         - PartState(Coll_pData(iPair)%iPart_p2,3))**2)
+      DSMC%CollSepCount = DSMC%CollSepCount + 1
+    END IF
+  END IF
+
+  SELECT CASE(CollisMode)
+    CASE(1) ! elastic collision
+#if (PP_TimeDiscMethod==42)
+      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+      IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+        CALL DSMC_Elastic_Col(iPair, iElem)
+#if (PP_TimeDiscMethod==42)
+      END IF
+#endif
+    CASE(2) ! collision with relaxation
+#if (PP_TimeDiscMethod==42)
+      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+      IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+        SELECT CASE(SelectionProc)
+          CASE(1)
+            CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
+          CASE(2)
+            CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
+          CASE DEFAULT
+            CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+        END SELECT
+#if (PP_TimeDiscMethod==42)
+      END IF
+#endif
+    CASE(3) ! chemical reactions
+      RelaxToDo = .TRUE.
+      IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
+        CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
+      ELSE
+        CALL ReactionDecision(iPair, RelaxToDo, iElem)
+      END IF
+#if (PP_TimeDiscMethod==42)
+      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+      IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+        IF (RelaxToDo) THEN
+          SELECT CASE(SelectionProc)
+            CASE(1)
+              CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
+            CASE(2)
+              CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
+            CASE DEFAULT
+              CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+          END SELECT
+        END IF
+#if (PP_TimeDiscMethod==42)
+      END IF
+#endif
+    CASE DEFAULT
+      CALL Abort(&
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
+  END SELECT
+
+END SUBROUTINE DSMC_perform_collision
+
 SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 !===================================================================================================================================
 ! Performs simple elastic collision (CollisMode = 1)
@@ -57,7 +156,8 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-  REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
+  REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relative velo
+  REAL                          :: CRelaX, CRelaY, CRelaZ           ! pre-collision relative velocities 
   REAL                          :: RanVec(3)
 !===================================================================================================================================
 
@@ -85,6 +185,14 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
   RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
+  ! Calculation of relative velocities
+  CRelax = PartState(Coll_pData(iPair)%iPart_p1, 4) - PartState(Coll_pData(iPair)%iPart_p2, 4)
+  CRelay = PartState(Coll_pData(iPair)%iPart_p1, 5) - PartState(Coll_pData(iPair)%iPart_p2, 5)
+  CRelaz = PartState(Coll_pData(iPair)%iPart_p1, 6) - PartState(Coll_pData(iPair)%iPart_p2, 6)
+!  VSS RanVec(1:3)=DiceDeflectedVector(SQRT(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,alpha)
+!  RanVelox =  RanVec(1)
+!  RanVeloy =  RanVec(2)
+!  RanVeloz =  RanVec(3)
   
  ! deltaV particle 1 
   DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
@@ -140,7 +248,7 @@ SUBROUTINE DSMC_Scat_Col(iPair)
   REAL                          :: Pi, aEL, bEL, aCEX, bCEX
 !===================================================================================================================================
   Pi = ACOS(-1.0)
-!warum nicht pi aus global vars?
+! to be solved warum nicht pi aus global vars?
   aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
   bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
   aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),1))
@@ -603,7 +711,6 @@ END IF
 
 END SUBROUTINE DSMC_Relax_Col_LauxTSHO
 
-
 SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !===================================================================================================================================
 ! Performs inelastic collisions with energy exchange (CollisMode = 2/3)
@@ -1035,107 +1142,6 @@ __STAMP__&
   IF(usevMPF) CALL vMPF_PostVelo(iPair, iElem)
 
 END SUBROUTINE DSMC_Relax_Col_Gimelshein
-
-
-SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
-!===================================================================================================================================
-! Collision mode is selected (1: Elastic, 2: Non-elastic, 3: Non-elastic with chemical reactions)
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
-  USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroVolumeValues
-  USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(IN)           :: iElem
-  REAL, INTENT(IN), OPTIONAL    :: NodeVolume
-  INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  LOGICAL                       :: RelaxToDo
-!===================================================================================================================================
-  
-  IF(DSMC%CalcQualityFactors) THEN  
-    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) &
-                                         - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
-                                         +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-                                         - PartState(Coll_pData(iPair)%iPart_p2,2))**2 &
-                                         +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-                                         - PartState(Coll_pData(iPair)%iPart_p2,3))**2)
-      DSMC%CollSepCount = DSMC%CollSepCount + 1
-    END IF
-  END IF
-
-  SELECT CASE(CollisMode)
-    CASE(1) ! elastic collision
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        CALL DSMC_Elastic_Col(iPair, iElem)
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE(2) ! collision with relaxation
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        SELECT CASE(SelectionProc)
-          CASE(1)
-            CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
-          CASE(2)
-            CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
-          CASE DEFAULT
-            CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-        END SELECT
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE(3) ! chemical reactions
-      RelaxToDo = .TRUE.
-      IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
-        CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
-      ELSE
-        CALL ReactionDecision(iPair, RelaxToDo, iElem)
-      END IF
-#if (PP_TimeDiscMethod==42)
-      ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-      IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif
-        IF (RelaxToDo) THEN
-          SELECT CASE(SelectionProc)
-            CASE(1)
-              CALL DSMC_Relax_Col_LauxTSHO(iPair, iElem)
-            CASE(2)
-              CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
-            CASE DEFAULT
-              CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
-          END SELECT
-        END IF
-#if (PP_TimeDiscMethod==42)
-      END IF
-#endif
-    CASE DEFAULT
-      CALL Abort(&
-__STAMP__&
-,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
-  END SELECT
-
-END SUBROUTINE DSMC_perform_collision
-
 
 SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
@@ -2854,7 +2860,6 @@ __STAMP__&
 
 END SUBROUTINE ReactionDecision
 
-
 SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
@@ -2918,7 +2923,6 @@ __STAMP__&
   END IF
 
 END SUBROUTINE DSMC_calc_P_rot
-
 
 SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
@@ -2996,7 +3000,6 @@ __STAMP__&
   END IF
 
 END SUBROUTINE DSMC_calc_P_vib
-
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)
 !===================================================================================================================================

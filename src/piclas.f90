@@ -188,7 +188,6 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! Run Simulation
 CALL TimeDisc()
 
-
 !Finalize
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
 

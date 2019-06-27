@@ -121,9 +121,9 @@ CALL prms%CreateLogicalOption(  'Particles-DSMCReservoirSurfaceRate'&
 CALL prms%CreateIntOption(      'Particles-ModelForVibrationEnergy'&
                                           , 'Define model used for vibrational degrees of freedom.\n'//&
                                           '0: SHO\n'//&
-                                          '1:TSHO.', '0')
+                                          '1: TSHO.', '0')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-TEVR-Relaxation'&
-                                          , 'Flag for T-V-E-R\n'//&
+                                          , 'Flag for translational-vibrational-electric-rotational relaxation T-V-E-R\n'//&
                                           '[TRUE] or more simple T-V-R T-E-R\n'//&
                                           '[FALSE] relaxation.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ElectronicModel'&
@@ -175,12 +175,19 @@ CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID' , 'ID for identif
                                                                  '200: Excited Molecule\n'//&
                                                                  '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceTemp'  &
-                                           ,'Reference temperature for variable hard sphere model.', '0.', numberedmulti=.TRUE.)
+                                           ,'Reference temperature [°C] for variable hard sphere model.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
                                            ,'Reference diameter for variable hard sphere model.', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                            ,'Reference value for exponent omega for variable hard sphere model.', '0.'&
                                            , numberedmulti=.TRUE.)
+! CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
+!                                            ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
+! CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceDiam' &
+!                                            ,'Reference diameter for variable soft sphere model.', '1.', numberedmulti=.TRUE.)
+! CALL prms%CreateRealOption(     'Part-Species[$]-omegaVSS'  &
+!                                            ,'Reference value for exponent omega for variable soft sphere model.', '0.'&
+!                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
@@ -191,7 +198,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
                                            ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
-                                           ,'Referece temperature for rotational relaxation according to Parker or'//&
+                                           ,'Reference temperature for rotational relaxation according to Parker or'//&
                                             'Zhang, ini_2 -> model dependent!', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumVib'  &
                                            ,'Vibrational collision number according to Boyd, ini_2', '0.', numberedmulti=.TRUE.)
@@ -476,8 +483,11 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-      SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
+      SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
+      ! SpecDSMC(iSpec)%TrefVSS = GETREAL('Part-Species'//TRIM(hilf)//'-VSSReferenceTemp','0')
+      ! SpecDSMC(iSpec)%DrefVSS = GETREAL('Part-Species'//TRIM(hilf)//'-VSSReferenceDiam','0')
+      ! SpecDSMC(iSpec)%omegaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVSS','0') ! Variable Soft Sphere
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
       END IF
@@ -505,7 +515,6 @@ __STAMP__&
   END DO
 
 ! species and case assignment arrays
-
   ALLOCATE(CollInf%Coll_Case(nSpecies,nSpecies))
   iCase = 0
   DO iSpec = 1, nSpecies
@@ -540,8 +549,7 @@ __STAMP__&
     END DO
   END DO
 
-! calculation of factors for pc
-
+! Factor calculation for particle collision
   ALLOCATE(CollInf%Cab(nCase))
   ALLOCATE(CollInf%KronDelta(nCase))
   CollInf%Cab = 0
@@ -555,18 +563,29 @@ __STAMP__&
       ELSE
         CollInf%KronDelta(iCase) = 0
       END IF
-! Here, something strange is happen!
+! Here, something strange is happening!
+! Species constants, Laux (2.39)
 !      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omegaVHS) &
 !            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5)
 !      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omegaVHS) &
 !            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5)
+! Species constants from nowhere
       A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
             /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
       A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
             /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
+! Pairing characteristic constant Cab, Laux (2.38)
       CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
             / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
             !the omega should be the same for both in vhs!!!
+            ! ES IST NICHT GEKLÄRT WO DIESE FORMEL HERKOMMT UND WAS DAS GAMMA DA MACHT
+      ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
+      !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
+      ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
+      !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
+      ! CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
+      !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
+      !       !the omega should be the same for both in vss!!!
     END DO
   END DO
 

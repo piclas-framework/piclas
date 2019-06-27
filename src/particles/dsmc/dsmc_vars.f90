@@ -110,7 +110,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
   REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or 
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or 
+  REAL                        :: TempRefRot                 ! reference temperature for rotational relaxation according to Parker or 
                                                             ! Zhang, ini_2 -> model dependent!
   REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
   REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
@@ -233,14 +233,14 @@ TYPE tPairData
                                                             !       0: sigma total
                                                             !       1: sigma elast
                                                             !       2: sigma ionization
-                                                            !       3: sigma exciation
+                                                            !       3: sigma excitation
   REAL              :: Ec                                   ! Collision Energy
   LOGICAL           :: NeedForRec                           ! Flag if pair is need for Recombination
 END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf             ! informations of collision                                              
+TYPE tCollInf                                               ! Collision information 
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE    :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
