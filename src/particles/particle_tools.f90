@@ -143,7 +143,7 @@ FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
    ! im Code die alphas hinterlegen #datenbank.
    ! macht es unterschied ob a b oder b a?
    ! oder readin
-   
+absCRela=SQRT(absCRela)    
    ! determination of DiceDeflectedVector in the independent coordinate system
    CALL RANDOM_NUMBER(iRan)
    IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN
@@ -169,17 +169,17 @@ FUNCTION DiceDeflectedVector(absCRela,ur,vr,wr,alpha)
    !Transformation to original coordinate system via Bird (2.22)
    IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
       ! In case the impact plane system points into the same direction as the original coordinate system the
-      ! DiceDeflectedVector needs to be scaled. 
+      ! DiceDeflectedVector needs no change
       ! Initializing scaling matrix
-      trafoMatrix(1,1)=ur/absCRela
+      trafoMatrix(1,1)=1
       trafoMatrix(1,2)=0
       trafoMatrix(1,3)=0
       trafoMatrix(2,1)=0
-      trafoMatrix(2,2)=vr/absCRela
+      trafoMatrix(2,2)=1
       trafoMatrix(2,3)=0
       trafoMatrix(3,1)=0
       trafoMatrix(3,2)=0
-      trafoMatrix(3,3)=wr/absCRela
+      trafoMatrix(3,3)=1
       ! ANDY - to be solved 
    ELSE
       !Initializing rotation matrix

@@ -821,11 +821,19 @@ REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
 !===================================================================================================================================
 DrefMixture = 0.0
 CalcMeanFreePath = 0.0
-
+!to be solved
+!t_ref=273
+!viscosityCoeff_ref
+!
+!omega
+!alpha
 ! Calculation of mixture reference diameter
 DO iSpec = 1, nSpecies
-  DrefMixture = 
+  Dref = SQRT((5*(alpha+1)*(alpha+2)*SQRT(m*k*T_ref/pi))/(4*alpha(5-2*omega)*(7-2*omega)*viscosityCoeff_ref))
 END DO
+!mit Dref lässt sich Sigma_tot berechnen
+sigma_tot=PI*dref**2
+
 ! to be solved macht überhaupt keinen sinn für vss. dazu steht nichts im bird
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
@@ -837,7 +845,7 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp 
+            MFP_Tmp= 
           END IF
         END DO
         CalcMeanFreePath = 
