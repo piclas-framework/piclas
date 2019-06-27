@@ -180,7 +180,6 @@ absCRela=SQRT(absCRela)
       trafoMatrix(3,1)=0
       trafoMatrix(3,2)=0
       trafoMatrix(3,3)=1
-      ! ANDY - to be solved 
    ELSE
       !Initializing rotation matrix
       trafoMatrix(1,1)=ur/absCRela
