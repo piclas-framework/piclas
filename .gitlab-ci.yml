@@ -475,13 +475,13 @@ gnu_power_density:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson_powerdensity/ ; fi
 
-gnu_maxwell_cylinder_PML:
+gnu_maxwell_RK4:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_cylinder_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
 gnu_PIC_poisson_plasma_wave:
   <<: *defaults_gnu
@@ -499,15 +499,7 @@ gnu_maxwell_sphere_dielectric:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
-gnu_maxwell_ExactFlux_PML:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_ExactFlux_PML/ ; fi
-
-gnu_poisson_implicit04:
+gnu_PIC_poisson_implicit04:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
