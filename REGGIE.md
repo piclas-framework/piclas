@@ -48,19 +48,17 @@ Small test cases to check DSMC features: [Link to build](regressioncheck/checks/
 
 Overview of the test cases performed during the nightly regression testing.
 
-| **No.** |                  **Case**                   |    **CMAKE-CONFIG**     |           **Feature**            |                **Execution**                |         **Comparing**          |                                      **Readme**                                      |
-| :-----: | :-----------------------------------------: | :---------------------: | :------------------------------: | :-----------------------------------------: | :----------------------------: | :----------------------------------------------------------------------------------: |
-|   10    |       [NIG_Reservoir](#nig_reservoir)       |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                             |                                |                                                                                      |
-|   11    |   [NIG_tracking_DSMC](#nig_tracking_dsmc)   |      maxwell, DSMC      |             Tracking             |                                             |                                |                                                                                      |
-|   12    | [NIG_PIC_poisson_RK3](#nig_pic_poisson_RK3) |    poisson, PIC, RK3    |                                  |                                             |                                |                                                                                      |
-|   13    |           NIG_PIC_maxwell_bgfield           |     maxwell,PIC,RK4     |   External Background-field,h5   |                  nProcs=2                   |          DG_Solution           |                                                                                      |
-|   14    |        feature_poisson_powerdensity         | Poisson, Crank-Nicolson |      Implicit, CalcTimeAvg       |         DoRefMapping=T/F, nProcs=2          |     Final TimeAvg, h5diff      |                                                                                      |
-|   15    |        feature_poisson_powerdensity         |       poisson,CN        |           CalcTimeAvg            |   DoRefMapping=1,2, nProcs=2, CN implicit   |            TimeAvg             |                                                                                      |
-|   16    |          feature_emission_gyrotron          |       maxwell,RK4       |       Part-Inflow,TimeDep        | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle |   LineIntegration of nPartIn   |                                                                                      |
-|   17    |          feature_TWT_recordpoints           |       maxwell,RK4       |          RPs, ExactFlux          |     nProcs=1,4, RPs, interior TE-Inflow     |       RP_State, RP_Daata       |                                                                                      |
-|   18    |         feature_PIC_HDG_plasma_wave         |     poisson,RK4,CN      |  Poisson-PIC,Shape-Function-1D   |            nProcs=2, Imex for CN            | W_el LineIntegration over 2Per |                                                                                      |
-|  19-1   |  NIG_PIC_poisson_Leapfrog/parallel_plates   |    poisson,Leapfrog     |   Poisson-PIC,CalcCoupledPower   |                  nProcs=1                   |  PartAnalyzeLeapfrog_ref.csv   |  [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates/readme.md)   |
-|  19-2   | NIG_PIC_poisson_Leapfrog/parallel_plates_AC |    poisson,Leapfrog     |   Poisson-PIC,CalcCoupledPower   |                  nProcs=1                   |  PartAnalyzeLeapfrog_ref.csv   | [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates_AC/readme.md) |
+| **No.** |                  **Case**                   |    **CMAKE-CONFIG**     |           **Feature**            |              **Execution**              |         **Comparing**          |                                      **Readme**                                      |
+| :-----: | :-----------------------------------------: | :---------------------: | :------------------------------: | :-------------------------------------: | :----------------------------: | :----------------------------------------------------------------------------------: |
+|   10    |       [NIG_Reservoir](#nig_reservoir)       |      maxwell, DSMC      | Relaxation, (Surface-) Chemistry |                                         |                                |                                                                                      |
+|   11    |   [NIG_tracking_DSMC](#nig_tracking_dsmc)   |      maxwell, DSMC      |             Tracking             |                                         |                                |                                                                                      |
+|   12    | [NIG_PIC_poisson_RK3](#nig_pic_poisson_RK3) |    poisson, PIC, RK3    |                                  |                                         |                                |                                                                                      |
+|   13    | [NIG_PIC_maxwell_RK4](#nig_pic_maxwell_RK4) |    maxwell, PIC, RK4    |                                  |                                         |                                |                                                                                      |
+|   15    |        feature_poisson_powerdensity         | Poisson, Crank-Nicolson |      Implicit, CalcTimeAvg       |       DoRefMapping=T/F, nProcs=2        |     Final TimeAvg, h5diff      |                                                                                      |
+|   16    |        feature_poisson_powerdensity         |       poisson,CN        |           CalcTimeAvg            | DoRefMapping=1,2, nProcs=2, CN implicit |            TimeAvg             |                                                                                      |
+|   19    |         feature_PIC_HDG_plasma_wave         |     poisson,RK4,CN      |  Poisson-PIC,Shape-Function-1D   |          nProcs=2, Imex for CN          | W_el LineIntegration over 2Per |                                                                                      |
+|  19-1   |  NIG_PIC_poisson_Leapfrog/parallel_plates   |    poisson,Leapfrog     |   Poisson-PIC,CalcCoupledPower   |                nProcs=1                 |  PartAnalyzeLeapfrog_ref.csv   |  [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates/readme.md)   |
+|  19-2   | NIG_PIC_poisson_Leapfrog/parallel_plates_AC |    poisson,Leapfrog     |   Poisson-PIC,CalcCoupledPower   |                nProcs=1                 |  PartAnalyzeLeapfrog_ref.csv   | [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates_AC/readme.md) |
 
 #### NIG_Reservoir
 
@@ -103,14 +101,26 @@ Testing of different tracking routines with DSMC: [Link to build](regressionchec
 
 #### NIG_PIC_poisson_RK3
 
-Testing PIC compiled with Runge-Kutta integration, solving the Poisson equations: [Link to build](regressioncheck/checks/NIG_PIC_poisson_RK3/builds.ini).
+Testing PIC compiled with Runge-Kutta 3 integration, solving Poisson's equation: [Link to build](regressioncheck/checks/NIG_PIC_poisson_RK3/builds.ini).
 
 | **No.** |         **Case**          | **CMAKE-CONFIG** |    **Feature**    |  **Execution**  |          **Comparing**           |                                       **Readme**                                       |
 | :-----: | :-----------------------: | :--------------: | :---------------: | :-------------: | :------------------------------: | :------------------------------------------------------------------------------------: |
 |  12-1   | 2D_SFLocalDepoBC_innerBC  |                  | Shape-Function-ND | nProcs=1,2,5,10 | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/2D_SFLocalDepoBC_innerBC/readme.md)  |
 |  12-2   | 2D_SFLocalDepoBC_periodic |                  | Shape-Function-ND | nProcs=1,2,5,10 | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/2D_SFLocalDepoBC_periodic/readme.md) |
-|  12-1   |      parallel_plates      |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |      [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates/readme.md)      |
-|  12-1   |    parallel_plates_AC     |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |    [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md)     |
+|  12-3   |      parallel_plates      |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |      [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates/readme.md)      |
+|  12-4   |    parallel_plates_AC     |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |    [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md)     |
+|  12-5   |          turner           |                  |                   |    nProcs=4     |    L2 error, PartAnalyze.csv     |                                                                                        |
+
+#### NIG_PIC_maxwell_RK4
+
+Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_PIC_maxwell_RK4/builds.ini).
+
+| **No.** |     **Case**      | **CMAKE-CONFIG** |         **Feature**          |                **Execution**                |       **Comparing**        | **Readme** |
+| :-----: | :---------------: | :--------------: | :--------------------------: | :-----------------------------------------: | :------------------------: | :--------: |
+|  13-1   | external_bgfield  |                  | External Background-field,h5 |                  nProcs=2                   |        DG_Solution         |            |
+|  13-2   | emission_gyrotron |                  |     Part-Inflow,TimeDep      | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle | LineIntegration of nPartIn |            |
+|  13-3   |  single_particle  |                  |                              |              nProcs=1,2,3,4,5               |    L2 error, DG_Source     |            |
+|  13-4   | TWT_recordpoints  |                  |        RPs, ExactFlux        |     nProcs=1,4, RPs, interior TE-Inflow     |     RP_State, RP_Data      |            |
 
 
 ## Weekly
