@@ -515,21 +515,13 @@ gnu_maxwell_ExactFlux_PML:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_ExactFlux_PML/ ; fi
 
-gnu_poisson_implicit_surface_flux:
+gnu_poisson_implicit04:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicitsf/ ; fi
-
-gnu_feature_PIC_poisson_imexfluid:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_imexfluid/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
 
 gnu_PIC_maxwell_bgfield:
   <<: *defaults_gnu
