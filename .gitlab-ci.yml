@@ -467,14 +467,22 @@ gnu_convtest_t:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
        
-gnu_poisson_turner:
+gnu_poisson_RK3:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_turner/ ; fi
-       
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
+
+gnu_poisson_leapfrog:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
+
 gnu_power_density:
   <<: *defaults_gnu
   stage: reggie_nightly
@@ -570,15 +578,6 @@ gnu_PIC_deposition:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
-
-gnu_PIC_innerBC_SFLocalDepoBC:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then module load env/gnu ; cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
-       
 
 # intel ----------------------------------------------------------------------------------------------------------------------------------------------
 
