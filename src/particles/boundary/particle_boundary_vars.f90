@@ -105,7 +105,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
-  REAL,ALLOCATABLE                      :: PumpCapacity                ! 
+  REAL                                  :: PumpCapacity                ! 
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
@@ -116,21 +116,21 @@ INTEGER                                 :: PorousBCSampIter       !
 REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
 
 TYPE tPorousBC
-  INTEGER                               :: BC                     ! 
-  REAL                                  :: Pressure               !
-  REAL                                  :: Temperature            !
-  REAL                                  :: NumberDensity          !
-  REAL                                  :: PumpingSpeed           !
-  REAL                                  :: DeltaPumpingSpeedKp    !
-  REAL                                  :: DeltaPumpingSpeedKi    !
-  CHARACTER(LEN=50)                     :: Region                 !
-  LOGICAL                               :: UsingRegion            !
+  INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
+  REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
+  REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
+  REAL                                  :: NumberDensity          ! Calculated number density [1/m3]
+  REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
+  REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
+  REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
+  CHARACTER(LEN=50)                     :: Region                 ! Form of the porous BC: 'circular'
+  LOGICAL                               :: UsingRegion            ! Use only a smaller region on the BC as a porous BC (e.g. pump)
   INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
   REAL                                  :: rmax                   ! max radius of to-be inserted particles
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
-  INTEGER                               :: SideNumber             !
-  INTEGER, ALLOCATABLE                  :: SideList(:)            !
+  INTEGER                               :: SideNumber             ! Number of BC sides for the BC
+  INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
   INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
                                                                   ! 1: side is completely outside porous region
@@ -138,9 +138,13 @@ TYPE tPorousBC
   REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PressureDifference(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
-  REAL                                  :: Output(1:5)            ! 1: 
+  REAL                                  :: Output(1:5)            ! 1: Counter of impinged particles on the BC
+                                                                  ! 2: Measured pumping speed [m3/s] through # of deleted particles
+                                                                  ! 3: Pumping speed [m3/s] used to calculate the removal prob.
+                                                                  ! 4: Removal probability [0-1]
+                                                                  ! 5: Pressure at the BC normalized with the user-given pressure
 END TYPE
-TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! 
+TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
 
 INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
 INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
