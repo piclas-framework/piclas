@@ -58,6 +58,18 @@ Overview of the test cases performed during the nightly regression testing.
 | 20-1    | NIG_PIC_poisson_RK3/parallel_plates_AC             | poisson,RK3             | Poisson-PIC,CalcCoupledPower                      | nProcs=1                                    | PartAnalyzeRK3_ref.csv           | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md)                         |
 | 21-1    | NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean | maxwell,RK3             | Maxwell-PIC,shape function (different dimensions) | nProcs=1,5,10                               | Particle_ref.csv                 | [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean/readme.md)             |
 | 21-2    | NIG_PIC_Deposition/Plasma_Ball_Shape-function      | maxwell,RK3             | Maxwell-PIC,deposition cell_volweight_mean        | nProcs=1,5,10                               | Xd_X-dir_ref.csv                 | [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function/readme.md)                  |
+| 22      | [NIG_convtest](#nig_convtest)                      | maxwell, RK4                                    | Spatial order of convergence for Maxwell field solver |                                             |                                  |                                                                                                         |
+| 23      | [NIG_convtest_poisson](#nig_convtest_poisson)      | poisson, RK3                                    | Spatial order of convergence for HDG field solver     |                                             |                                  |                                                                                                         |
+| 24      | [NIG_convtest_t](#nig_convtest_t)                  | maxwell, RK3,RK4,CN,ImplicitO3,ImplicitO4,ROS46 | Temporal order of convergence for particle push       |                                             |                                  |                                                                                                         |
+
+
+### NIG Convergence Tests
+
+### NIG_convtest
+
+### NIG_convtest_poisson
+
+### NIG_convtest_t
 
 #### NIG_Reservoir
 
