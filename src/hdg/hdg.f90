@@ -497,7 +497,7 @@ USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
-USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR,nMPIsides_MINE
+USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR
 #endif /*MPI*/ 
 #if (PP_nVar==1)
 USE MOD_Equation_Vars          ,ONLY: E
@@ -524,10 +524,6 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol)
 !LOGICAL :: converged
-#ifdef MPI
-REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-#endif /*MPI*/ 
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -655,7 +651,6 @@ DO iVar = 1, PP_nVar
   END DO !iElem 
 END DO !ivar
 
-
 !add Neumann
 DO BCsideID=1,nNeumannBCSides
   SideID=NeumannBC(BCsideID)
@@ -676,24 +671,17 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
+
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
 #ifdef MPI
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+CALL Mask_MPIsides(PP_nVar,RHS_face)
+!Mortar!!
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
 #endif /*MPI*/
+
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-!Mortar!!
-DO iVar=1, PP_nVar
-  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
-  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
-END DO !iVar
 
 ! SOLVE 
 DO iVar=1, PP_nVar
@@ -774,7 +762,6 @@ USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,         ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
@@ -800,10 +787,6 @@ REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
 LOGICAL :: warning_linear
-#ifdef MPI
-REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-#endif /*MPI*/ 
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -901,25 +884,17 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
 #ifdef MPI
-  startbuf=nSides-nMPISides+1
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-  CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-  IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+CALL Mask_MPISides(PP_nVar,RHS_Face)
+!Mortar
+CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
 #endif /*MPI*/
+
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-!Mortar!!
-DO iVar=1, PP_nVar
-  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
-  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
-END DO !iVar
 
 ! SOLVE 
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
@@ -1049,15 +1024,11 @@ ELSE
     END DO
 
 
+  CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
 #ifdef MPI
-    startbuf=nSides-nMPISides+1
-    endbuf=nSides-nMPISides+nMPISides_MINE
-    IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
-    CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-    CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-    CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-    IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
-    IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+  CALL Mask_MPIsides(PP_nVar,RHS_face)
+  !Mortar
+  CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
 #endif /*MPI*/
 
     ! SOLVE 
@@ -1089,7 +1060,7 @@ ELSE
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         CALL DGEMV('T',nGP_face,nGP_vol,1., &
                             Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face 
+                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_vol 
                             RHS_vol(PP_nVar,:,iElem),1)  
       END DO
       CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
@@ -1343,7 +1314,7 @@ USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
+USE MOD_Mesh_Vars,     ONLY:nMPIsides_YOUR
 #endif /*MPI*/ 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1360,15 +1331,13 @@ INTEGER :: firstSideID, lastSideID
 INTEGER :: BCsideID,SideID, ElemID, locSideID
 INTEGER :: jLocSide,jSideID(6)
 #ifdef MPI
-REAL    :: mvbuf(nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
 #endif /*MPI*/ 
 !===================================================================================================================================
 
 #ifdef MPI
-CALL BigToSmallMortar_HDG(lambda, doMPISides=.TRUE.)
+CALL BigToSmallMortar_HDG(1,lambda, doMPISides=.TRUE.)
 #endif /*MPI*/
-CALL BigToSmallMortar_HDG(lambda, doMPISides=.FALSE.)
+CALL BigToSmallMortar_HDG(1,lambda, doMPISides=.FALSE.)
 
 #ifdef MPI
 CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive MINE
@@ -1457,22 +1426,13 @@ END DO ! SideID=1,nSides
 #endif /*MPI*/
 
 
-
-#ifdef MPI
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)mvbuf=mv(:,startbuf:endbuf)
-CALL StartReceiveMPIData(1,mv,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
-CALL StartSendMPIData(   1,mv,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) mv(:,startbuf:endbuf)=mv(:,startbuf:endbuf)+mvbuf
-IF(nMPIsides_YOUR.GT.0) mv(:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-#endif /*MPI*/
-
 ! should be all local, if all small sides are master!
-CALL SmallToBigMortar_HDG(mv,doMPISides=.FALSE.)
+CALL SmallToBigMortar_HDG(1,mv,doMPISides=.FALSE.)
+
 #ifdef MPI
-CALL SmallToBigMortar_HDG(mv,doMPISides=.TRUE.)
+CALL Mask_MPIsides(1,mv)
+!Mortar
+CALL SmallToBigMortar_HDG(1,mv,doMPISides=.TRUE.)
 #endif /*MPI*/
 
 #if (PP_nVar!=1)
@@ -1643,8 +1603,6 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
-#endif /*MPI*/ 
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -1677,6 +1635,44 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 END SUBROUTINE RestartHDG
 #endif /* PP_HDG*/
 
+
+#ifdef MPI
+SUBROUTINE Mask_MPIsides(nVar_in,v)
+!===================================================================================================================================
+! communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
+!===================================================================================================================================
+! MODULES
+USE MOD_MPI_Vars
+USE MOD_HDG_Vars       ,ONLY: nGP_face
+USE MOD_Mesh_Vars      ,ONLY: nSides
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars      ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN   ) :: nVar_in
+REAL   ,INTENT(INOUT) :: v(nVar_in,nGP_face, nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: vbuf(nVar_in,nGP_Face,nMPISides_MINE)
+INTEGER :: startbuf,endbuf
+!===================================================================================================================================
+
+startbuf=nSides-nMPISides+1
+endbuf=nSides-nMPISides+nMPISides_MINE
+IF(nMPIsides_MINE.GT.0)vbuf=v(:,:,startbuf:endbuf)
+CALL StartReceiveMPIData(PP_nVar,v,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
+CALL StartSendMPIData(   PP_nVar,v,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
+IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
+
+END SUBROUTINE Mask_MPIsides
+#endif /*MPI*/ 
 
 
 SUBROUTINE FinalizeHDG()
