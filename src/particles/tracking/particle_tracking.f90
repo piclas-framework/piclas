@@ -305,6 +305,7 @@ DO i = 1,PDM%ParticleVecLength
                       SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
                       LocalSide = LocSidesTemp(ind2)
                       TriNum = TriNumTemp(ind2)
+                      oldElemIsMortar = .FALSE.
                     ELSE
                       IF(detM.EQ.0) CYCLE   ! For the extremely unlikely case that the particle landed exactly on the side
                       ratio = det(LocSidesTemp(ind2),TriNumTemp(ind2))/detM
@@ -316,6 +317,7 @@ DO i = 1,PDM%ParticleVecLength
                         SideID = PartElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),ElemID)
                         LocalSide = LocSidesTemp(ind2)
                         TriNum = TriNumTemp(ind2)
+                        oldElemIsMortar = .FALSE.
                       END IF
                     END IF
                   END IF  ! InElementCheck
@@ -354,7 +356,7 @@ DO i = 1,PDM%ParticleVecLength
 #if USE_LOADBALANCE
           IF (OldElemID.LE.PP_nElems) CALL LBElemSplitTime(OldElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-          IF ((BCType.EQ.2).OR.(BCType.EQ.6)) THEN
+          IF ((BCType.EQ.2).OR.(BCType.EQ.10)) THEN
             DoneLastElem(:,:) = 0
           ELSE
             DO ind2= 5, 1, -1
