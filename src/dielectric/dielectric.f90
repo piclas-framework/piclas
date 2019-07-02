@@ -183,11 +183,6 @@ CALL SetDielectricVolumeProfile()
   CALL SetDielectricFaceProfile()
 #else /*if PP_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
-  IF((.NOT.mpiroot).AND.(nMortarSides.GT.0))THEN
-    CALL abort(&
-         __STAMP__,&
-         'dielectric HDG not implemented for MPI! TODO: Set HDG diffusion tensor [chitens] on faces with MPI and/or mortar sides')
-  END IF
   CALL SetDielectricFaceProfile_HDG()
   !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
     ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
