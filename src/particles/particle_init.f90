@@ -2982,6 +2982,11 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
   ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
   ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
   VarTimeStep%ParticleTimeStep = 1.
+  IF(.NOT.TriaTracking) THEN
+    CALL abort(&
+      __STAMP__&
+      ,'ERROR: Variable time step is only supported with TriaTracking = T')
+  END IF
   IF(VarTimeStep%UseLinearScaling) THEN
     IF(Symmetry2D) THEN
       ! 2D: particle-wise scaling in the radial direction, ElemFac array only utilized for the output of the time step
