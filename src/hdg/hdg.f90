@@ -493,6 +493,7 @@ USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars     ,ONLY: wGP
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
+USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
@@ -652,7 +653,8 @@ DO iVar = 1, PP_nVar
                           RHS_face(iVar,:,SideID),1)  
     END DO
   END DO !iElem 
-END DO
+END DO !ivar
+
 
 !add Neumann
 DO BCsideID=1,nNeumannBCSides
@@ -687,9 +689,15 @@ IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set sen
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+!Mortar!!
+DO iVar=1, PP_nVar
+  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
+  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
+END DO !iVar
 
 ! SOLVE 
 DO iVar=1, PP_nVar
+
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
   !POST PROCESSING
 
@@ -708,7 +716,7 @@ DO iVar=1, PP_nVar
                                -RHS_vol(iVar,:,iElem),1,0., &
                                U_out(iVar,:,iElem),1)
   END DO !iElem 
-END DO
+END DO !iVar
 
 #if (PP_nVar==1)
   CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
@@ -749,6 +757,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
+USE MOD_FillMortar_HDG,    ONLY: SmallToBigMortar_HDG
 #if defined(IMPA) || defined(ROS)
 USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
 #endif
@@ -785,7 +794,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
+INTEGER :: iVar,i,j,k,r,p,q,iElem, iter,RegionID
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
@@ -905,6 +914,12 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+
+!Mortar!!
+DO iVar=1, PP_nVar
+  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.FALSE.)
+  CALL SmallToBigMortar_HDG(RHS_face(iVar,1:nGP_Face,1:nSides),doMPISides=.TRUE.)
+END DO !iVar
 
 ! SOLVE 
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
@@ -1319,9 +1334,12 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 ! Performs matrix-vector multiplication for lambda system
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_HDG_Vars           ,ONLY: Smat,Fdiag, nGP_face
 USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: MortarType
+USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -1346,6 +1364,12 @@ REAL    :: mvbuf(nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
 #endif /*MPI*/ 
 !===================================================================================================================================
+
+#ifdef MPI
+CALL BigToSmallMortar_HDG(lambda, doMPISides=.TRUE.)
+#endif /*MPI*/
+CALL BigToSmallMortar_HDG(lambda, doMPISides=.FALSE.)
+
 #ifdef MPI
 CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive MINE
 CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
@@ -1389,7 +1413,11 @@ DO SideID=firstSideID,lastSideID
   END IF !locSideID.NE.-1
   !add mass matrix
   mv(:,SideID)=mv(:,SideID)-Fdiag(:,SideID)*lambda(:,SideID)
+!  SWRITE(*,*)'DEBUG,max/min lambda(SideID)',MortarType(1,SideID),SideID, &
+!                                    SideToElem(S2E_ELEM_ID,SideID),SideToElem(S2E_NB_ELEM_ID,SideID), &
+!                                      maxval(lambda(:,SideID)),minval(lambda(:,SideID))
 END DO ! SideID=1,nSides
+!SWRITE(*,*)'DEBUG---------------------------------------------------------'
 
 #ifdef MPI
 ! Finish lambda communication 
@@ -1441,6 +1469,11 @@ IF(nMPIsides_MINE.GT.0) mv(:,startbuf:endbuf)=mv(:,startbuf:endbuf)+mvbuf
 IF(nMPIsides_YOUR.GT.0) mv(:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
 
+! should be all local, if all small sides are master!
+CALL SmallToBigMortar_HDG(mv,doMPISides=.FALSE.)
+#ifdef MPI
+CALL SmallToBigMortar_HDG(mv,doMPISides=.TRUE.)
+#endif /*MPI*/
 
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
