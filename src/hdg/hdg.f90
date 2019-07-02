@@ -95,6 +95,7 @@ USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: MortarType 
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
 USE MOD_Equation_Vars      ,ONLY: eps0
@@ -326,6 +327,7 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 ALLOCATE(Fdiag(nGP_face,nSides))
+Fdiag=0.
 
 IF(HDG_MassOverintegration)THEN
   ALLOCATE(SurfElem_N(1,0:PP_N ,0:PP_N ))
@@ -378,10 +380,13 @@ IF(HDG_MassOverintegration)THEN
     
     iElem= SideToElem(S2E_ELEM_ID,SideID)  
     jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
-    IF(jElem.EQ.-1)THEN
+    IF((jElem.EQ.-1).AND.(iElem.NE.-1))THEN
       Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
-    ELSEIF(iElem.EQ.-1)THEN
+    ELSEIF((iElem.EQ.-1).AND.(jElem.NE.-1))THEN
       Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+    ELSEIF((iElem.EQ.-1).AND.(jElem.EQ.-1))THEN
+      CALL abort(__STAMP__, &
+          ' STRANGE Side without element neighbors',SideID,REAL(MortarType(1,SideID)))
     ELSE
       Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
     END IF
@@ -406,10 +411,13 @@ ELSE ! Standard mass matrix
     !read*
     iElem= SideToElem(S2E_ELEM_ID,SideID)  
     jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
-    IF(jElem.EQ.-1)THEN
+    IF((jElem.EQ.-1).AND.(iElem.NE.-1))THEN
       Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
-    ELSEIF(iElem.EQ.-1)THEN
+    ELSEIF((iElem.EQ.-1).AND.(jElem.NE.-1))THEN
       Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+    ELSEIF((iElem.EQ.-1).AND.(jElem.EQ.-1))THEN
+      CALL abort(__STAMP__, &
+          ' STRANGE Side without element neighbors',SideID,REAL(MortarType(1,SideID)))
     ELSE
       Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
     END IF
