@@ -281,17 +281,19 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 
 
 ! check with mortars
-nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
 #ifdef PP_HDG
-!IF(nMortarInnerSides.GT.0) CALL abort(&
-!      __STAMP__&
-!      ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
-!!!!!TODO!!!!
+nUniqueSides       = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
 #ifdef MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(nUniqueSides,i,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else
-nGlobalUniqueSides=nSides
+i=nSides
 #endif /*MPI*/
+IF(i.NE.nGlobalUniqueSides) THEN
+       IPWRITE(UNIT_StdOut,*) nUniqueSides,i,nGlobalUniqueSides
+       CALL abort( &
+            __STAMP__, &
+            "nGlobalUniqueSides for HDG not equal the one from meshfile....")
+END IF
 #endif /*HDG*/
 
 ! fill ElemToSide, SideToElem,BC
