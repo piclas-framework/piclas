@@ -142,6 +142,7 @@ DO i = 1,PDM%ParticleVecLength
     IF (MeasureTrackTime) nTracks=nTracks+1
     PartisDone = .FALSE.
     ElemID = PEM%lastElement(i)
+    TrackInfo%CurrElem=ElemID
     SideID = 0
     DoneLastElem(:,:) = 0
     ! 2) Loop tracking until particle is considered "done" (either localized or deleted)
