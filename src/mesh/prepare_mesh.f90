@@ -72,15 +72,15 @@ USE MOD_Mesh_ReadIn,        ONLY: INVMAP
 USE MOD_Mesh_Vars,          ONLY: offsetSide
 #endif /*MPI*/
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars,   ONLY: writePartitionInfo
+USE MOD_LoadBalance_Vars,   ONLY: 
 USE MOD_Mesh_Vars,          ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars,          ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-USE MOD_LoadBalance_Vars,   ONLY: DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #ifdef MPI
 USE MOD_ReadInTools,        ONLY: GETLOGICAL
 USE MOD_MPI_Vars,           ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
 USE MOD_MPI_Vars,           ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISides_send,offSetMPISides_send
 USE MOD_MPI_Vars,           ONLY: nMPISides_rec, OffsetMPISides_rec
+USE MOD_LoadBalance_Vars,   ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Vars, ONLY: SidePeriodicType
@@ -97,10 +97,11 @@ TYPE(tElem),POINTER   :: aElem
 TYPE(tSide),POINTER   :: aSide
 INTEGER               :: iElem,FirstElemInd,LastElemInd
 INTEGER               :: iLocSide,iSide,iInnerSide,iBCSide
-INTEGER               :: iMortar,iMortarInnerSide,iMortarMPISide,nMortars,lastMortarInnerSide
+INTEGER               :: iMortar,iMortarInnerSide,iMortarMPISide,nMortars
 INTEGER               :: i,j
 INTEGER               :: PeriodicBCMap(nBCs)       !connected periodic BCs
 #ifdef MPI
+INTEGER               :: lastMortarInnerSide
 INTEGER               :: nSmallMortarSides
 INTEGER               :: nSmallMortarInnerSides
 INTEGER               :: nSmallMortarMPISides_MINE
@@ -600,7 +601,6 @@ LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
 
 #ifdef PP_HDG
-#ifdef MPI
 ! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
@@ -609,7 +609,6 @@ offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
 END DO
-#endif /*MPI*/
 #endif /*PP_HDG*/
 
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')

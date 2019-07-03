@@ -108,9 +108,9 @@ crossedBC    =.FALSE.
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
-    IF (.NOT.TriaTracking) THEN
+!----------------------------------------------------------------------------------------------------------------------------------
+  IF (.NOT.TriaTracking) THEN
+    IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid    
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
         n_loc=SideNormVec(1:3,SideID)
@@ -166,10 +166,10 @@ CASE(2) !PartBound%ReflectiveBC)
       IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PorousReflection) THEN
         ! perfectly reflecting, specular re-emission
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
+          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum, opt_LocalSide= locSideID,opt_ElemID=ElemID)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
+          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum, opt_LocalSide= locSideID,opt_ElemID=ElemID)
       END IF
     ELSE
       ! chemical surface interaction (e.g. adsorption)
@@ -239,7 +239,7 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                                       ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum)
+                            ,opt_Symmetry=.TRUE.,opt_Reflected=crossedBC,TriNum=TriNum,opt_LocalSide= locSideID,opt_ElemID=ElemID)
 CASE(100) !PartBound%AnalyzeBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL  SideAnalysis(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,locSideID,ElemID &
@@ -566,7 +566,7 @@ END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
 SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID, &
-  opt_Symmetry,opt_Reflected,TriNum,AuxBCIdx)
+  opt_Symmetry,opt_Reflected,TriNum,AuxBCIdx, opt_LocalSide, opt_ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -608,6 +608,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
+INTEGER,INTENT(IN),OPTIONAL       :: opt_LocalSide, opt_ElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
@@ -691,7 +692,7 @@ ELSE
     END SELECT
   ELSE
     IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
+      CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,ElemID_opt=opt_ElemID,LocSideID_opt=opt_LocalSide)
     ELSE
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -899,7 +900,7 @@ END SUBROUTINE PerfectReflection
 
 
 SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,flip,IsSpeciesSwap,BCSideID &
-  ,opt_Reflected,TriNum,AuxBCIdx)
+  ,opt_Reflected,TriNum,AuxBCIdx, opt_LocalSide, opt_ElemID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -941,6 +942,7 @@ LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
 INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
+INTEGER,INTENT(IN),OPTIONAL       :: opt_LocalSide, opt_ElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
@@ -1070,7 +1072,8 @@ ELSE
     END SELECT
   ELSE
     IF (TriaTracking) THEN
-      CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2,TriNum=TriNum,SideID=SideID)
+      CALL CalcNormAndTangTriangle(nVec=n_loc,tang1=tang1,tang2=tang2, &
+          TriNum=TriNum,ElemID_opt=opt_ElemID,LocSideID_opt=opt_LocalSide)
     ELSE
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)

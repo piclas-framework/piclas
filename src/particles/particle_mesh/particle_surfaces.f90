@@ -450,14 +450,16 @@ nVal = SQRT(nx*nx + ny*ny + nz*nz)
 nx = -nx / nVal
 ny = -ny / nVal
 nz = -nz / nVal
-IF (.NOT.TriaTracking .AND. (SideType(SideID).EQ.PLANAR_RECT .OR. SideType(SideID).EQ.PLANAR_NONRECT)) THEN
-  !if surfflux-side are planar, TriaSurfaceflux can be also used for tracing or Refmapping (for which SideNormVec exists)!
-  !warning: these values go into SurfMeshSubSideData and if TriaSurfaceflux they should be used only for planar_rect/_nonrect sides
-  dotpr=DOT_PRODUCT(SideNormVec(1:3,SideID),(/nx,ny,nz/))
-  IF ( .NOT.ALMOSTEQUALRELATIVE(dotpr,1.,1.0E-2) ) THEN
-    CALL abort(&
-__STAMP__&
-, 'SideNormVec is not identical with V1xV2!')
+IF (.NOT.TriaTracking) THEN
+  IF ((SideType(SideID).EQ.PLANAR_RECT .OR. SideType(SideID).EQ.PLANAR_NONRECT)) THEN
+    !if surfflux-side are planar, TriaSurfaceflux can be also used for tracing or Refmapping (for which SideNormVec exists)!
+    !warning: these values go into SurfMeshSubSideData and if TriaSurfaceflux they should be used only for planar_rect/_nonrect sides
+    dotpr=DOT_PRODUCT(SideNormVec(1:3,SideID),(/nx,ny,nz/))
+    IF ( .NOT.ALMOSTEQUALRELATIVE(dotpr,1.,1.0E-2) ) THEN
+      CALL abort(&
+  __STAMP__&
+  , 'SideNormVec is not identical with V1xV2!')
+    END IF
   END IF
 END IF
 IF (PRESENT(Vectors) .AND. TriNum.EQ.1) THEN

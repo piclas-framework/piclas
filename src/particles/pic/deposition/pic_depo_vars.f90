@@ -83,6 +83,7 @@ INTEGER                               :: VolIntOrder
 REAL,ALLOCATABLE                      :: VolInt_X(:)
 REAL,ALLOCATABLE                      :: VolInt_W(:)
 REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
+REAL,ALLOCATABLE                      :: CellLocNodes_Volumes(:)
 INTEGER                               :: NbrOfSFdepoFixes                  !Number of fixes for shape func depo at planar BCs
 REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
 REAL    , ALLOCATABLE                 :: SFdepoFixesBounds(:,:,:)          !1:nFixes;1:2(min,max);1:3(x,y,z)

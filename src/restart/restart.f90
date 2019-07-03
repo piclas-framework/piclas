@@ -102,7 +102,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
+#endif /*USE_LOADBALANCE*/
 #ifdef PP_HDG
 LOGICAL                     :: DG_SolutionUExists
 #endif /* PP_HDG */

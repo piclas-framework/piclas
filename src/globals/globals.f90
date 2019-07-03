@@ -14,7 +14,7 @@
 
 MODULE MOD_Globals
 !===================================================================================================================================
-!> Provides parameters, used globally (please use EXTREMLY carefully!) 
+!> Provides parameters, used globally (please use EXTREMELY carefully!)
 !===================================================================================================================================
 ! MODULES
 #ifdef MPI
@@ -273,8 +273,11 @@ END SUBROUTINE InitGlobals
 ! 
 ! END FUNCTION AlmostZero
 
-
+#ifdef MPI
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
+#else
+SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
+#endif
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -290,7 +293,9 @@ CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
 CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
 INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
 REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
+#ifdef MPI
 LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !   There is no way back!

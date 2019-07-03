@@ -270,6 +270,7 @@ USE MOD_BGK_Init,                  ONLY:FinalizeBGK
 USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
 USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
+USE MOD_PIC_Vars,                  ONLY:PICInitIsDone
 #ifdef MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
@@ -334,7 +335,8 @@ CALL FinalizeMPI()
 #endif /*MPI*/
 
 #ifdef PARTICLES
-ParticlesInitIsDone=.FALSE.  
+ParticlesInitIsDone = .FALSE.
+PICInitIsDone = .FALSE.
 #ifdef MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/

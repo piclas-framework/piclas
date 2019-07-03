@@ -1218,7 +1218,10 @@ SUBROUTINE CalcHeatOfFormation()
 ! Requires the completed read-in of species data
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: abort,mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
@@ -1277,7 +1280,10 @@ SUBROUTINE SetNextIonizationSpecies()
 ! NextIonizationSpecies => SpeciesID of the next higher ionization level
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption

@@ -80,7 +80,10 @@ USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,         ONLY:mpiroot
+#endif
 USE MOD_Mesh_Vars,       ONLY:SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -180,9 +183,9 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,              ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_Globals,              ONLY:abort,UNIT_stdOut
 #ifdef MPI
-USE MOD_Globals,              ONLY:MPI_COMM_WORLD
+USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
 #endif /*MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
@@ -593,7 +596,10 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,     ONLY: nSides,ElemToSide,nGlobalElems
+USE MOD_Mesh_Vars,     ONLY: nSides,nGlobalElems
+#ifdef MPI
+USE MOD_Mesh_Vars,     ONLY: ElemToSide
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -608,8 +614,10 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
-INTEGER                           :: iXElem,iXFace,iXInterFace
-INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces,sumGlobalFaces,sumGlobalInterFaces
+INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
+#ifdef MPI
+INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
+#endif
 !===================================================================================================================================
 ! Get number of Elems
 nFaces = 0
@@ -725,7 +733,10 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 ! usually a, e.g., PML/dielectric region is specified or the inverse region, i.e., the physical region is specified
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -755,7 +766,10 @@ SUBROUTINE DisplayMinMax(MinMax)
 ! Display the ranges of a x-y-z min-max region in the vector MinMax(xmin,xmax,ymin,ymax,zmin,zmax)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -787,7 +801,10 @@ SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_na
 ! 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut,mpiroot
+USE MOD_Globals,               ONLY:UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals,               ONLY:MPIRoot
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

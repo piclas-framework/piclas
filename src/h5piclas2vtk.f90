@@ -40,6 +40,9 @@ USE MOD_HDF5_Input,          ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadA
 USE MOD_HDF5_Input,          ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
 USE MOD_Mesh_ReadIn,         ONLY: readMesh
 USE MOD_Mesh,                ONLY: FinalizeMesh
+#ifdef PARTICLES
+USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
+#endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
 USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
@@ -122,6 +125,7 @@ CALL prms%CreateLogicalOption('VisuSource',     "use DG_Source instead of DG_Sol
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
+CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -489,7 +493,6 @@ DO iArgs = iArgsStart,nArgs
     nElems_old         = nElems
     NodeType_State_old = NodeType_State
   END IF
-  
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     CALL ConvertElemData(InputStateFile,ReadMeshFinished,MeshInitFinished)
@@ -516,7 +519,9 @@ SDEALLOCATE(Coords_NVisu)
 SDEALLOCATE(NodeCoords)
 ! visuSurf
 CALL FinalizeMesh()
-
+#ifdef PARTICLES
+CALL FinalizeParticleMesh()
+#endif
 ! Measure processing duration
 Time=PICLASTIME()
 #ifdef MPI
@@ -721,140 +726,79 @@ END SUBROUTINE WriteDataToVTK_PICLas
 
 SUBROUTINE InitMesh_Connected()
 !===================================================================================================================================
-! Allocate and generate surface mesh on CL_NGeo points
+!> Reusing the routines from Prepare_Mesh and Particle_Mesh to build-up the mesh and its connectivity (for conforming meshes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_PreProc
+USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
+#ifdef MPI
+USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
+#endif
+#ifdef PARTICLES
+USE MOD_Particle_Mesh           ,ONLY: InitParticleGeometry
+#endif
 !--------------------------------------------------------------------------------------------------!
 ! perform Mapping for Surface Output
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE 
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iLocSide, iSide, iNode, iBCSide, iInnerSide, nStart, jNode
-INTEGER                 :: NodeMap(4,6)
-! LOCAL VARIABLES
-TYPE(tElem),POINTER     :: aElem
-TYPE(tSide),POINTER     :: aSide
-INTEGER                 :: LocSideID,nSides_flip(0:4)
 !===================================================================================================================================
+PP_nElems=nElems
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
+CALL setLocalSideIDs()
 
-! set side ID, so that BC Sides come first, then InnerSides
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO iLocSide=1,6
-    aElem%Side(iLocSide)%sp%sideID=-1
-  END DO
-END DO
-iSide=0
-iBCSide=0
-iInnerSide=nBCSides
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO iLocSide=1,6
-    aSide=>aElem%Side(iLocSide)%sp
-    IF(aSide%nMortars.GT.0) CALL abort(__STAMP__,&
-      'Surface results with connectivity on meshes with mortars are not supported!') 
-    IF(aSide%sideID.EQ.-1)THEN
-      IF(aSide%NbProc.EQ.-1)THEN ! no MPI Sides
-        IF(ASSOCIATED(aSide%connection))THEN
-          iInnerSide=iInnerSide+1
-          iSide=iSide+1
-          aSide%SideID=iInnerSide
-          aSide%connection%SideID=iInnerSide
-        ELSE
-          iBCSide=iBCSide+1
-          iSide=iSide+1
-          aSide%SideID=iBCSide
-        END IF !associated connection
-      END IF ! .NOT. MPISide
-    END IF !sideID NE -1
-  END DO ! iLocSide=1,6
-END DO !iElem
-IF(iSide.NE.(nInnerSides+nBCSides)) CALL abort(__STAMP__,'not all SideIDs are set!')
+#ifdef MPI
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
+CALL exchangeFlip()
+#endif
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
+firstMPISide_MINE    = firstInnerSide      +nInnerSides
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
 
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+SDEALLOCATE(AnalyzeSide)
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
 ALLOCATE(BC(1:nSides))
+ALLOCATE(AnalyzeSide(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
-! ELement to Side mapping
-nSides_flip=0
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    ElemToSide(E2S_SIDE_ID,LocSideID,iElem)=aSide%SideID
-    ElemToSide(E2S_FLIP,LocSideID,iElem)   =aSide%Flip
-    nSides_flip(aSide%flip)=nSides_flip(aSide%flip)+1
-  END DO ! LocSideID
-END DO ! iElem
+AnalyzeSide = 0
 
-! Side to Element mapping, sorted by SideID
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    IF(aSide%Flip.EQ.0)THEN !root side
-      SideToElem(S2E_ELEM_ID,aSide%SideID)         = iElem !root Element
-      SideToElem(S2E_LOC_SIDE_ID,aSide%SideID)     = LocSideID
-    ELSE
-      SideToElem(S2E_NB_ELEM_ID,aSide%SideID)      = iElem ! element with flipped side
-      SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
-      SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
-    END IF
-    BC(aSide%sideID)=aSide%BCIndex
-  END DO ! LocSideID
-END DO ! iElem
+SDEALLOCATE(MortarType)
+SDEALLOCATE(MortarInfo)
+SDEALLOCATE(MortarSlave2MasterInfo)
+ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
+ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+ALLOCATE(MortarSlave2MasterInfo(1:nSides))
+MortarType=-1
+MortarInfo=-1
 
-! Building element to node id and node coords arrays (copied from the first part of the InitParticleGeometry)
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+CALL fillMeshInfo()
 
-NodeMap(:,1)=(/1,4,3,2/)
-NodeMap(:,2)=(/1,2,6,5/)
-NodeMap(:,3)=(/2,3,7,6/)
-NodeMap(:,4)=(/3,4,8,7/)
-NodeMap(:,5)=(/1,5,8,4/)
-NodeMap(:,6)=(/5,6,7,8/)
-SDEALLOCATE(GEO%ElemToNodeID)
-SDEALLOCATE(GEO%ElemSideNodeID)
-SDEALLOCATE(GEO%NodeCoords)
-ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%ElemSideNodeID(1:4,1:6,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
-GEO%ElemToNodeID(:,:)=0
-GEO%ElemSideNodeID(:,:,:)=0
-GEO%NodeCoords(:,:)=0.
-iNode=0
-DO iElem=1,nElems
-  DO jNode=1,8
-    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
-  END DO
-END DO
-DO iElem=1,nElems
-  !--- Save corners of sides
-  DO jNode=1,8
-    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
-      iNode=iNode+1
-      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
-      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
-    END IF
-    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
-    !GEO%ElemToNodeIDGlobal(jNode,iElem) = Elems(iElem+offsetElem)%ep%node(jNode)%np%ind
-  END DO
-END DO
-
-DO iElem=1,nElems
-  DO iLocSide=1,6
-    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
-    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
-  END DO
-END DO
+#ifdef PARTICLES
+CALL InitParticleGeometry()
+#else
+CALL abort(__STAMP__,&
+      'ERROR: Post-processing tool h5piclas2vtk was compiled with PARTICLES=OFF! No DSMC/ElemData output supported!')
+#endif
 
 END SUBROUTINE InitMesh_Connected
 

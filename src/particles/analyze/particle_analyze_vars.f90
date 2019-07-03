@@ -30,6 +30,9 @@ LOGICAL                       :: CalcEkin                            !< Compute 
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
+LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
+REAL                          :: PCoupl                              !< Power that is coupled into plasma
+REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
@@ -67,7 +70,7 @@ LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute 
 
 LOGICAL                       :: CalcIonizationDegree                !< Compute the ionization degree and quasi neutrality
 !                                                                    !< in each cell
-LOGICAL                       :: CalcLaserInteraction                !<Compute laser-plasma interaction properties such as maximum
+LOGICAL                       :: CalcLaserInteraction                !< Compute laser-plasma interaction properties such as maximum
 REAL                          :: LaserInteractionEkinMaxRadius       !< maximum radius (x- and y-dir) of particle to be considered
 !                                                                    !< for Ekin maximum calculation (default is HUGE)
 !                                                                    !< OR LaserInteractionEkinMaxZPosMin

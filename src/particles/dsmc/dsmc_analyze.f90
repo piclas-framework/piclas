@@ -736,7 +736,7 @@ DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
 ! Calculation of mixture reference diameter
-
+IF (nPart.EQ.0) RETURN
 DO iSpec = 1, nSpecies
   DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
 END DO
@@ -745,19 +745,20 @@ END DO
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
-    DO iSpec = 1, nSpecies
-      MFP_Tmp = 0.0
-      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-        DO jSpec = 1, nSpecies
-          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-          END IF
-        END DO
-        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-      END IF
-    END DO
+  IF (Temp.LE.0) RETURN
+  DO iSpec = 1, nSpecies
+    MFP_Tmp = 0.0
+    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+      DO jSpec = 1, nSpecies
+        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+        END IF
+      END DO
+      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+    END IF
+  END DO
 ELSE
   DO iSpec = 1, nSpecies
     MFP_Tmp = 0.0
@@ -765,7 +766,7 @@ ELSE
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
           MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
@@ -886,10 +887,10 @@ DO iSpec=1, nSpecies
   DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
                                         + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
 END DO
-IF(SUM(CollInf%Coll_SpecPartNum).GT.0)THEN
+IF (SUM(CollInf%Coll_SpecPartNum).GT.0) THEN
   DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
 ELSE
-  DSMC%InstantTransTemp(nSpecies+1) = 0
+  DSMC%InstantTransTemp(nSpecies+1) = 0.0
 END IF
 
 END SUBROUTINE CalcInstantTransTemp
@@ -1174,6 +1175,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
 !USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
 USE MOD_Globals
 #if USE_LOADBALANCE
@@ -1403,8 +1405,10 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-            DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN              
+            DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
+              + PartStateIntEn(i,1) - SpecDSMC(iSpec)%EZeroPoint
+            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,2)
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
@@ -1536,7 +1540,7 @@ CASE('cell_volweight')
 CASE DEFAULT
  CALL abort(&
 __STAMP__&
-,'Unknown DepositionType in pic_depo.f90')
+,'Unknown SamplingType in dsmc_analyze.f90')
 END SELECT
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DSMC,tLBStart)
@@ -1645,21 +1649,22 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
                 IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
                   IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
                     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                      IF( (PartEvib/PartNum) .GT. SpecDSMC(iSpec)%EZeroPoint ) THEN
-                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum, iSpec)
+                      IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
+                        Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
                       ELSE
                         Macro_TempVib = 0.0
                       END IF
                     ELSE
                       TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                      IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+                      IF ((PartEvib /PartNum).LE.0.0) THEN
                         Macro_TempVib = 0.0
                       ELSE
-                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+                        Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
                       END IF
                     END IF
                   ELSE                                            ! TSHO-model
-                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartEvib/PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+                    Macro_TempVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, &
+                      PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
                   Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
                   MolecPartNum = MolecPartNum + Macro_PartNum

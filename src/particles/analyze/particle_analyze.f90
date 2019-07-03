@@ -164,6 +164,8 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
                                                              'probability and pressure (normalized with the given pressure). '//&
                                                              'Values are averaged over the whole porous BC.' , '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
+
 END SUBROUTINE DefineParametersParticleAnalyze
 
 SUBROUTINE InitParticleAnalyze()
@@ -376,6 +378,17 @@ IF(nSpecies.GT.1) THEN
 ELSE
   nSpecAnalyze = 1
 END IF
+
+CalcCoupledPower = GETLOGICAL('CalcCoupledPower','.FALSE.')
+
+IF(CalcCoupledPower) THEN
+  DoPartAnalyze = .TRUE.
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
+  CALL abort(__STAMP__,&
+            'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+#endif
+END IF
+
 ! compute number of entering and leaving particles and their energy
 CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
 IF (CalcPartBalance) THEN
@@ -490,7 +503,7 @@ USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
 USE MOD_DSMC_Vars              ,ONLY: DSMC
-USE MOD_TimeDisc_Vars          ,ONLY: iter
+USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
 USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -498,9 +511,7 @@ USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, BGGas
 USE MOD_Particle_Vars          ,ONLY: Species
 #endif
 USE MOD_PIC_Analyze            ,ONLY: CalcDepositedCharge
-#ifdef MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
 #if ( PP_TimeDiscMethod ==42)
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
@@ -642,6 +653,14 @@ INTEGER             :: dir
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
+        END IF
+        IF (CalcCoupledPower) THEN
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupled',' '
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv',' '
+          OutputCounter = OutputCounter + 1
         END IF
         IF (CalcLaserInteraction) THEN
           DO iSpec=1, nSpecies
@@ -980,6 +999,10 @@ INTEGER             :: dir
         PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
       END IF
     END IF
+    IF(CalcCoupledPower) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
@@ -1029,6 +1052,10 @@ INTEGER             :: dir
       CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
+    IF(CalcCoupledPower) THEN
+      CALL MPI_REDUCE(PCoupl,PCoupl,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(PCouplAverage,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       CALL MPI_REDUCE(MaxCollProb,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -1059,6 +1086,20 @@ INTEGER             :: dir
     END IF
   END IF
 #endif /*MPI*/
+
+IF (PartMPI%MPIRoot) THEN
+  IF(CalcCoupledPower) THEN
+  ! Moving Average of PCoupl:
+    IF(iter.EQ.0) THEN
+      PCouplAverage = 0.0
+    ELSE
+      PCouplAverage = PCouplAverage / Time
+    END IF
+    ! current PCoupl (Delta_E / Timestep)
+    PCoupl = PCoupl / dt
+  END IF
+END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1000)
   IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1111,6 +1152,12 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Ekin(iSpec)
       END DO
+    END IF
+    IF (CalcCoupledPower) THEN
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PCoupl
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') PCouplAverage
     END IF
     IF (CalcLaserInteraction) THEN
       DO iSpec=1, nSpecies
@@ -1304,6 +1351,9 @@ IF(CalcPorousBCInfo) THEN
   DO iPBC = 1,nPorousBC
     PorousBC(iPBC)%Output(1:5) = 0.
   END DO
+END IF
+IF (CalcCoupledPower) THEN                         ! if output of coupled power is active
+  PCouplAverage = PCouplAverage * Time           ! PCouplAverage is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -853,9 +853,10 @@ SUBROUTINE InitElemVolumes()
 ! MODULES                                               ! MODULES
 #ifdef MPI
 USE mpi
+USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 #endif /*MPI*/
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,IERROR,mpiroot,abort
+USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP

@@ -38,6 +38,10 @@ INTERFACE FinalizeParticleMesh
   MODULE PROCEDURE FinalizeParticleMesh
 END INTERFACE
 
+INTERFACE GetMeshMinMax
+  MODULE PROCEDURE GetMeshMinMax
+END INTERFACE
+
 INTERFACE InitFIBGM
   MODULE PROCEDURE InitFIBGM
 END INTERFACE
@@ -108,6 +112,7 @@ PUBLIC::ParticleInsideQuad3D
 PUBLIC::InitParticleGeometry
 PUBLIC::MarkAuxBCElems
 PUBLIC::BoundsOfElement
+PUBLIC::GetMeshMinMax
 !===================================================================================================================================
 !
 PUBLIC::DefineParametersParticleMesh
@@ -1324,10 +1329,17 @@ END SUBROUTINE PartInElemCheck
 
 SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
 !===================================================================================================================================
-! checks if particle is inside of linear element with triangulated faces
+!> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
+!> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
+!>                  is used to determine whether the particle is inside the element. The geometric equivalent is the triple product
+!>                  A*(B x C), spanning a signed volume. If the volume/determinant is positive, then the particle is inside.
+!> Element neighbouring mortar elements: Additional checks of the smaller sides are required if the particle is in not in the
+!>                                       concave part of the element but in the convex. Analogous procedure using the determinants.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Mesh_Vars,  ONLY : GEO
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO,PartElemToSide,PartElemToElemAndSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1341,54 +1353,274 @@ REAL   ,INTENT(OUT)           :: Det(6,2)
 LOGICAL,INTENT(OUT)           :: InElementCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, NodeNum
+INTEGER                       :: ilocSide, NodeNum, SideID, SideIDMortar, ind, NbElemID, nNbMortars
+LOGICAL                       :: PosCheck, NegCheck, InElementCheckMortar, InElementCheckMortarNb
+REAL                          :: A(1:3,1:4), crossP(3)
+!===================================================================================================================================
+InElementCheck = .TRUE.
+InElementCheckMortar = .TRUE.
+!--- Loop over the 6 sides of the element
+DO iLocSide = 1,6
+  DO NodeNum = 1,4
+    !--- A = vector from particle to node coords
+    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
+  END DO
+  SideID =PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+  SideIDMortar=MortarType(2,SideID)
+  !--- Treatment of sides which are adjacent to mortar elements
+  IF (SideIDMortar.GT.0) THEN
+    PosCheck = .FALSE.
+    NegCheck = .FALSE.
+    !--- Checking the concave part of the side
+    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+      ! If the element is actually concave, CalcDetOfTrias determines its determinants
+      Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+      !--- final determination whether particle is in element
+      IF (.NOT.PosCheck) InElementCheckMortar = .FALSE.
+    ELSE
+      ! If its a convex element, CalcDetOfTrias determines the concave determinants
+      Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+      IF (Det(iLocSide,1).GE.0) PosCheck = .TRUE.
+      IF (Det(iLocSide,2).GE.0) PosCheck = .TRUE.
+      !--- final determination whether particle is in element
+      IF (.NOT.PosCheck) InElementCheckMortar= .FALSE.
+    END IF
+    !--- Checking the convex part of the side
+    IF (.NOT.InElementCheckMortar) THEN
+      InElementCheckMortar = .TRUE.
+      IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+        Det(iLocSide,1:2) = CalcDetOfTrias(A,2)
+        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+        !--- final determination whether particle is in element
+        IF (NegCheck) InElementCheckMortar = .FALSE.
+      ELSE
+        Det(iLocSide,1:2) = CalcDetOfTrias(A,1)
+        IF (Det(iLocSide,1).LT.0) NegCheck = .TRUE.
+        IF (Det(iLocSide,2).LT.0) NegCheck = .TRUE.
+        !--- final determination whether particle is in element
+        IF (NegCheck) InElementCheckMortar= .FALSE.
+      END IF
+      !--- Particle is in a convex elem but not in concave, checking additionally the mortar neighbors. If particle is not inside
+      !    the mortar elements, it has to be in the original element.
+      IF (InElementCheckMortar) THEN
+        IF (MortarType(1,SideID).EQ.1) THEN
+          nNbMortars = 4
+        ELSE
+          nNbMortars = 2
+        END IF
+        !--- Loop over the number of neighbouring mortar elements, leave the routine if the particle is found within one of the
+        !    mortar elements
+        DO ind = 1, nNbMortars
+          InElementCheckMortarNb = .TRUE.
+          NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
+          IF (NbElemID.LT.1) THEN
+            CALL abort(&
+              __STAMP__ &
+              ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
+          END IF
+          CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
+          IF (InElementCheckMortarNb) THEN
+            InElementCheck = .FALSE.
+            EXIT
+          END IF
+        END DO
+      ELSE
+        InElementCheck = .FALSE.
+      END IF
+    END IF
+  ELSE ! Treatment of regular elements without mortars
+    PosCheck = .FALSE.
+    NegCheck = .FALSE.
+    !--- compute cross product for vector 1 and 3
+    crossP(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+    crossP(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+    crossP(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+    !--- negative determinant of triangle 1 (points 1,3,2):
+    Det(iLocSide,1) = crossP(1) * A(1,2) + &
+                      crossP(2) * A(2,2) + &
+                      crossP(3) * A(3,2)
+    Det(iLocSide,1) = -det(iLocSide,1)
+    !--- determinant of triangle 2 (points 1,3,4):
+    Det(iLocSide,2) = crossP(1) * A(1,4) + &
+                      crossP(2) * A(2,4) + &
+                      crossP(3) * A(3,4)
+    IF (Det(iLocSide,1).LT.0) THEN
+      NegCheck = .TRUE.
+    ELSE
+      PosCheck = .TRUE.
+    END IF
+    IF (Det(iLocSide,2).LT.0) THEN
+      NegCheck = .TRUE.
+    ELSE
+      PosCheck = .TRUE.
+    END IF
+    !--- final determination whether particle is in element
+    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+      IF (.NOT.PosCheck) InElementCheck = .FALSE.
+    ELSE
+      IF (NegCheck) InElementCheck = .FALSE.
+    END IF
+  END IF ! Mortar element or regular element
+END DO ! iLocSide = 1,6
+
+RETURN
+
+END SUBROUTINE ParticleInsideQuad3D
+
+FUNCTION CalcDetOfTrias(A,bending)
+!================================================================================================================================
+!> Calculates the determinant A*(B x C) for both triangles of a side. bending = 1 gives the determinant considering the actual
+!> orientation of the side (concave/convex), 2 gives the opposite of the saved form (e.g. a concave side gets the convex analog)
+!================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                     :: A(3,4)
+INTEGER,INTENT(IN)                  :: bending
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                                :: CalcDetOfTrias(2)
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                :: cross(3)
+!================================================================================================================================
+IF (bending.EQ.1) THEN
+  !--- compute cross product for vector 1 and 3
+  cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+  cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+  cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+
+  !--- negative determinant of triangle 1 (points 1,3,2):
+  CalcDetOfTrias(1) = cross(1) * A(1,2) + &
+                   cross(2) * A(2,2) + &
+                   cross(3) * A(3,2)
+  CalcDetOfTrias(1)  = -CalcDetOfTrias(1) 
+  !--- determinant of triangle 2 (points 1,3,4):
+  CalcDetOfTrias(2)  = cross(1) * A(1,4) + &
+                   cross(2) * A(2,4) + &
+                   cross(3) * A(3,4)
+ELSE 
+  !--- compute cross product for vector 2 and 4
+  cross(1) = A(2,2) * A(3,4) - A(3,2) * A(2,4)
+  cross(2) = A(3,2) * A(1,4) - A(1,2) * A(3,4)
+  cross(3) = A(1,2) * A(2,4) - A(2,2) * A(1,4)
+
+  !--- negative determinant of triangle 1 (points 2,4,1):
+  CalcDetOfTrias(1) = cross(1) * A(1,1) + &
+                   cross(2) * A(2,1) + &
+                   cross(3) * A(3,1)
+  !--- determinant of triangle 2 (points 2,4,3):
+  CalcDetOfTrias(2) = cross(1) * A(1,3) + &
+                   cross(2) * A(2,3) + &
+                   cross(3) * A(3,3)
+  CalcDetOfTrias(2) = -CalcDetOfTrias(2)
+END IF
+END FUNCTION CalcDetOfTrias
+
+SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+!===================================================================================================================================
+!> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
+!> after it was determined that the particle is not in the concave part but in the convex part of the element.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO, PartElemToSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: ElemID
+REAL   ,INTENT(IN)            :: PartStateLoc(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: InElementCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, NodeNum, SideID
 LOGICAL                       :: PosCheck, NegCheck
 REAL                          :: A(1:3,1:4), cross(3)
+REAL                          :: Det(2)
 !===================================================================================================================================
-  InElementCheck = .TRUE.
-  DO iLocSide = 1,6                 ! for all 6 sides of the element
-     !--- initialize flags for side checks
-     PosCheck = .FALSE.
-     NegCheck = .FALSE.
-     !--- A = vector from particle to node coords
-     DO NodeNum = 1,4
-       A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
-     END DO
-
-     !--- compute cross product for vector 1 and 3
-     cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
-     cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
-     cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
-
-     !--- negative determinant of triangle 1 (points 1,3,2):
-     Det(iLocSide,1) = cross(1) * A(1,2) + &
-                       cross(2) * A(2,2) + &
-                       cross(3) * A(3,2)
-     Det(iLocSide,1) = -det(iLocSide,1)
-     !--- determinant of triangle 2 (points 1,3,4):
-     Det(iLocSide,2) = cross(1) * A(1,4) + &
-                       cross(2) * A(2,4) + &
-                       cross(3) * A(3,4)
-     IF (Det(iLocSide,1).LT.0) THEN
-       NegCheck = .TRUE.
-     ELSE
-       PosCheck = .TRUE.
-     END IF
-     IF (Det(iLocSide,2).LT.0) THEN
-       NegCheck = .TRUE.
-     ELSE
-       PosCheck = .TRUE.
-     END IF
-
-     !--- final determination whether particle is in element
-     IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
-       IF (.NOT.PosCheck) InElementCheck = .FALSE.
-     ELSE
-       IF (NegCheck) InElementCheck = .FALSE.
-     END IF
+InElementCheck = .TRUE.
+DO iLocSide = 1,6                 ! for all 6 sides of the element
+  DO NodeNum = 1,4
+  !--- A = vector from particle to node coords
+    A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,ElemID)) - PartStateLoc(1:3)
   END DO
-  RETURN
-END SUBROUTINE ParticleInsideQuad3D
+  SideID = PartElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+  IF (MortarType(2,SideID).GT.0) THEN ! Mortar side
+    !--- initialize flags for side checks
+    PosCheck = .FALSE.
+    NegCheck = .FALSE.
+    !--- Check if the particle is inside the convex element. If its outside, it has to be inside the original element
+    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+      Det(1:2) = CalcDetOfTrias(A,2)
+      IF (Det(1).LT.0) NegCheck = .TRUE.
+      IF (Det(2).LT.0) NegCheck = .TRUE.
+      !--- final determination whether particle is in element
+      IF (NegCheck) THEN
+        InElementCheck = .FALSE.
+        RETURN
+      END IF
+    ELSE
+      Det(1:2) = CalcDetOfTrias(A,1)
+      IF (Det(1).LT.0) NegCheck = .TRUE.
+      IF (Det(2).LT.0) NegCheck = .TRUE.
+      !--- final determination whether particle is in element
+      IF (NegCheck) THEN
+        InElementCheck = .FALSE.
+        RETURN
+      END IF
+    END IF
+  ELSE ! Regular side
+    PosCheck = .FALSE.
+    NegCheck = .FALSE.
+    !--- compute cross product for vector 1 and 3
+    cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+    cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+    cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+    !--- negative determinant of triangle 1 (points 1,3,2):
+    Det(1) = cross(1) * A(1,2) + &
+                      cross(2) * A(2,2) + &
+                      cross(3) * A(3,2)
+    Det(1) = -det(1)
+    !--- determinant of triangle 2 (points 1,3,4):
+    Det(2) = cross(1) * A(1,4) + &
+                      cross(2) * A(2,4) + &
+                      cross(3) * A(3,4)
+    IF (Det(1).LT.0) THEN
+      NegCheck = .TRUE.
+    ELSE
+      PosCheck = .TRUE.
+    END IF
+    IF (Det(2).LT.0) THEN
+      NegCheck = .TRUE.
+    ELSE
+      PosCheck = .TRUE.
+    END IF
+    !--- final determination whether particle is in element
+    IF (GEO%ConcaveElemSide(iLocSide,ElemID)) THEN
+      IF (.NOT.PosCheck) THEN
+        InElementCheck = .FALSE.
+        RETURN
+      END IF
+    ELSE
+      IF (NegCheck) THEN
+        InElementCheck = .FALSE.
+        RETURN
+      END IF
+    END IF
+  END IF  ! Mortar or regular side
+END DO  ! iLocSide = 1,6
+
+RETURN
+
+END SUBROUTINE ParticleInsideNbMortar
 
 
 SUBROUTINE InitFIBGM()
@@ -1404,8 +1636,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
-USE MOD_Particle_MPI           ,ONLY: InitHALOMesh
+USE MOD_Particle_MPI           ,ONLY: InitHALOMesh, AddHaloNodeData
 USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
+USE MOD_PICDepo_Vars           ,ONLY: CellLocNodes_Volumes, DepositionType
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
@@ -1426,28 +1659,20 @@ REAL,ALLOCATABLE         :: SideOrigin(:,:), SideRadius(:)
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(66("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT BASIS...' 
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
+StartT=PICLASTIME()
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-StartT=PICLASTIME()
+! build elem basis before halo region build
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-EndT=PICLASTIME()
-IF(PartMPI%MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' INIT ELEMENT-BASIS TOOK          [',EndT-StartT,'s]'
-END IF
 
-SWRITE(UNIT_StdOut,'(66("-"))')
-StartT=PICLASTIME()
-! get new min max
-SWRITE(UNIT_stdOut,'(A)')' Getting FIBGM-minmax ...' 
-CALL GetFIBGMminmax()
 ! sort elem in bgm cells
 SWRITE(UNIT_stdOut,'(A)')' Getting element range in FIBGM ...' 
 DO iElem=1,PP_nElems
@@ -1560,6 +1785,14 @@ IF (FindNeighbourElems) THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Neighbourhood ...'
   END IF
   CALL NodeNeighbourhood()
+#ifdef MPI
+  IF(PartMPI%MPIROOT)THEN
+     WRITE(UNIT_stdOut,'(A)') ' Node-Communication ...'
+  END IF
+  CALL BuildLocNodeToHaloNodeComm()
+  ! calculate additional volumes and weightings for halo region if deposition type is "cell_volume_mean"
+  IF (TRIM(DepositionType).EQ.'cell_volweight_mean') CALL AddHaloNodeData(CellLocNodes_Volumes)
+#endif /*MPI*/
 END IF
 
 SDEALLOCATE(XiEtaZetaBasis)
@@ -1572,6 +1805,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis ...'
 SDEALLOCATE(ElemRadius2_sf) ! deallocate when using LB (it would be allocated twice because the call is executed twice)
+! second build of elem basis after halo region build
 CALL BuildElementBasis()
 SWRITE(UNIT_stdOut,'(A)')' BUILD ElementBasis DONE!'
 IF(DoRefMapping) THEN
@@ -1605,7 +1839,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
-USE MOD_PICDepo              ,ONLY: InitializeDeposition
 USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
 USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
@@ -1679,19 +1912,13 @@ kk=0
 
 
 #ifdef MPI
-  ! allocate and initialize MPINeighbor
-  ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
-  PartMPI%isMPINeighbor(:) = .FALSE.
-  PartMPI%nMPINeighbors=0
+! allocate and initialize MPINeighbor
+ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
+PartMPI%isMPINeighbor(:) = .FALSE.
+PartMPI%nMPINeighbors=0
 #endif   
 
-
-  CALL InitPeriodicBC()
-  ! reduce beziercontrolpoints to boundary sides
-  !IF(DoRefMapping) CALL ReshapeBezierSides()
-  !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
-  CALL InitializeDeposition()     ! has to remain here, because domain can have changed
-  !CALL InitPIC()                 ! does not depend on domain
+CALL InitPeriodicBC()
 
 ! deallocate stuff // required for dynamic load balance
 #ifdef MPI
@@ -5258,36 +5485,35 @@ INTEGER                :: iElem, jNode
 INTEGER                :: iNode
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
-#ifdef MPI
-LOGICAL                :: HaloNeighNode(1:nNodes)
-#endif /*MPI*/
+!#ifdef MPI
+!LOGICAL                :: HaloNeighNode(1:nNodes)
+!#endif /*MPI*/
 LOGICAL                :: ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 
-#ifdef MPI
-! set nodes of sides with halo element connected to it as HaloNeighNodes
-HaloNeighNode(:) = .FALSE.
-DO iElem=1,nElems
-  DO iLocSide = 1,6
-    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
-      DO iNode = 1,4
-        HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
-      END DO
-    END IF
-  END DO
-END DO
-#endif /*MPI*/
-
-#ifdef CODE_ANALYZE
-DO iNode=1,nNodes
-  IF (HaloNeighNode(iNode)) THEN
-    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
-  END IF
-END DO
-#endif /*CODE_ANALYZE*/
+!#ifdef MPI
+!! set nodes of sides with halo element connected to it as HaloNeighNodes
+!GEO%HaloNeighNode(:) = .FALSE.
+!DO iElem=1,nElems
+!  DO iLocSide = 1,6
+!    IF (PartElemToElemAndSide(1,iLocSide,iElem).GT.PP_nElems) THEN
+!      DO iNode = 1,4
+!        GEO%HaloNeighNode(GEO%ElemSideNodeID(iNode,iLocSide,iElem)) = .TRUE.
+!      END DO
+!    END IF
+!  END DO
+!END DO
+!#ifdef CODE_ANALYZE
+!DO iNode=1,nNodes
+!  IF (GEO%HaloNeighNode(iNode)) THEN
+!    print*,'Rank: ',MyRank,'---- local Node: ',iNode,' is halo node'
+!  END IF
+!END DO
+!#endif /*CODE_ANALYZE*/
+!#endif /*MPI*/
 
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
@@ -5370,7 +5596,7 @@ DO iElem=1,PP_nElems
     END DO
     IF (.NOT.ElemExists) THEN
       TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) = TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem)) + 1
-      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = Element
+      TempNodeToElem(GEO%ElemToNodeID(iNode,iElem))%ElemID(TempElemsOnNode(GEO%ElemToNodeID(iNode,iElem))) = iElem
     END IF
   END DO
 END DO
@@ -5498,6 +5724,268 @@ DO iLocSide = 1,6
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
+
+#ifdef MPI
+SUBROUTINE BuildLocNodeToHaloNodeComm()
+!===================================================================================================================================
+!> build all missing stuff for node communication, like
+!> MPI-neighbor list
+!> PartHaloNodeToProc
+!> send and recv list mapping
+!> Only receiving process knows to which local node the information is send
+!> The sending process does not know the final nodeID 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars          ,ONLY: nNodes
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
+USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloNodeToProc
+USE MOD_Particle_MPI_Vars  ,ONLY: NodeSendBuf, NodeRecvBuf, NodeExchange
+USE MOD_Particle_Mesh_Vars ,ONLY: nTotalNodes, GEO
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: NodeIndexToSend(1:nNodes,0:PartMPI%nProcs-1)
+INTEGER             :: nDOF,ALLOCSTAT
+INTEGER             :: iProc, iNode,NodeID,iElem,iSendNode,iRecvNode,iPos,jNode
+INTEGER,ALLOCATABLE :: recv_status_list(:,:)
+INTEGER             :: NativeNodeID, iMPINeighbor
+REAL                :: MPINodeCoord(3), ElemCoord(3)
+!===================================================================================================================================
+
+! get list of mpi Node neighbors in halo-region (first mappings)
+  ! caution: 
+  !  mapping1 is only done for halo-nodes with direct connection to local nodes (equal nodes to local)
+ALLOCATE(PartMPI%IsMPINodeNeighbor(0:PartMPI%nProcs-1))
+PartMPI%IsMPINodeNeighbor(:) = .FALSE.
+PartMPI%nMPINodeNeighbors = 0
+
+NodeIndexToSend(:,:) = -1
+IF(nTotalNodes.GT.nNodes)THEN
+  ! get all MPI-neighbors to communicate with (only direct halo border)
+  ! list needed because not all halo nodes are considered for first mapping
+  DO iProc=0,PartMPI%nProcs-1
+    IF(iProc.EQ.PartMPI%MyRank) CYCLE
+    DO iNode=1,nNodes
+      DO iElem=1,GEO%ElemsOnNode(iNode)
+        IF (GEO%NodeToElem(iNode)%ElemID(iElem).LE.PP_nElems) CYCLE
+        DO jNode=1,8
+          IF ( iProc.NE.PartHaloNodeToProc(NATIVE_PROC_ID,GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem))) ) CYCLE
+          MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)))
+          ElemCoord(1:3) = GEO%NodeCoords(1:3,iNode)
+          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+            NodeIndexToSend(iNode,iProc) = GEO%ElemToNodeID(jNode,GEO%NodeToElem(iNode)%ElemID(iElem)) ! index of halo node on local proc
+            IF (.NOT.PartMPI%IsMPINodeNeighbor(iProc)) THEN
+              PartMPI%IsMPINodeNeighbor(iProc) = .TRUE.
+              PartMPI%nMPINodeNeighbors = PartMPI%nMPINodeNeighbors + 1
+            END IF
+            EXIT
+          END IF
+        END DO
+        IF (NodeIndexToSend(iNode,iProc).GT.0) EXIT
+      END DO ! iElem=1,GEO%ElemsOnNode(iNode)
+    END DO ! iNode=1,nNodes
+  END DO ! iProc = 0, PartMPI%nProcs-1
+END IF
+
+! fill list with neighbor proc id and add local neighbor id to PartHaloNodeToProc
+ALLOCATE( PartMPI%MPINodeNeighbor(PartMPI%nMPINodeNeighbors))
+iMPINeighbor=0
+DO iProc=0,PartMPI%nProcs-1
+  ! Check if iProc is my node neighbour
+  IF(PartMPI%IsMPINodeNeighbor(iProc))THEN
+    iMPINeighbor=iMPINeighbor+1
+    ! Mapping of node neighbour proc to global proc id (PartMPI%COMM)
+    PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID=iProc
+    ! Loop all halo nodes
+    DO iNode=nNodes+1,nTotalNodes
+      IF(iProc.EQ.PartHaloNodeToProc(NATIVE_PROC_ID,iNode)) PartHaloNodeToProc(LOCAL_PROC_ID,iNode)=iMPINeighbor
+    END DO ! iNode
+  END IF
+END DO
+
+! array how many nodes have to be communicated
+ALLOCATE(NodeExchange%nNodesSend(1:PartMPI%nMPINodeNeighbors) &
+        ,NodeExchange%nNodesRecv(1:PartMPI%nMPINodeNeighbors) &
+        ,NodeExchange%SendRequest(PartMPI%nMPINodeNeighbors)  &
+        ,NodeExchange%RecvRequest(PartMPI%nMPINodeNeighbors)  )
+NodeExchange%nNodesSend(:) = 0
+NodeExchange%nNodesRecv(:) = 0
+
+! count number of nodes to send to each proc
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  DO iNode=1,nNodes
+    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
+      NodeExchange%nNodesSend(iMPINeighbor) = NodeExchange%nNodesSend(iMPINeighbor) + 1
+    END IF
+  END DO
+END DO
+
+! open envelope receiving number of send nodes
+ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:PartMPI%nMPINodeNeighbors))
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_IRECV( NodeExchange%nNodesRecv(iMPINeighbor)            &
+                , 1                                                &
+                , MPI_INTEGER                                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1313                                             &
+                , PartMPI%COMM                                     &
+                , NodeExchange%RecvRequest(iMPINeighbor)           &
+                , IERROR )
+END DO ! iMPINeighbor
+
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_ISEND( NodeExchange%nNodesSend(iMPINeighbor)            &
+                , 1                                                &
+                , MPI_INTEGER                                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1313                                             &
+                , PartMPI%COMM                                     &
+                , NodeExchange%SendRequest(iMPINeighbor)           &
+                , IERROR )
+END DO ! iMPINeighbor
+
+
+! 4) Finish Received number of nodes
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+END DO ! iMPINeighbor
+
+! allocate send and receive buffer for communicating send node mapping
+ALLOCATE(NodeSendBuf(PartMPI%nMPINodeNeighbors))
+ALLOCATE(NodeRecvBuf(PartMPI%nMPINodeNeighbors))
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0)THEN
+    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(NodeExchange%nNodesSend(iMPINeighbor)),STAT=ALLOCSTAT)
+    NodeSendBuf(iMPINeighbor)%content(:)=0.
+  END IF
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0)THEN
+    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(NodeExchange%nNodesRecv(iMPINeighbor)),STAT=ALLOCSTAT)
+    NodeRecvBuf(iMPINeighbor)%content(:)=0.
+  END IF
+END DO ! iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+
+! open receive buffer
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+  CALL MPI_IRECV( NodeRecvBuf(iMPINeighbor)%content                &
+                , NodeExchange%nNodesRecv(iMPINeighbor)            &
+                , MPI_DOUBLE_PRECISION                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1414                                      &
+                , PartMPI%COMM                              &
+                , NodeExchange%RecvRequest(iMPINeighbor)           &
+                , IERROR )
+END DO ! iMPINeighbor
+
+! build message 
+! after this message, the receiving process knows to which of his nodes it receives and the sending process will know which nodes to
+! send
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(NodeExchange%nNodesSend(iMPINeighbor)))
+  PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(:) = 0
+  iSendNode=0
+  iPos=1
+  DO iNode=1,nNodes
+    IF (NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID).GT.nNodes) THEN
+      iSendNode=iSendNode+1
+      PartMPI%MPINodeNeighbor(iMPINeighbor)%SendList(iSendNode)=iNode
+      NodeID=PartHaloNodeToProc(NATIVE_ELEM_ID,NodeIndexToSend(iNode,PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID))
+      NodeSendBuf(iMPINeighbor)%content(iPos)=REAL(NodeID)
+      iPos=iPos+1
+    END IF
+  END DO ! iNode=1,nNodes
+  IF(iSendNode.NE.NodeExchange%nNodesSend(iMPINeighbor)) CALL abort(&
+__STAMP__&
+          ,' Message for node-exchange in init too short!',iMPINeighbor)
+  IF(ANY(NodeSendBuf(iMPINeighbor)%content.LE.0))THEN
+    IPWRITE(UNIT_stdOut,*) ' nSendNodes', NodeExchange%nNodesSend(iMPINeighbor), ' to Proc ', iMPINeighbor
+    CALL abort(&
+__STAMP__&
+          ,' Sent Native-NodeID is < zero!')
+  END IF
+END DO
+
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).EQ.0) CYCLE
+  CALL MPI_ISEND( NodeSendBuf(iMPINeighbor)%content                &
+                , NodeExchange%nNodesSend(iMPINeighbor)            &
+                , MPI_DOUBLE_PRECISION                      &
+                , PartMPI%MPINodeNeighbor(iMPINeighbor)%COMMProcID &
+                , 1414                                      &
+                , PartMPI%COMM                              &
+                , NodeExchange%SendRequest(iMPINeighbor)           &
+                , IERROR )
+END DO ! iMPINeighbor                                                
+
+! 4) Finish Received indexing of received nodes
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesSend(iMPINeighbor).NE.0) THEN
+    CALL MPI_WAIT(NodeExchange%SendRequest(iMPINeighbor),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).NE.0) THEN
+    CALL MPI_WAIT(NodeExchange%RecvRequest(iMPINeighbor),recv_status_list(:,iMPINeighbor),IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  END IF
+END DO ! iMPINeighbor
+
+! fill list with received Node-IDs
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).EQ.0) CYCLE
+  ALLOCATE(PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(NodeExchange%nNodesRecv(iMPINeighbor)))
+  iPos=1
+  DO iRecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+    NativeNodeID   = INT(NodeRecvBuf(iMPINeighbor)%content(iPos))
+    IF(NativeNodeID.GT.nNodes)THEN
+     CALL abort(&
+__STAMP__&
+          ,' Cannot send halo-data to other procs. big error! ', NativeNodeID, REAL(nNodes))
+    END IF
+    PartMPI%MPINodeNeighbor(iMPINeighbor)%RecvList(iRecvNode)=NativeNodeID
+    iPos=iPos+1
+  END DO ! RecvNode=1,NodeExchange%nNodesRecv(iMPINeighbor)
+END DO ! iMPINeighbor
+
+nDOF = 1
+DO iMPINeighbor=1,PartMPI%nMPINodeNeighbors
+  SDEALLOCATE(NodeSendBuf(iMPINeighbor)%content)
+  SDEALLOCATE(NodeRecvBuf(iMPINeighbor)%content)
+  IF(NodeExchange%nNodesSend(iMPINeighbor).GT.0) THEN
+    ALLOCATE(NodeSendBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesSend(iMPINeighbor)))
+    NodeSendBuf(iMPINeighbor)%content(:)=0.
+  END IF
+  IF(NodeExchange%nNodesRecv(iMPINeighbor).GT.0) THEN
+    ALLOCATE(NodeRecvBuf(iMPINeighbor)%content(nDOF*NodeExchange%nNodesRecv(iMPINeighbor)) )
+    NodeRecvBuf(iMPINeighbor)%content(:)=0.
+  END IF
+END DO ! iMPINeighbor
+DEALLOCATE(recv_status_list)
+
+CALL MPI_BARRIER(PartMPI%Comm,iError)
+
+
+END SUBROUTINE BuildLocNodeToHaloNodeComm
+#endif /*MPI*/
 
 
 SUBROUTINE DuplicateSlavePeriodicSides() 
@@ -6014,9 +6502,9 @@ ElemToBGM(6) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
 END SUBROUTINE BGMIndexOfElement
 
 
-SUBROUTINE GetFIBGMMinMax() 
+SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
-! computes the minimum and maximum value of the FIBGM mesh
+! computes the minimum and maximum value of the mesh
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -6040,10 +6528,6 @@ INTEGER         :: iSide
 REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
 !===================================================================================================================================
 
-!#ifdef MPI
-!   !--- If this MPI process does not contain particles, step out
-!   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
-!#endif
 !--- calc min and max coordinates for mesh
 xmin = HUGE(1.0)
 xmax =-HUGE(1.0)
@@ -6098,7 +6582,7 @@ GEO%zmax=zmax
   GEO%zmaxglob=GEO%zmax
 #endif   
 
-END SUBROUTINE GetFIBGMMinMax
+END SUBROUTINE GetMeshMinMax
 
 
 SUBROUTINE GetSideOriginAndRadius(nTotalBCSides,SideOrigin,SideRadius)
