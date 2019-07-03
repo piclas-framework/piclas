@@ -129,7 +129,7 @@ build_gnu:
     policy: push
   stage: build
   script:
-    - module load env/gnu; mkdir -p build_gnu ; cd build_gnu
+    - mkdir -p build_gnu ; cd build_gnu
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
@@ -169,7 +169,7 @@ build_gnu_maxwell:
     policy: push
   stage: build
   script:
-    - module load env/gnu; mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
+    - mkdir -p build_gnu_maxwell ; cd build_gnu_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
@@ -209,7 +209,7 @@ build_gnu_poisson:
     policy: push
   stage: build
   script:
-    - module load env/gnu; mkdir -p build_gnu_poisson ; cd build_gnu_poisson
+    - mkdir -p build_gnu_poisson ; cd build_gnu_poisson
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
 
