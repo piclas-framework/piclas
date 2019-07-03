@@ -3612,9 +3612,11 @@ REAL                            :: CalcVelocity_maxwell_particle(3)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-CalcVelocity_maxwell_particle(1) = rnor()*SQRT(BoltzmannConst*Temp(1)/Species(iSpec)%MassIC)
-CalcVelocity_maxwell_particle(2) = rnor()*SQRT(BoltzmannConst*Temp(2)/Species(iSpec)%MassIC)
-CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst*Temp(3)/Species(iSpec)%MassIC)
+CalcVelocity_maxwell_particle(1:3) = 0.0
+
+IF(Temp(1).GT.0.0) CalcVelocity_maxwell_particle(1) = rnor()*SQRT(BoltzmannConst*Temp(1)/Species(iSpec)%MassIC)
+IF(Temp(2).GT.0.0) CalcVelocity_maxwell_particle(2) = rnor()*SQRT(BoltzmannConst*Temp(2)/Species(iSpec)%MassIC)
+IF(Temp(3).GT.0.0) CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst*Temp(3)/Species(iSpec)%MassIC)
 
 END FUNCTION CalcVelocity_maxwell_particle
 
@@ -7319,7 +7321,7 @@ USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck, BoundsOfElement
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -7333,20 +7335,18 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iElem, iSpec, iPart, iNode, nPart, locnPart, iHeight, yPartitions
-REAL                                :: iRan, P(3,8),RandomPos(3), MinPos(3), MaxPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
-REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3)
+INTEGER                             :: iElem, iSpec, iPart, nPart, locnPart, iHeight, yPartitions
+REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
+REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3), Bounds(1:2,1:3)
 LOGICAL                             :: InsideFlag
 !===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART ...'
 
 locnPart = 1
 
 DO iElem = 1, nElems
-  DO iNode = 1,8
-    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-  END DO
-  MinPos(1:3)=MINVAL(P(1:3,:))
-  MaxPos(1:3)=MAXVAL(P(1:3,:))
+  CALL BoundsOfElement(iElem,Bounds(1:2,1:3))     ! 1: Min value, 2: Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
   IF (Symmetry2DAxisymmetric) THEN
     IF (RadialWeighting%DoRadialWeighting) THEN
@@ -7355,19 +7355,19 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
         ! Particle weighting
         DO iHeight = 1, yPartitions
-          MinPosTemp = MinPos(2) + (MaxPos(2) - MinPos(2))/ yPartitions *(iHeight-1.)
-          MaxPosTemp = MinPos(2) + (MaxPos(2) - MinPos(2))/ yPartitions *iHeight
-          TempVol =  (MaxPosTemp-MinPosTemp)*(MaxPos(1)-MinPos(1)) * Pi * (MaxPosTemp+MinPosTemp)
+          MinPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *(iHeight-1.)
+          MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
+          TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
           TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
           IF(VarTimeStep%UseVariableTimeStep) THEN
-            TempMPF = TempMPF * CalcVarTimeStep((MaxPos(1)+MinPos(1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
+            TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
           END IF
           CALL RANDOM_NUMBER(iRan)
           nPart = INT(PartDens / TempMPF  * TempVol + iRan)
           DO iPart = 1, nPart
             InsideFlag=.FALSE.
             CALL RANDOM_NUMBER(RandomPos)
-            RandomPos(1) = MinPos(1) + RandomPos(1)*(MaxPos(1)-MinPos(1))
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
             RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
             RandomPos(3) = 0.0
             IF (DoRefMapping) THEN
@@ -7393,15 +7393,15 @@ DO iElem = 1, nElems
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
         IF(VarTimeStep%UseVariableTimeStep) THEN
-          TempMPF = TempMPF * CalcVarTimeStep((MaxPos(1)+MinPos(1))*0.5, (MaxPos(2)+MinPos(2))*0.5, iElem)
+          TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
         END IF
         nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
         DO iPart = 1, nPart
           InsideFlag=.FALSE.
           DO WHILE (.NOT.InsideFlag)
             CALL RANDOM_NUMBER(RandomPos)
-            RandomPos(1) = MinPos(1) + RandomPos(1)*(MaxPos(1)-MinPos(1))
-            RandomPos(2) = SQRT(RandomPos(2)*(MaxPos(2)**2-MinPos(2)**2)+MinPos(2)**2)
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
             RandomPos(3) = 0.0
             IF (DoRefMapping) THEN
               CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
@@ -7421,18 +7421,18 @@ DO iElem = 1, nElems
       END DO ! nSpecies
     END IF ! RadialWeighting: YES/NO
   ELSE IF(Symmetry2D) THEN
-    Volume = (MaxPos(2) - MinPos(2))*(MaxPos(1) - MinPos(1))
+    Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
     DO iSpec = 1, nSpecies
       CALL RANDOM_NUMBER(iRan)
       TempMPF = Species(iSpec)%MacroParticleFactor
       IF(VarTimeStep%UseVariableTimeStep) THEN
-        TempMPF = TempMPF * CalcVarTimeStep((MaxPos(1)+MinPos(1))*0.5, (MaxPos(2)+MinPos(2))*0.5, iElem)
+        TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
       END IF
       nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
       DO iPart = 1, nPart
         InsideFlag=.FALSE.
         CALL RANDOM_NUMBER(RandomPos)
-        RandomPos(1:2) = MinPos(1:2) + RandomPos(1:2)*(MaxPos(1:2)-MinPos(1:2))
+        RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
         RandomPos(3) = 0.0
         IF (DoRefMapping) THEN
           CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
@@ -7453,7 +7453,7 @@ DO iElem = 1, nElems
     END DO ! nSpecies
   ELSE
 ! #################### 3D ##########################################################################################################
-    Volume = (MaxPos(3) - MinPos(3))*(MaxPos(2) - MinPos(2))*(MaxPos(1) - MinPos(1))
+    Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
     DO iSpec = 1, nSpecies
       CALL RANDOM_NUMBER(iRan)
       TempMPF = Species(iSpec)%MacroParticleFactor
@@ -7464,7 +7464,7 @@ DO iElem = 1, nElems
       DO iPart = 1, nPart
         InsideFlag=.FALSE.
         CALL RANDOM_NUMBER(RandomPos)
-        RandomPos(1:3) = MinPos(1:3) + RandomPos(1:3)*(MaxPos(1:3)-MinPos(1:3))
+        RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
         IF (DoRefMapping) THEN
           CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
           IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
@@ -7496,7 +7496,7 @@ END SUBROUTINE MacroRestart_InsertParticles
 
 SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
 !===================================================================================================================================
-!>
+!> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -7516,8 +7516,11 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
+! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
 PartState(iPart,4:6) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
                           + MacroRestartValues(iElem,iSpec,1:3)
+
+! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(iPart,1) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
@@ -7533,6 +7536,8 @@ IF(CollisMode.GT.1) THEN
     END IF
   END IF
 END IF
+
+! 3) Set the species and element number
 PartSpecies(iPart) = iSpec
 PEM%Element(iPart) = iElem
 PEM%lastElement(iPart) = iElem
