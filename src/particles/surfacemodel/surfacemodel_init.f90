@@ -612,17 +612,17 @@ __STAMP__&
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
           Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
-          IF (( MAXVAL(Adsorption%DiCoord(:,iSpec)).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
+          IF (ALLOCATED(Adsorption%DiCoord) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
             CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
           END IF
-        END IF
-        IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(MAXVAL(Adsorption%DiCoord(:,iSpec)).EQ.0) &
-            .AND.(Adsorption%EDissBond(0,iSpec).EQ.0.))THEN
-          CALL abort(&
+        ELSE
+          IF (ALLOCATED(Adsorption%DiCoord) .AND.(Adsorption%EDissBond(0,iSpec).EQ.0.))THEN
+            CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Adsorption dissociation bond energy for species '//TRIM(hilf)//' not defined!')
+          END IF
         END IF
       END IF
     END DO
@@ -828,17 +828,17 @@ __STAMP__&
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           Adsorption%EDissBondAdsorbPoly(0,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly1','0.')
           Adsorption%EDissBondAdsorbPoly(1,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-EDissBondPoly2','0.')
-          IF (( MAXVAL(Adsorption%DiCoord(:,iSpec)).NE.0) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
+          IF (ALLOCATED(Adsorption%DiCoord) .AND. (Adsorption%EDissBondAdsorbPoly(0,iSpec).EQ.0)) THEN
             CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Adsorption dissociation bond energy of dicoord for species '//TRIM(hilf)//' not defined!')
           END IF
-        END IF
-        IF ((.NOT.SpecDSMC(iSpec)%PolyatomicMol).AND.(MAXVAL(Adsorption%DiCoord(:,iSpec)).EQ.0) &
-            .AND.(Adsorption%EDissBond(0,iSpec).EQ.0.))THEN
-          CALL abort(&
+        ELSE
+          IF (ALLOCATED(Adsorption%DiCoord) .AND. (Adsorption%EDissBond(0,iSpec).EQ.0.)) THEN
+            CALL abort(&
 __STAMP__&
 ,'Error in Init_SurfChem: Adsorption dissociation bond energy for species '//TRIM(hilf)//' not defined!')
+          END IF
         END IF
       END IF
     END DO
