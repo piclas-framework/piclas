@@ -48,7 +48,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER               :: iPart, nPart, iPartIndx, iSpec
+  INTEGER                :: iPart, nPart, iPartIndx, iSpec
   REAL                   :: NumDensOfPartSpec(nSpecies)
   REAL                   :: CollFreq, CollNum, RotRelaxProbLD, VibRelaxProbLD, iRan, AFactor, BFactor, TauMW, TauV
   REAL                   :: PreRotEnergy, PreVibEnergy, PostRotEnergy, PostVibEnergy, NumDensTot, DoFConstV

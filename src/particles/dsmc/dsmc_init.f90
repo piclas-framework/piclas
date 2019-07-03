@@ -179,7 +179,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceTemp'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
                                            ,'Reference diameter for variable hard sphere model.', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
-                                           ,'Reference value for exponent omega for variable hard sphere model.', '0.'&
+                                           ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
+                                        'is used, which is defined through omegaLaux=omegaBird+0.5=(relative speed exponent of'//&
+                                        ' VHS model)_bird. It can be found in tables. ', '0.'&
                                            , numberedmulti=.TRUE.)
 ! CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
 !                                            ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
@@ -683,12 +685,12 @@ __STAMP__&
         END IF 
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
-        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb    !0.02
-        SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    !or 0.02 | Bird: somewhere in range 0.01 .. 0.02
+        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb     ! 0.02
+        SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    ! or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         DO iInit = 0, Species(iSpec)%NumberOfInits
-          IF (iInit .EQ. 0) THEN !0. entry := old style parameter def. (default values if not def., some values might be needed)
+          IF (iInit .EQ. 0) THEN ! 0. entry := old style parameter def. (default values if not def., some values might be needed)
             hilf2=TRIM(hilf)
           ELSE ! iInit >0
             WRITE(UNIT=hilf2,FMT='(I0)') iInit

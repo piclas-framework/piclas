@@ -65,7 +65,7 @@ REAL                          :: CRelaAv                    ! Average relative v
 TYPE tSpecInit
   REAL                        :: TVib                       ! vibrational temperature, ini_1
   REAL                        :: TRot                       ! rotational temperature, ini_1
-  REAL                        :: Telec                      ! electronic temperature, ini_1
+  REAL                        :: TElec                      ! electronic temperature, ini_1
 END TYPE tSpecInit
 
 TYPE tSpeciesDSMC                                           ! DSMC Species Param
