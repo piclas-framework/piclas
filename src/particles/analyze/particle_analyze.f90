@@ -335,8 +335,8 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 
 #if (PP_TimeDiscMethod == 42)
   IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
-    IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep),PartAnalyzeStep).NE.0) THEN
-      SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep)
+    IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep,8),PartAnalyzeStep).NE.0) THEN
+      SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep,8)
       SWRITE(UNIT_stdOut,'(A,I0)') '                        PartAnalyzeStep = ',PartAnalyzeStep
       CALL abort(&
         __STAMP__&
