@@ -7341,7 +7341,7 @@ REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3), B
 LOGICAL                             :: InsideFlag
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART ...'
+SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 
 locnPart = 1
 
@@ -7500,10 +7500,11 @@ SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState
-USE MOD_Particle_Vars           ,ONLY: PEM
-USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -7542,6 +7543,14 @@ PartSpecies(iPart) = iSpec
 PEM%Element(iPart) = iElem
 PEM%lastElement(iPart) = iElem
 PDM%ParticleInside(iPart) = .TRUE.
+
+! 4) Set particle weights (if required)
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(iPart,1),PartState(iPart,2),iElem)
+END IF
+IF (RadialWeighting%DoRadialWeighting) THEN
+  PartMPF(iPart) = CalcRadWeightMPF(PartState(iPart,2),iSpec,iPart)
+END IF
 
 END SUBROUTINE MacroRestart_InitializeParticle_Maxwell
 

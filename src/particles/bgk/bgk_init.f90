@@ -173,7 +173,7 @@ IF(BGKMovingAverage) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CALL abort(&
 __STAMP__&
-,' ERROR BGK: Moving average is neither implemented with radial weighting nor variable time step!')
+,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
 ! Vibrational modelling
@@ -183,6 +183,12 @@ BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF(DSMC%CalcQualityFactors) THEN
   ALLOCATE(BGK_QualityFacSamp(1:5,nElems))
   BGK_QualityFacSamp(1:5,1:nElems) = 0.0
+END IF
+
+IF(VarTimeStep%UseVariableTimeStep.AND.VarTimeStep%UseDistribution) THEN
+  CALL abort(&
+__STAMP__&
+,' ERROR BGK Init: Adapting the time step distribution is not implemented in BGK yet!')
 END IF
 
 BGKInitDone = .TRUE.
