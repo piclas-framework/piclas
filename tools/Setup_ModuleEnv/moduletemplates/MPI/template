@@ -1,0 +1,32 @@
+#%Module1.0#####################################################################
+##
+## modules MPI/WHICHMPI/MPIVERSION/WHICHCOMPILER/COMPILERVERSION
+##
+## /opt/modules/modulefiles/MPI/WHICHMPI/MPIVERSION/WHICHCOMPILER/COMPILERVERSION
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "MPI/WHICHMPI-MPIVERSION - sets the Environment for WHICHMPI-MPIVERSION_WHICHCOMPILER-COMPILERVERSION"
+}
+
+module-whatis   "Sets the environment for using WHICHMPI-MPIVERSION compilers for WHICHCOMPILER-COMPILERVERSION"
+
+conflict openmpi
+conflict mpich
+
+prereq WHICHCOMPILER/COMPILERVERSION
+
+# for Tcl script use only
+set     topdir          /opt/WHICHMPI/MPIVERSION/WHICHCOMPILER/COMPILERVERSION
+set     version         MPIVERSION_WHICHCOMPILER-COMPILERVERSION
+set     sys             linux64
+
+setenv          CC              $topdir/bin/mpicc
+setenv          CXX             $topdir/bin/mpicxx
+setenv          FC              $topdir/bin/mpifort
+setenv          F77             $topdir/bin/mpif77
+setenv          F90             $topdir/bin/mpif90
+prepend-path    PATH            $topdir/include
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib
