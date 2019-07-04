@@ -1,0 +1,31 @@
+#%Module1.0#####################################################################
+##
+## modules compilers/gcc-versionflag
+##
+## modulefiles/compilers/gcc-versionflag
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "compilers/gcc-versionflag - sets the Environment for GNU-compiler versionflag"
+}
+
+module-whatis   "Sets the environment for using gcc-versionflag compilers (C, C++, Fortran)"
+
+conflict gcc
+conflict intel
+
+# for Tcl script use only
+set     topdir          /opt/compiler/gcc/versionflag
+set     version         versionflag
+set     sys             linux64
+
+setenv          CC              $topdir/bin/gcc
+setenv          CXX             $topdir/bin/g++
+setenv          FC              $topdir/bin/gfortran
+#setenv          F77             $topdir/bin/gfortran
+#setenv          F90             $topdir/bin/gfortran
+prepend-path    PATH            $topdir/include/c++/versionflag
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib64
+#prepend-path    PATH $topdir/lib64

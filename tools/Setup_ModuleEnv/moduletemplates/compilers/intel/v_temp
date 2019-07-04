@@ -1,0 +1,32 @@
+#%Module1.0#####################################################################                                                                                                                             
+##
+## modules compilers/intel/versionflag
+##
+## modulefiles/compilers/intel/versionflag
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "compilers/intel/versionflag - sets the Environment for Intel-compilers versionflag"
+}
+
+module-whatis   "Sets the environment for using intel-versionflag compilers (C, Fortran)"
+
+conflict gcc
+conflict intel
+
+# for Tcl script use only
+set     topdir          /opt/intel/composer_xe_2015.5.223
+set     version         versionflag
+set     sys             linux64
+
+setenv          CC              $topdir/bin/intel64/icc
+setenv          CXX             $topdir/bin/intel64/icpc
+setenv          FC              $topdir/bin/intel64/ifort
+setenv          F77             $topdir/bin/intel64/ifort
+setenv          F90             $topdir/bin/intel64/ifort
+prepend-path    PATH            $topdir/compiler/include/intel64
+prepend-path    PATH            $topdir/bin/intel64
+prepend-path    MANPATH         $topdir/man
+prepend-path    LD_LIBRARY_PATH $topdir/compiler/lib/intel64
+
