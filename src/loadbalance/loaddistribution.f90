@@ -224,7 +224,6 @@ ALLOCATE(PartsInElem(1:nGlobalElems))
 PartsInElem=0
 
 #ifdef PARTICLES
-
 timeWeight = 1.0
 IF(VarTimeStep%UseDistribution) THEN
   ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
@@ -357,19 +356,13 @@ CASE(1)
             __STAMP__&
             ,' Process received zero elements during load distribution',iProc)
       END DO ! iPRoc
-      IF(ElemTimeExists)THEN
-        IF(ElemDistri(nProcessors-1).EQ.1)THEN
-          LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
-          LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
-        ELSE
-          LoadDistri(nProcessors-1)=SUM(ElemGlobalTime(offSetElemMPI(nProcessors-1)+1:nGlobalElems))
-          LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
-        END IF
+      ! Determine the remaining load on the last proc
+      IF(ElemDistri(nProcessors-1).EQ.1)THEN
+        LoadDistri(nProcessors-1)=ElemGlobalTime(nGlobalElems)
       ELSE
-        LoadDistri(nProcessors-1)=ElemDistri(nProcessors-1) +&
-            SUM(PartsInElem(offSetElemMPI(nProcessors-1)+1:nGlobalElems))*ParticleMPIWeight
-        LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
+        LoadDistri(nProcessors-1)=SUM(ElemGlobalTime(offSetElemMPI(nProcessors-1)+1:nGlobalElems))
       END IF
+      LastLoadDiff = LoadDistri(nProcessors-1)-TargetWeight_loc
       LoadDiff(nProcessors-1)=LastLoadDiff
       MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
       LastProcDiff=LastLoadDiff-MaxLoadDiff
@@ -386,8 +379,8 @@ CASE(1)
             __STAMP__&
             ,' Lost Elements and/or Particles during load distribution!')
       END IF
-    END DO
-  END IF
+    END DO  ! .NOT.FoundDistribution
+  END IF    ! MPIRoot
   ! Send the load distribution to all other procs
   CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
