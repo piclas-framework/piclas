@@ -71,8 +71,10 @@ sudo apt-get install texlive-full
 sudo apt-get install hdfview 
 
 # Install libs for reggie
-sudo apt-get install python-h5py hdf5-tools
-sudo apt-get install libhdf5-dev # this is maybe not required
+sudo apt-get install python-h5py
+
+# Further libs
+sudo apt-get install hdf5-tools libhdf5-dev # this is maybe not required (do not install them if it works without these packages)
 
 
 # openMPI
