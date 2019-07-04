@@ -6619,7 +6619,7 @@ DO iSpec = 1,nSpecies
       Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec)
     END IF
     ! ================================================================
-    IF(SamplingIteration.GT.0) THEN
+    IF(PorousBCSampIter.GT.0) THEN
       ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
       PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
       PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
