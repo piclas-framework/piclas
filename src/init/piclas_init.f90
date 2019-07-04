@@ -159,7 +159,7 @@ END IF
 !--- Variable time step
 VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
 IF (VarTimeStep%UseVariableTimeStep)  THEN
-  CALL VarTimeStep_Init()
+  IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
 ELSE
   VarTimeStep%UseLinearScaling = .FALSE.
   VarTimeStep%UseDistribution = .FALSE.

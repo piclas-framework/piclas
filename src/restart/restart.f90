@@ -1227,7 +1227,7 @@ __STAMP__&
   ELSE
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
   END IF ! PartIntExists
-ELSE      ! Go Fancy MacroscopicRestart
+ELSE      ! DoMacroscopicRestart
   CALL CloseDataFile()
   CALL MacroscopicRestart()
   CALL UpdateNextFreePosition()
@@ -1704,7 +1704,7 @@ SUBROUTINE FinalizeRestart()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone
+USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1714,6 +1714,8 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
+! Avoid performing a macroscopic restart during an automatic load balance restart
+DoMacroscopicRestart = .FALSE.
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart
