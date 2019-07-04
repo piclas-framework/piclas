@@ -277,7 +277,9 @@ REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
 #endif
+#ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
+#endif
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -312,11 +314,13 @@ ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
 
+#ifdef PARTICLES
 IF(VarTimeStep%UseDistribution) THEN
 ! Initialize variable time step distribution (done before domain decomposition to include time step as weighting for load balance)
 ! Get the time step factor distribution or calculate it from quality factors from the DSMC state (from the MacroRestartFileName)
   CALL VarTimeStep_InitDistribution()
 END IF
+#endif
 
 IF (DoRestart) THEN 
   !--------------------------------------------------------------------------------------------------------------------------------!
@@ -461,6 +465,7 @@ offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at
 !----------------------------------------------------------------------------------------------------------------------------
 !                              VARIABLE TIME STEP
 !----------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
 IF(VarTimeStep%UseDistribution) THEN
   IF(ALLOCATED(VarTimeStep%ElemFac)) THEN
     ALLOCATE(GlobVarTimeStep(nGlobalElems))
@@ -483,6 +488,7 @@ IF(VarTimeStep%UseDistribution) THEN
 #endif
   END IF
 END IF
+#endif
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()

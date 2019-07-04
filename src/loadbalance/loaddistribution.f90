@@ -201,9 +201,9 @@ INTEGER(KIND=IK)               :: locnPart
 LOGICAL                        :: PartIntExists
 INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
+REAL                           :: timeWeight(1:nGlobalElems)
 #endif /*PARTICLES*/
 REAL                           :: TargetWeight_loc
-REAL                           :: timeWeight(1:nGlobalElems)
 !===================================================================================================================================
 WeightSum = 0.0
 CurWeight = 0.0

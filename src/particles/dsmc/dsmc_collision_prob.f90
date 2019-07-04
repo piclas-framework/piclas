@@ -42,11 +42,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, nSpecies, VarTimeStep
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState, VarTimeStep
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec
   USE MOD_part_tools,             ONLY : GetParticleWeight
+#if (PP_TimeDiscMethod==42)
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -58,7 +61,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2
-  REAL                                :: SpecNum1, SpecNum2, iRan, Weight1, Weight2, Volume
+  REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 #if (PP_TimeDiscMethod==42)
   INTEGER                             :: iReac, iSpec

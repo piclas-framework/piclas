@@ -266,7 +266,6 @@ USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSi
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
 #endif /*PP_HDG*/
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
-USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
@@ -277,6 +276,7 @@ USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
 USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
 USE MOD_Particle_Vars,           ONLY:PartSurfaceModel
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition

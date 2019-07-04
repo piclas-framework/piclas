@@ -114,6 +114,8 @@ USE MOD_Restart_Vars  ,ONLY: RestartFile
 #ifdef PARTICLES
 USE MOD_DSMC_Vars     ,ONLY:RadialWeighting
 USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
+USE MOD_Particle_Vars          ,ONLY: UseAdaptive
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars ,ONLY: E,Phi
@@ -130,8 +132,6 @@ USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
-USE MOD_Particle_Vars          ,ONLY: UseAdaptive
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

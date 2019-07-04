@@ -155,6 +155,7 @@ ELSE
   CALL InitRestart()
 END IF
 
+#ifdef PARTICLES
 !--- Variable time step
 VarTimeStep%UseVariableTimeStep = GETLOGICAL('Part-VariableTimeStep')
 IF (VarTimeStep%UseVariableTimeStep)  THEN
@@ -163,6 +164,7 @@ ELSE
   VarTimeStep%UseLinearScaling = .FALSE.
   VarTimeStep%UseDistribution = .FALSE.
 END IF
+#endif
 
 CALL InitMesh()
 #ifdef MPI

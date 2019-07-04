@@ -860,8 +860,8 @@ USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Particle_Vars      ,ONLY: usevMPF
 #ifdef PARTICLES
+USE MOD_Particle_Vars      ,ONLY: usevMPF
 USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
 #endif
 USE MOD_ReadInTools
