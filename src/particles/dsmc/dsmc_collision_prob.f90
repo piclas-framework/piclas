@@ -375,4 +375,63 @@ __STAMP__&
 #endif
 END SUBROUTINE DSMC_prob_calc
 
+!SUBROUTINE collisionFrequency(iElem)
+!
+!USE MOD_Globals_Vars,           ONLY : BoltzmannConst,PI
+!USE MOD_Particle_Vars,          ONLY : PEM, Species, nSpecies, PartSpecies
+!USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+!USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, DSMC,MacroDSMC
+!USE MOD_TimeDisc_Vars,          ONLY : dt
+!
+!!--------------------------------------------------------------------------------------------------!
+!   IMPLICIT NONE                                                                                  !
+!!--------------------------------------------------------------------------------------------------!
+!! argument list declaration                                                                        !
+!! Local variable declaration                                                                       !
+!  INTEGER                       :: iPart, nPart, iPartIndx, iSpec
+!  REAL                          :: NumDensOfPartSpec(nSpecies)
+!  REAL                          :: CollFreq
+!  REAL                          :: PreRotEnergy, PreVibEnergy, PostRotEnergy, PostVibEnergy, NumDensTot
+!  INTEGER                       :: iQuant
+!  INTEGER, INTENT(IN)           :: iElem
+!!--------------------------------------------------------------------------------------------------!
+!  nPart = PEM%pNumber(iElem)
+!  NumDensOfPartSpec(1:nSpecies) = 0.0
+!
+!  iPartIndx = PEM%pStart(iElem)
+!  DO ipart = 1, nPart
+!    NumDensOfPartSpec(PartSpecies(iPartIndx)) = NumDensOfPartSpec(PartSpecies(iPartIndx)) + 1.0
+!    iPartIndx = PEM%pNext(iPartIndx)
+!  END DO
+!  NumDensOfPartSpec(1:nSpecies) = NumDensOfPartSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%Volume(iElem)
+!!  NumDensTot = SUM(NumDensOfPartSpec)
+!
+!  iPartIndx = PEM%pStart(iElem)
+!  DO ipart = 1, nPart 
+! !   PreVibEnergy  = PartStateIntEn(iPartIndx,1)
+! !   PreRotEnergy  = PartStateIntEn(iPartIndx,2)
+!    CollFreq = 0.0 
+!    DO iSpec = 1, nSpecies
+!    !marcel gefragt warum
+!    ! .5
+!    ! 2.0
+!    !richtige Temperatur?
+!    CollFreq = CollFreq +( 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS))**2.0 &
+!                 * NumDensOfPartSpec(iSpec) &
+!                 * ( 4.0 * PI * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%TrefVHS &
+!                 * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
+!                 / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
+!                 * (MacroDSMC(iPartIndx,iSpec)%Temp(4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - SpecDSMC(iSpec)%omegaVHS)
+!    END DO
+!    SWRITE(*,*) 'This is the collision frequency after pfeiffer2018 (18)',CollFreq
+!    ! has to get divided by the collision number
+!    DO ipart = 1, nPart 
+!       CollFreq = 0.0 
+!       DO iSpec = 1, nSpecies
+!          CollFreq = CollFreq +( 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS))**2.0 &
+!       END DO
+!    END DO
+!
+!END SUBROUTINE collisionFrequency
+
 END MODULE MOD_DSMC_CollisionProb

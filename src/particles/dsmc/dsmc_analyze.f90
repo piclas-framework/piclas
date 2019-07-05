@@ -794,77 +794,77 @@ END IF
 RETURN
 END FUNCTION CalcMeanFreePath
 
-REAL FUNCTION CalcMeanFreePathVSS(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
-!===================================================================================================================================
-!> Calculation of the mean free path for the variable soft sphere VSS (if omega and temperature are given)
-!> to be solved. nichts zu mixture. werde also d_ref (4.62) für d einbauen und dann die MFP mit 4.60 sigma_ref berechnen, um
-!letztlich den mean free path zu berechnen. Welche Formel da stimmt, weiß ich noch nicht.
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: Pi
-USE MOD_Particle_Vars ,ONLY: Species, nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
-REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                         :: iSpec, jSpec
-REAL                            :: Dref, omega, Temp, MFP_Tmp
-!===================================================================================================================================
-DrefMixture = 0.0
-CalcMeanFreePath = 0.0
-! to be solved
-! t_ref=273
-! viscosityCoeff_ref
-! T
-! omega
-! alpha
-! Calculation reference diameter Bird (4.62)
-  Dref = SQRT((5*(alpha+1)*(alpha+2)*SQRT(m*k*T_ref/pi))/(4*alpha(5-2*omega)*(7-2*omega)*viscosityCoeff_ref))
-! Collision cross-section Bird (2.31) and (p.42 l.2)
-  sigma_tot=PI*Dref**2
-
-
-! Mean Free Path after Bird (4.65)
-MFP=1/(SQRT(2)*PI*Dref**2*nPart*(Tref/T)**(omega-.5))
-
-IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-  omega = opt_omega
-  Temp = opt_temp
-    DO iSpec = 1, nSpecies
-      MFP_Tmp = 0.0
-      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-        DO jSpec = 1, nSpecies
-          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-
-          END IF
-        END DO
-        CalcMeanFreePath = 
-      END IF
-    END DO
-ELSE
-  DO iSpec = 1, nSpecies
-    MFP_Tmp = 0.0
-    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-      DO jSpec = 1, nSpecies
-        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = 
-        END IF
-      END DO
-      CalcMeanFreePath = 
-    END IF
-  END DO
-END IF
-RETURN
-END FUNCTION CalcMeanFreePathVSS
+!REAL FUNCTION CalcMeanFreePathVSS(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
+!!===================================================================================================================================
+!!> Calculation of the mean free path for the variable soft sphere VSS (if omega and temperature are given)
+!!> to be solved. nichts zu mixture. werde also d_ref (4.62) für d einbauen und dann die MFP mit 4.60 sigma_ref berechnen, um
+!!letztlich den mean free path zu berechnen. Welche Formel da stimmt, weiß ich noch nicht.
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Globals_Vars  ,ONLY: Pi
+!USE MOD_Particle_Vars ,ONLY: Species, nSpecies
+!USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
+!REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!INTEGER                         :: iSpec, jSpec
+!REAL                            :: Dref, omega, Temp, MFP_Tmp
+!!===================================================================================================================================
+!DrefMixture = 0.0
+!CalcMeanFreePath = 0.0
+!! to be solved
+!! t_ref=273
+!! viscosityCoeff_ref
+!! T
+!! omega
+!! alpha
+!! Calculation reference diameter Bird (4.62)
+!  Dref = SQRT((5*(alpha+1)*(alpha+2)*SQRT(m*k*T_ref/pi))/(4*alpha(5-2*omega)*(7-2*omega)*viscosityCoeff_ref))
+!! Collision cross-section Bird (2.31) and (p.42 l.2)
+!  sigma_tot=PI*Dref**2
+!
+!
+!! Mean Free Path after Bird (4.65)
+!MFP=1/(SQRT(2)*PI*Dref**2*nPart*(Tref/T)**(omega-.5))
+!
+!IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
+!  omega = opt_omega
+!  Temp = opt_temp
+!    DO iSpec = 1, nSpecies
+!      MFP_Tmp = 0.0
+!      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+!        DO jSpec = 1, nSpecies
+!          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+!
+!          END IF
+!        END DO
+!        CalcMeanFreePath = 
+!      END IF
+!    END DO
+!ELSE
+!  DO iSpec = 1, nSpecies
+!    MFP_Tmp = 0.0
+!    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+!      DO jSpec = 1, nSpecies
+!        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+!          MFP_Tmp = 
+!        END IF
+!      END DO
+!      CalcMeanFreePath = 
+!    END IF
+!  END DO
+!END IF
+!RETURN
+!END FUNCTION CalcMeanFreePathVSS
 
 SUBROUTINE CalcGammaVib()
 !===================================================================================================================================

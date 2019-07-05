@@ -113,7 +113,7 @@ SUBROUTINE UpdateNextFreePosition()
   RETURN
 END SUBROUTINE UpdateNextFreePosition
 
-FUNCTION DiceDeflectedVector(CRela,ur,vr,wr,alpha)
+FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
 !===================================================================================================================================
 ! Calculates deflection angle and resulting deflection vector after Bird 1994.
 ! VHS: isotropic scattering vector
@@ -126,7 +126,7 @@ FUNCTION DiceDeflectedVector(CRela,ur,vr,wr,alpha)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)            :: CRela                  ! absolute value of pre-coll relative velocity. Bird (2.3),(2.8) 
+  REAL,INTENT(IN)            :: CRela2 
   REAL,INTENT(IN)            :: ur,vr,wr               ! pre-coll relative velocity CRela=(/ur,vr,wr/)
   REAL,INTENT(IN), OPTIONAL  :: alpha                  ! VSS parameter
 
@@ -134,14 +134,15 @@ FUNCTION DiceDeflectedVector(CRela,ur,vr,wr,alpha)
 ! OUTPUT VARIABLES
   REAL                       :: DiceDeflectedVector(3) ! post-coll relative velocity vector DiceDeflectedVector. Bird (CRelaN)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
+! LOCAL VARIABLES   
+ REAL                        :: CRela                  ! absolute value of pre-coll relative velocity. Bird (2.3),(2.8) 
  REAL                        :: iRan, eps, cos_chi, sin_chi
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
                                                          ! im Code die alphas hinterlegen #datenbank.
                                                          ! macht es unterschied ob a b oder b a?
                                                          ! oder readin
-   CRela=SQRT(CRela)                                     ! read-in CRela is CRela**2 
+   CRela=SQRT(CRela2)                                    ! read-in CRela is CRela**2 
                                                          ! determination of DiceDeflectedVector in independent coordinate system
    CALL RANDOM_NUMBER(iRan)
    IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN      ! VHS

@@ -215,8 +215,6 @@ TimediscInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTimeDisc
-    !                                                                                                                                                                                          
- 581       ! A
 
 
 SUBROUTINE TimeDisc()

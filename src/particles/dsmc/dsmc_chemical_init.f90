@@ -146,17 +146,17 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iReac
       ChemReac%ReactType(iReac)             = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0'))
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
-      CHemReac%QKMethod(iReac)       = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 
-      ChemReac%QKCoeff(iReac,1)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff1','0')
-      ChemReac%QKCoeff(iReac,2)      = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff2','0')
+      CHemReac%QKMethod(iReac)              = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 
+      ChemReac%QKCoeff(iReac,1)             = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff1','0')
+      ChemReac%QKCoeff(iReac,2)             = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-QK-Coeff2','0')
       ChemReac%DefinedReact(iReac,1,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3,'0,0,0')
       ChemReac%DefinedReact(iReac,2,:)      = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',3,'0,0,0')
       ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor','0')
       ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
       ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
-      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
-      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
-      ChemReac%DoScat(iReac)               = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
+      ChemReac%CEXa(iReac)                  = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','-27.2')
+      ChemReac%CEXb(iReac)                  = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','175.269')
+      ChemReac%DoScat(iReac)                = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-DoScat','.FALSE.')
       IF (ChemReac%DoScat(iReac)) THEN
         DoScat = .true.
         ChemReac%ELa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-ELa','-26.8')        ! Passen diese Zeilen so?

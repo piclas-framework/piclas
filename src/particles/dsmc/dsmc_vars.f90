@@ -88,6 +88,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: TrefVHS                    ! VHS reference temp, ini_2
   REAL                        :: DrefVHS                    ! VHS reference diameter, ini_2
   REAL                        :: omegaVHS                   ! VHS exponent omega, ini_2
+
   INTEGER                     :: NumOfPro                   ! Number of Protons, ini_2
   REAL                        :: Eion_eV                    ! Energy of Ionisation in eV, ini_2
   REAL                        :: RelPolarizability          ! relative polarizability, ini_2
@@ -241,6 +242,7 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                               ! Collision information 
+  INTEGER                        :: CollMod                 ! Collision model used. 0 - VHS,1 - VSS
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE    :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
@@ -249,6 +251,9 @@ TYPE tCollInf                                               ! Collision informat
   INTEGER       , ALLOCATABLE    :: KronDelta(:)            ! (number of case)
   REAL          , ALLOCATABLE    :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE    :: MassRed(:)              ! reduced mass (number of cases)
+  REAL          , ALLOCATABLE    :: alphaVSS(:,:)           ! VSS exponent alpha per collision, ini_2
+  REAL          , ALLOCATABLE    :: omegaVSS(:,:)           ! VSS exponent omega per collision, ini_2
+  REAL          , ALLOCATABLE    :: dRef(:,:)               ! Reference diameter per collision, ini_2 
 END TYPE
 
 TYPE(tCollInf)               :: CollInf
@@ -306,7 +311,7 @@ TYPE tChemReactions
 !  INTEGER(KIND=8), ALLOCATABLE    :: NumReac(:)            ! Number of occured reactions for each reaction number
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
                                                             !    i (electron impact ionization)
-                                                            !    R (molecular recombination
+                                                            !    R (molecular recombination)
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
                                                             !    x (simple charge exchange reaction)
@@ -324,13 +329,13 @@ TYPE tChemReactions
                                                                 ! Case 5: RN of 1. dissociation 1
                                                                 !               2. dissociation 2
                                                                 ! Case 6: associative ionization (N + N -> N2(ion) + e)
-                                                                ! Case 7: 3 dissociations possible (at least 1 poly)
-                                                                ! Case 8: 4 dissociations possible
-                                                                ! Case 9: 3 diss and 1 exchange possible
+                                                                ! Case 7:  3 dissociations possible (at least 1 poly)
+                                                                ! Case 8:  4 dissociations possible
+                                                                ! Case 9:  3 diss and 1 exchange possible
                                                                 ! Case 10: 2 diss and 1 exchange possible
-                                                                ! Case 11: 2 diss, 1 exchange and 1 recomb possible
+                                                                ! Case 11: 2 diss,    1 exchange and 1 recomb possible
                                                                 ! Case 12: 2 diss and 1 recomb possible
-                                                                ! Case 13: 1 diss, 1 exchange and 1 recomb possible
+                                                                ! Case 13: 1 diss,    1 exchange and 1 recomb possible
                                                                 ! Case 14: 1 diss and 1 recomb possible
                                                                 ! Case 15: 1 exchange and 1 recomb possible
                                                                 ! Case 16: simple CEX, only 1
@@ -383,14 +388,14 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
-  REAL, ALLOCATABLE              :: CharaTVibDOF(:)        ! Chara TVib for each DOF
-  INTEGER,ALLOCATABLE           :: LastVibQuantNums(:,:)    ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
-  INTEGER, ALLOCATABLE          :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
+  REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
+  INTEGER,ALLOCATABLE             :: LastVibQuantNums(:,:)  ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
+  INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
   REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions             
   REAL                            :: TVib
-  REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
-  REAL, ALLOCATABLE              :: VibRelaxProb(:)
-  REAL, ALLOCATABLE              :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
+  REAL, ALLOCATABLE               :: VibRelaxProb(:)
+  REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
