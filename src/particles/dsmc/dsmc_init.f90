@@ -164,7 +164,7 @@ CALL prms%SetSection("DSMC Collision")
 CALL prms%CreateIntOption(      'Part-CollisionModel'  &
                                            ,'Flags which model is used for collision. Check Bird for more information.\n '//&
                                             '0 : Variable Hard Sphere (VHS)\n'//&
-                                            '1 : Variable Soft Sphere (VSS)', '0.')
+                                            '1 : Variable Soft Sphere (VSS)', '0')
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                            ,'VSS exponent as defined in Bird (2.36). Can be found in tables. Default alpha==1'//&
                                             ' for VHS calculation. !to be solved See Bird 1994 p.42 for more information.', '1.',&
@@ -174,8 +174,12 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
                                             ' Values can be found in papers such as krishnan2015, krishnan2016.'//&
                                             ' omegaVSS=Ypsilon_bird=omega_krishnan+0.5=omega_bird+0.5'&
                                            , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Collision[$]-dRef'  &
+CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,' Collision-specific reference diameter. Values can be found in papers such as '//&
+                                            ' krishnan2015, krishnan2016.!to be solved (DOI)' , '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
+                                           ,' Temperature of collision-specific reference diameter. Values can be found in '//&
+                                            ' papers such as '//&
                                             ' krishnan2015, krishnan2016.!to be solved (DOI)' , '1.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Species")
@@ -609,12 +613,15 @@ __STAMP__&
 ! to be solved
 
   CollInf%collMod = GETINT('Part-CollisionModel','0') 
-  VSS_IF:IF(CollInf%collMod.EQ.1) THEN ! VSS
+  IF(CollInf%collMod.EQ.1) THEN ! VSS
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
     ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
-    ALLOCATE(CollInf%dRef(nSpecies,nSpecies))
-    CollInf%alphaVSS=1.                                     ! VHS default alpha=1   -späterer zeitpunkt, dass man einfach alpha 1
+    ALLOCATE(CollInf%dref(nSpecies,nSpecies))
+    ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
+    CollInf%alphaVSS=1.                                     !  to be solved VHS default alpha=1   -späterer zeitpunkt, dass man einfach alpha 1
     CollInf%omegaVSS=0.                                     ! setzt, um VHS zu rechnen. Dann muss auch omega anders gesetzt werden
+    CollInf%dref=0.                                    
+    CollInf%Tref=0.                                     
     DO iSpec=1,CollInf%NumCase                              ! alphaVSS and omegaVSS (collision specific parameters-> Matrix) read-in
       DO jSpec=iSpec,CollInf%NumCase
         iCase=iCase+1
@@ -622,7 +629,9 @@ __STAMP__&
         CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
         IF (CollInf%alphaVSS(iSpec,jSpec).NE.1) THEN 
           CollInf%omegaVSS(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omegaVSS')
-          CollInf%dRef(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dRef')
+          CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
+          CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
+          IF(CollInf%omegaVSS(iSpec,jSpec.EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
         ELSEIF((CollInf%alphaVSS(iSpec,jSpec).EQ.1)) THEN
           CALL Abort(&
             __STAMP__&
@@ -631,7 +640,7 @@ __STAMP__&
         END IF
       END DO
     END DO
-  ELSEIF (CollInf%collMod.EQ.0) THEN VSS_IF !VHS
+  ELSEIF (CollInf%collMod.EQ.0) THEN !VHS 
     CollInf%alphaVSS=1.
     CollInf%omegaVSS=0.
       DO iSpec=1,nSpecies
@@ -640,11 +649,11 @@ __STAMP__&
       ! oder stellt man so um, dass mit collinf omega gerechnet wird
         CollInf%omegaVSS(iSpec,iSpec)=SpecDSMC(iSpec)%omegaVHS
       END DO
-  ELSE VSS_IF
+  ELSE 
 !    CALL Abort(&
 !      __STAMP__&
 !      ,'Collision model error !')
-  END IF VSS_IF
+  END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)

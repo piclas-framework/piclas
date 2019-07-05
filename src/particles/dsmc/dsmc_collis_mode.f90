@@ -2905,20 +2905,21 @@ REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
   INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                          :: VSS_Cross_Section         ! sigma_t, cross section.
+  REAL                          :: VSS_Cross_Section         ! sigma_t, total collision cross-section bird1994 (1.8)reference HS
+!to be solved. noch kein zsmhg zwischen vss und sigma t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: collPart1ID,collPart2ID,Spec1ID,Spec2ID       ! colliding particles 1 and 2
-REAL                            :: diameter
+  INTEGER                       :: collPart1ID,collPart2ID,Spec1ID,Spec2ID       ! colliding particles and species, respectively
+  REAL                          :: diameter                                      ! bird (4.63) 
 !===================================================================================================================================
-collPart1ID = Coll_pData(iPair)%iPart_p1
-collPart2ID = Coll_pData(iPair)%iPart_p2
-Spec1ID    = PartSpecies(collPart1ID)
-Spec2ID    = PartSpecies(collPart2ID)
-! dref einlesen
-diameter = dref*((2*BoltzmannConst*Tref)/(CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))* CRela2))** &
-           (CollInf%omegaVSS(Spec1ID,Spec2ID))/SQRT(GAMMA(2.0-CollInf%omegaVSS(collPart1ID,collPart2ID)))
-VSS_Cross_Section = PI*diameter**2
+  collPart1ID = Coll_pData(iPair)%iPart_p1
+  collPart2ID = Coll_pData(iPair)%iPart_p2
+  Spec1ID    = PartSpecies(collPart1ID)
+  Spec2ID    = PartSpecies(collPart2ID)
+  ! dref einlesen
+  diameter = dref*((2*BoltzmannConst*Tref)/(CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))* CRela2))** &
+             (CollInf%omegaVSS(Spec1ID,Spec2ID))/SQRT(GAMMA(2.0-CollInf%omegaVSS(collPart1ID,collPart2ID)))
+  VSS_Cross_Section = PI*diameter**2
 END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)
