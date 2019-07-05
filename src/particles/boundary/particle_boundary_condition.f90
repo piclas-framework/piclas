@@ -149,7 +149,7 @@ CASE(2) !PartBound%ReflectiveBC)
   !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
   PorousReflection = .FALSE.
   IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,lengthPartTrajectory,flip,xi,eta)
-  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
+  IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(iPart,ElemID,SideID,alpha,PartTrajectory,PorousReflection)
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
 #ifndef IMPA
