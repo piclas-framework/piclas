@@ -2255,9 +2255,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 
   ! recompute trajectory etc
   PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                           +PartTrajectory(2)*PartTrajectory(2) &
-                           +PartTrajectory(3)*PartTrajectory(3) )
+  lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   ! set new species
   PartSpecies(PartID) = OutSpec(2)
@@ -2267,6 +2265,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) ! Distribution function reflection  (reflecting particle according to defined distribution function)
 !-----------------------------------------------------------------------------------------------------------------------------------
+  adsindex = 2
   ! sampling and analyze stuff for heat flux and reaction rates
 #if (PP_TimeDiscMethod==42)
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
@@ -2277,12 +2276,28 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
     SampWall(SurfSideID)%SurfModelState(5,p,q) = SampWall(SurfSideID)%SurfModelState(5,p,q) &
                                            + ReactionEnthalpie * Species(SpecID)%MacroParticleFactor
   END IF
+  oldVelo(1:3) = PartState(PartID,4:6)
   CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
+  ! sample new velocity
   NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
   ! important: n_loc points outwards
   PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+
+  ! intersection point with surface
+  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+  TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
+  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+  ! travel rest of particle vector
+  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+
+  ! recompute trajectory etc
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
 
   CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
