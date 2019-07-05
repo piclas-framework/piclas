@@ -104,6 +104,23 @@ cd ../..
 rm hdf5-1.10.5.tar.bz2
 ```
 
+When no module environmet is to be used on the server, the following commands must be places in the
+*.gitlab-ci.yml* file:
+
+```
+# Export the paths on new reggie2@reggie2 (no module env any more)
+before_script:
+  - export PATH=/opt/openmpi/3.1.3/bin:$PATH
+  - export LD_LIBRARY_PATH=/opt/openmpi/3.1.3/lib/:$LD_LIBRARY_PATH
+  - export CMAKE_PREFIX_PATH=/opt/openmpi/3.1.3/share/cmake:$CMAKE_PREFIX_PATH
+  - export CMAKE_LIBRARY_PATH=/opt/openmpi/3.1.3/lib:$CMAKE_LIBRARY_PATH
+  - export HDF5_DIR=/opt/hdf5/1.10.5/share/cmake/
+  - export PATH=/opt/hdf5/1.10.5/bin:$PATH
+  - export LD_LIBRARY_PATH=/opt/hdf5/1.10.5/lib/:$LD_LIBRARY_PATH
+  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.10.5/:$CMAKE_PREFIX_PATH
+  - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
+```
+
 
 ### 2. Installation Steps for Gitlab Runners 
 Latest test: on ubuntu (18.04), 3 Jul 2019
