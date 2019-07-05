@@ -5457,7 +5457,7 @@ SUBROUTINE NodeNeighbourhood()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nElems, nNodes
+USE MOD_Mesh_Vars          ,ONLY: nNodes !,nElems
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
 #ifdef MPI
