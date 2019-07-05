@@ -77,7 +77,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElement,ParticleInsideQuad3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartSideToElem, PartElemToElemAndSide
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide, PartSideToElem, PartElemToElemAndSide
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,MeasureTrackTime,CountNbOfLostParts,nLostParts, TrackInfo
 USE MOD_Mesh_Vars,                   ONLY:MortarType
 USE MOD_Mesh_Vars,                   ONLY:BC
@@ -340,10 +340,8 @@ DO i = 1,PDM%ParticleVecLength
         flip =PartElemToSide(E2S_FLIP,LocalSide,ElemID)
         IF(BC(SideID).GT.0) THEN
           OldElemID=ElemID
-          TrackInfo%CurrElem = ElemID
           BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))
-          IF(BCType.NE.1) &
-             CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
+          IF(BCType.NE.1) CALL IntersectionWithWall(PartTrajectory,alpha,i,LocalSide,ElemID,TriNum)
           CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                        ,xi    &
                                                                        ,eta   ,i,SideID,flip,LocalSide,ElemID,crossedBC&
@@ -382,10 +380,12 @@ DO i = 1,PDM%ParticleVecLength
           END IF
         END IF  ! BC(SideID).GT./.LE. 0
         IF (ElemID.LT.1) THEN
+          IPWRITE(UNIT_stdout,*) 'Particle Velocity: ',SQRT(DOT_PRODUCT(PartState(i,4:6),PartState(i,4:6)))
           CALL abort(&
            __STAMP__ &
            ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
         END IF
+        TrackInfo%CurrElem = ElemID
       END IF  ! InElementCheck = T/F
     END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
