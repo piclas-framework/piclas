@@ -150,3 +150,64 @@ NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.ser
 
 
 
+### 3. **Configuration files**
+
+The runner services can be adjusted by changing the settings in the file
+
+    /etc/systemd/system/gitlab-runner.service
+
+in which the runner configuration file is specified:
+
+```
+[Unit]
+Description=GitLab Runner
+After=syslog.target network.target
+ConditionFileIsExecutable=/usr/bin/gitlab-runner
+
+[Service]
+StartLimitInterval=5
+StartLimitBurst=10
+ExecStart=/usr/bin/gitlab-runner "run" "--working-directory" "/var/lib/gitlab-runner/" "--config" "/etc/gitlab-runner/config.toml" "--service" "gitlab-runner" "--syslog" "--user" "gitlab-runner"
+
+
+Restart=always
+RestartSec=120
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The runner configuration settings can be edited by changing the settings in the file
+
+    /etc/gitlab-runner/config.toml
+
+where the number of runners, the concurrency level and runner limits are specified:
+
+```
+concurrent = 2
+check_interval = 0
+
+[[runners]]
+  name = "flexirunner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "-yi9ffuLr_-mhjut32gp"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+
+[[runners]]
+  name = "mphase-runner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "wuwa9NKx4uUxCm8_sRqi"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+
+[[runners]]
+  name = "eosrunner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "jPwzkCzEzcZz5WeGrdPC"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+```
