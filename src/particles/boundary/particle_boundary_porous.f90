@@ -103,7 +103,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars                ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars                   ,ONLY: BC,nElems, SideToElem
-USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry2D
+USE MOD_Particle_Vars               ,ONLY: nSpecies, Adaptive_MacroVal, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPartBound, PartBound, nPorousBC, PorousBC, MapBCtoPorousBC, SurfMesh, nPorousBCVars
 USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide, PorousBCSampIter, PorousBCMacroVal
 USE MOD_Particle_Tracking_Vars      ,ONLY: DoRefMapping
@@ -125,6 +125,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 IF(DoRefMapping) THEN
   CALL abort(__STAMP__&
       ,'ERROR: Porous boundary conditions are not implemented with DoRefMapping!')
+END IF
+
+IF(Symmetry2D.AND.(.NOT.Symmetry2DAxisymmetric)) THEN
+  CALL abort(__STAMP__&
+      ,'ERROR: Porous boundary conditions are not implemented for 2D simulations!')
 END IF
 
 ! 1) Read-in of parameters
@@ -191,15 +196,14 @@ DO iPorousBC = 1, nPorousBC
         WRITE(UNIT=hilf2,FMT='(E16.8)') HUGE(PorousBC(iPorousBC)%rmax)
         PorousBC(iPorousBC)%rmax = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmax',TRIM(hilf2))
         PorousBC(iPorousBC)%rmin = GETREAL('Part-PorousBC'//TRIM(hilf)//'-rmin','0.')
-        IF(Symmetry2D) THEN
+        IF(Symmetry2DAxisymmetric) THEN
           IF(PorousBC(iPorousBC)%dir(1).NE.1) THEN
             CALL abort(__STAMP__&
-              ,'ERROR in region definition of porous bc: For 2D/Axisymmetric only regions normal to the x-axis are allowed!'&
-              , iPorousBC)
+              ,'ERROR in Porous BC: For axisymmetric simulations, only regions perpendicular to the axis are allowed!', iPorousBC)
           END IF
           IF(PorousBC(iPorousBC)%origin(1)*PorousBC(iPorousBC)%origin(2).NE.0.0) THEN
             CALL abort(__STAMP__&
-              ,'ERROR in region definition of porous bc: For 2D/Axisymmetric the origin has to be at (0,0)!', iPorousBC)
+              ,'ERROR in Porous BC: For axisymmetric simulations, the origin has to be at (0,0)!', iPorousBC)
           END IF
         END IF
       CASE DEFAULT
@@ -218,10 +222,6 @@ DO iSurfSide=1,SurfMesh%nTotalSides
 END DO
 
 DO iPorousBC = 1, nPorousBC
-  IF(PorousBC(iPorousBC)%SideNumber.EQ.0) THEN
-    CALL abort(__STAMP__&
-      ,'ERROR Porous BC: No sides were found for porous BC number: ', iPorousBC)
-  END IF
   ALLOCATE(PorousBC(iPorousBC)%SideList(1:PorousBC(iPorousBC)%SideNumber))
   PorousBC(iPorousBC)%SideList = 0
   ALLOCATE(PorousBC(iPorousBC)%RemovalProbability(1:PorousBC(iPorousBC)%SideNumber))
@@ -271,11 +271,21 @@ DO iSurfSide=1,SurfMesh%nTotalSides
   END IF
 END DO
 
+! 4) Check if a porous BC has been defined but does not have any sides assigned to it (e.g. wrong region definition)
+DO iPorousBC = 1, nPorousBC
+  IF(PorousBC(iPorousBC)%UsingRegion) THEN
+    IF(ALL(PorousBC(iPorousBC)%RegionSideType(:).EQ.1)) THEN
+      CALL abort(__STAMP__&
+        ,'ERROR Porous BC: Check your region definition! No sides were found for porous BC number: ', iPorousBC)
+    END IF
+  END IF
+END DO
+
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 
-SUBROUTINE PorousBoundaryTreatment(iPart,ElemID,SideID,alpha,PartTrajectory,PorousReflection)
+SUBROUTINE PorousBoundaryTreatment(iPart,SideID,alpha,PartTrajectory,PorousReflection)
 !===================================================================================================================================
 ! Treatment of particles impinging on the porous boundary
 ! 1) (Optional) When using regions on the BC, it is determined whether the particle hit the porous BC region or only the regular BC
@@ -284,19 +294,17 @@ SUBROUTINE PorousBoundaryTreatment(iPart,ElemID,SideID,alpha,PartTrajectory,Poro
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos, PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PDM, LastPartPos, PartSpecies
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SurfMesh, MapBCtoPorousBC, PorousBC, MapSurfSideToPorousSide
 USE MOD_Mesh_Vars               ,ONLY: BC
 USE MOD_Particle_Analyze        ,ONLY: CalcEkinPart
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iPart, ElemID, SideID
+INTEGER, INTENT(IN)           :: iPart, SideID
 REAL, INTENT(IN)              :: PartTrajectory(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -304,7 +312,7 @@ REAL,INTENT(INOUT)            :: alpha
 LOGICAL,INTENT(INOUT)         :: PorousReflection
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRan, partWeight
+REAL                          :: point(1:2), intersectionPoint(1:3), radius, iRan
 INTEGER                       :: iSpec, SurfSideID, PorousBCID, pBCSideID
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
@@ -314,13 +322,13 @@ PorousBCID = MapBCtoPorousBC(PartBound%MapToPartBC(BC(SideID)))
 IF(PorousBCID.GT.0) THEN
   pBCSideID = MapSurfSideToPorousSide(SurfSideID)
   ! 1) Determination whether the particle hit the porous BC region or only the regular BC
-  intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
   IF(PorousBC(PorousBCID)%UsingRegion) THEN
     IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.0) THEN
       ! Side is completey inside the porous region
       PorousReflection = .TRUE.
     ELSE IF(PorousBC(PorousBCID)%RegionSideType(pBCSideID).EQ.2) THEN
       ! Side is partially inside the porous region (check if its within bounds)
+      intersectionPoint(1:3) = LastPartPos(iPart,1:3) + alpha*PartTrajectory(1:3)
       point(1)=intersectionPoint(PorousBC(PorousBCID)%dir(2))-PorousBC(PorousBCID)%origin(1)
       point(2)=intersectionPoint(PorousBC(PorousBCID)%dir(3))-PorousBC(PorousBCID)%origin(2)
       radius=SQRT( (point(1))**2+(point(2))**2 )
@@ -333,27 +341,14 @@ IF(PorousBCID.GT.0) THEN
   END IF
   ! 2) Comparison of the removal probability with a random number to determine whether the particle is deleted
   IF(PorousReflection) THEN
-    ! Get the particle weight at the intersection point
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        partWeight = CalcRadWeightMPF(intersectionPoint(2), iSpec) &
-                      * CalcVarTimeStep(intersectionPoint(1), intersectionPoint(2), ElemID)
-      ELSE
-        partWeight = CalcRadWeightMPF(intersectionPoint(2), iSpec)
-      END IF
-    ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-      partWeight = CalcVarTimeStep(intersectionPoint(1), intersectionPoint(2), ElemID)
-    ELSE
-      partWeight = 1.
-    END IF
     ! Counting particles that are impinging the porous BC (required for the calculation of the removal probability for the next dt)
-    PorousBC(PorousBCID)%Sample(pBCSideID,1)   = PorousBC(PorousBCID)%Sample(pBCSideID,1) + partWeight
+    PorousBC(PorousBCID)%Sample(pBCSideID,1)   = PorousBC(PorousBCID)%Sample(pBCSideID,1) + GetParticleWeight(iPart)
     CALL RANDOM_NUMBER(iRan)
     IF(iRan.LE.PorousBC(PorousBCID)%RemovalProbability(pBCSideID)) THEN
       PDM%ParticleInside(iPart)=.FALSE.
       alpha=-1.
       ! Counting particles that leave the domain through the porous BC (required for the calculation of the pumping capacity)
-      PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + partWeight
+      PorousBC(PorousBCID)%Sample(pBCSideID,2) = PorousBC(PorousBCID)%Sample(pBCSideID,2) + GetParticleWeight(iPart)
       IF(CalcPartBalance) THEN
         nPartOut(iSpec)=nPartOut(iSpec) + 1
         PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(iPart)
@@ -420,7 +415,7 @@ DO iPBC = 1,nPorousBC
   ! a) Summing up the number of impinged particles for the whole BC surface
   SumPartPorousBC = SUM(PorousBC(iPBC)%Sample(1:PorousBC(iPBC)%SideNumber,1))
 #ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
 #endif
   ! 2.1) Loop over all sides within each porous BC
   DO iPBCSideID = 1, PorousBC(iPBC)%SideNumber
@@ -565,7 +560,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     IF(PorousBCID.GT.0) THEN
       PorousBCSendBuf(iProc)%content(iPos+1:iPos+nVar) = PorousBC(PorousBCID)%Sample(PorousBCSideID,1:nVar)
       iPos=iPos+nVar
-      PorousBC(PorousBCID)%Sample(PorousBCSideID,:)=0
+      PorousBC(PorousBCID)%Sample(PorousBCSideID,:)=0.
     END IF
   END DO ! iSurfSide=1,nSurfExchange%nSidesSend(iProc)
 END DO
