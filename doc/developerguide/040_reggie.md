@@ -104,7 +104,7 @@ cd ../..
 rm hdf5-1.10.5.tar.bz2
 ```
 
-When no module environmet is to be used on the server, the following commands must be places in the
+When no module environment is to be used on the server, the following commands must be places in the
 *.gitlab-ci.yml* file:
 
 ```
@@ -122,6 +122,8 @@ before_script:
   - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
 ```
 
+NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
+by memory consuming programs
 
 ### 2. Installation Steps for Gitlab Runners 
 Latest test: on ubuntu (18.04), 3 Jul 2019
