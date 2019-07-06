@@ -3909,7 +3909,7 @@ USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
-                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
@@ -4296,6 +4296,10 @@ __STAMP__&
       IF(DoRefMapping) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
+      END IF
+      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+        CALL abort(__STAMP__&
+            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
       ! Total area of surface flux
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
@@ -7097,7 +7101,7 @@ END FUNCTION CalcVectorAdditionCoeffs
 
 SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !===================================================================================================================================
-! 
+!> Routine calculates the weights of the triangles for AdaptiveType=4 to scale up the number of particles to be inserted
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -7247,11 +7251,7 @@ END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 
 SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 !===================================================================================================================================
-! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
-! structure is similar to particle communication
-! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-! the receiving process adds the new data to his own sides
+!> Routine calculates the partial area of the circular infow per triangle for AdaptiveType=4 (Monte Carlo integration)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

@@ -1688,6 +1688,11 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ElemTVibFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTRotFileID       = 0
       Species(iSpec)%Init(iInit)%ElemTElecFileID      = 0
+      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+        CALL abort(__STAMP__&
+            ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
+             'cell_local-SpaceIC and/or surface flux!')
+      END IF
     END IF
     !-------------------------------------------------------------------------------------------------------------------------------
     IF (Species(iSpec)%Init(iInit)%ElemTemperatureFileID.EQ.0) THEN
