@@ -1,5 +1,6 @@
 # Export the paths on new reggie2@reggie2 (no module env any more)
 before_script:
+  - ulimit -s unlimited
   - export PATH=/opt/openmpi/3.1.3/bin:$PATH
   - export LD_LIBRARY_PATH=/opt/openmpi/3.1.3/lib/:$LD_LIBRARY_PATH
   - export CMAKE_PREFIX_PATH=/opt/openmpi/3.1.3/share/cmake:$CMAKE_PREFIX_PATH
