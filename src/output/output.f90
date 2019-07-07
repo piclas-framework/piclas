@@ -158,22 +158,24 @@ IF (MPIRoot) THEN
 END IF
 
 OutputFormat = GETINT('OutputFormat','1')
-! Open file for logging ===> Already done in initGlobals!!
-!IF(Logging)THEN
-!  WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-!  OPEN(UNIT=UNIT_logOut,  &
-!       FILE=LogFile,      &
-!       STATUS='UNKNOWN',  &
-!       ACTION='WRITE',    &
-!       POSITION='APPEND', &
-!       IOSTAT=OpenStat)
-!  CALL DATE_AND_TIME(StrDate,StrTime)
-!  WRITE(UNIT_logOut,*)
-!  WRITE(UNIT_logOut,'(132("#"))')
-!  WRITE(UNIT_logOut,*)
-!  WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-!                      StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
-!END IF  ! Logging
+! Open file for logging
+IF(Logging)THEN
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(.NOT.LogIsOpen)THEN
+    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
+    OPEN(UNIT=UNIT_logOut,  &
+         FILE=LogFile,      &
+         STATUS='REPLACE',  &
+         ACTION='WRITE',    &
+         IOSTAT=OpenStat)
+    CALL DATE_AND_TIME(StrDate,StrTime)
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,'(132("#"))')
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
+                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  END IF !logIsOpen
+END IF  ! Logging
 
 OutputInitIsDone =.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT OUTPUT DONE!'
