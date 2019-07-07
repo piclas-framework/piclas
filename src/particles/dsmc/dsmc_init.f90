@@ -160,7 +160,8 @@ CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
                                           'OctreePartNumNodeMin')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
-                                         ,' TO-DO', '.FALSE.')
+                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
+                                          'cell refinement','.TRUE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
                                          ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
                                           'same particle pairs in order to reduce the statistical dependence')
@@ -1119,9 +1120,9 @@ __STAMP__&
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
+  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
   IF(DSMC%UseOctree) THEN
-    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour','.TRUE.')
+    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
     IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
       CALL abort(&
       __STAMP__&
