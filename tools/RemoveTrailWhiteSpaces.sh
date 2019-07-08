@@ -7,7 +7,7 @@ SEARCHPATH="$(git rev-parse --show-toplevel)/src"
 FOUNDFILES=$(find "$SEARCHPATH" -iname "$FILESTRING")
 ACCEPTEDFILES=""
 for REPLACEFILE in ${FOUNDFILES}; do
-  if [[ -n $(grep -i "\s\+$" ${REPLACEFILE}) ]]; then
+  if [[ -n $(grep -i "${SEARCHSTRING}" "${REPLACEFILE}") ]]; then
     echo found $(grep -io "\s\+$" ${REPLACEFILE} | wc -l) trailing white space occurences in $REPLACEFILE
     if [[ -z ${ACCEPTEDFILES} ]]; then
       ACCEPTEDFILES+="${REPLACEFILE}"
@@ -22,7 +22,7 @@ if [[ -n ${ACCEPTEDFILES} ]]; then
   read -es -n 1 PROCEED
   if [[ "${PROCEED}" == 'y' ]]; then
     for REPLACEFILE in ${FOUNDFILES}; do
-      if [[ -n $(grep -i "\s\+$" ${REPLACEFILE}) ]]; then
+      if [[ -n $(grep -i "${SEARCHSTRING}" "${REPLACEFILE}") ]]; then
         echo changes in file ${REPLACEFILE}
         sed -i 's/'${SEARCHSTRING}'/'${REPLACESTRING}'/gI' ${REPLACEFILE}
       fi
