@@ -72,7 +72,7 @@ USE MOD_Mesh_ReadIn,        ONLY: INVMAP
 USE MOD_Mesh_Vars,          ONLY: offsetSide
 #endif /*MPI*/
 #endif /*PP_HDG*/
-USE MOD_LoadBalance_Vars,   ONLY: 
+USE MOD_LoadBalance_Vars,   ONLY:
 USE MOD_Mesh_Vars,          ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars,          ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
 #ifdef MPI
@@ -177,7 +177,7 @@ DO iElem=FirstElemInd,LastElemInd
       IF(aSide%BCIndex.GE.1)THEN
         IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1)THEN
           ! additionally, the flip of the side has to be taken into account
-          ! the alpha value is only correct for slave sides, for master sides, the 
+          ! the alpha value is only correct for slave sides, for master sides, the
           ! value has to be turned
           IF(aSide%BC_Alpha.GT.0)THEN
             aSide%BC_Alpha=BoundaryType(aSide%BCIndex,BC_ALPHA)
@@ -639,7 +639,7 @@ IF(MPIroot)THEN
 ELSE
   ALLOCATE(nNBProcs_glob(1)) ! dummy for debug
   ALLOCATE(ProcInfo_glob(1,1)) ! dummy for debug
-END IF !MPIroot 
+END IF !MPIroot
 CALL MPI_GATHER(nNBProcs,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 CALL MPI_GATHER(ProcInfo,9,MPI_INTEGER,ProcInfo_glob,9,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 IF(MPIroot)THEN
@@ -732,10 +732,10 @@ IF(MPIroot)THEN
     tmparray(13,0)=Procinfo_glob(9,i)
     tmpreal2(1,0)=LoadDistri(i) ! load of proc i
     DO j=1,13
-      tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2 
+      tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2
     END DO
     DO j=1,1
-      tmpreal2(j,5)=tmpreal2(j,5)+(tmpreal2(j,0)-tmpreal2(j,4))**2 
+      tmpreal2(j,5)=tmpreal2(j,5)+(tmpreal2(j,0)-tmpreal2(j,4))**2
     END DO
   END DO
   tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(nProcessors))
@@ -1053,7 +1053,7 @@ DO iElem=1,nElems
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
           IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
-              ,'problem in exchangeflip') 
+              ,'problem in exchangeflip')
 #ifdef PARTICLES
           ! switch side-alpha if flip is changed. The other side now constructs the side, thus it has to be changed
           IF(aSide%flip.NE.Flip_YOUR(aSide%SideID))  SidePeriodicType(aSide%SideID) =-SidePeriodicType(aSide%SideID)
@@ -1071,7 +1071,7 @@ DO iElem=1,nElems
     END DO ! iMortar
   END DO ! LocSideID
 END DO ! iElem
- 
+
 END SUBROUTINE exchangeFlip
 #endif
 
@@ -1126,8 +1126,8 @@ END DO ! iElem
 DO iNbProc=1,nNbProcs
   ! Start send flip from MINE
   nSendVal    =nMPISides_send(iNBProc,2)
-  SideID_start=OffsetMPISides_send(iNbProc-1,2)+1  
-  SideID_end  =OffsetMPISides_send(iNbProc,2)    
+  SideID_start=OffsetMPISides_send(iNbProc-1,2)+1
+  SideID_end  =OffsetMPISides_send(iNbProc,2)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
@@ -1154,12 +1154,12 @@ DO iNbProc=1,nNbProcs
   ,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
-! second communication: Master to Slave 
+! second communication: Master to Slave
 DO iNbProc=1,nNbProcs
   ! Start send flip from MINE
   nSendVal    =nMPISides_send(iNBProc,1)
-  SideID_start=OffsetMPISides_send(iNbProc-1,1)+1  
-  SideID_end  =OffsetMPISides_send(iNbProc,1)    
+  SideID_start=OffsetMPISides_send(iNbProc-1,1)+1
+  SideID_end  =OffsetMPISides_send(iNbProc,1)
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
@@ -1204,7 +1204,7 @@ DO iElem=1,nElems
     END DO ! iMortar
   END DO ! LocSideID
 END DO ! iElem
- 
+
 END SUBROUTINE exchangeElemID
 #endif
 

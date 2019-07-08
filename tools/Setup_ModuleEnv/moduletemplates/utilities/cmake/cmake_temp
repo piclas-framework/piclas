@@ -1,0 +1,22 @@
+#%Module1.0#####################################################################
+##
+## modules cmake/cmakeversion/compilerversion
+##
+## modulefiles/ cmake/cmakeversion/compilerversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr " cmake/cmakeversion - sets the Environment for CMake-cmakeversion"
+}
+
+module-whatis   "Sets the environment for using cmake/cmakeversion/compilerversion"
+
+conflict cmake
+
+# for Tcl script use only
+set     topdir          /opt/cmake/cmakeversion/compilerversion
+set     version         cmakeversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin

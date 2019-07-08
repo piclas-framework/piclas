@@ -20,7 +20,7 @@ MODULE MOD_part_pressure
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-  
+
 INTERFACE ParticlePressureIni
   MODULE PROCEDURE ParticlePressureIni
 END INTERFACE
@@ -42,15 +42,15 @@ INTERFACE ParticlePressureRem
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni,ParticlePressureRem
 !===================================================================================================================================
 
-CONTAINS   
-   
+CONTAINS
+
 SUBROUTINE ParticlePressureIni()
 !===================================================================================================================================
 ! Initialization of constant pressure emission types
@@ -91,7 +91,7 @@ SUBROUTINE ParticlePressureIni()
   IF(.NOT.DoRefMapping) CALL abort(&
 __STAMP__&
 ,' Particle pressure is only possible with tracking via reference element mapping!')
-  
+
 
    CALL abort(&
 __STAMP__&
@@ -106,27 +106,27 @@ __STAMP__&
         ALLOCATE (TempElemTotalInside(nElems))
         ALLOCATE (TempElemPartlyInside(nElems))
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(nElems))
-        
+
         Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside = 0
         Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside = 0
         Species(iSpec)%Init(iInit)%ConstPress%ElemStat(1:nElems) = 3
         SELECT CASE (TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
         CASE ('cuboid')
-          
+
           BV1 = Species(iSpec)%Init(iInit)%BaseVector1IC
           BV2 = Species(iSpec)%Init(iInit)%BaseVector2IC
-          
+
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = BV1(2) * BV2(3) - BV1(3) * BV2(2)
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(2) = BV1(3) * BV2(1) - BV1(1) * BV2(3)
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(3) = BV1(1) * BV2(2) - BV1(2) * BV2(1)
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
-          
+
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
 __STAMP__&
 ,'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
-          
+
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
                = OV*(Species(iSpec)%Init(iInit)%CuboidHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
           OV   = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
@@ -139,10 +139,10 @@ __STAMP__&
                = 1.5*Species(iSpec)%Init(iInit)%ConstantPressure*Species(iSpec)%Init(iInit)%ConstPress%Determinant + &
                INT(Species(iSpec)%Init(iInit)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2* &
                Species(iSpec)%MacroParticleFactor
-          
+
           IPWRITE (UNIT_StdOut,'(I4,A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
                Species(iSpec)%Init(iInit)%ParticleEmission
-          
+
           DO iElem = 1,nElems
             nNodesInside = 0
             nBoundNodes = 0
@@ -157,11 +157,11 @@ __STAMP__&
                        BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
                   det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                        BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                  
+
                   det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                   det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                   det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                  
+
                   IF (((det1 .LE. 1. + epsi) .AND. (det1 .GE. 1.-epsi)) .OR. ((det1 .LE. epsi) .AND. (det1 .GE. -epsi))) THEN
                     IF (((det2 .LE. 1.+epsi) .AND. (det2 .GE. -epsi)) .AND. ((det3 .LE. 1.+epsi) .AND. (det3 .GE. -epsi))) THEN
                       nBoundNodes = nBoundNodes + 1
@@ -181,7 +181,7 @@ __STAMP__&
                  END DO ! i=0,NGeo
               END DO ! j=0,NGeo
             END DO ! k=0,NGeo
-           
+
             IF (nNodesInside .EQ. 8) THEN
               Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside = Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside + 1
               TempElemTotalInside(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside)=iElem
@@ -206,7 +206,7 @@ __STAMP__&
               END IF
             END IF
           END DO ! iElem
-          
+
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
@@ -217,7 +217,7 @@ __STAMP__&
               TempElemPartlyInside(1) = Element
             END IF
           END IF
-          
+
           ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
           DO iElem = 1,PP_nElems
             marked=.FALSE.
@@ -225,7 +225,7 @@ __STAMP__&
               IF(iElem.EQ.TempElemTotalInside(iElem2))THEN
                 marked=.TRUE.
                 EXIT
-              END IF 
+              END IF
             END DO ! iElem
 #ifdef MPI
             IF(.NOT.Marked)THEN
@@ -242,17 +242,17 @@ __STAMP__&
                 RandVal=2.0*RandVal-1.0
                 SELECT CASE(ilocSide)
                 CASE(XI_MINUS)
-                  XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/-1.0,RandVal(1),RandVal(2)/)
                 CASE(XI_PLUS)
-                  XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/ 1.0,RandVal(1),RandVal(2)/)
                 CASE(ETA_MINUS)
-                  XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                  XI=(/RandVal(1),-1.0,RandVal(2)/)
                 CASE(ETA_PLUS)
-                  XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                  XI=(/RandVal(1), 1.0,RandVal(2)/)
                 CASE(ZETA_MINUS)
-                  XI=(/RandVal(1),RandVal(2),-1.0/)      
+                  XI=(/RandVal(1),RandVal(2),-1.0/)
                 CASE(ZETA_PLUS)
-                  XI=(/RandVal(1),RandVal(2), 1.0/)      
+                  XI=(/RandVal(1),RandVal(2), 1.0/)
                 END SELECT
                 CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
@@ -267,11 +267,11 @@ __STAMP__&
                 det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
                      BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
                      BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                
+
                 det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                 det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                 det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                
+
                 IF ((det1 .LT. 1.-epsi) .AND. (det1 .GT. epsi) .AND. (det2 .LT. 1-epsi) .AND. &
                      (det2 .GT. epsi) .AND. (det3 .LT. 1.-epsi) .AND. (det3 .GT. epsi)) THEN
                   Species(iSpec)%Init(iInit)%ConstPress%ElemStat(iElem) = 2
@@ -301,17 +301,17 @@ __STAMP__&
                     RandVal=2.0*RandVal-1.0
                     SELECT CASE(locSideID)
                     CASE(XI_MINUS)
-                      XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/-1.0,RandVal(1),RandVal(2)/)
                     CASE(XI_PLUS)
-                      XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/ 1.0,RandVal(1),RandVal(2)/)
                     CASE(ETA_MINUS)
-                      XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                      XI=(/RandVal(1),-1.0,RandVal(2)/)
                     CASE(ETA_PLUS)
-                      XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                      XI=(/RandVal(1), 1.0,RandVal(2)/)
                     CASE(ZETA_MINUS)
-                      XI=(/RandVal(1),RandVal(2),-1.0/)      
+                      XI=(/RandVal(1),RandVal(2),-1.0/)
                     CASE(ZETA_PLUS)
-                      XI=(/RandVal(1),RandVal(2), 1.0/)      
+                      XI=(/RandVal(1),RandVal(2), 1.0/)
                     END SELECT
                     CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
@@ -326,11 +326,11 @@ __STAMP__&
                     det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
                            BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
                            BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                    
+
                     det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                     det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                     det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                    
+
                     IF (((det1-0.5)**2 .LT. 0.25-epsi).AND.((det2-0.5)**2 .LT. 0.25-epsi).AND.((det3-0.5)**2 .LT. 0.25-epsi)) THEN
                       Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) = 2
                       Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside &
@@ -345,7 +345,7 @@ __STAMP__&
             nInterOld = nInterest + 1
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
-          
+
         CASE ('cylinder')
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
@@ -365,7 +365,7 @@ __STAMP__&
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
                   = OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
           OV(1:3) = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1:3)
-          
+
           Species(iSpec)%Init(iInit)%ParticleEmission = &
                Species(iSpec)%Init(iInit)%ConstantPressure * Species(iSpec)%Init(iInit)%RadiusIC**2 * &
                Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
@@ -377,7 +377,7 @@ __STAMP__&
                * Species(iSpec)%MacroParticleFactor
           IPWRITE (UNIT_StdOut,'(I4,A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
                Species(iSpec)%Init(iInit)%ParticleEmission
-          
+
           DO iElem = 1,nElems
             nNodesInside = 0
             nBoundNodes = 0
@@ -390,7 +390,7 @@ __STAMP__&
                   BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
                   BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
                   dist1 = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
-                  
+
                   IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC + epsi) THEN
                     BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
                     BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
@@ -409,7 +409,7 @@ __STAMP__&
                     ELSE
                       dist2 = 0.
                     END IF
-                    
+
                     IF (((dist2 .GE. 1.-epsi).AND.(dist2 .LE. 1+epsi)) .OR. ((dist2 .GE. -epsi).AND.(dist2 .LE. epsi))) THEN
                       nBoundNodes = nBoundNodes + 1
                     ELSE IF ((dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC+epsi) &
@@ -423,7 +423,7 @@ __STAMP__&
                  END DO ! i=0,NGeo
               END DO ! j=0,NGeo
             END DO ! k=0,NGeo
-            
+
             IF (nNodesInside .EQ. 8) THEN
               Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside = Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside + 1
               TempElemTotalInside(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside)=iElem
@@ -448,7 +448,7 @@ __STAMP__&
               END IF
             END IF
           END DO ! iElem
-          
+
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
@@ -459,7 +459,7 @@ __STAMP__&
               TempElemPartlyInside(1) = Element
             END IF
           END IF
-          
+
           !Schießen auf Nachbarzellen der totalen ===================================================
           ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
           DO iElem = 1,PP_nElems
@@ -468,7 +468,7 @@ __STAMP__&
               IF(iElem.EQ.TempElemTotalInside(iElem2))THEN
                 marked=.TRUE.
                 EXIT
-              END IF 
+              END IF
             END DO ! iElem
 #ifdef MPI
             IF(.NOT.Marked)THEN
@@ -485,17 +485,17 @@ __STAMP__&
                 RandVal=2.0*RandVal-1.0
                 SELECT CASE(ilocSide)
                 CASE(XI_MINUS)
-                  XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/-1.0,RandVal(1),RandVal(2)/)
                 CASE(XI_PLUS)
-                  XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/ 1.0,RandVal(1),RandVal(2)/)
                 CASE(ETA_MINUS)
-                  XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                  XI=(/RandVal(1),-1.0,RandVal(2)/)
                 CASE(ETA_PLUS)
-                  XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                  XI=(/RandVal(1), 1.0,RandVal(2)/)
                 CASE(ZETA_MINUS)
-                  XI=(/RandVal(1),RandVal(2),-1.0/)      
+                  XI=(/RandVal(1),RandVal(2),-1.0/)
                 CASE(ZETA_PLUS)
-                  XI=(/RandVal(1),RandVal(2), 1.0/)      
+                  XI=(/RandVal(1),RandVal(2), 1.0/)
                 END SELECT
                 CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
@@ -505,7 +505,7 @@ __STAMP__&
                 BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
                 BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
                 dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/ (OV(1)**2 + OV(2)**2 + OV(3)**2))
-                
+
                 IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC + epsi) THEN
                   BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
                   BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
@@ -524,7 +524,7 @@ __STAMP__&
                   ELSE
                     dist2 = 0.
                   END IF
-                  
+
                   IF ((dist2 .LT. 1.-epsi) .AND. (dist2 .GT. epsi)) THEN
                     Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) = 2
                     Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside &
@@ -555,17 +555,17 @@ __STAMP__&
                     RandVal=2.0*RandVal-1.0
                     SELECT CASE(locSideID)
                     CASE(XI_MINUS)
-                      XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/-1.0,RandVal(1),RandVal(2)/)
                     CASE(XI_PLUS)
-                      XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/ 1.0,RandVal(1),RandVal(2)/)
                     CASE(ETA_MINUS)
-                      XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                      XI=(/RandVal(1),-1.0,RandVal(2)/)
                     CASE(ETA_PLUS)
-                      XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                      XI=(/RandVal(1), 1.0,RandVal(2)/)
                     CASE(ZETA_MINUS)
-                      XI=(/RandVal(1),RandVal(2),-1.0/)      
+                      XI=(/RandVal(1),RandVal(2),-1.0/)
                     CASE(ZETA_PLUS)
-                      XI=(/RandVal(1),RandVal(2), 1.0/)      
+                      XI=(/RandVal(1),RandVal(2), 1.0/)
                     END SELECT
                     CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
@@ -608,9 +608,9 @@ __STAMP__&
             nInterOld = nInterest + 1
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
-          
+
         END SELECT
-        
+
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside))
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemPartlyInside(Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside))
         Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(1:Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside) = &
@@ -619,16 +619,16 @@ __STAMP__&
              TempElemPartlyInside(1:Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside)
         DEALLOCATE (TempElemTotalInside)
         DEALLOCATE (TempElemPartlyInside)
-        
+
         IPWRITE (UNIT_StdOut,'(I4,A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit, ': ', &
              Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         IPWRITE (UNIT_StdOut,'(I4,A49,I3.3,A2,I0)') 'Number of Elements partly inside ConstPressArea ',iInit, ': ', &
              Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
-        
+
       END IF
     END DO
   END DO
-  
+
 END SUBROUTINE ParticlePressureIni
 
 
@@ -671,7 +671,7 @@ SUBROUTINE ParticlePressureCellIni()
   IF(.NOT.DoRefMapping) CALL abort(&
 __STAMP__&
 ,' Particle pressure is only possible with tracking via reference element mapping!')
-  
+
 
    CALL abort(&
 __STAMP__&
@@ -689,7 +689,7 @@ __STAMP__&
         ALLOCATE (TempElemTotalInside(nElems))
         ALLOCATE (TempElemPartlyInside(nElems))
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(nElems))
-        
+
         Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside = 0
         Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside = 0
         Species(iSpec)%Init(iInit)%ConstPress%ElemStat(1:nElems) = 3
@@ -697,18 +697,18 @@ __STAMP__&
         CASE ('cuboid')
           BV1 = Species(iSpec)%Init(iInit)%BaseVector1IC
           BV2 = Species(iSpec)%Init(iInit)%BaseVector2IC
-          
+
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = BV1(2) * BV2(3) - BV1(3) * BV2(2)
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(2) = BV1(3) * BV2(1) - BV1(1) * BV2(3)
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(3) = BV1(1) * BV2(2) - BV1(2) * BV2(1)
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
-          
+
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
 __STAMP__&
 ,'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
-          
+
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
                = OV*(Species(iSpec)%Init(iInit)%CuboidHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
@@ -718,7 +718,7 @@ __STAMP__&
           ! ParticleEmission multiplied by cell volume equals particles to be in cells
           Species(iSpec)%Init(iInit)%ParticleEmission = Species(iSpec)%Init(iInit)%ConstantPressure/ &
                (BoltzmannConst * Species(iSpec)%Init(iInit)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
-          
+
           DO iElem = 1,nElems
             nNodesInside = 0
             nBoundNodes = 0
@@ -734,11 +734,11 @@ __STAMP__&
                        BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
                   det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                        BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                  
+
                   det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                   det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                   det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                  
+
                   IF (((det1 .LE. 1. + epsi) .AND. (det1 .GE. 1.-epsi)) .OR. ((det1 .LE. epsi) .AND. (det1 .GE. -epsi))) THEN
                     IF (((det2 .LE. 1.+epsi) .AND. (det2 .GE. -epsi)) .AND. ((det3 .LE. 1.+epsi) .AND. (det3 .GE. -epsi))) THEN
                       nBoundNodes = nBoundNodes + 1
@@ -758,7 +758,7 @@ __STAMP__&
                  END DO ! i=0,NGeo
               END DO ! j=0,NGeo
             END DO ! k=0,NGeo
-            
+
             IF (nNodesInside .EQ. 8) THEN
               Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside = Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside + 1
               TempElemTotalInside(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside)=iElem
@@ -783,7 +783,7 @@ __STAMP__&
               END IF
             END IF
           END DO
-          
+
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
@@ -794,7 +794,7 @@ __STAMP__&
               TempElemPartlyInside(1) = Element
             END IF
           END IF
-          
+
           ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
           DO iElem = 1,PP_nElems
             marked=.FALSE.
@@ -802,7 +802,7 @@ __STAMP__&
               IF(iElem.EQ.TempElemTotalInside(iElem2))THEN
                 marked=.TRUE.
                 EXIT
-              END IF 
+              END IF
             END DO ! iElem
 #ifdef MPI
             IF(.NOT.Marked)THEN
@@ -819,17 +819,17 @@ __STAMP__&
                 RandVal=2.0*RandVal-1.0
                 SELECT CASE(ilocSide)
                 CASE(XI_MINUS)
-                  XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/-1.0,RandVal(1),RandVal(2)/)
                 CASE(XI_PLUS)
-                  XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/ 1.0,RandVal(1),RandVal(2)/)
                 CASE(ETA_MINUS)
-                  XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                  XI=(/RandVal(1),-1.0,RandVal(2)/)
                 CASE(ETA_PLUS)
-                  XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                  XI=(/RandVal(1), 1.0,RandVal(2)/)
                 CASE(ZETA_MINUS)
-                  XI=(/RandVal(1),RandVal(2),-1.0/)      
+                  XI=(/RandVal(1),RandVal(2),-1.0/)
                 CASE(ZETA_PLUS)
-                  XI=(/RandVal(1),RandVal(2), 1.0/)      
+                  XI=(/RandVal(1),RandVal(2), 1.0/)
                 END SELECT
                 CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
@@ -844,11 +844,11 @@ __STAMP__&
                 det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
                      BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
                      BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                
+
                 det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                 det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                 det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                
+
                 IF ((det1 .LT. 1.-epsi) .AND. (det1 .GT. epsi) .AND. (det2 .LT. 1-epsi) .AND. &
                      (det2 .GT. epsi) .AND. (det3 .LT. 1.-epsi) .AND. (det3 .GT. epsi)) THEN
                   Species(iSpec)%Init(iInit)%ConstPress%ElemStat(iElem) = 2
@@ -878,17 +878,17 @@ __STAMP__&
                     RandVal=2.0*RandVal-1.0
                     SELECT CASE(locSideID)
                     CASE(XI_MINUS)
-                      XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/-1.0,RandVal(1),RandVal(2)/)
                     CASE(XI_PLUS)
-                      XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/ 1.0,RandVal(1),RandVal(2)/)
                     CASE(ETA_MINUS)
-                      XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                      XI=(/RandVal(1),-1.0,RandVal(2)/)
                     CASE(ETA_PLUS)
-                      XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                      XI=(/RandVal(1), 1.0,RandVal(2)/)
                     CASE(ZETA_MINUS)
-                      XI=(/RandVal(1),RandVal(2),-1.0/)      
+                      XI=(/RandVal(1),RandVal(2),-1.0/)
                     CASE(ZETA_PLUS)
-                      XI=(/RandVal(1),RandVal(2), 1.0/)      
+                      XI=(/RandVal(1),RandVal(2), 1.0/)
                     END SELECT
                     CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
@@ -903,11 +903,11 @@ __STAMP__&
                     det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
                            BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
                            BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-                    
+
                     det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                     det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
                     det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-                    
+
                     IF (((det1-0.5)**2 .LT. 0.25-epsi).AND.((det2-0.5)**2 .LT. 0.25-epsi).AND.((det3-0.5)**2 .LT. 0.25-epsi)) THEN
                       Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) = 2
                       Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside &
@@ -922,7 +922,7 @@ __STAMP__&
             nInterOld = nInterest + 1
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
-          
+
         CASE ('cylinder')
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
@@ -943,7 +943,7 @@ __STAMP__&
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector = &
                OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
           OV(1:3) = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1:3)
-          
+
           Species(iSpec)%Init(iInit)%ParticleEmission = &
                Species(iSpec)%Init(iInit)%ConstantPressure * Species(iSpec)%Init(iInit)%RadiusIC**2 * &
                Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
@@ -953,7 +953,7 @@ __STAMP__&
                Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC + &
                INT(Species(iSpec)%Init(iInit)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2 &
                * Species(iSpec)%MacroParticleFactor
-          
+
           DO iElem = 1,nElems
             nNodesInside = 0
             nBoundNodes = 0
@@ -966,7 +966,7 @@ __STAMP__&
                   BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
                   BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
                   dist1 = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
-                  
+
                   IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC + epsi) THEN
                     BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
                     BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
@@ -985,7 +985,7 @@ __STAMP__&
                     ELSE
                       dist2 = 0.
                     END IF
-                    
+
                     IF (((dist2 .GE. 1.-epsi).AND.(dist2 .LE. 1+epsi)) .OR. ((dist2 .GE. -epsi).AND.(dist2 .LE. epsi))) THEN
                       nBoundNodes = nBoundNodes + 1
                     ELSE IF ((dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC+epsi) &
@@ -1024,7 +1024,7 @@ __STAMP__&
               END IF
             END IF
           END DO
-          
+
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
@@ -1035,7 +1035,7 @@ __STAMP__&
               TempElemPartlyInside(1) = Element
             END IF
           END IF
-          
+
           !Schießen auf Nachbarzellen der totalen ===================================================
           ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
           DO iElem = 1,PP_nElems
@@ -1044,7 +1044,7 @@ __STAMP__&
               IF(iElem.EQ.TempElemTotalInside(iElem2))THEN
                 marked=.TRUE.
                 EXIT
-              END IF 
+              END IF
             END DO ! iElem
 #ifdef MPI
             IF(.NOT.Marked)THEN
@@ -1061,17 +1061,17 @@ __STAMP__&
                 RandVal=2.0*RandVal-1.0
                 SELECT CASE(ilocSide)
                 CASE(XI_MINUS)
-                  XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/-1.0,RandVal(1),RandVal(2)/)
                 CASE(XI_PLUS)
-                  XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                  XI=(/ 1.0,RandVal(1),RandVal(2)/)
                 CASE(ETA_MINUS)
-                  XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                  XI=(/RandVal(1),-1.0,RandVal(2)/)
                 CASE(ETA_PLUS)
-                  XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                  XI=(/RandVal(1), 1.0,RandVal(2)/)
                 CASE(ZETA_MINUS)
-                  XI=(/RandVal(1),RandVal(2),-1.0/)      
+                  XI=(/RandVal(1),RandVal(2),-1.0/)
                 CASE(ZETA_PLUS)
-                  XI=(/RandVal(1),RandVal(2), 1.0/)      
+                  XI=(/RandVal(1),RandVal(2), 1.0/)
                 END SELECT
                 CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
@@ -1081,7 +1081,7 @@ __STAMP__&
                 BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
                 BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
                 dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/ (OV(1)**2 + OV(2)**2 + OV(3)**2))
-                
+
                 IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC + epsi) THEN
                   BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
                   BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
@@ -1100,7 +1100,7 @@ __STAMP__&
                   ELSE
                     dist2 = 0.
                   END IF
-                  
+
                   IF ((dist2 .LT. 1.-epsi) .AND. (dist2 .GT. epsi)) THEN
                     Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) = 2
                     Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside &
@@ -1131,17 +1131,17 @@ __STAMP__&
                     RandVal=2.0*RandVal-1.0
                     SELECT CASE(locSideID)
                     CASE(XI_MINUS)
-                      XI=(/-1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/-1.0,RandVal(1),RandVal(2)/)
                     CASE(XI_PLUS)
-                      XI=(/ 1.0,RandVal(1),RandVal(2)/)      
+                      XI=(/ 1.0,RandVal(1),RandVal(2)/)
                     CASE(ETA_MINUS)
-                      XI=(/RandVal(1),-1.0,RandVal(2)/)      
+                      XI=(/RandVal(1),-1.0,RandVal(2)/)
                     CASE(ETA_PLUS)
-                      XI=(/RandVal(1), 1.0,RandVal(2)/)      
+                      XI=(/RandVal(1), 1.0,RandVal(2)/)
                     CASE(ZETA_MINUS)
-                      XI=(/RandVal(1),RandVal(2),-1.0/)      
+                      XI=(/RandVal(1),RandVal(2),-1.0/)
                     CASE(ZETA_PLUS)
-                      XI=(/RandVal(1),RandVal(2), 1.0/)      
+                      XI=(/RandVal(1),RandVal(2), 1.0/)
                     END SELECT
                     CALL TensorProductInterpolation(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
@@ -1186,7 +1186,7 @@ __STAMP__&
           END DO
 
         END SELECT
-        
+
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(1:Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside+ &
              Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside))
         Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(1:Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside) = &
@@ -1216,7 +1216,7 @@ __STAMP__&
   END DO
 END SUBROUTINE ParticlePressureCellIni
 
-  
+
 SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
 !===================================================================================================================================
 ! Performs constant pressure calculations
@@ -1254,7 +1254,7 @@ SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
     CALL MPI_ALLREDUCE(TempComSend, TempComRec, 2, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
     nPartInside = INT(TempComRec(1))
     EInside = TempComRec(2)
-#endif    
+#endif
     IF (nPartInside .LT. Species(iSpec)%Init(iInit)%ParticleEmission) THEN
       NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleEmission) - nPartInside
       IF ((Species(iSpec)%Init(iInit)%ConstPress%EkinInside - EInside).GT. 0.) THEN   !Both Factors should be bigger than 0
@@ -1310,11 +1310,11 @@ SUBROUTINE ParticlePressureRem (iSpec, iInit, NbrOfParticle)
                  BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
           det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                  BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-      
+
           det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-          
+
           IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
             PDM%ParticleInside(Particle)=.false.
           END IF
@@ -1334,7 +1334,7 @@ SUBROUTINE ParticlePressureRem (iSpec, iInit, NbrOfParticle)
           BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
           BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
           dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
-      
+
           IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC) THEN
             BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
             BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
@@ -1385,7 +1385,7 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
   REAL             :: BV1(3), BV2(3), BV3(3), OV(3), BN(3), vau(3), vauquad(3), TempVec(3)
   REAL             :: det1, det2, det3, dist1, dist2, TempInside, EkinInside
 !===================================================================================================================================
-  
+
   nPartInside = 0
   vau(:) = 0
   vauquad(:) = 0
@@ -1413,11 +1413,11 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
                  BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
           det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                  BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
-      
+
           det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
-          
+
           IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
             nPartInside = nPartInside + 1
             vau(1) = vau(1) + PartState(Particle,4)
@@ -1431,7 +1431,7 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
         END SELECT
       END IF
     END DO
-  
+
   CASE ('cylinder')
     OV  = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
@@ -1447,7 +1447,7 @@ SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside
           BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
           BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
           dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
-      
+
           IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC) THEN
             BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
             BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)

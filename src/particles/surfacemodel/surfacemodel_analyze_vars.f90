@@ -20,11 +20,11 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
 INTEGER                       :: SurfaceAnalyzeStep                  ! Analyze of surface is performed each Nth time step
-LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species 
+LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
                                                                      ! on surfaces
 LOGICAL                       :: CalcEvaporation                     ! Calculate rate of evaporation [kg/s]
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species

@@ -14,7 +14,7 @@
 
 MODULE MOD_HDG
 !===================================================================================================================================
-! Module for the HDG method 
+! Module for the HDG method
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -142,7 +142,7 @@ END IF
 IF (NbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   nonlinear = .true.
   NonLinSolver=GETINT('NonLinSolver','1')
-  
+
   IF (NonLinSolver.EQ.1) THEN
     NewtonExactApprox = GETLOGICAL('NewtonExactSourceDeriv','false')
     AdaptIterNewton=GETINT('AdaptIterNewton','0')
@@ -211,7 +211,7 @@ DO SideID=1,nBCSides
   SELECT CASE(BCType)
   CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10,11) !Neumann, 
+  CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL abort(&
@@ -237,7 +237,7 @@ DO SideID=1,nBCSides
   CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
-  CASE(10,11) !Neumann, 
+  CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   END SELECT ! BCType
@@ -340,7 +340,7 @@ IF(HDG_MassOverintegration)THEN
   ALLOCATE(wGP_HDGN(0:HDG_N))
   ALLOCATE(wBary_HDGN(0:HDG_N))
 
-  CALL LegendreGaussNodesAndWeights(HDG_N,xGP_HDGN,wGP_HDGN) 
+  CALL LegendreGaussNodesAndWeights(HDG_N,xGP_HDGN,wGP_HDGN)
   CALL BarycentricWeights(HDG_N,xGP_HDGN,wBary_HDGN)
 
   ! from Gauss (HDG_N) to Gauss (N)
@@ -371,17 +371,17 @@ IF(HDG_MassOverintegration)THEN
       r=q*(PP_N+1)+p+1
       Fdiag(r,SideID)=Fdiag_N(1,p,q)
     END DO; END DO !p,q
-    WRITE (*,*) " " 
+    WRITE (*,*) " "
     WRITE (*,*) "----"
     WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
     !exit
-    
-    iElem= SideToElem(S2E_ELEM_ID,SideID)  
+
+    iElem= SideToElem(S2E_ELEM_ID,SideID)
     jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
     IF(jElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem)
     ELSEIF(iElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem)
     ELSE
       Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
     END IF
@@ -404,12 +404,12 @@ ELSE ! Standard mass matrix
     !WRITE (*,*) "Side =", SideID,"Fdiag =", Fdiag(:,SideID)
     !WRITE (*,*) "SUM(Fdiag(:,SideID)) =", SUM(Fdiag(:,SideID))
     !read*
-    iElem= SideToElem(S2E_ELEM_ID,SideID)  
+    iElem= SideToElem(S2E_ELEM_ID,SideID)
     jElem= SideToElem(S2E_NB_ELEM_ID,SideID)
     IF(jElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem) 
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(iElem)
     ELSEIF(iElem.EQ.-1)THEN
-      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem) 
+      Fdiag(:,SideID)=-Fdiag(:,SideID)*Tau(jElem)
     ELSE
       Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
     END IF
@@ -497,7 +497,7 @@ USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
 USE MOD_MPI_Vars
 USE MOD_MPI                    ,ONLY: FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
 USE MOD_Mesh_Vars              ,ONLY: nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar==1)
 USE MOD_Equation_Vars          ,ONLY: E
 #elif (PP_nVar==3)
@@ -526,7 +526,7 @@ REAL    :: rtmp(nGP_vol)
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -600,7 +600,7 @@ DO iVar = 1, PP_nVar
   END DO !BCsideID=1,nNeumannBCSides
 
 !for magnetostatic only neumann
-#if (PP_nVar!=1) 
+#if (PP_nVar!=1)
   IF (iVar.LT.4) THEN
     DO BCsideID=1,nDirichletBCSides
 !      SideID=DirichletBC(BCsideID)
@@ -619,11 +619,11 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
     CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
-  END DO; END DO; END DO !i,j,k    
+  END DO; END DO; END DO !i,j,k
   DO iVar = 1, PP_nVar
     RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
   END DO
-END DO !iElem 
+END DO !iElem
 
 !replace lambda with exact function (debugging)
 IF(onlyPostProc.OR.ExactLambda)THEN
@@ -648,10 +648,10 @@ DO iVar = 1, PP_nVar
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       CALL DGEMV('N',nGP_face,nGP_vol,1., &
                           Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          rtmp,1,1.,& !add to RHS_face 
-                          RHS_face(iVar,:,SideID),1)  
+                          rtmp,1,1.,& !add to RHS_face
+                          RHS_face(iVar,:,SideID),1)
     END DO
-  END DO !iElem 
+  END DO !iElem
 END DO
 
 !add Neumann
@@ -660,12 +660,12 @@ DO BCsideID=1,nNeumannBCSides
   RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
 END DO
 
-#if (PP_nVar!=1) 
+#if (PP_nVar!=1)
 DO iVar = 1, PP_nVar
   IF (iVar.LT.4) THEN
     DO BCsideID=1,nDirichletBCSides
       SideID=DirichletBC(BCsideID)
-      RHS_face(iVar,:,SideID)=RHS_face(iVar,:,SideID)+qn_face_MagStat(iVar,:,BCSideID)     
+      RHS_face(iVar,:,SideID)=RHS_face(iVar,:,SideID)+qn_face_MagStat(iVar,:,BCSideID)
     END DO !BCsideID=1,nDirichletBCSides
   END IF
 END DO
@@ -688,7 +688,7 @@ IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set sen
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! SOLVE 
+! SOLVE
 DO iVar=1, PP_nVar
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
   !POST PROCESSING
@@ -700,20 +700,20 @@ DO iVar=1, PP_nVar
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       CALL DGEMV('T',nGP_face,nGP_vol,1., &
                           Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          lambda(iVar,:,SideID),1,1.,& !add to RHS_face 
-                          RHS_vol(iVar,:,iElem),1)  
+                          lambda(iVar,:,SideID),1,1.,& !add to RHS_face
+                          RHS_vol(iVar,:,iElem),1)
     END DO
     !U_out(:,iElem)=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
     CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                -RHS_vol(iVar,:,iElem),1,0., &
                                U_out(iVar,:,iElem),1)
-  END DO !iElem 
+  END DO !iElem
 END DO
 
 #if (PP_nVar==1)
   CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
 #elif (PP_nVar==3)
-  DO iVar=1, PP_nVar 
+  DO iVar=1, PP_nVar
     CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
   END DO
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -723,7 +723,7 @@ END DO
     B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
   END DO; END DO; END DO !i,j,k
 #else
-  DO iVar=1, 3 
+  DO iVar=1, 3
     CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
   END DO
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -766,7 +766,7 @@ USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,         ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
 #endif
@@ -794,7 +794,7 @@ LOGICAL :: warning_linear
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -842,7 +842,7 @@ DO BCsideID=1,nNeumannBCSides
   CASE(10) !neumann q=0
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      qn_face(PP_nVar,r,BCSideID)= 0. 
+      qn_face(PP_nVar,r,BCSideID)= 0.
     END DO; END DO !p,q
   CASE(11) !neumann q*n=1 !test
     DO q=0,PP_N; DO p=0,PP_N
@@ -878,10 +878,10 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     CALL DGEMV('N',nGP_face,nGP_vol,1., &
                         Ehat(:,:,iLocSide,iElem), nGP_face, &
-                        rtmp,1,1.,& !add to RHS_face 
-                        RHS_face(PP_nVar,:,SideID),1)  
+                        rtmp,1,1.,& !add to RHS_face
+                        RHS_face(PP_nVar,:,SideID),1)
   END DO
-END DO !iElem 
+END DO !iElem
 
 
 DO BCsideID=1,nNeumannBCSides
@@ -906,7 +906,7 @@ CALL LBSplitTime(LB_DG,tLBStart)
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! SOLVE 
+! SOLVE
 CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
 IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
@@ -916,7 +916,7 @@ IF (converged) THEN
 #else
   SWRITE(*,*) 'Newton Iteration has converged in 0 steps...'
 #endif
-ELSE 
+ELSE
   CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
 
   !post processing:
@@ -926,8 +926,8 @@ ELSE
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       CALL DGEMV('T',nGP_face,nGP_vol,1., &
                           Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face 
-                          RHS_vol(PP_nVar,:,iElem),1)  
+                          lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face
+                          RHS_vol(PP_nVar,:,iElem),1)
     END DO
     CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                -RHS_vol(PP_nVar,:,iElem),1,0., &
@@ -939,9 +939,9 @@ ELSE
       DO iElem=1,PP_nElems
         RegionID=GEO%ElemToRegion(iElem)
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1     
+          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
           IF (NewtonExactApprox) THEN
-            NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
+            NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
                          * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
           ELSE
             NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
@@ -975,7 +975,7 @@ ELSE
         beLinear=.true.
       END IF
     END IF
-    
+
     IF (AdaptIterNewton.GT.0) THEN
       IF (MOD(iter,AdaptIterNewton).EQ.0) THEN
         DO iElem=1,PP_nElems
@@ -983,7 +983,7 @@ ELSE
           DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
             r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
             IF (NewtonExactApprox) THEN
-              NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &         
+              NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
                          * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
             ELSE
               NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
@@ -1022,10 +1022,10 @@ ELSE
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         CALL DGEMV('N',nGP_face,nGP_vol,1., &
                             Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            rtmp,1,1.,& !add to RHS_face 
-                            RHS_face(PP_nVar,:,SideID),1)  
+                            rtmp,1,1.,& !add to RHS_face
+                            RHS_face(PP_nVar,:,SideID),1)
       END DO
-    END DO !iElem 
+    END DO !iElem
 
     !add Neumann
     DO BCsideID=1,nNeumannBCSides
@@ -1045,7 +1045,7 @@ ELSE
     IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
 
-    ! SOLVE 
+    ! SOLVE
     CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
     IF (converged) THEN
 #if defined(IMPA) || defined(ROS)
@@ -1065,7 +1065,7 @@ ELSE
     !    SWRITE(*,*)'Norm_r2: ',Norm_r2
     END IF
 
-    CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))   
+    CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
 
     !post processing:
     DO iElem=1,PP_nElems
@@ -1074,13 +1074,13 @@ ELSE
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         CALL DGEMV('T',nGP_face,nGP_vol,1., &
                             Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face 
-                            RHS_vol(PP_nVar,:,iElem),1)  
+                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face
+                            RHS_vol(PP_nVar,:,iElem),1)
       END DO
       CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
                                  -RHS_vol(PP_nVar,:,iElem),1,0., &
                                  U_out(PP_nVar,:,iElem),1)
-    END DO !iElem 
+    END DO !iElem
   END DO
 END IF
 
@@ -1095,7 +1095,7 @@ END SUBROUTINE HDGNewton
 
 SUBROUTINE CheckNonLinRes(RHS,lambda, converged,Norm_R2)
 !===================================================================================================================================
-!   
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1115,7 +1115,7 @@ LOGICAL, INTENT(INOUT) :: converged
 REAL, INTENT(OUT) :: Norm_r2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(nGP_face*nSides) :: R 
+REAL,DIMENSION(nGP_face*nSides) :: R
 INTEGER                         :: VecSize
 !===================================================================================================================================
 #ifdef MPI
@@ -1139,7 +1139,7 @@ END SUBROUTINE CheckNonLinRes
 
 SUBROUTINE CG_solver(RHS,lambda,iVar)
 !===================================================================================================================================
-!   
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1158,7 +1158,7 @@ REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
 INTEGER, INTENT(INOUT),OPTIONAL::iVar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(nGP_face*nSides) :: V,Z,R 
+REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
 REAL                            :: timestartCG
@@ -1261,7 +1261,7 @@ DO iter=1,MaxIterCG
   CALL VectorDotProduct(VecSize,R(1:VecSize),Z(1:VecSize),rz2)
   V=Z+(rz2/rz1)*V
   rz1=rz2
-END DO ! iter 
+END DO ! iter
 SWRITE(*,*)'CG solver not converged in ',iter, 'iterations!!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -1270,7 +1270,7 @@ END SUBROUTINE CG_solver
 
 SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
 !===================================================================================================================================
-!   
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1326,7 +1326,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
-#endif /*MPI*/ 
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1344,7 +1344,7 @@ INTEGER :: jLocSide,jSideID(6)
 #ifdef MPI
 REAL    :: mvbuf(nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
-#endif /*MPI*/ 
+#endif /*MPI*/
 !===================================================================================================================================
 #ifdef MPI
 CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive MINE
@@ -1366,14 +1366,14 @@ DO SideID=firstSideID,lastSideID
   !master element
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
       CALL DGEMV('N',nGP_face,nGP_face,1., &
                         Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv 
-                        mv(:,jSideID(jLocSide)),1)  
-    END DO !jLocSide 
+                        lambda(:,SideID),1,1.,& !add to mv
+                        mv(:,jSideID(jLocSide)),1)
+    END DO !jLocSide
   END IF !locSideID.NE.-1
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -1383,17 +1383,17 @@ DO SideID=firstSideID,lastSideID
     DO jLocSide = 1,6
       CALL DGEMV('N',nGP_face,nGP_face,1., &
                         Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv 
-                        mv(:,jSideID(jLocSide)),1)  
-    END DO !jLocSide 
+                        lambda(:,SideID),1,1.,& !add to mv
+                        mv(:,jSideID(jLocSide)),1)
+    END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
   mv(:,SideID)=mv(:,SideID)-Fdiag(:,SideID)*lambda(:,SideID)
 END DO ! SideID=1,nSides
 
 #ifdef MPI
-! Finish lambda communication 
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1) 
+! Finish lambda communication
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 
 firstSideID=nSides-nMPIsides_YOUR+1
 lastSideID =nSides
@@ -1401,14 +1401,14 @@ DO SideID=firstSideID,lastSideID
   !master element
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
     DO jLocSide = 1,6
       CALL DGEMV('N',nGP_face,nGP_face,1., &
                         Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv 
-                        mv(:,jSideID(jLocSide)),1)  
-    END DO !jLocSide 
+                        lambda(:,SideID),1,1.,& !add to mv
+                        mv(:,jSideID(jLocSide)),1)
+    END DO !jLocSide
   END IF !locSideID.NE.-1
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -1418,9 +1418,9 @@ DO SideID=firstSideID,lastSideID
     DO jLocSide = 1,6
       CALL DGEMV('N',nGP_face,nGP_face,1., &
                         Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv 
+                        lambda(:,SideID),1,1.,& !add to mv
                         mv(:,jSideID(jLocSide)),1)
-    END DO !jLocSide 
+    END DO !jLocSide
   END IF !locSideID.NE.-1
   !add mass matrix
   mv(:,SideID)=mv(:,SideID)-Fdiag(:,SideID)*lambda(:,SideID)
@@ -1507,7 +1507,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPIsides_YOUR
-#endif /*MPI*/ 
+#endif /*MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1596,7 +1596,7 @@ USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
 #ifdef MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
 #elif (PP_nVar==3)
@@ -1611,7 +1611,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
-#endif /*MPI*/ 
+#endif /*MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif
@@ -1620,7 +1620,7 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #if (PP_nVar==1)
   CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
 #elif (PP_nVar==3)
-  DO iVar=1, PP_nVar 
+  DO iVar=1, PP_nVar
     CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
   END DO
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -1630,7 +1630,7 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
     B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
   END DO; END DO; END DO !i,j,k
 #else
-  DO iVar=1, 3 
+  DO iVar=1, 3
     CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
   END DO
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N

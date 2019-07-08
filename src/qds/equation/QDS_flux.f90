@@ -24,7 +24,7 @@ MODULE MOD_QDS_Flux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ PUBLIC::EvalFlux3DQDS
 CONTAINS
 SUBROUTINE EvalFlux3DQDS(iElem,f,g,h)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
@@ -63,23 +63,23 @@ DO k=0,PP_N
       DO iVar=0,7
 !        ! hier der physikalische Fluss ohne die Divergenzkorrektur!
 !        !A
-!        f(1+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem) 
-!        f(2+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem) 
-!        f(3+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem) 
-!        f(4+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem) 
-!        f(5+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem) 
+!        f(1+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem)
+!        f(2+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem)
+!        f(3+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem)
+!        f(4+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem)
+!        f(5+L,i,j,k) = UQDS(2+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem)
 !        !B
-!        g(1+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem) 
-!        g(2+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem) 
-!        g(3+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem) 
-!        g(4+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem) 
-!        g(5+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem) 
+!        g(1+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem)
+!        g(2+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem)
+!        g(3+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem)
+!        g(4+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem)
+!        g(5+L,i,j,k) = UQDS(3+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem)
 !        !C
-!        h(1+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem) 
-!        h(2+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem) 
-!        h(3+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem) 
-!        h(4+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem) 
-!        h(5+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem) 
+!        h(1+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(1+L,i,j,k,iElem)
+!        h(2+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(2+L,i,j,k,iElem)
+!        h(3+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(3+L,i,j,k,iElem)
+!        h(4+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(4+L,i,j,k,iElem)
+!        h(5+L,i,j,k) = UQDS(4+L,i,j,k,iElem)*UQDS(5+L,i,j,k,iElem)
         L=5*iVar
         f(1+L,i,j,k) = UQDS(2+L,i,j,k,iElem)
         IF (UQDS(1+L,i,j,k,iElem).GT.0.0) THEN

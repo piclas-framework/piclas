@@ -21,7 +21,7 @@ MODULE MOD_PICInit
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -120,7 +120,7 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '1.5)  shape_function_spherical\n'         //&
                                                              '1.6)  shape_function_simple\n'            //&
                                                              '      1.1) to 1.6) require\n'            //&
-                                                             '        PIC-shapefunction-radius\n'//& 
+                                                             '        PIC-shapefunction-radius\n'//&
                                                              '        PIC-shapefunction-alpha\n' //&
                                                              '      1.2) and 1.3) require\n'            //&
                                                              '        PIC-shapefunction1d-direction\n'  //&
@@ -131,8 +131,8 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '3.)   epanechnikov\n'                     //&
                                                              '4.)   nearest_gausspoint\n'               //&
                                                              '5.)   delta_distri\n'                     //&
-                                                             '      requires PIC-DeltaType\n'           //& 
-                                                             '               PIC-DeltaType-N\n'         //& 
+                                                             '      requires PIC-DeltaType\n'           //&
+                                                             '               PIC-DeltaType-N\n'         //&
                                                              '6.1)  cartmesh_volumeweighting\n'         //&
                                                              '6.2)  cartmesh_splines\n'                 //&
                                                              '      requires PIC-BGMdeltas\n'           //&

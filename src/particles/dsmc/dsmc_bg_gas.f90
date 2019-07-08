@@ -35,7 +35,7 @@ INTERFACE DSMC_FinalizeBGGas
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iElem          
+  INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +135,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 !===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
-  
+
   CollInf%Coll_SpecPartNum = 0
   CollInf%Coll_CaseNum = 0
 
@@ -147,8 +147,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
-    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1 
-          ! counter for part num of spec per cell   
+    CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1
+          ! counter for part num of spec per cell
     IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                         ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
                         + PartStateIntEn(iPart,1) !Calulation of mean evib per cell and iter, necessary for disso prob
@@ -182,18 +182,18 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 
   CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
 
-  DO iPair = 1, nPair 
+  DO iPair = 1, nPair
     cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-    IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1) 
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
+    IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1)
+    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
     Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
                              + (PartState(Coll_pData(iPair)%iPart_p1,5) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
                              + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2 
+                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO

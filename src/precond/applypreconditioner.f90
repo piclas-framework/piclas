@@ -14,7 +14,7 @@
 
 MODULE MOD_ApplyPreconditioner
 !===================================================================================================================================
-! Module for the Block-Jacobi Preconditioner  
+! Module for the Block-Jacobi Preconditioner
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -54,7 +54,7 @@ SELECT CASE(PrecondType)
   CASE(1,2) ! Finite-Differences and analytical Preconditioner
     ! BJ per Element
     CALL ApplyPrecond_Elem(V,Vprecond)
-  CASE(3) 
+  CASE(3)
     CALL ApplyILU(V,Vprecond)
   CASE(4)
     CALL ApplyBILU0_BCSR(V,Vprecond)
@@ -250,7 +250,7 @@ DO iElem=1,PP_nElems
         DO iVar2=1,PP_nVar
           Vcalc(iVar,ii) = Vcalc(iVar,ii)-BlockAA(iVar,iVar2,jj,iElem)*Vcalc(iVar2,jrow)
         END DO ! iVar2
-      END DO ! ivar 
+      END DO ! ivar
     END DO ! jj
   END DO ! ii
   ! init

@@ -21,7 +21,7 @@ MODULE MOD_SurfaceModel
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -40,7 +40,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_SMCR                   ,ONLY: SMCR_PartDesorb, SMCR_Diffusion
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -62,7 +62,7 @@ SUBROUTINE UpdateSurfModelVars()
 !>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
-!> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
+!> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum
 !>      to adjust number of adsorbates on reconstructed Monte Carlo surface
 !> 2.2  Sample macroscopic surface coverage values
 !> 3. Reset/Adjust surface model sum counters
@@ -86,7 +86,7 @@ USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, E
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
@@ -245,7 +245,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSurfSide, iSpec, p, q, NPois, PartEvapInfo

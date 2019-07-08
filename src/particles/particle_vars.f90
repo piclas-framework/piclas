@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
@@ -36,9 +36,9 @@ LOGICAL               :: printRandomSeeds                                    ! p
 ! IMD: Molecular Dynamics Model - ion distribution info
 LOGICAL               :: DoInitialIonization                                 ! When restarting from a state, ionize the species to a
                                                                              ! specific degree
-INTEGER               :: InitialIonizationSpecies                            ! Supply the number of species that are considered for 
+INTEGER               :: InitialIonizationSpecies                            ! Supply the number of species that are considered for
                                                                              ! automatic ionization
-INTEGER , ALLOCATABLE :: InitialIonizationSpeciesID(:)                       ! Supply a vector with the species IDs that are used 
+INTEGER , ALLOCATABLE :: InitialIonizationSpeciesID(:)                       ! Supply a vector with the species IDs that are used
                                                                              ! for the initial ionization.
 REAL                  :: InitialIonizationChargeAverage                      ! Average charge for each atom/molecule in the cell
 LOGICAL               :: DoImportIMDFile                                     ! read IMD (MD-Simulation) data from *.chkpt file
@@ -57,7 +57,7 @@ CHARACTER(255)        :: IMDCutOff                                           ! c
                                                                              !                                      4.) velocity
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
-REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
+REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent
                                                                              ! on particle velocity (for static fields only!)
 REAL                  :: dt_part_ratio, overrelax_factor                     ! factors for td200/201 overrelaxation/subcycling
 INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
@@ -69,7 +69,7 @@ REAL    , ALLOCATABLE :: PartPosRef(:,:)                                     ! (
 INTEGER , ALLOCATABLE :: PartPosGauss(:,:)                                   ! (1:NParts,1:3) Gauss point localization of particles
 REAL    , ALLOCATABLE :: Pt(:,:)                                             ! Derivative of PartState (vx,xy,vz) only
                                                                              ! since temporal derivative of position
-                                                                             ! is the velocity. Thus we can take 
+                                                                             ! is the velocity. Thus we can take
                                                                              ! PartState(:,4:6) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
@@ -80,7 +80,7 @@ REAL    , ALLOCATABLE :: velocityAtTime(:,:)
 #if defined(ROS) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! ParticleState at t^n
-REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable: 
+REAL    , ALLOCATABLE :: PartdtFrac(:)                                       ! dual use variable:
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
                                                                              ! 1) time fraction of domain entering (surface flux)
                                                                              ! 2) fraction of time step for push (surface flux)
@@ -102,7 +102,7 @@ REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! L
 
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! (1:NParts,1:3) with 2nd index: x,y,z
-INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts) 
+INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
 INTEGER               :: PartLorentzType
 CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! Type of PP-Method
@@ -110,11 +110,11 @@ INTEGER               :: nrSeeds                                             ! N
 INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! Seeds for Random Number Generator
 
 TYPE tConstPressure
-  INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle  
-  INTEGER                                :: nElemPartlyInside                 ! Number of elements partly in Emission Particle 
-  INTEGER, ALLOCATABLE                   :: ElemTotalInside(:)                ! List of elements totally in Emission Particle 
+  INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle
+  INTEGER                                :: nElemPartlyInside                 ! Number of elements partly in Emission Particle
+  INTEGER, ALLOCATABLE                   :: ElemTotalInside(:)                ! List of elements totally in Emission Particle
                                                                               ! ElemTotalInside(1:nElemTotalInside)
-  INTEGER, ALLOCATABLE                   :: ElemPartlyInside(:)               ! List of elements partly in Emission Particle 
+  INTEGER, ALLOCATABLE                   :: ElemPartlyInside(:)               ! List of elements partly in Emission Particle
                                                                               ! ElemTotalInside(1:nElemPartlyInside)
   INTEGER(2), ALLOCATABLE                :: ElemStat(:)                       ! Status of Element to Emission Particle Space
                                                                               ! ElemStat(nElem) = 1  -->  Element is totally insid
@@ -162,7 +162,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
   INTEGER                                :: Rotation                         ! direction of rotation, similar to TE-mode
   INTEGER                                :: VelocitySpreadMethod             ! method to compute the velocity spread
-  REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles 
+  REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles
                                                                              ! linearly from zero to unity
   REAL                                   :: VelocitySpread                   ! velocity spread in percent
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
@@ -383,7 +383,7 @@ TYPE tParticleDataManagement
                                                                               ! List of free Positon
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
   LOGICAL , ALLOCATABLE                  :: ParticleAtWall(:)                 ! Particle_adsorbed_on_to_wall(1:Particle_number)
-  INTEGER , ALLOCATABLE                  :: PartAdsorbSideIndx(:,:)           ! Surface index on which Particle i adsorbed 
+  INTEGER , ALLOCATABLE                  :: PartAdsorbSideIndx(:,:)           ! Surface index on which Particle i adsorbed
                                                                               ! (1:3,1:PDM%maxParticleNumber)
                                                                               ! 1: surface index ElemToSide(i,localsideID,ElementID)
                                                                               ! 2: p
@@ -401,7 +401,7 @@ LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 LOGICAL                                  :: WRITEMacroValues = .FALSE.
 LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! Output of macroscopic values in volume
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
-INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   
+INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
 REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
 LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
@@ -415,9 +415,9 @@ INTEGER                                  :: vMPFMergeCellSplitOrder           ! 
 INTEGER, ALLOCATABLE                     :: vMPF_OrderVec(:,:)                ! Vec of vMPF poynom orders
 INTEGER, ALLOCATABLE                     :: vMPF_SplitVec(:,:)                ! Vec of vMPF cell split orders
 INTEGER, ALLOCATABLE                     :: vMPF_SplitVecBack(:,:,:)          ! Vec of vMPF cell split orders backward
-REAL, ALLOCATABLE                        :: PartStateMap(:,:)                 ! part pos mapped on the -1,1 cube  
+REAL, ALLOCATABLE                        :: PartStateMap(:,:)                 ! part pos mapped on the -1,1 cube
 INTEGER, ALLOCATABLE                     :: PartStatevMPFSpec(:)              ! part state indx of spec to merge
-REAL, ALLOCATABLE                        :: vMPFPolyPoint(:,:)                ! Points of Polynom in LM 
+REAL, ALLOCATABLE                        :: vMPFPolyPoint(:,:)                ! Points of Polynom in LM
 REAL, ALLOCATABLE                        :: vMPFPolySol(:)                    ! Solution of Polynom in LM
 REAL                                     :: vMPF_oldMPFSum                    ! Sum of all old MPF in cell
 REAL                                     :: vMPF_oldEngSum                    ! Sum of all old energies in cell

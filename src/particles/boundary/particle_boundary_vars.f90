@@ -23,7 +23,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling   
+INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
@@ -40,12 +40,12 @@ TYPE tSurfaceSendList
   INTEGER                               :: NativeProcID
   INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
-  
+
   INTEGER,ALLOCATABLE                   :: SurfDistSendList(:)           ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: SurfDistRecvList(:)           ! list containing surfsideid of sides to recv from proc
   INTEGER,ALLOCATABLE                   :: CoverageSendList(:)           ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: CoverageRecvList(:)           ! list containing surfsideid of sides to recv from proc
-  
+
 END TYPE
 #endif /*MPI*/
 
@@ -77,14 +77,14 @@ TYPE tSurfaceMesh
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
-  REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
+  REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface
   INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)             ! Mapping of surface side ID (reflective) to side ID
   INTEGER,ALLOCATABLE                   :: innerBCSideToHaloMap(:)       ! map of inner BC ID on slave side to corresp. HaloSide
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
 
-TYPE tSampWall             ! DSMC sample for Wall                                             
+TYPE tSampWall             ! DSMC sample for Wall
   ! easier to communicate
   REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
                                                                        ! 4-6   E_rot (pre, wall, re),
@@ -110,7 +110,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
-  REAL,ALLOCATABLE                      :: PumpCapacity                ! 
+  REAL                                  :: PumpCapacity                !
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
@@ -121,21 +121,21 @@ INTEGER                                 :: PorousBCSampIter       !
 REAL, ALLOCATABLE                       :: PorousBCMacroVal(:,:,:)!
 
 TYPE tPorousBC
-  INTEGER                               :: BC                     ! 
-  REAL                                  :: Pressure               !
-  REAL                                  :: Temperature            !
-  REAL                                  :: NumberDensity          !
-  REAL                                  :: PumpingSpeed           !
-  REAL                                  :: DeltaPumpingSpeedKp    !
-  REAL                                  :: DeltaPumpingSpeedKi    !
-  CHARACTER(LEN=50)                     :: Region                 !
-  LOGICAL                               :: UsingRegion            !
+  INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
+  REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
+  REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
+  REAL                                  :: NumberDensity          ! Calculated number density [1/m3]
+  REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
+  REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
+  REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
+  CHARACTER(LEN=50)                     :: Region                 ! Form of the porous BC: 'circular'
+  LOGICAL                               :: UsingRegion            ! Use only a smaller region on the BC as a porous BC (e.g. pump)
   INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
   REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
   REAL                                  :: rmax                   ! max radius of to-be inserted particles
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
-  INTEGER                               :: SideNumber             !
-  INTEGER, ALLOCATABLE                  :: SideList(:)            !
+  INTEGER                               :: SideNumber             ! Number of BC sides for the BC
+  INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
   INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
                                                                   ! 1: side is completely outside porous region
@@ -143,9 +143,13 @@ TYPE tPorousBC
   REAL, ALLOCATABLE                     :: RemovalProbability(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PressureDifference(:)  ! Removal probability at the porous BC
   REAL, ALLOCATABLE                     :: PumpingSpeedSide(:)    ! Removal probability at the porous BC
-  REAL                                  :: Output(1:5)            ! 1: 
+  REAL                                  :: Output(1:5)            ! 1: Counter of impinged particles on the BC
+                                                                  ! 2: Measured pumping speed [m3/s] through # of deleted particles
+                                                                  ! 3: Pumping speed [m3/s] used to calculate the removal prob.
+                                                                  ! 4: Removal probability [0-1]
+                                                                  ! 5: Pressure at the BC normalized with the user-given pressure
 END TYPE
-TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! 
+TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
 
 INTEGER, ALLOCATABLE                    :: MapBCtoPorousBC(:)     ! Mapping the porous BC to the BC (input: BC, output: porous BC)
 INTEGER, ALLOCATABLE                    :: MapSurfSideToPorousSide(:) !
@@ -156,12 +160,12 @@ TYPE tSurfColl
   LOGICAL                               :: OnlySwaps              ! count only wall collisions being SpeciesSwaps (def. F)
   LOGICAL                               :: Only0Swaps             ! count only wall collisions being delete-SpeciesSwaps (def. F)
   LOGICAL                               :: Output                 ! Print sums of all counted wall collisions (def. F)
-  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles 
+  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles
                                                                   ! during Sampling period? (def. F)
 END TYPE
 TYPE (tSurfColl)                        :: CalcSurfCollis
-  
-TYPE tAnalyzeSurfCollis 
+
+TYPE tAnalyzeSurfCollis
   INTEGER                               :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
   REAL, ALLOCATABLE                     :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
                                                                   ! (Species,Particles,Data(x,y,z,u,v,w)
@@ -188,13 +192,13 @@ TYPE tPartBoundary
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
+  REAL    , ALLOCATABLE                  :: TransACC(:)
+  REAL    , ALLOCATABLE                  :: VibACC(:)
+  REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
@@ -291,13 +295,13 @@ TYPE tPartAuxBC
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
+  REAL    , ALLOCATABLE                  :: TransACC(:)
+  REAL    , ALLOCATABLE                  :: VibACC(:)
+  REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

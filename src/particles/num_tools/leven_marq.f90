@@ -4,7 +4,7 @@
 ! -----------------------------------------------
 ! lm.zip Levenberg-Marquardt algorithm for non-linear least squares (unconstrained). This is a translation of the MINPACK routines,
 ! LMDER & LMDIF. Use LMDER for functions which can be differentiated, and LMDIF when it is necessary to use differences. The ZIPped
-! file includes the MINPACK test programs, and a simple example fitting a 4-parameter logistic. 
+! file includes the MINPACK test programs, and a simple example fitting a 4-parameter logistic.
 !
 !==================================================================================================================================
 MODULE Levenberg_Marquardt
@@ -626,7 +626,7 @@ END SUBROUTINE lmdif
 
 
 SUBROUTINE lmder1(fcn, m, n, x, fvec, fjac, tol, info, ipvt)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:45:54
 
@@ -803,7 +803,7 @@ END SUBROUTINE lmder1
 
 SUBROUTINE lmder(fcn, m, n, x, fvec, fjac, ftol, xtol, gtol, maxfev, &
                  mode, factor, nprint, info, nfev, njev, ipvt)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:45:50
 
@@ -1248,7 +1248,7 @@ END SUBROUTINE lmder
 
 
 SUBROUTINE lmpar(n, r, ipvt, diag, qtb, delta, par, x, sdiag)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:46:12
 
@@ -1493,7 +1493,7 @@ END SUBROUTINE lmpar
 
 
 SUBROUTINE qrfac(m, n, a, pivot, ipvt, rdiag, acnorm)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:46:17
 
@@ -1602,9 +1602,9 @@ END DO
 minmn = MIN(m,n)
 DO  j = 1, minmn
   IF (.NOT.pivot) GO TO 40
-  
+
 !        Bring the column of largest norm into the pivot position.
-  
+
   kmax = j
   DO  k = j, n
     IF (rdiag(k) > rdiag(kmax)) kmax = k
@@ -1620,18 +1620,18 @@ DO  j = 1, minmn
   k = ipvt(j)
   ipvt(j) = ipvt(kmax)
   ipvt(kmax) = k
-  
+
 !     Compute the Householder transformation to reduce the
 !     j-th column of a to a multiple of the j-th unit vector.
-  
+
   40 ajnorm = enorm(m-j+1, a(j:,j))
   IF (ajnorm == zero) CYCLE
   IF (a(j,j) < zero) ajnorm = -ajnorm
   a(j:m,j) = a(j:m,j)/ajnorm
   a(j,j) = a(j,j) + one
-  
+
 !     Apply the transformation to the remaining columns and update the norms.
-  
+
   jp1 = j + 1
   DO  k = jp1, n
     sum = DOT_PRODUCT( a(j:m,j), a(j:m,k) )
@@ -1655,7 +1655,7 @@ END SUBROUTINE qrfac
 
 
 SUBROUTINE qrsolv(n, r, ipvt, diag, qtb, x, sdiag)
- 
+
 ! N.B. Arguments LDR & WA have been removed.
 
 INTEGER, INTENT(IN)        :: n
@@ -1758,24 +1758,24 @@ END DO
 !     Eliminate the diagonal matrix d using a givens rotation.
 
 DO  j = 1, n
-  
+
 !        Prepare the row of d to be eliminated, locating the
 !        diagonal element using p from the qr factorization.
-  
+
   l = ipvt(j)
   IF (diag(l) == zero) CYCLE
   sdiag(j:n) = zero
   sdiag(j) = diag(l)
-  
+
 !     The transformations to eliminate the row of d modify only a single
 !     element of (q transpose)*b beyond the first n, which is initially zero.
-  
+
   qtbpj = zero
   DO  k = j, n
-    
+
 !        Determine a givens rotation which eliminates the
 !        appropriate element in the current row of d.
-    
+
     IF (sdiag(k) == zero) CYCLE
     IF (ABS(r(k,k)) < ABS(sdiag(k))) THEN
       cotan = r(k,k)/sdiag(k)
@@ -1786,17 +1786,17 @@ DO  j = 1, n
       COS = p5/SQRT(p25 + p25*TAN**2)
       SIN = COS*TAN
     END IF
-    
+
 !        Compute the modified diagonal element of r and
 !        the modified element of ((q transpose)*b,0).
-    
+
     r(k,k) = COS*r(k,k) + SIN*sdiag(k)
     temp = COS*wa(k) + SIN*qtbpj
     qtbpj = -SIN*wa(k) + COS*qtbpj
     wa(k) = temp
-    
+
 !        Accumulate the tranformation in the row of s.
-    
+
     kp1 = k + 1
     DO  i = kp1, n
       temp = COS*r(i,k) + SIN*sdiag(i)
@@ -1804,10 +1804,10 @@ DO  j = 1, n
       r(i,k) = temp
     END DO
   END DO
-  
+
 !     Store the diagonal element of s and restore
 !     the corresponding diagonal element of r.
-  
+
   sdiag(j) = r(j,j)
   r(j,j) = x(j)
 END DO
@@ -1842,7 +1842,7 @@ END SUBROUTINE qrsolv
 
 
 FUNCTION enorm(n,x) RESULT(fn_val)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:45:34
 
@@ -1902,9 +1902,9 @@ DO  i = 1, n
   xabs = ABS(x(i))
   IF (xabs > rdwarf .AND. xabs < agiant) GO TO 70
   IF (xabs <= rdwarf) GO TO 30
-  
+
 !              sum for large components.
-  
+
   IF (xabs <= x1max) GO TO 10
   s1 = one + s1*(x1max/xabs)**2
   x1max = xabs
@@ -1913,9 +1913,9 @@ DO  i = 1, n
   10 s1 = s1 + (xabs/x1max)**2
 
   20 GO TO 60
-  
+
 !              sum for small components.
-  
+
   30 IF (xabs <= x3max) GO TO 40
   s3 = one + s3*(x3max/xabs)**2
   x3max = xabs
@@ -1924,9 +1924,9 @@ DO  i = 1, n
   40 IF (xabs /= zero) s3 = s3 + (xabs/x3max)**2
 
   60 CYCLE
-  
+
 !           sum for intermediate components.
-  
+
   70 s2 = s2 + xabs**2
 END DO
 
@@ -1952,7 +1952,7 @@ END FUNCTION enorm
 
 
 SUBROUTINE fdjac2(fcn, m, n, x, fvec, fjac, iflag, epsfcn)
- 
+
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 1999-12-09  Time: 12:45:44
 

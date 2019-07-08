@@ -14,14 +14,14 @@
 
 MODULE MOD_Particle_Boundary_Condition
 !===================================================================================================================================
-!! Determines how particles interact with a given boundary condition 
+!! Determines how particles interact with a given boundary condition
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
@@ -51,12 +51,12 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
                                   ,TriNum)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
-!  OpenBC                  = 1  
-!  ReflectiveBC            = 2  
-!  PeriodicBC              = 3  
-!  SimpleAnodeBC           = 4  
-!  SimpleCathodeBC         = 5  
-!  MPINeighborhoodBC       = 6  
+!  OpenBC                  = 1
+!  ReflectiveBC            = 2
+!  PeriodicBC              = 3
+!  SimpleAnodeBC           = 4
+!  SimpleCathodeBC         = 5
+!  MPINeighborhoodBC       = 6
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -110,7 +110,7 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 CASE(1) !PartBound%OpenBC)
 !----------------------------------------------------------------------------------------------------------------------------------
   IF (.NOT.TriaTracking) THEN
-    IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid    
+    IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
       SELECT CASE(SideType(SideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
         n_loc=SideNormVec(1:3,SideID)
@@ -118,7 +118,7 @@ CASE(1) !PartBound%OpenBC)
         CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
       CASE(CURVED)
         CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-      END SELECT 
+      END SELECT
       IF(flip.NE.0) n_loc=-n_loc
       IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
     END IF
@@ -156,7 +156,7 @@ CASE(2) !PartBound%ReflectiveBC)
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,flip=flip,TriNum=TriNum)
 #else
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
-#endif /*NOT IMPA*/ 
+#endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! decide if reactive or simple sattering
@@ -262,12 +262,12 @@ END SUBROUTINE GetBoundaryInteraction
 SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,ElemID,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
-!  OpenBC                  = 1  
-!  ReflectiveBC            = 2  
-!  PeriodicBC              = 3  
-!  SimpleAnodeBC           = 4  
-!  SimpleCathodeBC         = 5  
-!  MPINeighborhoodBC       = 6  
+!  OpenBC                  = 1
+!  ReflectiveBC            = 2
+!  PeriodicBC              = 3
+!  SimpleAnodeBC           = 4
+!  SimpleCathodeBC         = 5
+!  MPINeighborhoodBC       = 6
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -325,7 +325,7 @@ CASE(1) !PartBound%OpenBC)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-    END SELECT 
+    END SELECT
     IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
@@ -405,7 +405,7 @@ __STAMP__,&
 'Boundary_Error: Adsorptionindex switched to unknown value.')
       END SELECT
     END IF
-  ELSE 
+  ELSE
     ! not inside any-more, removed in last step
     crossedBC=.TRUE.
   END IF
@@ -458,7 +458,7 @@ END SUBROUTINE GetBoundaryInteractionRef
 SUBROUTINE GetBoundaryInteractionAuxBC(PartTrajectory,lengthPartTrajectory,alpha,iPart,AuxBCIdx,crossedBC)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with an auxBC
-!  OpenBC                  = 1  
+!  OpenBC                  = 1
 !  ReflectiveBC            = 2
 !===================================================================================================================================
 ! MODULES
@@ -504,7 +504,7 @@ CASE(1) !PartAuxBC%OpenBC
 !        CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
 !      CASE(CURVED)
 !        CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-!      END SELECT 
+!      END SELECT
 !      IF(flip.NE.0) n_loc=-n_loc
 !      IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
 !    END IF
@@ -533,7 +533,7 @@ CASE(2) !PartAuxBC%ReflectiveBC)
 #else
     CALL SpeciesSwap(PartTrajectory,alpha,xi=-1.,eta=-1.,PartID=iPart,SideID=-1,IsSpeciesSwap=IsSpeciesSwap)
 #endif /*NOT IMPA*/
- 
+
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
       ! simple reflection (previously used wall interaction model, maxwellian scattering)
@@ -599,7 +599,7 @@ USE MOD_Particle_Vars,          ONLY:PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip!,ElemID
@@ -723,9 +723,9 @@ END IF !IsAuxBC
 !  !IF(iStage.GT.2)THEN
 !  IF(RK_inflow(iStage).EQ.0)THEN
 !    IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
-!    ! hence, we perform an evil hack and beam the particle on the intersection point 
+!    ! hence, we perform an evil hack and beam the particle on the intersection point
 !    ! this ensures, that the particle is located within the mesh....
-!    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha  
+!    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*0.999*alpha
 !    PartState(PartID,1:3)   = LastPartPos(PartID,1:3)
 !    PartTrajectory          = 0.
 !    lengthPartTrajectory    = 0.
@@ -741,7 +741,7 @@ IF(SUM(ABS(WallVelo)).GT.0.)THEN
     PartState(PartID,4:6) = PartState(PartID,4:6) &
                           - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc + WallVelo
     ! sanity check of new particle velocity
-    LorentzFac=1.0-DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv      
+    LorentzFac=1.0-DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv
     IF(LorentzFac.LT.0.) CALL Abort(&
 __STAMP__&
 ,'Particle exceeds speed of light! PartID ',PartID)
@@ -757,7 +757,7 @@ __STAMP__&
     PartState(PartID,4:6) = PartState(PartID,4:6) &
                           - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc + WallVelo
     ! map back from velocity to relativistic momentum
-    LorentzFac=1.0-DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv      
+    LorentzFac=1.0-DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv
     IF(LorentzFac.LT.0.)THEN
 CALL Abort(&
 __STAMP__&
@@ -775,7 +775,7 @@ __STAMP__&
 ELSE
   v_old = PartState(PartID,4:6)
   PartState(PartID,4:6) = PartState(PartID,4:6) &
-                        - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc 
+                        - 2.*DOT_PRODUCT(PartState(PartID,4:6),n_loc)*n_loc
 END IF
 
 IF (.NOT.IsAuxBC) THEN
@@ -841,7 +841,7 @@ END IF
 END IF !.NOT.IsAuxBC
 
 ! set particle position on face
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
 
 PartTrajectory(1:3)=PartTrajectory(1:3)-2.*DOT_PRODUCT(PartTrajectory(1:3),n_loc)*n_loc
 PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(lengthPartTrajectory - alpha)
@@ -933,7 +933,7 @@ USE MOD_FPFlow_Vars,            ONLY: FPDoVibRelaxation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip
@@ -1045,7 +1045,7 @@ __STAMP__&
   tang2=CROSSNORM(n_loc,tang1)
 ELSE
   !OneMinus=1.0-epsInCell
-  
+
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(SideID))
   ! get BC values
@@ -1054,7 +1054,7 @@ ELSE
   TransACC   = PartBound%TransACC(locBCID)
   VibACC     = PartBound%VibACC(locBCID)
   RotACC     = PartBound%RotACC(locBCID)
-  
+
   IF(PRESENT(BCSideID))THEN
     SELECT CASE(SideType(BCSideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -1088,7 +1088,7 @@ ELSE
       IF(flip.NE.0) n_loc=-n_loc
     END IF
   END IF
-  
+
   IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
     IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
     RETURN
@@ -1102,7 +1102,7 @@ VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + &
                 PartState(PartID,5) * PartState(PartID,5) + &
                 PartState(PartID,6) * PartState(PartID,6))
 
-EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2 
+EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
 CALL RANDOM_NUMBER(RanNum)
 VeloCrad    = SQRT(-LOG(RanNum))
 CALL RANDOM_NUMBER(RanNum)
@@ -1133,7 +1133,7 @@ IF (.NOT.IsAuxBC) THEN
       p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
     END IF
-    
+
     SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
       *Species(PartSpecies(PartID))%MacroParticleFactor
     SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
@@ -1142,7 +1142,7 @@ IF (.NOT.IsAuxBC) THEN
       *Species(PartSpecies(PartID))%MacroParticleFactor
   END IF
 END IF !.NOT.IsAuxBC
- 
+
 !   Transformation local distribution -> global coordinates
 ! from flux comutaion
 ! v = nv*u+t1*v+t2*f3
@@ -1182,8 +1182,8 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
       SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall &
                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew &
-                                                                          * Species(PartSpecies(PartID))%MacroParticleFactor 
-    END IF  
+                                                                          * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
 
     PartStateIntEn(PartID,2) = ErotNew
 
@@ -1257,7 +1257,7 @@ IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID
         END IF
         SampWall(SurfSideID)%State(9,p,q)= SampWall(SurfSideID)%State(9,p,q) + &
                                             EvibNew * Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF     
+      END IF
       IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
       PartStateIntEn(PartID,1) = EvibNew
 #if ((PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300))
@@ -1373,10 +1373,10 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
-INTEGER,INTENT(IN)                :: PartID, SideID 
+INTEGER,INTENT(IN)                :: PartID, SideID
 #ifndef IMPA
 INTEGER,INTENT(IN),OPTIONAL       :: flip,BCSideID
 INTEGER,INTENT(IN),OPTIONAL       :: TriNum
@@ -1434,11 +1434,11 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-  END SELECT 
+  END SELECT
 ELSE
   IF (TriaTracking) THEN
     CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
-  ELSE 
+  ELSE
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
@@ -1446,7 +1446,7 @@ ELSE
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
+    END SELECT
     IF(flip.NE.0) n_loc=-n_loc
   END IF
 END IF
@@ -1596,7 +1596,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:PartOut,MPIRankOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
@@ -1624,11 +1624,11 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-  END SELECT 
+  END SELECT
 ELSE
   IF (TriaTracking) THEN
     CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
-  ELSE 
+  ELSE
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
@@ -1636,7 +1636,7 @@ ELSE
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
+    END SELECT
   END IF
 END IF
 
@@ -1660,7 +1660,7 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 ! set last particle position on face
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha  
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
 ! perform the periodic movement
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + SIGN(GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID))
 ! update particle positon after periodic BC
@@ -1730,7 +1730,7 @@ USE MOD_TImeDisc_Vars,          ONLY:tend,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID, flip,locSideID
@@ -1761,11 +1761,11 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-  END SELECT 
+  END SELECT
 ELSE
   IF (TriaTracking) THEN
     CALL CalcNormAndTangTriangle(nVec=n_loc,TriNum=TriNum,SideID=SideID)
-  ELSE 
+  ELSE
     SELECT CASE(SideType(SideID))
     CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
@@ -1773,7 +1773,7 @@ ELSE
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
+    END SELECT
     IF(flip.NE.0) n_loc=-n_loc
   END IF
 END IF
@@ -1784,7 +1784,7 @@ IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
 ELSE
   IF(PRESENT(opt_crossed)) opt_crossed=.TRUE.
 END IF
-  
+
 
 ! Wall sampling Macrovalues
 !IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
@@ -1833,7 +1833,7 @@ __STAMP__&
 ,' Mesh-connectivity broken or halo region to small. Neighbor element is missing!')
 END IF
 #endif /*MPI*/
-  
+
 END SUBROUTINE SideAnalysis
 
 
@@ -2040,7 +2040,7 @@ END IF
 
 SurfSideID = SurfMesh%SideIDToSurfID(sideID_IN)
 SpecID = PartSpecies(PartID)
-#if (PP_TimeDiscMethod==42)  
+#if (PP_TimeDiscMethod==42)
 ! Update wallcollision counter
 SurfModel%Info(SpecID)%WallCollCount = SurfModel%Info(SpecID)%WallCollCount + 1
 IF (PartBound%SurfaceModel(locBCID).EQ.1) THEN

@@ -22,7 +22,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE      :: invP(:,:,:)  !inverse of block Jacobian for each element (1:nDOF_elem,1:nDOFelem,1:PP_nElems)
 INTEGER               :: PrecondType

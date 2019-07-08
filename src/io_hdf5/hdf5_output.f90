@@ -37,8 +37,8 @@ INTERFACE WriteHDF5Header
   MODULE PROCEDURE WriteHDF5Header
 END INTERFACE
 
-INTERFACE GenerateFileSkeleton 
-  MODULE PROCEDURE GenerateFileSkeleton 
+INTERFACE GenerateFileSkeleton
+  MODULE PROCEDURE GenerateFileSkeleton
 END INTERFACE
 
 INTERFACE GenerateNextFileInfo
@@ -393,7 +393,7 @@ SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
 !> to functions to generate the data, along with the respective varnames.
 !>
 !> Two options are available:
-!>    1. WriteAdditionalElemData: 
+!>    1. WriteAdditionalElemData:
 !>       Element-wise scalar data, e.g. the timestep or indicators.
 !>       The data is collected in a single array and written out in one step.
 !>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
@@ -629,7 +629,7 @@ MaxQuantNum=-1
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
 !CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
- 
+
 !!added for Evib, Erot writeout
 withDSMC=useDSMC
 IF (withDSMC.AND.(.NOT.(useLD))) THEN
@@ -663,7 +663,7 @@ ELSE IF (usevMPF) THEN
   PartDataSize=8 !vmpf +1
 ELSE
   PartDataSize=7
-END IF  
+END IF
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   MaxQuantNum = 0
@@ -680,7 +680,7 @@ DO pcount = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(pcount)) THEN
     locnPart = locnPart + 1_IK
   END IF
-END DO         
+END DO
 
 #ifdef MPI
 sendbuf(1)=locnPart
@@ -693,7 +693,7 @@ CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iE
 nPart_glob=sendbuf(1)
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 !IF (myRank.EQ.0) THEN
-!  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION' 
+!  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION'
 !  WRITE(*,*) 'iProc, firstelemInd,   nElems,  locnPart,  totalnPart'
 !  DO pcount=0,nProcessors-1
 !    WRITE(*,'(I5,4I12)')pcount,offsetElemMPI(pcount),offsetElemMPI(pcount+1)-offsetElemMPI(pcount),&
@@ -764,12 +764,12 @@ DO iElem_loc=1,PP_nElems
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
-          PartData(iPart,10)=PartStateIntEn(pcount,3)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateIntEn(pcount,3)
           PartData(iPart,11)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
@@ -777,26 +777,26 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,10)=PartStateIntEn(pcount,3)
         ELSE IF (CollisMode.GT.1) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2) 
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
         ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)    
+          PartData(iPart,8)=PartMPF(pcount)
         END IF
       ELSE IF (useLD) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateIntEn(pcount,3)  
-          PartData(iPart,12)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateIntEn(pcount,3)
+          PartData(iPart,12)=PartStateBulkValues(pcount,1)
           PartData(iPart,13)=PartStateBulkValues(pcount,2)
           PartData(iPart,14)=PartStateBulkValues(pcount,3)
           PartData(iPart,15)=PartStateBulkValues(pcount,4)
           PartData(iPart,16)=PartStateBulkValues(pcount,5)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
           PartData(iPart,13)=PartStateBulkValues(pcount,3)
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
@@ -805,28 +805,28 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,8)=PartStateIntEn(pcount,1)
           PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartStateIntEn(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
           PartData(iPart,13)=PartStateBulkValues(pcount,3)
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
           PartData(iPart,15)=PartStateBulkValues(pcount,5)
         ELSE IF (CollisMode.GT.1) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2) 
-          PartData(iPart,10)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateBulkValues(pcount,1)
           PartData(iPart,11)=PartStateBulkValues(pcount,2)
           PartData(iPart,12)=PartStateBulkValues(pcount,3)
           PartData(iPart,13)=PartStateBulkValues(pcount,4)
           PartData(iPart,14)=PartStateBulkValues(pcount,5)
         ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)    
-          PartData(iPart,9)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,8)=PartMPF(pcount)
+          PartData(iPart,9)=PartStateBulkValues(pcount,1)
           PartData(iPart,10)=PartStateBulkValues(pcount,2)
           PartData(iPart,11)=PartStateBulkValues(pcount,3)
           PartData(iPart,12)=PartStateBulkValues(pcount,4)
           PartData(iPart,13)=PartStateBulkValues(pcount,5)
         ELSE
-          PartData(iPart,8)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,8)=PartStateBulkValues(pcount,1)
           PartData(iPart,9)=PartStateBulkValues(pcount,2)
           PartData(iPart,10)=PartStateBulkValues(pcount,3)
           PartData(iPart,11)=PartStateBulkValues(pcount,4)
@@ -857,7 +857,7 @@ DO iElem_loc=1,PP_nElems
     , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
   END IF
   PartInt(iElem_glob,2)=iPart
-END DO 
+END DO
 
 nVar=2
 ALLOCATE(StrVarNames(nVar))
@@ -1039,7 +1039,7 @@ ASSOCIATE (&
     DEALLOCATE(VibQuantData)
   END IF
   CALL CloseDataFile()
-#endif /*MPI*/                          
+#endif /*MPI*/
 
 END ASSOCIATE
 ! reswitch
@@ -1049,7 +1049,7 @@ IF(reSwitch) gatheredWrite=.TRUE.
 !CALL CloseDataFile()
 
 !  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
-!                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
+!                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben
                                                         ! problematisch werden
 
 DEALLOCATE(StrVarNames)
@@ -1235,7 +1235,7 @@ ASSOCIATE (&
                         collective =.TRUE.   , RealArray=SurfCalcData)
 END ASSOCIATE
 CALL CloseDataFile()
-!#endif /*MPI*/                          
+!#endif /*MPI*/
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
@@ -1624,7 +1624,7 @@ USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars, ONLY:NodeType
-#ifdef INTEL 
+#ifdef INTEL
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1695,7 +1695,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Interpolation_Vars, ONLY:NodeType
-#ifdef INTEL 
+#ifdef INTEL
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1739,7 +1739,7 @@ USE MOD_QDS_DG_Vars,       ONLY:DoQDS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES  
+! INPUT VARIABLES
 REAL,INTENT(IN),OPTIONAL :: FlushTime_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1890,7 +1890,7 @@ TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
-! specify chunk size if desired 
+! specify chunk size if desired
 nValMax=nValGlobal
 chunky=.FALSE.
 CALL H5PCREATE_F(H5P_DATASET_CREATE_F,dsetparams,iError)
@@ -2141,11 +2141,11 @@ IF(gatheredWrite)THEN
     CALL abort(&
     __STAMP__&
     ,'Offset only allowed in last dimension for gathered IO.')
-  
+
   ! Get last dim of each array on IO nodes
   nDOFLocal=PRODUCT(nVal)
   CALL MPI_GATHER(nDOFLocal,1,MPI_INTEGER_INT_KIND,nDOFPerNode,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_NODE,iError)
-  
+
   ! Allocate big array and compute offsets of small arrs inside big
   offsetNode=0_IK
   IF(MPILocalRoot)THEN
@@ -2162,7 +2162,7 @@ IF(gatheredWrite)THEN
     IF(PRESENT(IntegerArray))  ALLOCATE(UInt( 1))
     IF(PRESENT(StrArray))      ALLOCATE(UStr( 1))
   ENDIF
-  
+
   ! Associate construct for integer settings
   ASSOCIATE (&
         nDOFLocal    => INT(nDOFLocal)   ,&
@@ -2192,7 +2192,7 @@ IF(gatheredWrite)THEN
     !                                             offset,collective=collective,StrArr =UStr)
     CALL CloseDataFile()
   END IF
-  
+
   SDEALLOCATE(UReal)
   SDEALLOCATE(UInt)
   SDEALLOCATE(UStr)
@@ -2271,7 +2271,7 @@ IF(.NOT.DoNotSplit)THEN
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal          , nVal , &
                                                    offset      , collective=.FALSE. , StrArray =StrArray)
       CALL CloseDataFile()
-    ELSE 
+    ELSE
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                    offset      , collective , RealArray=RealArray)
@@ -2329,7 +2329,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES      
+! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255) :: tempStr
@@ -2708,7 +2708,7 @@ DO iElem =1, nQDSElems
         print*,"Press ENTER to continue"
         read*
       END IF
-      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem) 
+      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem)
       Utemp(5:6,l,k,j,iElem) = QDSMacroValues(5:6,l,k,j,iElem)
     ELSE
       Utemp(:,l,k,j,iElem) = 0.0
