@@ -64,7 +64,7 @@ TYPE tSurfModelMPIExchange
   INTEGER,ALLOCATABLE            :: nCoverageSidesRecv(:)    ! number of sides received from mpi (nProcs)
   INTEGER,ALLOCATABLE            :: SurfDistSendRequest(:,:) ! send request message handle,  1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: SurfDistRecvRequest(:,:) ! recv request message handle,  1 - Number, 2-Message
-  TYPE(tDistNbrComm),ALLOCATABLE :: NbrOfPos(:)              ! array for number of distribution sites sending per proc 
+  TYPE(tDistNbrComm),ALLOCATABLE :: NbrOfPos(:)              ! array for number of distribution sites sending per proc
 END TYPE
 TYPE (tSurfModelMPIExchange)          :: SurfModelExchange
 

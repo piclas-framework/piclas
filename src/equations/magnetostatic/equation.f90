@@ -21,7 +21,7 @@ MODULE MOD_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ INTERFACE InitEquation
   MODULE PROCEDURE InitEquation
 END INTERFACE
 INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc 
+  MODULE PROCEDURE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
@@ -70,7 +70,7 @@ END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -89,7 +89,7 @@ USE MOD_TimeDisc_Vars, ONLY: TEnd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-TEnd=GetReal('TEnd') 
+TEnd=GetReal('TEnd')
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    SWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
@@ -143,14 +143,14 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,ONLY:Abort,MPIRoot
 USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY: IniWavenumber 
+USE MOD_Equation_Vars,ONLY: IniWavenumber
 USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_TimeDisc_vars,ONLY:dt
 ! IMPLICIT VARIABLE HANDLING
@@ -159,13 +159,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
 REAL                            :: x0(3),r1,r2
@@ -218,11 +218,11 @@ USE MOD_Mesh_Vars,ONLY:Elem_xGP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t             
+REAL,INTENT(IN)                 :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                             :: r1,r2
 REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
@@ -231,10 +231,10 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
 #ifdef PARTICLES
 !  DO iElem=1,PP_nElems
-!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 !      !  Get PartSource from Particles
 !      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * PartSource(1:3,i,j,k,iElem)
-!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
+!      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * PartSource(  4,i,j,k,iElem) * c_corr
 !    END DO; END DO; END DO
 !  END DO
 #endif /*PARTICLES*/
@@ -277,22 +277,22 @@ USE MOD_Equation_Vars,ONLY:Pi, eps0, mu0
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_DG_Vars,ONLY:Ut,U
-USE MOD_Mesh_Vars,ONLY:Elem_xGP 
+USE MOD_Mesh_Vars,ONLY:Elem_xGP
 USE MOD_Particle_Mesh_Vars, ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars, ONLY :  RegionElectronRef
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t       
+REAL,INTENT(IN)                 :: t
 INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-REAL                            :: x(3)    
-REAL,INTENT(IN),OPTIONAL     :: Phi     
+REAL                            :: x(3)
+REAL,INTENT(IN),OPTIONAL     :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                             :: r1,r2, source_e
 REAL,DIMENSION(3)                :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 INTEGER                         :: RegionID
@@ -327,7 +327,7 @@ END SUBROUTINE CalcSourceHDG
 
 FUNCTION shapefunc(r)
 !===================================================================================================================================
-! Implementation of (possibly several different) shapefunctions 
+! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
   USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
@@ -340,7 +340,7 @@ FUNCTION shapefunc(r)
 ! OUTPUT VARIABLES
     REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
    IF (r.GE.rCutoff) THEN
      shapefunc = 0.0
@@ -349,12 +349,12 @@ FUNCTION shapefunc(r)
    END IF
 END FUNCTION shapefunc
 
-FUNCTION beta(z,w)                                                                                                
+FUNCTION beta(z,w)
    USE nr
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
-   beta = exp(gammln(z)+gammln(w)-gammln(z+w))                                                                    
-END FUNCTION beta 
+   REAL beta, w, z
+   beta = exp(gammln(z)+gammln(w)-gammln(z+w))
+END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================

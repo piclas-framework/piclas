@@ -58,7 +58,7 @@ INTERFACE CalcInstantTransTemp
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -118,79 +118,79 @@ ASSOCIATE (&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(1))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_vely', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE.,  RealArray=MacroDSMC(:,:)%PartV(2))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_velz', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(3))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_vel', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV(4))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_velx2', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(1))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_vely2', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(2))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_velz2', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartV2(3))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_tempx', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(1))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_tempy', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(2))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_tempz', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(3))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_temp', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%Temp(4))
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_dens', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%NumDens)
-  
+
   CALL WriteArrayToHDF5(DataSetName='DSMC_partnum', rank=2,&
                         nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                         nVal=      (/PP_nElems,    nSpeciesP1/),&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
-  
+
   IF (DSMC%CalcQualityFactors) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
                         nValGlobal=(/nGlobalElems, 3_IK/),&
@@ -198,21 +198,21 @@ ASSOCIATE (&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
   END IF
-  
+
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
                           nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                           nVal=      (/PP_nElems,    nSpeciesP1/),&
                           offset=    (/offsetElem, 0_IK  /),&
                           collective=.TRUE., RealArray=MacroDSMC(:,:)%Tvib)
-  
+
     CALL WriteArrayToHDF5(DataSetName='DSMC_trot', rank=2,&
                           nValGlobal=(/nGlobalElems, nSpeciesP1/),&
                           nVal=      (/PP_nElems,    nSpeciesP1/),&
                           offset=    (/offsetElem, 0_IK  /),&
                           collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
   END IF
-  
+
   IF (DSMC%ElectronicModel) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
                           nValGlobal=(/nGlobalElems, nSpeciesP1/),&
@@ -246,7 +246,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: SampWall, CalcSurfCollis, AnalyzeSurfColli
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
 INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q,locBCID
 REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
@@ -397,7 +397,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
 LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -527,7 +527,7 @@ DO iSurfSide=1,SurfMesh%nSides
         END IF
       END DO ! iSpec=1,nSpecies
     END DO ! q=1,nSurfSample
-  END DO ! p=1,nSurfSample 
+  END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,SurfMesh%nSides
 
 IF (CalcSurfCollis%Output) THEN
@@ -568,14 +568,14 @@ USE MOD_DSMC_Vars     ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1 
-REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search 
+INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1
+REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search
 REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
 REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
 !===================================================================================================================================
@@ -934,7 +934,7 @@ USE MOD_Interpolation_Vars ,ONLY: xGP, wBary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1157,7 +1157,7 @@ CASE('nearest_gausspoint')
     DO j=0, HODSMC%nOutputDSMC; DO k=0, HODSMC%nOutputDSMC; DO l=0, HODSMC%nOutputDSMC
       HODSMC%sJ(j,k,l,iElem)=1./DetJacGauss_N(1,j,k,l)
     END DO; END DO; END DO
-  END DO ! iElem    
+  END DO ! iElem
   ! compute the borders of the virtual volumes around the gauss points in -1|1 space
   ALLOCATE(DSMCSampNearInt%GaussBorder(1:HODSMC%nOutputDSMC),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
@@ -1425,7 +1425,7 @@ CASE('cell_mean')
       DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN              
+          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
             DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
               + PartStateIntEn(i,1) - SpecDSMC(iSpec)%EZeroPoint
             DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,2)
@@ -1467,7 +1467,7 @@ CASE('cell_volweight')
         END IF
         IF (DSMC%ElectronicModel) THEN
           IF ((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
-            TSource(10) = 0.0   
+            TSource(10) = 0.0
           ELSE
             TSource(10) = PartStateIntEn(iPart,3)
           END IF
@@ -1606,7 +1606,7 @@ DSMC_MacroVal = 0.0
 IF (HODSMC%SampleType.EQ.'cell_mean') THEN
   nVarCount=0
   kk = 1 ; ll = 1 ; mm = 1
-  DO iElem = 1, nElems ! element/cell main loop    
+  DO iElem = 1, nElems ! element/cell main loop
     !DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
     MolecPartNum = 0.0
     HeavyPartNum = 0.0
@@ -1663,7 +1663,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
               Total_TempMean  = Total_TempMean + Macro_TempMean*Macro_PartNum
               Total_Density   = Total_Density + Macro_Density
             END IF
-            ! compute internal energies / has to be changed for vfd 
+            ! compute internal energies / has to be changed for vfd
             IF(useDSMC)THEN
               IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
                 IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1780,7 +1780,7 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
 ELSE ! all other sampling types
   nVarCount=0
   DO iSpec = 1, nSpecies
-    DO iElem = 1, nElems ! element/cell main loop    
+    DO iElem = 1, nElems ! element/cell main loop
       DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
         SELECT CASE(TRIM(HODSMC%SampleType))
         CASE('cartmesh_volumeweighting','cell_volweight')
@@ -1794,11 +1794,11 @@ ELSE ! all other sampling types
             !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
           !      IF (usevMPF) THEN
           !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-          !      ELSE 
+          !      ELSE
           !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
           !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
           !      END IF
-          ! compute internal energies / has to be changed for vfd 
+          ! compute internal energies / has to be changed for vfd
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1848,11 +1848,11 @@ ELSE ! all other sampling types
               !       if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
             !      IF (usevMPF) THEN
             !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-            !      ELSE 
+            !      ELSE
             !        MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * &
             !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
             !      END IF
-            ! compute internal energies / has to be changed for vfd 
+            ! compute internal energies / has to be changed for vfd
             IF(useDSMC)THEN
               IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
@@ -1876,7 +1876,7 @@ ELSE ! all other sampling types
                       END IF
                     END IF
                   ELSE                                            ! TSHO-model
-                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                    DSMC_MacroVal(nVarCount+8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
                         , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec) &
                         /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
                   END IF
@@ -1898,12 +1898,12 @@ ELSE ! all other sampling types
         END SELECT
       END DO; END DO; END DO
     END DO
-    ! set counter for species    
+    ! set counter for species
     nVarCount=nVarCount+nVarloc
   END DO
 
   ! write total values
-  DO iElem = 1, nElems ! element/cell main loop    
+  DO iElem = 1, nElems ! element/cell main loop
     DO kk = 0, HODSMC%nOutputDSMC; DO ll = 0, HODSMC%nOutputDSMC; DO mm = 0, HODSMC%nOutputDSMC
       MolecPartNum = 0
       HeavyPartNum = 0
@@ -2037,7 +2037,7 @@ REAL                           :: StartT,EndT
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMC-HO TO HDF5 FILE...'
 #ifdef MPI
   StartT=MPI_WTIME()
-#else 
+#else
   StartT=LOCALTIME()
 #endif
 
@@ -2124,7 +2124,7 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC, & 
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,0:HODSMC%nOutputDSMC, &
         0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
@@ -2256,7 +2256,7 @@ SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case
 !===================================================================================================================================
-! use MODULES                                                    
+! use MODULES
 USE MOD_Particle_Mesh_Vars, ONLY:Geo
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars
@@ -2271,7 +2271,7 @@ REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMma
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                           
+! LOCAL VARIABLES
 INTEGER                     :: i,k,l,m,k2,l2,m2
 !-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -2303,7 +2303,7 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case for MPI
 !===================================================================================================================================
-! use MODULES                                                         
+! use MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -2320,7 +2320,7 @@ REAL,INTENT(INOUT)         :: alphasum(DSMCSampVolWe%BGMminX:DSMCSampVolWe%BGMma
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 TYPE(tMPIMessage)          :: send_message(0:PartMPI%nProcs-1)
 TYPE(tMPIMessage)          :: recv_message(0:PartMPI%nProcs-1)
 INTEGER                    :: send_request(0:PartMPI%nProcs-1)
@@ -2549,7 +2549,7 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
 !===================================================================================================================================
 !> Exchange sources in periodic case for MPI
 !===================================================================================================================================
-! MODULES                                                         
+! MODULES
 USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,tMPIMessage
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Globals
@@ -2563,7 +2563,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 TYPE(tMPIMessage)           :: send_message(0:PartMPI%nProcs-1)
 TYPE(tMPIMessage)           :: recv_message(0:PartMPI%nProcs-1)
 INTEGER                     :: send_request(0:PartMPI%nProcs-1)
@@ -2783,7 +2783,7 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
 !===================================================================================================================================
 !> initialize MPI background mesh
 !===================================================================================================================================
-! MODULES          
+! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals
 USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI
@@ -2919,7 +2919,7 @@ __STAMP__&
    END IF
 END DO
 
-!--- determine border indices for periodic meshes  
+!--- determine border indices for periodic meshes
 IF (GEO%nPeriodicVectors.GT.0) THEN
   DO i = 0,PartMPI%nProcs-1
     IF (i.EQ.PartMPI%MyRank) THEN

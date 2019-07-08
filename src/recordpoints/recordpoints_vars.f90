@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255) :: RPDefFile               ! file with elementlocal parametric RP coords
 LOGICAL            :: RecordPointsInitIsDone = .FALSE.
@@ -37,8 +37,8 @@ INTEGER            :: nSamples=0              ! total no. samples in case of mul
 INTEGER            :: chunkSamples=0          !< time samples per chunk for IO (first iSample in file)
 INTEGER,ALLOCATABLE:: RP_ElemID(:)            ! mapping from RP->Elem (nRP)
 REAL,ALLOCATABLE   :: L_xi_RP(:,:)            ! lagrange basis evaluated at RPs coords
-REAL,ALLOCATABLE   :: L_eta_RP(:,:)            
-REAL,ALLOCATABLE   :: L_zeta_RP(:,:)          
+REAL,ALLOCATABLE   :: L_eta_RP(:,:)
+REAL,ALLOCATABLE   :: L_zeta_RP(:,:)
 REAL,ALLOCATABLE   :: RP_Data(:,:,:)          ! solution evaluated at RPs (nvar,nRP,nSamples)
 REAL,ALLOCATABLE   :: lastSample(:,:)         ! solution evaluated at RPs (nvar,nRP,nSamples)
 CHARACTER(LEN=255) :: StrVarNames(PP_nVar)

@@ -165,7 +165,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  CALL CloseDataFile() 
+  CALL CloseDataFile()
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
@@ -374,7 +374,7 @@ IF(DoRestart)THEN
   StartT=MPI_WTIME()
 #endif
 
-              
+
   ! Temp. vars for integer KIND=8 possibility
   PP_NTmp       = INT(PP_N,IK)
   OffsetElemTmp = INT(OffsetElem,IK)
@@ -418,7 +418,7 @@ IF(DoRestart)THEN
             QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
           END DO; END DO; END DO
         END DO
-        CALL CloseDataFile() 
+        CALL CloseDataFile()
       ELSE! We need to interpolate the solution to the new computational grid
         ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
         CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
@@ -550,7 +550,7 @@ IF(DoRestart)THEN
       !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       !    END DO
       !    DEALLOCATE(U_local)
-      !CALL RestartHDG(U)     
+      !CALL RestartHDG(U)
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
@@ -708,7 +708,7 @@ IF(DoRestart)THEN
     END DO
   END IF
 
-  SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...' 
+  SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...'
   !read local ElemInfo from HDF5
   FirstElemInd=offsetElem+1
   LastElemInd=offsetElem+PP_nElems
@@ -915,7 +915,7 @@ __STAMP__&
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
-    SWRITE(UNIT_stdOut,*)' DONE!' 
+    SWRITE(UNIT_stdOut,*)' DONE!'
     DO i=1,nSpecies
       DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
         Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
@@ -1221,7 +1221,7 @@ __STAMP__&
       IF (WallModel_HDF5.NE.PartSurfaceModel) WallmodelExists=.FALSE.
     END IF
     IF (WallModelExists) THEN
-      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...' 
+      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...'
       ! do sanity checks of data in h5 file before proceeding
       CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
       nSurfBC_HDF5 = INT(HSize(1),4)
@@ -1311,7 +1311,7 @@ __STAMP__&
               END IF
               ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
               ! read local Surface Particle Data from HDF5
-              
+
               ! Associate construct for integer KIND=8 possibility
               ASSOCIATE (&
                     locnSurfPart      => INT(locnSurfPart,IK)      ,&
@@ -1389,7 +1389,7 @@ __STAMP__&
   END IF
 #endif /*PARTICLES*/
 
-  CALL CloseDataFile() 
+  CALL CloseDataFile()
 
 #ifdef PARTICLES
   ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
@@ -1410,9 +1410,9 @@ __STAMP__&
 #ifdef MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #else
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #endif
 ELSE ! no restart
 #ifdef PARTICLES
@@ -1463,14 +1463,14 @@ END IF
 #endif
 
 ! Deposition of particles
-CALL Deposition(doInnerParts=.TRUE.) 
+CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
 ! here: finish deposition with delta kernal
 !       maps source terms in physical space
 ! ALWAYS require
 PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
-CALL Deposition(doInnerParts=.FALSE.) 
+CALL Deposition(doInnerParts=.FALSE.)
 #endif /*PARTICLES*/
 
 ! recompute fields

@@ -147,7 +147,7 @@ DO iElem = 1, nElems
       PartState(iCloneIndx,1) = PartState(iPartIndx,1)
       PartState(iCloneIndx,2) = PartState(iPartIndx,2)
       PartState(iCloneIndx,3) = PartState(iPartIndx,3)
-                ! --------calculate LD-Values for Clone--------      
+                ! --------calculate LD-Values for Clone--------
       PartState(iCloneIndx,4) = BulkValues(iElem)%CellV(1)
       PartState(iCloneIndx,5) = BulkValues(iElem)%CellV(2)
       PartState(iCloneIndx,6) = BulkValues(iElem)%CellV(3)
@@ -161,7 +161,7 @@ DO iElem = 1, nElems
                 ! --------end clone all DSMC-Particles to LD-Particles
                 ! --------
                 ! --------
-  ELSE IF(BulkValues(iElem)%CellType.EQ.3) THEN 
+  ELSE IF(BulkValues(iElem)%CellType.EQ.3) THEN
                 ! -------- => Bufferzone_b:  clone all LD-Particles to DSMC-Particles
                 ! --------first calculate mean part mass--------
     CellMass  = 0.0
@@ -271,7 +271,7 @@ DO iPartIndx = 1, PDM%ParticleVecLength
     END IF
   ELSE
     IF(PartStateBulkValues(iPartIndx,4).EQ. 0.0) THEN ! Delete DSMC Part in LD or Buffer-B Cells
-      PDM%ParticleInside(iPartIndx) = .FALSE.  
+      PDM%ParticleInside(iPartIndx) = .FALSE.
     END IF
   END IF
 END DO
@@ -406,7 +406,7 @@ MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0.0
 MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0.0
 
 DO iSpec = 1, nSpecies
-  DO iElem = 1, nElems ! element/cell main loop    
+  DO iElem = 1, nElems ! element/cell main loop
     IF(SampDSMC(iElem,iSpec)%PartNum.GT. 0) THEN
 ! compute flow velocity
       MacroDSMC(iElem,iSpec)%PartV(1) = SampDSMC(iElem,iSpec)%PartV(1) / SampDSMC(iElem,iSpec)%PartNum
@@ -436,25 +436,25 @@ DO iSpec = 1, nSpecies
       ! comment: if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
       IF (usevMPF) THEN
         MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-      ELSE 
+      ELSE
         MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
       END IF
 ! compute internal energies / has to be changed for vfd
       IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
         (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
-        IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN ! -----------------------------> DSMC 
+        IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN ! -----------------------------> DSMC
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             TVib_TempFac=SampDSMC(iElem,iSpec)%EVib &
                       /(SampDSMC(iElem,iSpec)%PartNum*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
             IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-              MacroDSMC(iElem,iSpec)%TVib = 0.0           
+              MacroDSMC(iElem,iSpec)%TVib = 0.0
             ELSE
               MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
             END IF
           ELSE                                            ! TSHO-model
-            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant) 
-          END IF       
+            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+                , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+          END IF
           MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
           IF (DSMC%ElectronicModel) THEN
             MacroDSMC(iElem,iSpec)%TElec= CalcTelec( SampDSMC(iElem,iSpec)%EElec/SampDSMC(iElem,iSpec)%PartNum, iSpec)
@@ -471,7 +471,7 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 ! compute total values
-DO iElem = 1, nElems ! element/cell main loop 
+DO iElem = 1, nElems ! element/cell main loop
   MolecPartNum = 0
   HeavyPartNum = 0
   DO iSpec = 1, nSpecies
@@ -512,7 +512,7 @@ DO iElem = 1, nElems ! element/cell main loop
     MacroDSMC(iElem,nSpecies + 1)%Temp(2)  = MacroDSMC(iElem,nSpecies + 1)%Temp(2)  / MacroDSMC(iElem,nSpecies + 1)%PartNum
     MacroDSMC(iElem,nSpecies + 1)%Temp(3)  = MacroDSMC(iElem,nSpecies + 1)%Temp(3)  / MacroDSMC(iElem,nSpecies + 1)%PartNum
     IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-          (MolecPartNum.GT. 0)) THEN         
+          (MolecPartNum.GT. 0)) THEN
               MacroDSMC(iElem,nSpecies + 1)%TVib = MacroDSMC(iElem,nSpecies + 1)%TVib / MolecPartNum
               MacroDSMC(iElem,nSpecies + 1)%TRot = MacroDSMC(iElem,nSpecies + 1)%TRot / MolecPartNum
 
@@ -548,7 +548,7 @@ DO iElem = 1, nElems ! element/cell main loop
   MacroDSMC(iElem,nSpecies + 1)%Temp(4)  = (MacroDSMC(iElem,nSpecies + 1)%Temp(1) &
                                           + MacroDSMC(iElem,nSpecies + 1)%Temp(2) &
                                           + MacroDSMC(iElem,nSpecies + 1)%Temp(3)) /3
-  MacroDSMC(iElem,nSpecies + 1)%NumDens = MacroDSMC(iElem,nSpecies + 1)%PartNum * Species(1)%MacroParticleFactor & 
+  MacroDSMC(iElem,nSpecies + 1)%NumDens = MacroDSMC(iElem,nSpecies + 1)%PartNum * Species(1)%MacroParticleFactor &
                                  / GEO%Volume(iElem) ! the calculation is limitied for MPF = const.
   IF (usevMPF) THEN
     MacroDSMC(iElem,nSpecies + 1)%PartNum = 0
@@ -557,7 +557,7 @@ DO iElem = 1, nElems ! element/cell main loop
       MacroDSMC(iElem,nSpecies + 1)%PartNum = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
     END DO
   END IF
-  
+
 !-------------------------------------------DEBUG OUTPUT---------------------------------------------
    MacroDSMC(iElem,nSpecies + 1)%Temp(1)  = CBC_Par(iElem)%Celltype
    MacroDSMC(iElem,nSpecies + 1)%Temp(2)  = CBC_Par(iElem)%TVib
@@ -572,7 +572,7 @@ DO iElem = 1, nElems ! element/cell main loop
 !   MacroDSMC(iElem,nSpecies + 1)%PartNum  = GEO%NumNeighborElems(iElem) + MPIGEO%NumNeighborElems(iElem)
 
 !-------------------------------------------DEBUG OUTPUT---------------------------------------------
-  IF(DSMC%CalcQualityFactors) THEN  
+  IF(DSMC%CalcQualityFactors) THEN
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN ! -----------------------------> DSMC
       IF ((MacroDSMC(iElem,nSpecies+1)%PartNum.GT.0).AND.(MacroDSMC(iElem,nSpecies + 1)%Temp(4).GT.0)) THEN
         DSMC%QualityFactors(iElem,3) = DSMC%QualityFacSamp(iElem,3) &

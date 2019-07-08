@@ -70,7 +70,7 @@ DO iElem = 1, nElems
 
 
 !  IF(LocalY_Val.GT. 0.87) THEN
-!    IF((LocalX_Val.GE. 1.15).AND.(LocalX_Val.LE. 1.19)) BulkValues(iElem)%CellType = 1  
+!    IF((LocalX_Val.GE. 1.15).AND.(LocalX_Val.LE. 1.19)) BulkValues(iElem)%CellType = 1
 !    IF( ((LocalX_Val.GE. 1.12).AND.(LocalX_Val.LT. 1.15)) &
 !   .OR. ((LocalX_Val.GT. 1.19).AND.(LocalX_Val.LE. 1.22)) ) BulkValues(iElem)%CellType = 2
 !    IF( ((LocalX_Val.GE. 1.09).AND.(LocalX_Val.LT. 1.12)) &
@@ -83,7 +83,7 @@ DO iElem = 1, nElems
 !    F_4 = FunctionVal + 0.04
 !    F_5 = FunctionVal + 0.07
 !    F_6 = FunctionVal + 0.1
-!    IF((LocalX_Val.GE. F_3).AND.(LocalX_Val.LE. F_4)) BulkValues(iElem)%CellType = 1  
+!    IF((LocalX_Val.GE. F_3).AND.(LocalX_Val.LE. F_4)) BulkValues(iElem)%CellType = 1
 !    IF( ((LocalX_Val.GE. F_2).AND.(LocalX_Val.LT. F_3)) &
 !   .OR. ((LocalX_Val.GT. F_4).AND.(LocalX_Val.LE. F_5)) ) BulkValues(iElem)%CellType = 2
 !    IF( ((LocalX_Val.GE. F_1).AND.(LocalX_Val.LT. F_2)) &
@@ -91,7 +91,7 @@ DO iElem = 1, nElems
 !  END IF
 
 !!! - Tunnel Test Case
-!    IF((LocalX_Val.GE. 0.004).AND.(LocalX_Val.LE. 0.006)) BulkValues(iElem)%CellType = 1  
+!    IF((LocalX_Val.GE. 0.004).AND.(LocalX_Val.LE. 0.006)) BulkValues(iElem)%CellType = 1
 !    IF( ((LocalX_Val.GE. 0.003).AND.(LocalX_Val.LT. 0.004)) &
 !   .OR. ((LocalX_Val.GT. 0.006).AND.(LocalX_Val.LE. 0.007)) ) BulkValues(iElem)%CellType = 2
 !    IF( ((LocalX_Val.GE. 0.002).AND.(LocalX_Val.LT. 0.003)) &
@@ -138,7 +138,7 @@ DO iElem = 1, nElems
   IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN ! overwrite maxwell velocities in case of LD
     nPart = PEM%pNumber(iElem)
     iPartIndx = PEM%pStart(iElem)
-    DO iPart = 1, nPart 
+    DO iPart = 1, nPart
       PartState(iPartIndx,4) = PartStateBulkValues(iPartIndx,1)
       PartState(iPartIndx,5) = PartStateBulkValues(iPartIndx,2)
       PartState(iPartIndx,6) = PartStateBulkValues(iPartIndx,3)
@@ -146,7 +146,7 @@ DO iElem = 1, nElems
     END DO
   END IF
 ! ---adjust cell values for Bufferzone_A
-  IF(BulkValues(iElem)%CellType.EQ.2) THEN 
+  IF(BulkValues(iElem)%CellType.EQ.2) THEN
     BulkValues(iElem)%CellV           = 0.0
     BulkValues(iElem)%MassDens        = 0.0
     BulkValues(iElem)%DegreeOfFreedom = 0.0

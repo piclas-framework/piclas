@@ -23,7 +23,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling   
+INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
@@ -40,12 +40,12 @@ TYPE tSurfaceSendList
   INTEGER                               :: NativeProcID
   INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
-  
+
   INTEGER,ALLOCATABLE                   :: SurfDistSendList(:)           ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: SurfDistRecvList(:)           ! list containing surfsideid of sides to recv from proc
   INTEGER,ALLOCATABLE                   :: CoverageSendList(:)           ! list containing surfsideid of sides to send to proc
   INTEGER,ALLOCATABLE                   :: CoverageRecvList(:)           ! list containing surfsideid of sides to recv from proc
-  
+
 END TYPE
 #endif /*MPI*/
 
@@ -75,14 +75,14 @@ TYPE tSurfaceMesh
   INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
   INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
   INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
-  REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
+  REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface
   INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)             ! Mapping of surface side ID (reflective) to side ID
   INTEGER,ALLOCATABLE                   :: innerBCSideToHaloMap(:)       ! map of inner BC ID on slave side to corresp. HaloSide
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
 
-TYPE tSampWall             ! DSMC sample for Wall                                             
+TYPE tSampWall             ! DSMC sample for Wall
   ! easier to communicate
   REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
                                                                        ! 4-6   E_rot (pre, wall, re),
@@ -105,7 +105,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   !                                                                    ! 7-9 E_vib (pre, wall, re)
   !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
-  REAL                                  :: PumpCapacity                ! 
+  REAL                                  :: PumpCapacity                !
 END TYPE
 TYPE(tSampWall), ALLOCATABLE            :: SampWall(:)             ! Wall sample array (number of BC-Sides)
 
@@ -155,12 +155,12 @@ TYPE tSurfColl
   LOGICAL                               :: OnlySwaps              ! count only wall collisions being SpeciesSwaps (def. F)
   LOGICAL                               :: Only0Swaps             ! count only wall collisions being delete-SpeciesSwaps (def. F)
   LOGICAL                               :: Output                 ! Print sums of all counted wall collisions (def. F)
-  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles 
+  LOGICAL                               :: AnalyzeSurfCollis      ! Output of collided/swaped particles
                                                                   ! during Sampling period? (def. F)
 END TYPE
 TYPE (tSurfColl)                        :: CalcSurfCollis
-  
-TYPE tAnalyzeSurfCollis 
+
+TYPE tAnalyzeSurfCollis
   INTEGER                               :: maxPartNumber          ! max. number of collided/swaped particles during Sampling
   REAL, ALLOCATABLE                     :: Data(:,:)              ! Output of collided/swaped particles during Sampling period
                                                                   ! (Species,Particles,Data(x,y,z,u,v,w)
@@ -187,13 +187,13 @@ TYPE tPartBoundary
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
+  REAL    , ALLOCATABLE                  :: TransACC(:)
+  REAL    , ALLOCATABLE                  :: VibACC(:)
+  REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:), Voltage_CollectCharges(:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
@@ -280,13 +280,13 @@ TYPE tPartAuxBC
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
+  REAL    , ALLOCATABLE                  :: MomentumACC(:)
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
+  REAL    , ALLOCATABLE                  :: TransACC(:)
+  REAL    , ALLOCATABLE                  :: VibACC(:)
+  REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
+  REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete

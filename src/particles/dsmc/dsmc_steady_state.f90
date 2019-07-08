@@ -34,7 +34,7 @@ INTERFACE SteadyStateDetection_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ CONTAINS
 
 SUBROUTINE DSMC_SteadyStateInit()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
@@ -461,7 +461,7 @@ SUBROUTINE DSMC_SteadyStateInit()
   ! Set Parameters for the Mann - Kendall - Test
     ALLOCATE(MK_Trend(nElems))
     MK_Trend(1:nElems) = 10
-    
+
     ALLOCATE(Sampler(nElems,nSpecies))
     Sampler(1:nElems,1:nSpecies)%Energy(1) = 0.0
     Sampler(1:nElems,1:nSpecies)%Energy(2) = 0.0
@@ -505,10 +505,10 @@ SUBROUTINE  QCrit_evaluation()
 #ifdef MPI
   USE mpi
   USE MOD_Globals,               ONLY : MPIRoot
-#endif  
+#endif
 !--------------------------------------------------------------------------------------------------!
 ! Q-Criterion Evaluation Routine (Boyd,Burt)
-!  Count the number of particles that interact with surfaces or domain boundaries per cell 
+!  Count the number of particles that interact with surfaces or domain boundaries per cell
 !  over 'QCritTestStep' iterations (particle_boundary_treatment).
 !  Analyze the difference between two successive intervals statistically for steady state conditions.
 !--------------------------------------------------------------------------------------------------!
@@ -521,7 +521,7 @@ SUBROUTINE  QCrit_evaluation()
   REAL              :: QValue
   REAL              :: maxValue, SideValue
   INTEGER           :: iSide, nSides
-  
+
   INTEGER :: rank ! DEBUG
 #ifdef MPI
   REAL              :: maxValue_global
@@ -532,7 +532,7 @@ SUBROUTINE  QCrit_evaluation()
 
   Qfactor1 = -1.23 ! Boyd, Burt
   Qfactor2 = 1.85  ! Boyd, Burt
-  
+
   ! DEBUG
 #ifdef MPI
   CALL MPI_COMM_RANK(MPI_COMM_WORLD,rank,IERROR)
@@ -540,14 +540,14 @@ SUBROUTINE  QCrit_evaluation()
   rank = 0
 #endif
   ! DEBUG
-  
+
   maxValue = 0.0
   nSides = 0
   DO iSide=1,nBCSides
     IF(((QCritCounter(iSide,1)+QCritCounter(iSide,2)).GT.0).AND.PartBound%UseForQCrit(BC(iSide))) THEN
       ! Evaluate Criterion for side iSide with successive counts:
       SideValue = abs(REAL(QCritCounter(iSide,1)-QCritCounter(iSide,2)))/sqrt(REAL(QCritCounter(iSide,1)+QCritCounter(iSide,2)))
-      QLocal(iSide) = SideValue      
+      QLocal(iSide) = SideValue
       IF(SideValue.GE.maxValue) maxValue = SideValue
       ! Save latest Count, Reset acutal Counter
       QCritCounter(iSide,2) = QCritCounter(iSide,1)
@@ -555,14 +555,14 @@ SUBROUTINE  QCrit_evaluation()
       nSides = nSides + 1
     ENDIF
   ENDDO
-  
+
 #ifdef MPI
       CALL MPI_ALLREDUCE(nSides,nSides_global,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
       nSides = nSides_global
 #endif
-  
+
   QLocal(1:nBCSides) = QLocal(1:nBCSides) / sqrt(Qfactor1+Qfactor2*log(REAL(nSides)))
-  
+
   IF(nSides.GE.20) THEN
 #ifdef MPI
     CALL MPI_ALLREDUCE(maxValue,maxValue_global,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
@@ -573,7 +573,7 @@ SUBROUTINE  QCrit_evaluation()
     SWRITE(*,*)'ERROR: Not enough Sides for Q-Criterion'
     QValue = 0.0
   ENDIF
-  
+
 ! DEBUG
   IF(rank.EQ.0) THEN
       OPEN(UNIT=900,FILE='QCrit.txt',POSITION='APPEND')
@@ -581,15 +581,15 @@ SUBROUTINE  QCrit_evaluation()
       CLOSE(900)
   ENDIF
 ! DEBUG
-  
+
   IF(QValue.LT.(1.0+QCritEpsilon)) SamplingActive = .TRUE.
 
 END SUBROUTINE QCrit_evaluation
 
 
 SUBROUTINE SteadyStateDetection_main()
-  
-  USE MOD_DSMC_Vars,             ONLY : DSMC, CollisMode, SpecDSMC 
+
+  USE MOD_DSMC_Vars,             ONLY : DSMC, CollisMode, SpecDSMC
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_Particle_Vars,         ONLY : nSpecies, Species
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
@@ -598,7 +598,7 @@ SUBROUTINE SteadyStateDetection_main()
 #ifdef MPI
   USE mpi
 #endif
-  
+
 !--------------------------------------------------------------------------------------------------------!
 ! Steady State Detection - Algorithm
 !  1. Sampling of local flow properties over 'nSamplingIters' for variance reduction
@@ -609,7 +609,7 @@ SUBROUTINE SteadyStateDetection_main()
    IMPLICIT NONE                                                                                         !
 !--------------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                              !
-! Local variable declaration   
+! Local variable declaration
   INTEGER            :: iElem,iSpecies,iTime,iVal
   LOGICAL            :: CheckVelo(3)   ! Flagg whether flow property is to check: velocity (x,y,z)
   LOGICAL            :: CheckEnerg(3)  !  trans. temperature (x,y,z)
@@ -622,7 +622,7 @@ SUBROUTINE SteadyStateDetection_main()
 
 ! Sampling of macroscopic properties (over nSamplingIters) for reduction of variance and autocorrelation effects (Step 1)
   CALL SteadyStateDetection_Sampling()
-  
+
   ! initialize all flow properties to check with false
   CheckVelo = .FALSE.
   CheckEnerg= .FALSE.
@@ -639,9 +639,9 @@ SUBROUTINE SteadyStateDetection_main()
   !CheckIntEn(2) = .TRUE. ! vibrational energy
   !CheckIntEn(3) = .TRUE. ! electronic state
   !CheckDens = .TRUE.   ! density
-   
+
   iSamplingIters = iSamplingIters + 1
-  
+
   IF(iSamplingIters.EQ.nSamplingIters) THEN
 ! Step 2: Write Sampled Values into History (memorizing last nTime sampled values only)
     IF(HistTime.LT.nTime) THEN
@@ -799,23 +799,23 @@ SUBROUTINE SteadyStateDetection_main()
       ENDIF
     ENDIF
   ENDIF
-  
+
 END SUBROUTINE SteadyStateDetection_main
 
 
 SUBROUTINE SteadyStateDetection_Sampling()
-  
+
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartSpecies, PartMPF, PartState
   USE MOD_DSMC_Vars,             ONLY : Sampler, DSMC, PartStateIntEn, CollisMode, SpecDSMC
-  
+
 !--------------------------------------------------------------------------------------------------------!
 ! Sampling of macroscopic properties (over nSamplingIters) for reduction of variance and autocorrelation effects
 !--------------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                         !
 !--------------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                              !
-! Local variable declaration   
+! Local variable declaration
   INTEGER           :: iElem, iParts, PartIndex, nParts
 !--------------------------------------------------------------------------------------------------------!
 
@@ -825,7 +825,7 @@ SUBROUTINE SteadyStateDetection_Sampling()
     DO iParts = 1, nParts
       ! Summation of energy and velocity for each cell and species
       IF(usevMPF) THEN
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) & 
+        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
                                                             + 0.5 * PartMPF(PartIndex) * PartState(PartIndex,4:6)**2
         Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
                                                             + PartMPF(PartIndex) * PartState(PartIndex,4:6)
@@ -844,7 +844,7 @@ SUBROUTINE SteadyStateDetection_Sampling()
                                                             + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
         ENDIF
       ELSE
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) & 
+        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
                                                             + 0.5 * PartState(PartIndex,4:6)**2
         Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
                                                             + PartState(PartIndex,4:6)
@@ -862,7 +862,7 @@ SUBROUTINE SteadyStateDetection_Sampling()
           Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
                                                             + PartStateIntEn(PartIndex,2)
         ENDIF
-      ENDIF 
+      ENDIF
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
   ENDDO
@@ -884,7 +884,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
 #ifdef MPI
   USE mpi
 #endif
-  
+
 !--------------------------------------------------------------------------------------------------------!
 ! Steady State Detection based on macroscopic properties using a statistical detection algorithm
 !  Identifier 'Method' decides which statistical test to use:
@@ -896,10 +896,10 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
 !--------------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                         !
 !--------------------------------------------------------------------------------------------------------!
-! argument list declaration       
+! argument list declaration
   INTEGER, INTENT(IN) :: iSpec  ! Species
   INTEGER, INTENT(IN) :: iVal  ! Property
-! Local variable declaration   
+! Local variable declaration
   INTEGER           :: Method    ! Set Test Method to use
   REAL              :: Alpha    ! Set Level of Significance
   INTEGER, ALLOCATABLE :: NoParts(:)  ! Identifier if there were no particles in cell (number of cells)
@@ -910,7 +910,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   REAL, ALLOCATABLE :: MeanDetrended(:)    ! Arithmetic Mean for Data reduced by Trend (number of cells)
   REAL, ALLOCATABLE :: SigmaDetrended(:)  ! Trend Corrected Standard Deviation (sqrt(Variance)) (number of cells)
   REAL,ALLOCATABLE  :: RelSigma(:)    ! Trend Corrected Variation Coefficient (Sigma/Mean) (number of cells)
-  
+
   ! 1: Von-Neumann-Test
   REAL              :: sVar2, dVar2    ! Sample Variance, Mean Squared Successive Difference
   ! 2: Euclidian Distance Test
@@ -923,11 +923,11 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   REAL              :: DriftP      ! Trend estimated via Savitzky-Golay-Filter
   ! 5: Mann Kendall Test
   REAL              :: Trend      ! Normalized Trend estimated from Mann Kendall Test
-  REAL              :: MKCrit      ! Critical Value for the Mann Kendall Test (Normal Distribution) 
+  REAL              :: MKCrit      ! Critical Value for the Mann Kendall Test (Normal Distribution)
 
   INTEGER           :: iCounter, iCounter_global  ! Counter for Cells in steady state (Single, MPI)
   INTEGER           :: nElems_global      ! Overall Number of Cells (MPI)
-  
+
   INTEGER           :: iElem, iTime, jTime
 #ifdef MPI
   INTEGER           :: IERROR
@@ -941,31 +941,31 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
    iProc = 0
 #endif
    !WRITE(string,*)iProc
-   
-   
+
+
    ! Select Test Method
    Method = 5
-   
+
    ! Select Test Significance
    !  I.E.: If (nCells_steady/nCells) > (1-Alpha), then accept steady state
    Alpha = 0.02
-   
+
    IF(iProc.EQ.0) OPEN(UNIT=100,FILE='Neumann.txt',POSITION='APPEND')
    IF(iProc.EQ.0) OPEN(UNIT=102,FILE='ED.txt',POSITION='APPEND')
    IF(iProc.EQ.0) OPEN(UNIT=105,FILE='Stud.txt',POSITION='APPEND')
    IF(iProc.EQ.0) OPEN(UNIT=107,FILE='PIT.txt',POSITION='APPEND')
    IF(iProc.EQ.0) OPEN(UNIT=109,FILE='MK.txt',POSITION='APPEND')
- 
+
    ALLOCATE(MeanDetrended(nElems))
    ALLOCATE(SigmaDetrended(nElems))
    ALLOCATE(RelSigma(nElems))
-   
+
    MeanDetrended(1:nElems) = 0
    SigmaDetrended(1:nElems) = 0
    RelSigma(1:nElems) = 0
-   
+
    ALLOCATE(NoParts(nElems))
-   
+
    NoParts(1:nElems) = 0
 
 ! Check History for Steady State
@@ -987,48 +987,48 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
  ! Variance Estimation (Trend Corrected - Trend Estimation via Linear Regression) - for Methods 2,3,4
    IF((Method.EQ.2).OR.(Method.EQ.3).OR.(Method.EQ.4)) THEN
       DO iElem = 1, nElems
-      
+
         ! 1) Arithmetic Mean of Sample:
         Mean  = 0
         DO iTime = 1, nTime
           Mean = Mean + CheckHistory(iElem,iTime)
         ENDDO
         Mean = Mean / nTime
-        
+
         ! 2) Trend Estimation via Linear Regression:
         Drift = 0
         DO iTime = 1, nTime
           Drift = Drift + (iTime - 0.5*(nTime+1)) * (CheckHistory(iElem,iTime) - Mean)
         ENDDO
         Drift = Drift * 12.0/((nTime-1)*nTime*(nTime+1))
-        
+
         ! 3) Arithmetic Mean for Data reduced by Trend
         DO iTime = 1, nTime
           MeanDetrended(iElem) = MeanDetrended(iElem) + (CheckHistory(iElem,iTime) - Drift*(iTime-1))
         ENDDO
         MeanDetrended(iElem) = MeanDetrended(iElem) / nTime
-        
+
         ! 4) Trend Corrected Standard Deviation and Variation Coefficient
         DO iTime = 1, nTime
           SigmaDetrended(iElem) = SigmaDetrended(iElem) + (CheckHistory(iElem,iTime) - MeanDetrended(iElem) - Drift*(iTime-1))**2
         ENDDO
         SigmaDetrended(iElem) = sqrt(SigmaDetrended(iElem)/(nTime-2))
         RelSigma(iElem) = abs(SigmaDetrended(iElem)/Mean)
-        
+
       ENDDO
    ENDIF
  ! End Variance Estimation
- 
+
    IF(Method.EQ.1) THEN
  ! Steady State Detection with the Von Neumann - Method
- !  Trend detection by analyzing the ratio of the sample variance 'sVar2' and the mean squared successive difference 'dVar2' 
+ !  Trend detection by analyzing the ratio of the sample variance 'sVar2' and the mean squared successive difference 'dVar2'
  !  Von-Neumann-Ratio: R = 0.5 * s^2 / d^2
  ! Check each Cell separately
      DO iElem = 1, nElems
        Mean = 0
        sVar2 = 0
        dVar2 = 0
-       RValue(iElem) = -1.0   
+       RValue(iElem) = -1.0
        DO iTime = 1, nTime
          Mean = Mean + CheckHistory(iElem,iTime)
        ENDDO
@@ -1107,7 +1107,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
          SteadyIdent(iElem,iSpec,iVal) = 0
        ENDIF
        IF(iProc.EQ.0.AND.iElem.EQ.1) WRITE(107,*)iter+1,abs(DriftP),SigmaDetrended(iElem)*PITCrit
-       PIT_Drift(iElem) = abs(DriftP) / ( SigmaDetrended(iElem) * PITCrit )  
+       PIT_Drift(iElem) = abs(DriftP) / ( SigmaDetrended(iElem) * PITCrit )
      ENDDO
    ELSEIF(Method.EQ.5) THEN
  ! Steady State Detection with the Mann Kendall Test
@@ -1124,7 +1124,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
            ENDIF
          ENDDO
        ENDDO
-       IF(Trend.GT.0) THEN 
+       IF(Trend.GT.0) THEN
          Trend = (Trend - 1)/sqrt(REAL(nTime*(nTime-1)*(2*nTime+5))/18)
        ELSEIF(Trend.LT.0) THEN
          Trend = (Trend + 1)/sqrt(REAL(nTime*(nTime-1)*(2*nTime+5))/18)
@@ -1138,10 +1138,10 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
          SteadyIdent(iElem,iSpec,iVal) = 1
        ELSE
          SteadyIdent(iElem,iSpec,iVal) = 0
-       ENDIF       
+       ENDIF
      ENDDO
    ENDIF
-   
+
  ! Check if all Cells are in Steady State
    iCounter = 0
    DO iElem = 1, nElems
@@ -1158,16 +1158,16 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
    !
    IF(iCounter_global.GE.(nElems_global*(1.0-Alpha))) SteadyIdentGlobal(iSpec,iVal) = 1
 
-   DEALLOCATE(MeanDetrended) 
+   DEALLOCATE(MeanDetrended)
    DEALLOCATE(SigmaDetrended)
    DEALLOCATE(RelSigma)
-   
+
    IF(iProc.EQ.0) CLOSE(100)
    IF(iProc.EQ.0) CLOSE(102)
    IF(iProc.EQ.0) CLOSE(105)
    IF(iProc.EQ.0) CLOSE(107)
    IF(iProc.EQ.0) CLOSE(109)
- 
+
 END SUBROUTINE SteadyStateDetection_Algorithm
 
 
@@ -1176,7 +1176,7 @@ SUBROUTINE  EntropyCalculation()
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartState!, Species, PartSpecies, PartMPF
   USE MOD_DSMC_Vars,             ONLY : HValue
-  
+
 !--------------------------------------------------------------------------------------------------!
 ! Cellwise Calculation of Entropy Parameter 'H' using in Boltzmann's H - Theorem:
 !  H = - Integral(f(v)*ln(f(v)),dv,R^3)
@@ -1209,17 +1209,17 @@ SUBROUTINE  EntropyCalculation()
 
 ! Set the Density Estimation Method
   Mode = 1
-  
+
   ! Loop over all Cells
   DO iElem = 1, nElems
-    
+
     nParts = PEM%pNumber(iElem)
     IF(nParts.LT.2) THEN
       ! Not enough particles in Cell, Set H to Zero
       HValue(iElem) = 0.0
       CYCLE
     ENDIF
-    
+
     ! Determine Minimum, Maximum and Average Particle Velocities
     PartIndex = PEM%pStart(iElem)
     maxvel(1:3) = PartState(PartIndex,4:6)
@@ -1238,7 +1238,7 @@ SUBROUTINE  EntropyCalculation()
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
     avvel(1:3)  = avvel(1:3) / nParts
-    
+
     ! Calculate the Standard Deviation of the Particle Velocities
     ! (for Determination of Optimum Bin-Size resp. Bandwidth)
     PartIndex = PEM%pStart(iElem)
@@ -1250,36 +1250,36 @@ SUBROUTINE  EntropyCalculation()
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
     sigmavel(1:3) = sqrt(sigmavel(1:3)/(nParts-1))
-    
+
     IF(Mode.EQ.1) THEN
       ! Histogram: Adapt the Velocity Intervals to ensure all paticles are captured
       minvel(1:3) = minvel(1:3) - abs(0.01*minvel(1:3))
       maxvel(1:3) = maxvel(1:3) + abs(0.01*maxvel(1:3))
-    ELSE 
+    ELSE
       ! KDE: Widen the Velocity Intervals to ensure correct integration of the density function
       minvel(1:3) = minvel(1:3) - 2.6 * sigmavel(1:3)
       maxvel(1:3) = maxvel(1:3) + 2.6 * sigmavel(1:3)
     ENDIF
-    
+
     IF(Mode.EQ.1) THEN
      ! Use the Histogram Method
      !  The Velocity Space (from mimimum to maximum particle velocity in all directions only, i.e. a Cuboid)
-     !  is in each direction divided into 'nBins' intervals with constant size (BinWidth). 
+     !  is in each direction divided into 'nBins' intervals with constant size (BinWidth).
      !  Thus, we have nBins(1)*nBins(2)*nBins(3) Bins (Cells).
-     !  For each Bin with index i,j,k the Number of Particles with velocities lying inside this Bin 
+     !  For each Bin with index i,j,k the Number of Particles with velocities lying inside this Bin
      !  is determined (BinCounter(i,j,k)),
-     !  as an estimate for the local mean value of the density function; it is 
+     !  as an estimate for the local mean value of the density function; it is
      !  f(i,j,k) = BinCounter(i,j,k)/(nParts*BinWidth(1)*BinWidth(2)*BinWidth(3)).
      !  Here, the Number of Particles is used directly to solve the integral for H with the (3-dimensional) rectangle method:
      !  H = - Summation(f(i,j,k)*ln(f(i,j,k)*DV)
-     
+
       ! Set Optimum Bin Size (Scott)
       BinWidth(1:3) = 3.5 * sigmavel(1:3) / REAL(nParts)**0.2
       nBins(1:3) = CEILING((maxvel(1:3) - minvel(1:3)) / BinWidth(1:3))
       BinWidth(1:3) = (maxvel(1:3) - minvel(1:3)) / nBins(1:3)
-      
+
       ALLOCATE(BinCounter(nBins(1),nBins(2),nBins(3)))
-  
+
       ! Distribute the Particles to the Bins
       BinCounter(1:nBins(1),1:nBins(2),1:nBins(3)) = 0
       PartIndex = PEM%pStart(iElem)
@@ -1334,7 +1334,7 @@ SUBROUTINE  EntropyCalculation()
         ENDIF
         PartIndex = PEM%pNext(PartIndex)
       ENDDO
-      
+
       ! Calculate the H - Integral with the (3-dimensional) rectangle method
       HValue(iElem) = 0.0
       DO iBin = 1, nBins(1)
@@ -1346,17 +1346,17 @@ SUBROUTINE  EntropyCalculation()
         ENDDO
       ENDDO
       DEALLOCATE(BinCounter)
-    
+
     ELSE
      ! Use Kernel Density Estimation
-     
+
       ! Set Optimum Bandwidth for KDE (Silverman)
       Bandwidth2(1:3) = 0.9382 * (sigmavel(1:3)**2) / (REAL(nParts)**0.2857)
-      
+
       ! Set Stepsize and Boundaries for numerical integration
       nSteps = 12
       deltav(1:3) = (maxvel(1:3) - minvel(1:3))/nSteps
-      
+
       ! Solve integral numerically using (3-dimensional) rectangle method
       HValue(iElem) = 0.0
       vpos(1) = minvel(1) + 0.5 * deltav(1)
@@ -1374,23 +1374,23 @@ SUBROUTINE  EntropyCalculation()
         ENDDO
         vpos(1) = vpos(1) + deltav(1)
       ENDDO
-    
+
     ENDIF
-    
+
   ENDDO
-  
+
 END SUBROUTINE EntropyCalculation
 
 SUBROUTINE KernelDensityEstimation(Elem,Pos,Bandwidth2,Dens)
 
   USE MOD_Particle_Vars,         ONLY : PEM, PartState
-  
+
 !--------------------------------------------------------------------------------------------------!
 ! Kernel Density Estimation (3D Gaussian Kernel)
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
-! argument list declaration  
+! argument list declaration
   INTEGER, INTENT(IN)   :: Elem
   REAL, INTENT(IN)      :: Pos(3)    ! Position (x,y,z)
   REAL, INTENT(IN)      :: Bandwidth2(3)  ! Kernel Bandwidth (x,y,z)
@@ -1399,19 +1399,19 @@ SUBROUTINE KernelDensityEstimation(Elem,Pos,Bandwidth2,Dens)
   INTEGER               :: iPart, nParts, PartIndex
   REAL                  :: PI
 !--------------------------------------------------------------------------------------------------!
-  
+
   PI = 4*ATAN(1.0)
   Dens = 0.0
   nParts = PEM%pNumber(Elem)
   PartIndex = PEM%pStart(Elem)
-  
+
   DO iPart = 1, nParts
     Dens = Dens + exp(-0.5*(((Pos(1)-PartState(PartIndex,4))**2)/Bandwidth2(1)+((Pos(2)-PartState(PartIndex,5))**2) &
          / Bandwidth2(2)+((Pos(3)-PartState(PartIndex,6))**2)/Bandwidth2(3)))
     PartIndex = PEM%pNext(PartIndex)
   ENDDO
   Dens = Dens / (nParts*((2*PI)**1.5)*sqrt(Bandwidth2(1)*Bandwidth2(2)*Bandwidth2(3)))
-  
+
 END SUBROUTINE KernelDensityEstimation
 
 

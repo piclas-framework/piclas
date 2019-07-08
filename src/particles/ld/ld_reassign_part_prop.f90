@@ -77,7 +77,7 @@ USE MOD_TimeDisc_Vars,         ONLY : dt
       vLAG = SurfLagValues(iLocSide,iElem,trinum)%LagVelo
       kon = Dens / (2. * SQRT(PI) * Beta**2)
       VeloDir = Velo(1) * NVec(1) &
-              + Velo(2) * NVec(2) &  
+              + Velo(2) * NVec(2) &
               + Velo(3) * NVec(3)
       VeloDiff =  Beta * ( VeloDir - vLAG )
       Phi  = kon * ( VeloDiff * EXP(-VeloDiff**2) + SQRT(PI) &
@@ -218,7 +218,7 @@ SUBROUTINE CalcCellTemp_PartDens(iElem, CellTemp, CellPartDens)
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+   IMPLICIT NONE
 ! LOCAL VARIABLES
 !--------------------------------------------------------------------------------------------------!
   REAL                          :: CellMass, WeightFak, MPFSum
@@ -267,7 +267,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+   IMPLICIT NONE
 ! LOCAL VARIABLES
 !--------------------------------------------------------------------------------------------------!
   REAL              :: Area
@@ -338,7 +338,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound
       DeltaM(2) = DeltaM(2) + dt * Area * ( &
                   4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(2) &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(2) &
-                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(2) ) 
+                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(2) )
       DeltaM(3) = DeltaM(3) + dt * Area * ( &
                   4. / 3. * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(3) &
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(3) &
@@ -360,10 +360,10 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound
     SpecR = BulkValues(iElem)%SpezGasConst
     BulkVeloCellT1 = (BulkValues(iElem)%CellV(1)-WallVelo(1)) * T1Vec(1) &
                    + (BulkValues(iElem)%CellV(2)-WallVelo(2)) * T1Vec(2) &
-                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T1Vec(3) 
+                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T1Vec(3)
     BulkVeloCellT2 = (BulkValues(iElem)%CellV(1)-WallVelo(1)) * T2Vec(1) &
                    + (BulkValues(iElem)%CellV(2)-WallVelo(2)) * T2Vec(2) &
-                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T2Vec(3) 
+                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T2Vec(3)
 
     DeltaM(1) = DeltaM(1) - MomentumACC * dt * Area * (BulkVeloCellT1 * T1Vec(1) + BulkVeloCellT2 * T2Vec(1)) &
               * BulkValues(iElem)%MassDens * SQRT(SpecR * TempCell /(2 * PI))

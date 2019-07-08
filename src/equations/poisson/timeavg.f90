@@ -14,8 +14,8 @@
 
 !==================================================================================================================================
 !> Routine performing time averaging of variables and the preparation to computing fluctuations
-!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and 
-!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$ 
+!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and
+!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$
 !> the fluctuations are the RMS values
 !> list structure: 1:PP_nVar - Varnames of equationsystem
 !>                 PP_nVar+  - additional variables
@@ -56,7 +56,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,    ONLY: CNTSTR,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
-USE MOD_Timeaverage_Vars 
+USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
 USE MOD_Particle_Vars,  ONLY: nSpecies
@@ -372,7 +372,7 @@ DO iElem=1,nElems
   IF(CalcAvg(4)) tmpVars(iAvg(4),:,:,:) = E(3,:,:,:,iElem)
 
   ! ElectricFieldMagnitude
-  IF(CalcAvg(5))THEN  
+  IF(CalcAvg(5))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       tmpVars(iAvg(5),i,j,k)=SQRT(SUM(E(1:3,i,j,k,iElem)**2))
     END DO; END DO; END DO

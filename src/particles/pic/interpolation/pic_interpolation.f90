@@ -14,7 +14,7 @@
 
 MODULE  MOD_PICInterpolation
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
@@ -83,7 +83,7 @@ externalField=externalField*ScaleExternalField
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
 
-! Variable external field 
+! Variable external field
 useVariableExternalField = .FALSE.
 FileNameVariableExternalField=GETSTR('PIC-curvedexternalField','none')     ! old variable name (for backward compatibility)
 IF (FileNameVariableExternalField.EQ.'none') THEN                          ! if not supplied, check the new variable name
@@ -113,7 +113,7 @@ END IF
 
 !--- Allocate arrays for interpolation of fields to particles
 SDEALLOCATE(FieldAtParticle)
-ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
+ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
   __STAMP__ &
@@ -172,7 +172,7 @@ USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #ifdef MPI
 ! only required for shape function??  only required for shape function??
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-#endif 
+#endif
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic,AnalyticInterpolationType
 #endif /* CODE_ANALYZE */
@@ -185,10 +185,10 @@ LOGICAL                          :: doInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                    
+! LOCAL VARIABLES
 INTEGER                          :: firstPart,lastPart
-REAL                             :: Pos(3)                                                      
-REAL                             :: field(6)                                                    
+REAL                             :: Pos(3)
+REAL                             :: field(6)
 INTEGER                          :: iPart,iElem
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
@@ -388,12 +388,12 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #else
 #ifdef PP_POIS
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif defined PP_HDG
 #if PP_nVar==1
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif PP_nVar==3
-              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
+              CALL EvaluateFieldAtRefPos(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
               HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
               HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
@@ -496,7 +496,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
               CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,HelperU,field(1:6),iElem,iPart)
 #else
               CALL EvaluateFieldAtPhysPos(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
-#endif  
+#endif
 #else
 #ifdef PP_POIS
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
@@ -512,7 +512,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #else
               CALL EvaluateFieldAtPhysPos(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem,iPart)
-#endif           
+#endif
 #endif
               FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
             END IF ! Element(iPart).EQ.iElem
@@ -610,7 +610,7 @@ __STAMP__&
        , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
-    
+
 RETURN
 END SUBROUTINE InterpolateFieldToParticle
 
@@ -627,7 +627,7 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifndef PP_HDG
 USE MOD_DG_Vars,                 ONLY:U
 #endif
-USE MOD_PIC_Vars!,      ONLY: 
+USE MOD_PIC_Vars!,      ONLY:
 USE MOD_PICInterpolation_Vars,   ONLY:useVariableExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:GetPositionInRefElem,EvaluateFieldAtPhysPos,EvaluateFieldAtRefPos
@@ -659,7 +659,7 @@ INTEGER,INTENT(IN)            :: PartID
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                    
+! LOCAL VARIABLES
 REAL                         :: Pos(3),Field(1:6)
 INTEGER                      :: ElemID
 ! for Nearest GaussPoint
@@ -985,7 +985,7 @@ __STAMP__&
     , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
-    
+
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
@@ -1019,9 +1019,9 @@ DO WHILE (err.EQ.0)
   READ(ioUnit,*,IOSTAT = err) dummy
   IF (err.EQ.-1) THEN
     EXIT
-  END IF 
+  END IF
   ERR = 0
-  ncounts = ncounts + 1 
+  ncounts = ncounts + 1
 END DO
 REWIND(ioUnit)
 nIntPoints = ncounts
@@ -1033,13 +1033,13 @@ DO ii = 1, ncounts
     diff_comp  = VariableExternalField(1,2)  - VariableExternalField(1,1)
     diff_check = VariableExternalField(1,ii) - VariableExternalField(1,ii-1)
     IF( (.NOT.ALMOSTEQUALRELATIVE(diff_comp,diff_check,1E-5)) .AND. ((diff_comp.GT.0.0).AND.(diff_check.GT.0.0)) )THEN
-      SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field." 
+      SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field."
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_comp
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_check
       CALL abort(&
 __STAMP__&
         ,' Error in dataset!')
-    END IF  
+    END IF
   END IF
 END DO
 CLOSE (ioUnit)
@@ -1056,7 +1056,7 @@ IF(ncounts.GT.1) THEN
   IF(DeltaExternalField.LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
-ELSE 
+ELSE
   CALL abort(&
 __STAMP__&
 , &
@@ -1084,7 +1084,7 @@ REAL,INTENT(IN)          :: Pos                               !< particle z-posi
 ! OUTPUT VARIABLES
 REAL                     :: InterpolateVariableExternalField  !< Bz (magnetic field in z-direction)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
 !===================================================================================================================================
 iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
@@ -1097,6 +1097,6 @@ ELSE ! Linear Interpolation between iPos and iPos+1 B point
                                    / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
-END FUNCTION InterpolateVariableExternalField 
+END FUNCTION InterpolateVariableExternalField
 
 END MODULE MOD_PICInterpolation

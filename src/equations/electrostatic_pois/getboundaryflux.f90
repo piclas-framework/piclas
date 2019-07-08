@@ -21,7 +21,7 @@ MODULE MOD_GetBoundaryFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
@@ -121,7 +121,7 @@ DO i=1,nBCs
     CALL ReadBCFlow(BCStateFile)
     !CALL abort(__STAMP__&
     !     'no BC defined in maxwell/getboundaryflux.f90!')
-    EXIT    
+    EXIT
   END IF
 END DO
 
@@ -215,7 +215,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     ! Determine the exact BC state
    DO iSide=1,nBCLoc
@@ -253,7 +253,7 @@ DO iBC=1,nBCs
       ! Dirichlet means that we use the gradients from inside the grid cell
       CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE DEFAULT ! unknown BCType
     CALL abort(&
     __STAMP__&
@@ -379,7 +379,7 @@ IF(.NOT. InterpolateSolution)THEN
         OffsetElem => INT(OffsetElem,IK) )
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U_N)
   END ASSOCIATE
-  ! read additional data (e.g. indicators etc)                                                
+  ! read additional data (e.g. indicators etc)
 ELSE
   SWRITE(UNIT_stdOut,'(A)')' Interpolating BC-state...'
   ! We need to interpolate the solution to the new computational grid
@@ -418,7 +418,7 @@ ELSE
   END DO
   !DEALLOCATE(U_local,Vdm_NHDF5_N)
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 
 SWRITE(UNIT_stdOut,'(A)')'  Interpolating the BC flow on the BC sides...'
 CALL ProlongToFace_BC(U_N,BCData)

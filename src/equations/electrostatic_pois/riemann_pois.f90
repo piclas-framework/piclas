@@ -19,7 +19,7 @@ MODULE MOD_Riemann_Pois
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -52,24 +52,24 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                                             :: n_loc(3),A_p(4,4),A_n(4,4)
 INTEGER                                          :: Count_1,Count_2
-!REAL                                             :: D(3,3)                  ! auxiliary matrices used 
+!REAL                                             :: D(3,3)                  ! auxiliary matrices used
 !REAL                                             :: E(3,3), E_trans(3,3)    ! auxiliary matrices used
 !===================================================================================================================================
 ! Gauss point i,j
 DO Count_2=0,PP_N
   DO Count_1=0,PP_N
     n_loc(:)=nv(:,Count_1,Count_2)
-  
+
 !    A_p(1,1) = c_corr_c
 !    A_p(2,2) = c_corr_c * n_loc(1)*n_loc(1)
 !    A_p(2,3) = c_corr_c* n_loc(1)*n_loc(2)
 !    A_p(2,4) = c_corr_c* n_loc(1)*n_loc(3)
 !    A_p(3,2) = A_p(2,3)
 !    A_p(3,3) = c_corr_c * n_loc(2)*n_loc(2)
-!    A_p(3,4) = c_corr_c* n_loc(2)*n_loc(3) 
+!    A_p(3,4) = c_corr_c* n_loc(2)*n_loc(3)
 !    A_p(4,2) = A_p(2,4)
 !    A_p(4,3) = A_p(3,4)
 !    A_p(4,4) = c_corr_c * n_loc(3)*n_loc(3)
@@ -77,28 +77,28 @@ DO Count_2=0,PP_N
 !    !negative A-Matrix
 !    A_n(1,1)=-A_p(1,1)
 !    A_n(2:4,2:4)=-A_p(2:4,2:4)
-!  
+!
 !   ! !positive A-Matrix-Divergence-Correction-Term
 !    A_p(1,2) = -c_corr_c2*n_loc(1)
 !    A_p(1,3) = -c_corr_c2*n_loc(2)
-!    A_p(1,4) = -c_corr_c2*n_loc(3)   
+!    A_p(1,4) = -c_corr_c2*n_loc(3)
 !    A_p(2,1) = -c_corr*n_loc(1)
 !    A_p(3,1) = -c_corr*n_loc(2)
 !    A_p(4,1) = -c_corr*n_loc(3)
 !    !negative A-Matrix-Divergence-Correction-Term
-!    A_n(1,2:4) = A_p(1,2:4) !c_corr*c*c*n(1)           
+!    A_n(1,2:4) = A_p(1,2:4) !c_corr*c*c*n(1)
 !    A_n(2:4,1)= A_p(2:4,1)
 
 
 !--- for original version see below (easier to understand)
-  
+
     A_p(1,1) = c_corr_c
     A_p(2,2) = c_corr_c * n_loc(1)*n_loc(1)
     A_p(2,3) = c_corr_c* n_loc(1)*n_loc(2)
     A_p(2,4) = c_corr_c* n_loc(1)*n_loc(3)
     A_p(3,2) = A_p(2,3)
     A_p(3,3) = c_corr_c * n_loc(2)*n_loc(2)
-    A_p(3,4) = c_corr_c* n_loc(2)*n_loc(3) 
+    A_p(3,4) = c_corr_c* n_loc(2)*n_loc(3)
     A_p(4,2) = A_p(2,4)
     A_p(4,3) = A_p(3,4)
     A_p(4,4) = c_corr_c * n_loc(3)*n_loc(3)
@@ -106,21 +106,21 @@ DO Count_2=0,PP_N
     !negative A-Matrix
     A_n(1,1)=-A_p(1,1)
     A_n(2:4,2:4)=-A_p(2:4,2:4)
-  
+
    ! !positive A-Matrix-Divergence-Correction-Term
     A_p(1,2) = c_corr_c2*n_loc(1)
     A_p(1,3) = c_corr_c2*n_loc(2)
-    A_p(1,4) = c_corr_c2*n_loc(3)   
+    A_p(1,4) = c_corr_c2*n_loc(3)
     A_p(2,1) = c_corr*n_loc(1)
     A_p(3,1) = c_corr*n_loc(2)
     A_p(4,1) = c_corr*n_loc(3)
     !negative A-Matrix-Divergence-Correction-Term
-    A_n(1,2:4) = A_p(1,2:4) !c_corr*c*c*n(1)           
+    A_n(1,2:4) = A_p(1,2:4) !c_corr*c*c*n(1)
     A_n(2:4,1)= A_p(2:4,1)
 
     ! Warum 0.5 -> Antwort im Taube/Dumbser-Paper. Im Munz/Schneider Paper fehlt das 0.5 lustigerweise.
 
-    
+
     F(:,Count_1,Count_2)=0.5*(MATMUL(A_n,U_R(:,Count_1,Count_2))+MATMUL(A_p,U_L(:,Count_1,Count_2)))
   END DO
 END DO
