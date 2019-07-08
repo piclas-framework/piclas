@@ -207,29 +207,13 @@ gnu_poisson:
 #                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
 #                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-gnu_PIC_gyrotron_variable_Bz:
+gnu_PIC_maxwell_RK4:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
   tags:
     - withmodules-concurrent
   script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_gyrotron_variable_Bz/maxwell -e ./bin/piclas
-
-gnu_PIC_single_particle_PML:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_single_particle_PML/maxwell -e ./bin/piclas
-    
-gnu_PIC_IMD_coupling:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_IMD_coupling/maxwell -e ./bin/piclas
+    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
 gnu_PIC_maxwell_implicitBC:
   <<: *defaults_gnu
@@ -239,14 +223,6 @@ gnu_PIC_maxwell_implicitBC:
   script:
     - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
 
-gnu_PIC_initial_ionization:
-  <<: *defaults_gnu
-  stage: reggie_feature_checkin
-  tags:
-    - withmodules-concurrent
-  script:
-    - cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_InitialIonization -e ./bin/piclas
-    
 gnu_DSMC_check:
   <<: *defaults_gnu
   stage: reggie_feature_checkin
@@ -313,37 +289,21 @@ gnu_feature_dielectric:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
 
-gnu_PIC:
+gnu_PIC_maxwell_RK4:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_single_particle/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
 
-gnu_emission_gyro:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_emission_gyrotron ; fi
-
-gnu_TWT:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_TWT_recordpoints ; fi
-       
 gnu_convtest:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest ; fi
 
 gnu_convtest_t:
   <<: *defaults_gnu
@@ -351,16 +311,24 @@ gnu_convtest_t:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
        
-gnu_poisson_turner:
+gnu_poisson_RK3:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_turner/ ; fi
-       
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
+
+gnu_poisson_leapfrog:
+  <<: *defaults_gnu
+  stage: reggie_nightly
+  tags:
+    - withmodules-concurrent
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
+
 gnu_power_density:
   <<: *defaults_gnu
   stage: reggie_nightly
@@ -369,13 +337,13 @@ gnu_power_density:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson_powerdensity/ ; fi
 
-gnu_maxwell_cylinder_PML:
+gnu_maxwell_RK4:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_cylinder_PML/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
 
 gnu_PIC_poisson_plasma_wave:
   <<: *defaults_gnu
@@ -393,37 +361,13 @@ gnu_maxwell_sphere_dielectric:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
 
-gnu_maxwell_ExactFlux_PML:
+gnu_PIC_poisson_implicit04:
   <<: *defaults_gnu
   stage: reggie_nightly
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_ExactFlux_PML/ ; fi
-
-gnu_poisson_implicit_surface_flux:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicitsf/ ; fi
-
-gnu_feature_PIC_poisson_imexfluid:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_imexfluid/ ; fi
-
-gnu_PIC_maxwell_bgfield:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_bgfield/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
 
 gnu_QDS:
   <<: *defaults_gnu
@@ -464,14 +408,6 @@ gnu_PIC_deposition:
     - withmodules-concurrent
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
-
-gnu_PIC_innerBC_SFLocalDepoBC:
-  <<: *defaults_gnu
-  stage: reggie_nightly
-  tags:
-    - withmodules-concurrent
-  script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build_gnu ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/ ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
