@@ -200,7 +200,7 @@ TYPE tDSMC
                                                             ! loop over all vibrational modes (every mode has its own corrected
                                                             ! relaxation probability, comparison with the same random number
                                                             ! while the previous probability is added to the next)
-  REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+  REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temperature for each cell (nSpieces+1)
   LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)

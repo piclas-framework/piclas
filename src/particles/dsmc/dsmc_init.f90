@@ -618,7 +618,7 @@ __STAMP__&
     ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
     ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
-    CollInf%alphaVSS=1.                                     !  to be solved VHS default alpha=1   -späterer zeitpunkt, dass man einfach alpha 1
+    CollInf%alphaVSS=1.                                     ! to be solved VHS default alpha=1   -späterer zeitpunkt, dass man einfach alpha 1
     CollInf%omegaVSS=0.                                     ! setzt, um VHS zu rechnen. Dann muss auch omega anders gesetzt werden
     CollInf%dref=0.                                    
     CollInf%Tref=0.                                     
@@ -640,19 +640,19 @@ __STAMP__&
         END IF
       END DO
     END DO
-  ELSEIF (CollInf%collMod.EQ.0) THEN !VHS 
+  ELSEIF (CollInf%collMod.EQ.0) THEN ! VHS default 
     CollInf%alphaVSS=1.
     CollInf%omegaVSS=0.
       DO iSpec=1,nSpecies
       ! das kann dann geändert werden 
       ! bleibt man direct bei SpecDSMC
-      ! oder stellt man so um, dass mit collinf omega gerechnet wird
+      ! oder stellt man so um, dass mit collinf omega gerechnet wird - to be solved
         CollInf%omegaVSS(iSpec,iSpec)=SpecDSMC(iSpec)%omegaVHS
       END DO
   ELSE 
-!    CALL Abort(&
-!      __STAMP__&
-!      ,'Collision model error !')
+    CALL Abort(&
+      __STAMP__&
+      ,'Collision model error! Choose VHS or VSS ')
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

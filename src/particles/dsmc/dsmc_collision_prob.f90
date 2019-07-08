@@ -108,8 +108,12 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       ! to be solved
       ELSE IF(CollInf%CollMod.EQ.1) THEN                                                                  ! VSS
         sigma_vss              = DSMC_Cross_Section( iPair, CollInf%dref, CollInf%Tref, Coll_pData(iPair)%CRela2 )
-        Coll_pData(iPair)%Prob = (Species(PartSpecies(collPart1ID))%MacroParticleFactor * sigma_tot   &
-                               * SQRT(Coll_pData(iPair)%CRela2) * dt) / Volume                ! with the assumption of only one MPF
+        ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
+        Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
+                               * sigma_vss / CollInf%Coll_CaseNum(collPairID)           &          
+                               * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
+                               * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
+
 
 
 

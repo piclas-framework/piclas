@@ -2889,7 +2889,7 @@ END SUBROUTINE DSMC_calc_P_vib
 
 REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
 !===================================================================================================================================
-! Cross section sigma_t is calculated, which is collision-specific and not collision-averaged.(Krishnan 2015/2016) 
+! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not collision-averaged.(Krishnan 2015/2016) 
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
