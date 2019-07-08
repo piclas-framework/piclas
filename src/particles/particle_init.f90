@@ -2326,7 +2326,7 @@ __STAMP__&
        END IF
        PartBound%SolidCrystalIndx(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-SolidCrystalIndx',hilf2)
      END IF
-     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
+     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
        !read Species to be changed at wall (in, out), out=0: delete
        PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
        DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(iPartBound)

@@ -160,7 +160,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
 INTEGER,INTENT(IN)          :: specID       !< input species
-REAL,INTENT(IN)             :: temp         !< input temperature [K]  
+REAL,INTENT(IN)             :: temp         !< input temperature [K]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

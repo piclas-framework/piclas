@@ -174,7 +174,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ELSE
       ! chemical surface interaction (e.g. adsorption)
       adsorbindex = 0
-      ! Decide which interaction (reflection, reaction, adsorption)            
+      ! Decide which interaction (reflection, reaction, adsorption)
       CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,adsorbindex&
                                             ,opt_Reflected=crossedBC,TriNum=TriNum)
       ! assign right treatment

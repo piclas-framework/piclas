@@ -1258,7 +1258,7 @@ locnSurfPart = 0
 nSurfPart_glob = 0
 offsetnSurfPart = 0
 
-! calculate number of adsorbates on each coordination (already on surface) and all sites 
+! calculate number of adsorbates on each coordination (already on surface) and all sites
 DO iSurfSide = 1,SurfMesh%nSides
   SideID = SurfMesh%SurfIDToSideID(iSurfSide)
   PartboundID = PartBound%MapToPartBC(BC(SideID))
@@ -1404,7 +1404,7 @@ ASSOCIATE (&
                         collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
 END ASSOCIATE
 CALL CloseDataFile()
-!#endif /*MPI*/                          
+!#endif /*MPI*/
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(StrVarNamesData)
 SDEALLOCATE(SurfPartInt)

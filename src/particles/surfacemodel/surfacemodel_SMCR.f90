@@ -205,7 +205,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 ! calculate probability for molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ReactNum = 0
-! check for occupation of nearest Neighbours or wether 
+! check for occupation of nearest Neighbours or wether
 IF ( (SiteSpec.EQ.0) .AND. (.NOT.SpaceOccupied(SurfID,subsurfxi,subsurfeta,Coord,SurfPos)) &
     .AND. (INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%adsorbnum_tmp(iSpec)).LT.1)) THEN
   ! calculation of molecular adsorption probability

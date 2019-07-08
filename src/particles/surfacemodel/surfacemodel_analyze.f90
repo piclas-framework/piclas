@@ -207,7 +207,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*MPI*/
-#if ( PP_TimeDiscMethod ==42) 
+#if ( PP_TimeDiscMethod ==42)
 USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
 #endif /* DSMC*/

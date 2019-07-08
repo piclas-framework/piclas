@@ -58,7 +58,7 @@ SUBROUTINE UpdateSurfModelVars()
 !===================================================================================================================================
 !> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
 !> Only procs with surface enter function, all other exit routine
-!> 1. Communicate number of particles that were absorbed by halo-sides of neighbour procs (SumAdsorbPart and SumERDesorbed), 
+!> 1. Communicate number of particles that were absorbed by halo-sides of neighbour procs (SumAdsorbPart and SumERDesorbed),
 !>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
@@ -67,7 +67,7 @@ SUBROUTINE UpdateSurfModelVars()
 !> 2.2  Sample macroscopic surface coverage values
 !> 3. Reset/Adjust surface model sum counters
 !> 4. Calculate global mean probabilities for surface models
-!> 5. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
+!> 5. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !

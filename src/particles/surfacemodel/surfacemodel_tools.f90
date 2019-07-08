@@ -175,7 +175,7 @@ INTEGER                          :: PartBoundID, iReactNum, RecombReactID, jSpec
 DO SurfSide=1,SurfMesh%nSides
   PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSide)))
   IF (.NOT.PartBound%Reactive(PartboundID)) CYCLE
-! special TPD (temperature programmed desorption) temperature adjustment routine    
+! special TPD (temperature programmed desorption) temperature adjustment routine
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
     WallTemp = PartBound%WallTemp(PartBoundID) + (Adsorption%TPD_beta * iter * dt)
@@ -289,7 +289,7 @@ Coordination = Adsorption%Coordination(PartBoundID,Species)
 !ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 !   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-!x(:) = 1. ! averaged bond-index for surface atoms 
+!x(:) = 1. ! averaged bond-index for surface atoms
 m(:) = 1  ! number of adsorbates belonging to surface atom
 Calc_Adsorb_Heat = 0.
 sigma = 0.
@@ -617,7 +617,7 @@ Xi_Rot = 0
 IF(SpecDSMC(SpecID)%InterID.EQ.2) THEN
   IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
     EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(SpecID)%EZeroPoint
-    ! Calculation of the vibrational degree of freedom for the particle 
+    ! Calculation of the vibrational degree of freedom for the particle
     IF (PartStateIntEn(PartID,1).GT.SpecDSMC(SpecID)%EZeroPoint) THEN
       Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(SpecID)%EZeroPoint) &
               / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), SpecID))
@@ -761,7 +761,7 @@ CASE(3) ! eley-rideal
 !  IF(SpecDSMC(PartnerSpecies)%InterID.EQ.2) THEN
 !    IF(SpecDSMC(PartnerSpecies)%PolyatomicMol) THEN
 !      EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(PartnerSpecies)%EZeroPoint
-!      ! Calculation of the vibrational degree of freedom for the particle 
+!      ! Calculation of the vibrational degree of freedom for the particle
 !      IF (SurfPartVibE.GT.SpecDSMC(PartnerSpecies)%EZeroPoint) THEN
 !        Xi_vib = Xi_vib + 2.*(SurfPartVibE-SpecDSMC(PartnerSpecies)%EZeroPoint) &
 !                / (BoltzmannConst*CalcTVibPoly(SurfPartVibE, PartnerSpecies))

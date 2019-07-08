@@ -101,7 +101,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                                        ! 5+iSpecies: Coverage of iSpecies
                                                                        !    adsorption%coverage added in updatesurfacevars
   REAL,ALLOCATABLE                      :: SurfModelReactCount(:,:,:,:)! 1-2*nReact,1-nSpecies: E-R + LHrecombination coefficient
-                                                                       ! (2*nReact,nSpecies,p,q) 
+                                                                       ! (2*nReact,nSpecies,p,q)
                                                                        ! doubled entries due to adsorb and desorb direction counter
   REAL,ALLOCATABLE                      :: Accomodation(:,:,:)         ! 1-nSpecies: Accomodation
                                                                        ! (nSpecies,p,q)
@@ -207,11 +207,11 @@ TYPE tPartBoundary
                                                                              ! 0 perfect/diffusive reflection
                                                                              ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
                                                                              ! 2 Recombination coefficient (Laux model)
-                                                                             ! 3 adsorption/desorption + chemical interaction 
+                                                                             ! 3 adsorption/desorption + chemical interaction
                                                                              !   (SMCR with UBI-QEP, TST)
                                                                              ! 4 TODO
                                                                              ! 5 SEE (secondary e- emission) by Levko2015
-                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016 
+                                                                             ! 6 SEE (secondary e- emission) by Pagonakis2016
                                                                              !   (orignally from Harrower1956)
                                                                              ! 101 liquid condensation coeff = 1 + evaporation
                                                                              ! 102 liquid tsuruta model
