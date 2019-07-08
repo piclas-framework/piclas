@@ -57,7 +57,7 @@ USE MOD_Mesh_Vars           ,ONLY: nVecLoc, SurfLoc
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFElem
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
 USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
-USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ DO iLocSide = 1,6
     CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacBC)
     JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
   END IF
-END DO ! iLocSide 
+END DO ! iLocSide
 
  ! loop over columns: oo,mm,nn -> s
  DO oo = 0,PP_N
@@ -131,7 +131,7 @@ END DO ! iLocSide
            END DO ! j
          END DO ! k
      END DO ! nn
-   END DO ! mm 
+   END DO ! mm
  END DO ! oo
 
 END SUBROUTINE DGJacSurfInt
@@ -150,7 +150,7 @@ USE MOD_Mesh_Vars           ,ONLY: nVecLoc, SurfLoc
 USE MOD_LinearSolver_Vars   ,ONLY: nDOFLine
 USE MOD_Jac_Ex_Vars         ,ONLY: LL_minus, LL_plus
 USE MOD_JacExRiemann        ,ONLY: ConstructJacRiemann,ConstructJacBCRiemann,ConstructJacRiemannDielectric
-USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem 
+USE MOD_Dielectric_vars     ,ONLY: DoDielectric,isDielectricElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -177,7 +177,7 @@ JacBC = 0.
 
 DO iLocSide = 1,6
   SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-  ! check for dielectric 
+  ! check for dielectric
   IF(DoDielectric) THEN
     ! if it is a dielectric element, the preconditioner has to consider the it on the face
     IF(isDielectricElem(iElem))THEN !  master is DIELECTRIC and slave PHYSICAL
@@ -193,7 +193,7 @@ DO iLocSide = 1,6
    CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),SurfLoc(:,:,iLocSide,iElem),JacBC)
    JacA(:,:,:,:,iLocSide) = JacA(:,:,:,:,iLocSide) + JacBC(:,:,:,:)
   END IF
-END DO ! iLocSide 
+END DO ! iLocSide
 
 
 DO oo = 0,PP_N
@@ -223,7 +223,7 @@ DO oo = 0,PP_N
                                               + LL_Plus (k,oo)*JacA(1:PP_nVar,1:PP_nVar,mm,nn,ZETA_PLUS)  )
       END DO ! k
     END DO ! nn
-  END DO ! mm 
+  END DO ! mm
 END DO ! oo
 
 
@@ -256,7 +256,7 @@ END DO ! oo
 
 END SUBROUTINE DGJacSurfInt1D
 
-#ifdef DoNotCompileThis 
+#ifdef DoNotCompileThis
 SUBROUTINE DGJacSurfInt(BJ,iElem)
 !===================================================================================================================================
 ! Debug version only for xi minus, xi plus, eta minus
@@ -337,7 +337,7 @@ END DO ! i
 !           END DO ! j
 !         END DO ! k
 !     END DO ! nn
-!   END DO ! mm 
+!   END DO ! mm
 ! END DO ! oo
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -357,7 +357,7 @@ END DO ! i
 !  CALL ConstructJacBCRiemann(BCType,nVec(:,:,:,XI_PLUS,iElem),Surf(:,:,XI_PLUS,iElem),JacBC)
 !  JacA = JacA + JacBC
 ! END IF
-! 
+!
 ! DO oo = 0,PP_N
 !   DO nn = 0,PP_N
 !     DO mm = 0,PP_N
@@ -372,7 +372,7 @@ END DO ! i
 !           END DO ! j
 !         END DO ! k
 !     END DO ! nn
-!   END DO ! mm 
+!   END DO ! mm
 ! END DO ! oo
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -406,7 +406,7 @@ END DO ! i
            END DO ! j
          END DO ! k
      END DO ! nn
-   END DO ! mm 
+   END DO ! mm
  END DO ! oo
 
 END SUBROUTINE DGJacSurfInt

@@ -4,7 +4,7 @@ The code is licensed under the GNU General Public License V3. The licence can be
 
 ## PICLas Documentation
 
-The documentation is a work in progress. A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder.
+The documentation is a work in progress. For an installation guide please refer to the documentation.
 
 1. [Introduction](doc/userguide/000_userguide.md)
 2. [Installation](doc/userguide/010_installation.md)
@@ -14,7 +14,9 @@ The documentation is a work in progress. A PDF file can be generated simply by e
 6. [Tutorials](doc/userguide/050_tutorials.md)
 7. [Development Guide](doc/userguide/080_cluster_guide.md)
 
-For an installation guide please refer to the documentation. The tools are known to work with the following software versions:
+A PDF file can be generated simply by executing *make* in the *doc/userguide/* folder. This requires `pandoc`, `pandoc-citeproc` and `LaTeX`. More information about pandoc and its installation can be found [here](https://pandoc.org/installing.html).
+
+The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
 * HDF5 > 1.8.13

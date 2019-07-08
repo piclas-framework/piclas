@@ -55,7 +55,7 @@ USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE
 REAL,INTENT(IN)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(IN)    :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,7 +66,7 @@ REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 INTEGER            :: ElemID,Flip,SideID,locSideID
 INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL               ::L_HatMinus0,L_HatPlusN 
+REAL               ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 
@@ -91,7 +91,7 @@ DO SideID=firstSideID,lastSideID
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
-  IF(DoPML)THEN 
+  IF(DoPML)THEN
     IF(isPMLElem(ElemID))THEN
       CALL CalcSurfInt2PML(Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
     ELSE
@@ -105,11 +105,11 @@ END DO ! SideID=1,nSides
 
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
-  ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  IF(DoPML)THEN 
+  IF(DoPML)THEN
     IF(isPMLElem(ElemID))THEN
       CALL CalcSurfInt2PML(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
     ELSE
@@ -146,7 +146,7 @@ REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 INTEGER            :: p,q,l
 !INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL            ::L_HatMinus0,L_HatPlusN 
+REAL            ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 #if (PP_NodeType>1)
@@ -335,7 +335,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_MINUS)
@@ -362,7 +362,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,p,PP_N-q)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ZETA_MINUS direction
 !===================================================================================================================================
   CASE(ZETA_MINUS)
@@ -389,7 +389,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
 !===================================================================================================================================
   CASE(XI_PLUS)
 !===================================================================================================================================
@@ -415,7 +415,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,p,PP_N-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_PLUS)
@@ -495,7 +495,7 @@ REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 INTEGER            :: p,q,l
 !INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL            ::L_HatMinus0,L_HatPlusN 
+REAL            ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 #if (PP_NodeType>1)
@@ -721,7 +721,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_MINUS)
@@ -753,7 +753,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ZETA_MINUS direction
 !===================================================================================================================================
   CASE(ZETA_MINUS)
@@ -785,7 +785,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
 !===================================================================================================================================
   CASE(XI_PLUS)
 !===================================================================================================================================
@@ -816,7 +816,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_PLUS)

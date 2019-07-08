@@ -46,7 +46,7 @@ USE MOD_ParticleInit           ,ONLY: InitialIonization
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                    :: Time
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
@@ -63,7 +63,7 @@ SWRITE(UNIT_stdOut,'(A)')"                                       | (         | |
 SWRITE(UNIT_stdOut,'(A)')"                                       | )      ___) (___| (____/\| (____/\| )   ( |/\____) |"
 SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_______/(_______/(_______/|/     \|\_______)"
 SWRITE(UNIT_stdOut,'(132(" "))')
-SWRITE(UNIT_stdOut,'(A)')"piclas version 1.2.0"
+SWRITE(UNIT_stdOut,'(A)')"piclas version 1.3.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()
@@ -107,7 +107,7 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   ! Print out error message containing valid syntax
   !CALL CollectiveStop(__STAMP__,'ERROR - Invalid syntax. Please use: piclas parameter.ini [DSMC.ini] [restart.h5]'// &
   !  'or piclas --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
-  ParameterFile = ".piclas.ini" 
+  ParameterFile = ".piclas.ini"
   CALL ExtractParameterFile(Args(1), ParameterFile, userblockFound)
   IF (.NOT.userblockFound) THEN
     CALL CollectiveStop(__STAMP__, "No userblock found in state file '"//TRIM(Args(1))//"'")

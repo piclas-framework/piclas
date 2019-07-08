@@ -21,7 +21,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE        :: FieldAtParticle(:,:)          !< (PIC%maxParticleNumber,6) 2nd index: Ex,Ey,Ez,Bx,By,Bz
 CHARACTER(LEN=256)      :: InterpolationType             !< Type of Interpolation-Method
@@ -51,7 +51,7 @@ LOGICAL                 :: DoInterpolationAnalytic       !< use analytic/algebra
 
 INTEGER                 :: AnalyticInterpolationType     !< Type of the analytic interpolation method
 !                                                        !< 1: magnetostatic field: B = B_z = B_0 * EXP(x/l)
-!                                                        !< 
+!                                                        !<
 
 INTEGER                 :: AnalyticInterpolationSubType  !< Sub-Type for the analytic interpolation method (in combination with
 !                                                        !< AnalyticInterpolationType)

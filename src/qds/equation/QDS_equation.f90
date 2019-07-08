@@ -24,7 +24,7 @@ MODULE MOD_QDS_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -47,7 +47,7 @@ PUBLIC::QDS_InitEquation
 CONTAINS
 
 
-SUBROUTINE QDS_InitEquation() 
+SUBROUTINE QDS_InitEquation()
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -64,7 +64,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 ! set number of variables
 !QDSnVar=40
@@ -79,7 +79,7 @@ U_Face_old = 0.0
 END SUBROUTINE QDS_InitEquation
 
 
-SUBROUTINE QDS_ExactFunc(QDSExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE QDS_ExactFunc(QDSExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -95,13 +95,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: QDSExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:QDSnVar_macro)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Resu_t(1:QDSnVar_macro),Resu_tt(1:QDSnVar_macro) ! state in conservative variables
 REAL                            :: Cent(3)
 REAL                            :: EOS_R
@@ -111,9 +111,9 @@ SELECT CASE (QDSExactFunction)
 #ifdef PARTICLES
 CASE(0) ! Particles
   Resu=0.
-  !resu(1:3)= x(1:3)!*x(1) 
+  !resu(1:3)= x(1:3)!*x(1)
 #endif
-CASE(1) ! Constant 
+CASE(1) ! Constant
   Resu=1.
   Resu_t=0.
   Resu_tt=0.

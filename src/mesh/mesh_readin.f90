@@ -31,7 +31,7 @@ IMPLICIT NONE
 !>  Named parameters for ElemInfo array in mesh file
 !> @{
 INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
-INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position, 
+INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position,
 INTEGER,PARAMETER    :: ELEM_Zone=2
 INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
 INTEGER,PARAMETER    :: ELEM_LastSideInd=4
@@ -212,18 +212,16 @@ USE MOD_Mesh_Vars,          ONLY:BoundaryType
 USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
 USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
-#ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
-#endif
-USE MOD_LoadBalance_Vars,   ONLY:ElemGlobalTime
 USE MOD_IO_HDF5
 #ifdef MPI
-USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,TargetWeight
-USE MOD_LoadBalance_Vars,   ONLY:ElemTime
+USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem,nSurfacePartsPerElem
+USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,   ONLY:nSurfacePartsPerElem
+#endif
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -254,7 +252,7 @@ INTEGER                        :: CornerNodeIDswitch(8)
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
 INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
-INTEGER                        :: nPeriodicSides,nMPIPeriodics 
+INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
@@ -267,11 +265,14 @@ INTEGER,ALLOCATABLE            :: MPISideCount(:)
 #endif
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
-LOGICAL                        :: isMortarMeshExists,ElemTimeExists
+LOGICAL                        :: isMortarMeshExists
+#ifdef MPI
 INTEGER                        :: nVal(15),iVar
+LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+#endif
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
@@ -306,7 +307,7 @@ ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
 
-IF (DoRestart) THEN 
+IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! 1) Only MPIRoot does readin of ElemTime
@@ -402,6 +403,7 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
   SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' NewImbalance:     ', NewImbalance
+  DEALLOCATE(WeightSum_proc)
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.
@@ -410,8 +412,6 @@ ELSE
 END IF
 
 SDEALLOCATE(ElemGlobalTime)
-
-
 
 #ifdef PARTICLES
 ! Re-allocate nPartsPerElem depending on new number of elements
@@ -443,8 +443,8 @@ nSurfacePartsPerElem=0
 #endif /*PARTICLES*/
 ! --
 #else /* MPI */
-nElems=nGlobalElems   ! Local number of Elements 
-offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
+nElems=nGlobalElems   ! Local number of Elements
+offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 #endif /* MPI */
 
 
@@ -493,9 +493,9 @@ END DO
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif /* MPI */
-offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1  
+offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
-!read local SideInfo from data file 
+!read local SideInfo from data file
 FirstSideInd=offsetSideID+1
 LastSideInd=offsetSideID+nSideIDs
 ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
@@ -646,7 +646,7 @@ END DO !iElem
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
 
-!read local Node Info from data file 
+!read local Node Info from data file
 offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
 FirstNodeInd=offsetNodeID+1
@@ -919,7 +919,7 @@ END SUBROUTINE ReadMesh
 
 SUBROUTINE GetNodeMap()
 !===================================================================================================================================
-! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ... 
+! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
 ! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
 !===================================================================================================================================
 ! MODULES
@@ -959,7 +959,7 @@ END SUBROUTINE GetNodeMap
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
 !===================================================================================================================================
-! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
+! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection
 ! if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
 !===================================================================================================================================
 ! MODULES
@@ -985,7 +985,7 @@ IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
   !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
   INVMAP=-1  ! not in the range!
   RETURN
-END IF 
+END IF
 IF(ID.EQ.ArrID(low))THEN
   INVMAP=low
 ELSEIF(ID.EQ.ArrID(up))THEN
@@ -1050,7 +1050,7 @@ ELSE
     END IF
   END DO
 END IF
-END FUNCTION ELEMIPROC 
+END FUNCTION ELEMIPROC
 #endif /* MPI */
 
 RECURSIVE SUBROUTINE Qsort1Int(A)
