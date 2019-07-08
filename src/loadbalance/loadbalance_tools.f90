@@ -67,7 +67,7 @@ USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -88,7 +88,7 @@ USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: PerformLBSample,tCurrent
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: LB_index
 REAL,INTENT(INOUT)  :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -114,7 +114,7 @@ USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: PerformLBSample,tCurrent
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: LB_index
 REAL,INTENT(IN)     :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -139,7 +139,7 @@ USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: ElemID
 REAL,INTENT(INOUT)  :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -165,7 +165,7 @@ USE MOD_Globals          ,ONLY: LOCALTIME
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: ElemID
 REAL,INTENT(IN)     :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -191,7 +191,7 @@ USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample
 USE MOD_Mesh_Vars        ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: tLBStart
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES

@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                      :: NVisu                        ! number of visualisation points is NVisu+1
 REAL,ALLOCATABLE             :: Vdm_GaussN_NVisu(:,:)        ! for direct interpolation from computation grid to visu grid

@@ -51,7 +51,7 @@ END SUBROUTINE DefineParametersPiclas
 
 
 
-SUBROUTINE InitPiclas(IsLoadBalance) 
+SUBROUTINE InitPiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! init Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -112,7 +112,7 @@ USE MOD_QDS,                ONLY:InitQDS
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 LOGICAL,INTENT(IN)      :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -217,7 +217,7 @@ END IF
 END SUBROUTINE InitPiclas
 
 
-SUBROUTINE FinalizePiclas(IsLoadBalance) 
+SUBROUTINE FinalizePiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -279,7 +279,7 @@ USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
 USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 LOGICAL,INTENT(IN)      :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -316,7 +316,7 @@ CALL FinalizeParticleBoundarySampling()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
-CALL FinalizeDeposition() 
+CALL FinalizeDeposition()
 #ifdef MPI
 CALL FinalizeParticleMPI()
 #endif /*MPI*/

@@ -14,7 +14,7 @@
 
 MODULE MOD_RecordPoints
 !===================================================================================================================================
-! Module contains the record points 
+! Module contains the record points
 ! tracking of state variable at certain predefined points
 !===================================================================================================================================
 ! MODULES
@@ -50,7 +50,7 @@ CONTAINS
 
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersRecordPoints()
 ! MODULES
@@ -68,7 +68,7 @@ END SUBROUTINE DefineParametersRecordPoints
 
 SUBROUTINE InitRecordPoints()
 !===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
+! Read RP parameters from ini file and RP definitions from HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -90,9 +90,9 @@ USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: RP_maxMemory
-INTEGER               :: maxRP 
+INTEGER               :: maxRP
 !===================================================================================================================================
-! check if recordpoints are activated 
+! check if recordpoints are activated
 RP_inUse=GETLOGICAL('RP_inUse','.FALSE.')
 IF(.NOT.RP_inUse) RETURN
 IF((.NOT.InterpolationInitIsDone) .OR. RecordPointsInitIsDone)THEN
@@ -133,7 +133,7 @@ END SUBROUTINE InitRecordPoints
 #ifdef MPI
 SUBROUTINE InitRPCommunicator()
 !===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
+! Read RP parameters from ini file and RP definitions from HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -148,7 +148,7 @@ USE MOD_RecordPoints_Vars   ,ONLY: RP_onProc,myRPrank,RP_COMM,nRP_Procs
 ! LOCAL VARIABLES
 INTEGER                   :: color,iProc
 INTEGER                   :: noRPrank,RPrank
-LOGICAL                   :: hasRP 
+LOGICAL                   :: hasRP
 !===================================================================================================================================
 color=MPI_UNDEFINED
 IF(RP_onProc) color=2
@@ -160,7 +160,7 @@ IF(MPIRoot) THEN
   myRPRank=0
   IF(RP_onProc) THEN
     RPrank=0
-  ELSE 
+  ELSE
     noRPrank=0
   END IF
   DO iProc=1,nProcessors-1
@@ -189,7 +189,7 @@ END SUBROUTINE InitRPCommunicator
 
 SUBROUTINE ReadRPList(FileString)
 !===================================================================================================================================
-! Read RP HDF5 
+! Read RP HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -230,7 +230,7 @@ IF(TRIM(MeshFile_RPList).NE.TRIM(MeshFile)) THEN
   SWRITE(UNIT_stdOut,*) ' WARNING: MeshFileName from RPList differs from Mesh File specified in parameterfile!'
 END IF
 
-! Readin OffsetRP 
+! Readin OffsetRP
 CALL GetDataSize(File_ID,'OffsetRP',nDims,HSize)
 nGlobalElems_RPList=HSize(2) !global number of elements
 DEALLOCATE(HSize)
@@ -241,7 +241,7 @@ __STAMP__&
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       PP_nElems     => INT(PP_nElems,IK) ,&
-      OffsetElem    => INT(OffsetElem,IK) ) 
+      OffsetElem    => INT(OffsetElem,IK) )
   CALL ReadArray('OffsetRP',2,(/2_IK,PP_nElems/),OffsetElem,2,IntegerArray_i4=OffsetRPArray)
 END ASSOCIATE
 
@@ -261,18 +261,18 @@ ELSE
   nGlobalRP=INT(HSize(2),4) !global number of RecordPoints
 END IF
 DEALLOCATE(HSize)
-ALLOCATE(xi_RP(3,nRP)) 
+ALLOCATE(xi_RP(3,nRP))
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nRP      => INT(nRP,IK) ,&
-      offsetRP => INT(offsetRP,IK) ) 
+      offsetRP => INT(offsetRP,IK) )
   CALL ReadArray('xi_RP',2,(/3_IK,nRP/),offsetRP,2,RealArray=xi_RP)
 END ASSOCIATE
 
 IF(nRP.LT.1) THEN
   RP_onProc=.FALSE.
-ELSE  
+ELSE
   RP_onProc=.TRUE.
   ! create mapping to elements
   ALLOCATE(RP_ElemID(nRP))
@@ -284,7 +284,7 @@ ELSE
     END DO
   END DO
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 
 IF(RP_onProc) CALL InitRPBasis(xi_RP)
 DEALLOCATE(xi_RP)
@@ -295,7 +295,7 @@ END SUBROUTINE ReadRPList
 
 SUBROUTINE InitRPBasis(xi_RP)
 !===================================================================================================================================
-! Precalculate basis function values at recordpoint positions 
+! Precalculate basis function values at recordpoint positions
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -315,7 +315,7 @@ INTEGER                       :: iRP
 !===================================================================================================================================
 ! build local basis for Recordpoints
 ALLOCATE(L_xi_RP(0:PP_N,nRP), L_eta_RP(0:PP_N,nRP), L_zeta_RP(0:PP_N,nRP))
-DO iRP=1,nRP 
+DO iRP=1,nRP
   CALL LagrangeInterpolationPolys(xi_RP(1,iRP),PP_N,xGP,wBary,L_xi_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(2,iRP),PP_N,xGP,wBary,L_eta_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(3,iRP),PP_N,xGP,wBary,L_zeta_RP(:,iRP))
@@ -325,7 +325,7 @@ END SUBROUTINE InitRPBasis
 
 SUBROUTINE RecordPoints(t,Output)
 !===================================================================================================================================
-! Interpolate solution at time t to RecordPoint positions and fill output buffer 
+! Interpolate solution at time t to RecordPoint positions and fill output buffer
 ! The decision if an analysis is performed is done in PerformAnalysis.
 !===================================================================================================================================
 ! MODULES
@@ -350,7 +350,7 @@ LOGICAL,INTENT(IN)             :: Output ! force sampling (e.g. first/last times
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k,iRP
 REAL                    :: u_RP(PP_nVar,nRP)
-REAL                    :: l_eta_zeta_RP 
+REAL                    :: l_eta_zeta_RP
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! selection criterion for analysis is performed within PerformAnalysis
@@ -371,7 +371,7 @@ END IF
 ! evaluate state at RP
 iSample=iSample+1
 !IPWRITE(*,*) 'Sampling ...',iSample,size(U_RP),size(RP_Data),nRP,RP_BufferSize
-U_RP=0.  
+U_RP=0.
 DO iRP=1,nRP
   DO k=0,PP_N
     DO j=0,PP_N
@@ -463,7 +463,7 @@ END IF
 #else
 CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif
-  
+
 IF(iSample.GT.0)THEN
   IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
@@ -537,7 +537,7 @@ END SUBROUTINE WriteRPToHDF5
 
 SUBROUTINE FinalizeRecordPoints()
 !===================================================================================================================================
-! Deallocate RP arrays 
+! Deallocate RP arrays
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

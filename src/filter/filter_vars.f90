@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE   :: Vdm_Leg(:,:), sVdm_Leg(:,:) ! 1D Vandermondematrix to Legendre polynomials and its inverse
 INTEGER            :: FilterType

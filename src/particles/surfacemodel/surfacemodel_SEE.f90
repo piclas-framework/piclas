@@ -30,7 +30,7 @@ PUBLIC :: SEE_PartDesorb
 
 CONTAINS
 
-SUBROUTINE SEE_PartDesorb(PartSurfaceModel_IN,PartID_IN,Adsorption_prob_OUT,adsorption_case,outSpec) 
+SUBROUTINE SEE_PartDesorb(PartSurfaceModel_IN,PartID_IN,Adsorption_prob_OUT,adsorption_case,outSpec)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -41,12 +41,12 @@ USE MOD_Particle_Analyze ,ONLY: PartIsElectron
 USE MOD_Globals_Vars     ,ONLY: BoltzmannConst,ElementaryCharge,ElectronMass
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)      :: PartSurfaceModel_IN !< which SEE model?
                                                !< 5: SEE by Levko2015
                                                !< 6: SEE by Pagonakis2016 (originally from Harrower1956)
 INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
-REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles 
+REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles
                                                !< (ion/electron bombardment)
 INTEGER,INTENT(OUT)     :: adsorption_case     !< what happens to the bombarding particle and is a new one created?
 INTEGER,INTENT(OUT)     :: outSpec(2)          !< outSpec(1) currently not used
@@ -57,7 +57,7 @@ REAL              :: eps_e  ! Energy of bombarding electron in eV
 REAL              :: v_new  ! Velocity of emitted secondary electron
 REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
-REAL              :: k_refl ! Coefficient for reflection of bombarding electron 
+REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 !===================================================================================================================================
 ! Default 0
 outSpec = 0
@@ -124,7 +124,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
         adsorption_case = -2       ! SEE + perfect elastic scattering of the bombarding electron
         outSpec(2)      = 4        ! Species of the injected electron (TODO: make this variable)
-        eps_e           = I-2.*phi ! Energy of the injected electron 
+        eps_e           = I-2.*phi ! Energy of the injected electron
       ELSE
         adsorption_case = -1 ! Only perfect elastic scattering of the bombarding electron
       END IF

@@ -117,7 +117,7 @@ IF(iError.EQ.0) THEN
   IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
   IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
   IF(.NOT.help) isValidHDF5File=.FALSE.
- 
+
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
   CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersion)
@@ -267,7 +267,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute 
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute
 LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -436,7 +436,7 @@ REAL,&
 INTEGER(KIND=IK),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray !< only if integer array shall be read of KIND=IK
 INTEGER,&
-    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be 
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be
 !                                                                            !< read of KIND=4
 CHARACTER(LEN=255),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: StrArray        !< only if string shall be read

@@ -70,7 +70,7 @@ DO iElem=1,PP_nElems
         maxLambda_v=MAX(maxLambda_v,(Lambda_v1+Lambda_v2+Lambda_v3))
       END DO ! i
     END DO ! j
-  END DO ! k          
+  END DO ! k
 END DO ! iElem=1,PP_nElems
 TimeStep(2)=MIN(TimeStep(2),4./maxLambda_v)
 #ifdef MPI
