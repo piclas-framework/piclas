@@ -241,6 +241,7 @@ CALL RANDOM_NUMBER(iRan)
 IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
   DoCloning = .TRUE.
   IF(INT(OldMPF/NewMPF).GT.1) THEN
+    IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
     CALL Abort(&
         __STAMP__,&
       'ERROR in 2D axisymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
@@ -293,6 +294,7 @@ ELSE
   IF(NewMPF.GT.OldMPF) THEN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
+      IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
       CALL abort(__STAMP__,&
         'ERROR in Radial Weighting of 2D/Axisymmetric: The deletion probability is higher than 0.5! Reduce the time step or'//&
         ' the radial weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
