@@ -263,10 +263,9 @@ IF(VarTimeStep%AdaptDistribution) THEN
 
   ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nGlobalElems))
   ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-    nVar_HDF5  => INT(nVar_HDF5,IK) ,&
-    nGlobalElems     => INT(nGlobalElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVar_HDF5,nGlobalElems/),0,2,RealArray=ElemData_HDF5(:,:))
+  ASSOCIATE (nVar_HDF5    => INT(nVar_HDF5,IK) ,&
+             nGlobalElems => INT(nGlobalElems,IK))
+    CALL ReadArray('ElemData',2,(/nVar_HDF5,nGlobalElems/),0_IK,2,RealArray=ElemData_HDF5(:,:))
   END ASSOCIATE
 
   ALLOCATE(DSMCQualityFactors(nGlobalElems,1:2), PartNum(nGlobalElems))
