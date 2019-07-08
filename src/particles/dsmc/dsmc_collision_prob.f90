@@ -105,12 +105,12 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                * CollInf%Cab(collPairID) / CollInf%Coll_CaseNum(collPairID)           &          
                                * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
                                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
-      ! to be solved
+      ! to be solved - formel nicht nachvollziehbar
       ELSE IF(CollInf%CollMod.EQ.1) THEN                                                                  ! VSS
-        sigma_vss              = DSMC_Cross_Section( iPair, CollInf%dref, CollInf%Tref, Coll_pData(iPair)%CRela2 )
+        sigma_vss(iPair)       = DSMC_Cross_Section( iPair, CollInf%dref, CollInf%Tref, Coll_pData(iPair)%CRela2 )
         ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
         Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
-                               * sigma_vss / CollInf%Coll_CaseNum(collPairID)           &          
+                               * sigma_vss / CollInf%Coll_CaseNum(collPairID)                         &          
                                * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
                                * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
 

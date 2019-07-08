@@ -166,21 +166,22 @@ CALL prms%CreateIntOption(      'Part-CollisionModel'  &
                                             '0 : Variable Hard Sphere (VHS)\n'//&
                                             '1 : Variable Soft Sphere (VSS)', '0')
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
-                                           ,'VSS exponent as defined in Bird (2.36). Can be found in tables. Default alpha==1'//&
-                                            ' for VHS calculation. !to be solved See Bird 1994 p.42 for more information.', '1.',&
-                                              numberedmulti=.TRUE.)
+                                           ,' VSS exponent as defined in Bird (2.36). Default alpha==1'                        //&
+                                            ' for VHS calculation. See Bird 1994 p.42 for more information.',                  //&
+                                            ' Can be found in tables e.g. in\n' 
+                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'                              //&
+                                            ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
-                                           ,'Reference value for temperature exponent omega for variable soft sphere model.'//&
-                                            ' Values can be found in papers such as krishnan2015, krishnan2016.'//&
+                                           ,' Reference value for temperature exponent omega for variable soft sphere model.'//&
+                                            ' Values can be found in papers such as krishnan2015, krishnan2016.\n'//&
                                             ' omegaVSS=Ypsilon_bird=omega_krishnan+0.5=omega_bird+0.5'&
-                                           , '0.', numberedmulti=.TRUE.)
+                                           ,' 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,' Collision-specific reference diameter. Values can be found in papers such as '//&
-                                            ' krishnan2015, krishnan2016.!to be solved (DOI)' , '1.', numberedmulti=.TRUE.)
+                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373),'                           //&
+                                            ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
-                                           ,' Temperature of collision-specific reference diameter. Values can be found in '//&
-                                            ' papers such as '//&
-                                            ' krishnan2015, krishnan2016.!to be solved (DOI)' , '1.', numberedmulti=.TRUE.)
+                                           ,' Temperature of collision-specific reference diameter.' , '1.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Species")
 
@@ -204,6 +205,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-muRef'  &
+                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'//&
+                                           , '1.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
                                            ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
@@ -504,7 +508,8 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-      SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
+      SpecDSMC(iSpec)%omegaVHS= GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
+      SpecDSMC(iSpec)%muRef   = GETREAL('Part-Species'//TRIM(hilf)//'-muRef','1') 
 
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       ! SpecDSMC(iSpec)%TrefVSS = GETREAL('Part-Species'//TRIM(hilf)//'-VSSReferenceTemp','0')
@@ -610,16 +615,15 @@ __STAMP__&
       !       !the omega should be the same for both in vss!!!
     END DO
   END DO
-! to be solved
 
   CollInf%collMod = GETINT('Part-CollisionModel','0') 
-  IF(CollInf%collMod.EQ.1) THEN ! VSS
+  IF(CollInf%collMod.EQ.1) THEN                             ! VSS
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
     ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
     ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
-    CollInf%alphaVSS=1.                                     ! to be solved VHS default alpha=1   -späterer zeitpunkt, dass man einfach alpha 1
-    CollInf%omegaVSS=0.                                     ! setzt, um VHS zu rechnen. Dann muss auch omega anders gesetzt werden
+    CollInf%alphaVSS=1.                                     
+    CollInf%omegaVSS=0.                                     
     CollInf%dref=0.                                    
     CollInf%Tref=0.                                     
     DO iSpec=1,CollInf%NumCase                              ! alphaVSS and omegaVSS (collision specific parameters-> Matrix) read-in
@@ -636,11 +640,11 @@ __STAMP__&
           CALL Abort(&
             __STAMP__&
             ,'! alphaVSS has to be defined for all collisions and cannot be 1 for VSS. If you want to use VHS you need to set'//&
-             'Part-CollisionModel=0. !')
+             'Part-CollisionModel=0 !')
         END IF
       END DO
     END DO
-  ELSEIF (CollInf%collMod.EQ.0) THEN ! VHS default 
+  ELSEIF (CollInf%collMod.EQ.0) THEN                       ! VHS default 
     CollInf%alphaVSS=1.
     CollInf%omegaVSS=0.
       DO iSpec=1,nSpecies
@@ -652,7 +656,7 @@ __STAMP__&
   ELSE 
     CALL Abort(&
       __STAMP__&
-      ,'Collision model error! Choose VHS or VSS ')
+      ,'Collision model error! Choose Part-CollisionModel=0 VHS or =1 VSS ')
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

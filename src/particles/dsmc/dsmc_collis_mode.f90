@@ -235,13 +235,12 @@ SUBROUTINE DSMC_Scat_Col(iPair)
   INTEGER                       :: iReac
   REAL                          :: uRan2, uRan3, uRanRot, uRanVHS
   REAL                          :: Pi, aEL, bEL, aCEX, bCEX
-  INTEGER                       :: collPart1ID, collPart2ID                        ! Colliding particles 1 and 2
+  INTEGER                       :: collPart1ID, collPart2ID                    ! Colliding particles 1 and 2
 !===================================================================================================================================
  collPart1ID = Coll_pData(iPair)%iPart_p1
  collPart2ID = Coll_pData(iPair)%iPart_p2
 
   Pi = ACOS(-1.0)
-! to be solved warum nicht pi aus global vars?
   aCEX = ChemReac%CEXa(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
   bCEX = ChemReac%CEXb(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
   aEL  = ChemReac%ELa(ChemReac%ReactNum(PartSpecies(collPart1ID),PartSpecies(collPart2ID),1))
@@ -377,11 +376,11 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   IF ((I_jp1+1).GE.szB) THEN
     chi_b_p_E_j   = (1 - w_i_j) * TLU_Data%Chitable(J,szB)       !+ w_i_j   * TLU_Data%Chitable(J,szB)
     chi_b_p_E_jp1 = (1-w_i_jp1) * TLU_Data%Chitable((J+1),szB)
-    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j               + w_j     * chi_b_p_E_jp1
+    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j                    + w_j     * chi_b_p_E_jp1
   ELSE
     chi_b_p_E_j   = (1 - w_i_j) * TLU_Data%Chitable(J,I_j)       + w_i_j   * TLU_Data%Chitable(J,I_jp1)
     chi_b_p_E_jp1 = (1-w_i_jp1) * TLU_Data%Chitable((J+1),I_jp1) + w_i_jp1 * TLU_Data%Chitable((J+1),(I_jp1+1))
-    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j               + w_j     * chi_b_p_E_jp1
+    chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j                    + w_j     * chi_b_p_E_jp1
   END IF
   ScatAngle = chi_b_p_E_p
   
@@ -424,7 +423,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   REAL                          :: PartStateIntEnTemp, Phi!, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
-  INTEGER                       :: collPart1ID,collPart2ID              ! Colliding particles 1 and 2
+  INTEGER                       :: collPart1ID, collPart2ID           ! Colliding particles 1 and 2
   INTEGER                       :: Spec1ID, Spec2ID                   ! Colliding species 1 and 2
 !===================================================================================================================================
   collPart1ID = Coll_pData(iPair)%iPart_p1
@@ -2895,31 +2894,34 @@ REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
   USE MOD_Globals,            ONLY : Abort
   USE MOD_Globals_Vars,       ONLY : BoltzmannConst, PI
   USE MOD_Particle_Vars,      ONLY : PartSpecies
-  USE MOD_DSMC_Vars,          ONLY : DSMC,CollInf,Coll_pData
+  USE MOD_DSMC_Vars,          ONLY : DSMC, CollInf, Coll_pData, SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)              :: dref,Tref                      ! reference diameter and temperature  must be set in ini.
+  REAL, INTENT(IN)              :: dref,Tref                 ! reference diameter and temperature  must be set in ini.
   REAL, INTENT(IN)              :: CRela2 
   INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                          :: VSS_Cross_Section         ! sigma_t, total collision cross-section bird1994 (1.8)reference HS
-!to be solved. noch kein zsmhg zwischen vss und sigma t
+  REAL                          :: VSS_Cross_Section         ! sigma_t, total collision cross-section bird1994 (2.31) 
+                                                             ! with (p.42 l.2)!! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: collPart1ID,collPart2ID,Spec1ID,Spec2ID       ! colliding particles and species, respectively
-  REAL                          :: diameter                                      ! bird (4.63) 
+  REAL                          :: diameter_squared                              ! viscosity-based diameter bird (3.74) 
 !===================================================================================================================================
-  collPart1ID = Coll_pData(iPair)%iPart_p1
-  collPart2ID = Coll_pData(iPair)%iPart_p2
-  Spec1ID    = PartSpecies(collPart1ID)
-  Spec2ID    = PartSpecies(collPart2ID)
-  ! dref einlesen
-  diameter = dref*((2*BoltzmannConst*Tref)/(CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))* CRela2))** &
-             (CollInf%omegaVSS(Spec1ID,Spec2ID))/SQRT(GAMMA(2.0-CollInf%omegaVSS(collPart1ID,collPart2ID)))
-  VSS_Cross_Section = PI*diameter**2
+ ! brauch ich noch  collPart1ID = Coll_pData(iPair)%iPart_p1
+ ! brauch ich noch  collPart2ID = Coll_pData(iPair)%iPart_p2
+   Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
+   Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
+  ! mu ref einlesen !to be solved
+  ! set FLAG HERE
+  energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1D,Spec2D))*CRela2
+  diameter_squared     = PI * ((5 * (alpha + 1) * (alpha + 2) * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5 & 
+                       * (BoltzmannConst * Tref) ** (omega - 0.5)) / (16 * alpha * GAMMA(4.0 - omega)                           &
+                       * (SpecDSMC(Spec1ID)%muRef+SpecDSMC(Spec2ID)%muRef)/2 * (energy_translational)**(omega-1.0)) 
+  VSS_Cross_Section    = PI*diameter_squared
 END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)

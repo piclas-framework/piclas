@@ -145,12 +145,11 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
    CRela=SQRT(CRela2)                                    ! read-in CRela is CRela**2 
                                                          ! determination of DiceDeflectedVector in independent coordinate system
    CALL RANDOM_NUMBER(iRan)
-   IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN      ! VHS
+   IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN        ! VHS
       cos_chi         = 2.*iRan-1.                       ! isotropic scattering angle chi between [-1,1]
-   ELSEIF (alpha.GT.1) THEN                            ! VSS
+   ELSEIF (alpha.GT.1) THEN                              ! VSS
       cos_chi         = 2.*iRan**(1./alpha)-1.           ! deflected (anisotrop) scattering angle chi 
-   ELSE                                                ! Error
-      WRITE (*,*) "alpha must not be less than 1."       ! to be solved either abort or vhs default.
+   ELSE                                                  ! Error
    END IF
    sin_chi                  = SQRT(1. - cos_chi**2.)
    DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
