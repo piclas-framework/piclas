@@ -166,6 +166,8 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'CrossSectionVHS'         , 'Calculate the average sigma_t per time-step.' , '.FALSE.')
+
 END SUBROUTINE DefineParametersParticleAnalyze
 
 SUBROUTINE InitParticleAnalyze()
@@ -425,6 +427,7 @@ END IF
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
+CrossSectionVHS = GETLOGICAL('CrossSectionVHS','.FALSE.')
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE.
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
@@ -454,8 +457,8 @@ IF (CalcShapeEfficiency) THEN
   DoPartAnalyze = .TRUE.
   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
   SELECT CASE(CalcShapeEfficiencyMethod)
-  CASE('AllParts')  ! All currently available Particles are used
-  CASE('SomeParts') ! A certain percentage of currently available Particles is used
+  CASE('AllParts')  ! All currently available particles are used
+  CASE('SomeParts') ! A certain percentage of currently available particles is used
     ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
   CASE DEFAULT
     CALL abort(&
@@ -589,7 +592,7 @@ INTEGER             :: dir
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the initial temperature
+    ! if only the reaction rate is desired (reservoir) the initial temperature
     ! of the second species is added to the filename
       IF (DSMC%ReservoirSimuRate) THEN
         IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
