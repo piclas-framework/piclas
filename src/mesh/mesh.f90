@@ -65,7 +65,7 @@ CALL prms%CreateLogicalOption( 'DoSwapMesh',                    "TODO-DEFINE-PAR
 CALL prms%CreateStringOption(  'SwapMeshExePath',         "(relative) path to swap-meshfile (mandatory).")
 CALL prms%CreateIntOption(     'SwapMeshLevel',           "TODO-DEFINE-PARAMETER\n"//&
                                                           "0: initial grid\n"//&
-                                                          "1: first swap mesh\n"//&        
+                                                          "1: first swap mesh\n"//&
                                                           "2: second swap mesh\n",'0')
 
 CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory)\n"//&
@@ -82,7 +82,7 @@ CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this fa
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
                                                       '.FALSE.')
-CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&        
+CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"TODO-DEFINE-PARAMETER\nCalculate pointing vector integral "//&
                                                          "| only perpendicular to z axis",&
                                                       '.FALSE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
@@ -102,7 +102,7 @@ END SUBROUTINE DefineParametersMesh
 
 SUBROUTINE InitMesh()
 !===================================================================================================================================
-! Read Parameter from inputfile 
+! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -131,10 +131,10 @@ USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 #endif /*CODE_ANALYZE*/
-#if USE_LOADBALANCE 
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
-#endif /*USE_LOADBALANCE*/ 
+#endif /*USE_LOADBALANCE*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -197,12 +197,12 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
-#if USE_LOADBALANCE 
+#if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
-#endif /*USE_LOADBALANCE*/ 
+#endif /*USE_LOADBALANCE*/
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
@@ -348,7 +348,7 @@ IF(ABS(meshScale-1.).GT.1e-14)&
   Coords =Coords*meshScale
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
-  Pi = ACOS(-1.) 
+  Pi = ACOS(-1.)
   DO iElem=1,nElems
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
       x(:)=Coords(:,i,j,k,iElem)
@@ -370,10 +370,10 @@ ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
 ! surface data
 ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
-ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
-ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
-ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
 Face_xGP=0.
 NormVec=0.
@@ -396,7 +396,7 @@ CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral')
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
+ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) )
 BezierControlPoints3D=0.
 
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
@@ -461,7 +461,7 @@ END SUBROUTINE InitMesh
 
 SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 !===================================================================================================================================
-! Read Parameter from inputfile 
+! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N&
@@ -507,7 +507,7 @@ CALL PolynomialDerivativeMatrix(N_in,XiCL_N,DCL_N)
 CALL InitializeVandermonde(N_in,N_in,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
 !equidistant-Lobatto NGeo
 DO i=0,NGeo_in
-  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
+  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
 END DO
 DeltaXi_NGeo=2./NGeo_in
 CALL BarycentricWeights(NGeo_in,Xi_NGeo,wBary_NGeo)
@@ -532,7 +532,7 @@ CALL InitializeVandermonde(1, NGeo_in,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CL
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
 !DO i=0,NGeo_in
-!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
+!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
 !END DO
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
 CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
@@ -545,7 +545,7 @@ END SUBROUTINE InitMeshBasis
 
 SUBROUTINE SwapMesh()
 !============================================================================================================================
-! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different 
+! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different
 ! mesh file
 !============================================================================================================================
 ! MODULES
@@ -571,7 +571,7 @@ LOGICAL             :: LogSwapMesh                 ! create log file for swapmes
 LOGICAL             :: CleanUp                     ! rm old state and mesh file in swapmesh folder
 LOGICAL             :: KeepSwapFile                ! if true, do not remove created swap file, e.g., "PlasmaPlume_NewMesh_State...."
 CHARACTER(LEN=22)   :: ParameterFile               ! swapmesh parameter file containing all conversion information
-CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion 
+CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion
 CHARACTER(LEN=255)  :: SYSCOMMAND,SWITCHFOLDER     ! string to fit the system command
 INTEGER             :: iSTATUS                     ! error status return code
 INTEGER             :: StartIndex                  ! get string index (position) of certain substring
@@ -641,7 +641,7 @@ ELSE
                TRIM(LocalName)//'_'//TRIM(NewFolderName(5:6))//'_mesh.h5/" '//ParameterFile
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    
+
     ! print current polynomial degree to parameter_swapmesh.ini
     WRITE(UNIT=hilf,FMT='(I3)') PP_N
     ! cd ../meshXX && sed -i -e "s/.*NNew.*/NNew=2/" parameter_swapmesh.ini
@@ -649,8 +649,8 @@ ELSE
                TRIM(ADJUSTL(hilf))//'/" '//ParameterFile
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    
-    ! create symbolic link to old mesh file and restart file 
+
+    ! create symbolic link to old mesh file and restart file
     ! (delete the old links if they exist, they might point to the wrong file)
     ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
     SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
@@ -678,14 +678,14 @@ ELSE
     SYSCOMMAND=' echo "#!/bin/bash" > swapmesh.sh'
     print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
     CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
- 
+
     ! run swapmesh executable
     ! =======================================================================================================================
     ! CAUTION: CURRENTLY ONLY WORKS IN SINGLE EXECUTION!!!! WHEN STARTED WITH MPIRUN AND PERFORMED BY MPIROOT NOTHING OCCURS!
     ! =======================================================================================================================
     CreateSwapScript=.FALSE.
     IF(CreateSwapScript)THEN
-      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini 
+      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini
       !                       PlasmaPlume_State_000.000000000000100.h5" >> swapmesh.sh && chmod +x swapmesh.sh
       SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//'" >> swapmesh.sh && chmod +x swapmesh.sh'
       print*,                   TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
@@ -733,7 +733,7 @@ ELSE
       __STAMP__&
       ,'new swapmesh state file could not be created.',999,999.)
     END IF
-      
+
 
     CleanUp=.TRUE.
     IF(CleanUp)THEN
@@ -749,12 +749,12 @@ ELSE
     END IF
 
 !PlasmaPlume_State_
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
   END IF
 END IF
 
@@ -853,9 +853,10 @@ SUBROUTINE InitElemVolumes()
 ! MODULES                                               ! MODULES
 #ifdef MPI
 USE mpi
+USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 #endif /*MPI*/
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,IERROR,mpiroot,abort
+USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
@@ -974,10 +975,10 @@ SDEALLOCATE(Metrics_fTilde)
 SDEALLOCATE(Metrics_gTilde)
 SDEALLOCATE(Metrics_hTilde)
 SDEALLOCATE(sJ)
-SDEALLOCATE(NormVec) 
-SDEALLOCATE(TangVec1) 
-SDEALLOCATE(TangVec2)  
-SDEALLOCATE(SurfElem)  
+SDEALLOCATE(NormVec)
+SDEALLOCATE(TangVec1)
+SDEALLOCATE(TangVec2)
+SDEALLOCATE(SurfElem)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(nVecLoc)

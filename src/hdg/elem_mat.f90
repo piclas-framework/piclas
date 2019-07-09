@@ -35,7 +35,7 @@ END INTERFACE
 !END INTERFACE
 
 PUBLIC :: Elem_Mat
-PUBLIC :: BuildPrecond 
+PUBLIC :: BuildPrecond
 PUBLIC :: PostProcessGradient
 #endif /* PP_HDG*/
 !===================================================================================================================================
@@ -45,7 +45,7 @@ CONTAINS
 #ifdef PP_HDG
 SUBROUTINE Elem_Mat(td_iter)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -72,7 +72,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 ! LOCAL VARIABLES
 INTEGER              :: l,p,q,g1,g2,g3
 INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
-INTEGER              :: iDir,jDir 
+INTEGER              :: iDir,jDir
 INTEGER              :: iLocSide, jLocSide
 INTEGER              :: SideID(6),Flip(6)
 REAL                 :: TauS(2,3)
@@ -123,9 +123,9 @@ DO iElem=1,PP_nElems
           Ktilde(3,1) =  SUM( JaCon3 * MATMUL( chi , JaCon1 ))
           Ktilde(3,2) =  SUM( JaCon3 * MATMUL( chi , JaCon2 ))
         END ASSOCIATE
-        Ktilde(1,2)=Ktilde(2,1) 
-        Ktilde(1,3)=Ktilde(3,1) 
-        Ktilde(2,3)=Ktilde(3,2) 
+        Ktilde(1,2)=Ktilde(2,1)
+        Ktilde(1,3)=Ktilde(3,1)
+        Ktilde(2,3)=Ktilde(3,2)
         !scale with omega_ijk/J
         Ktilde=(sJ(g1,g2,g3,iElem)*wGP_vol(index_3to1(g1,g2,g3)) )*Ktilde
 
@@ -140,9 +140,9 @@ DO iElem=1,PP_nElems
          END DO !iLocSide
 
         Taus=Taus*Tau(ielem)
-        
+
         !---------------------------------------------------------------
-        ! Dhat = D - B A^{-1} B^T      
+        ! Dhat = D - B A^{-1} B^T
 
         !  D  volume contribution for nonlinear stuff
         IF (nonlinear.AND.(NonLinSolver.EQ.1)) THEN
@@ -155,7 +155,7 @@ DO iElem=1,PP_nElems
 
         j = index_3to1(g1,g2,g3)
         DO iDir=1,3
-          idx = gdx 
+          idx = gdx
           DO l=0,PP_N
             idx(iDir) = l
             i = index_3to1(idx(1),idx(2),idx(3))
@@ -166,12 +166,12 @@ DO iElem=1,PP_nElems
 
         !  [- B A^{-1} B^T]  contribution
         DO jDir=1,3
-          jdx = gdx 
+          jdx = gdx
           DO q=0,PP_N
             jdx(jDir)=q
             j = index_3to1(jdx(1),jdx(2),jdx(3))
             DO iDir=1,3
-              idx = gdx 
+              idx = gdx
               DO p=0,PP_N
                 idx(iDir) = p
                 i = index_3to1(idx(1),idx(2),idx(3))
@@ -185,7 +185,7 @@ DO iElem=1,PP_nElems
         !---------------------------------------------------------------
         ! Ehat = E - B A^{-1} C^T
         DO iDir=1,3
-          ASSOCIATE(mLocSide=>dirPm2iSide(1,iDir), & 
+          ASSOCIATE(mLocSide=>dirPm2iSide(1,iDir), &
                     pLocSide=>dirPm2iSide(2,iDir) )
           ! X direction
           i_m = sindex_3to1(g1,g2,g3,mLocSide) ! index on the side
@@ -201,10 +201,10 @@ DO iElem=1,PP_nElems
               j = index_3to1( q,g2,g3)
               Ehat_m(j) = Ehat_m(j) + Ktilde(1,iDir)*Domega(q,g1)*Lomega_m(gdx(iDir))
               Ehat_p(j) = Ehat_p(j) + Ktilde(1,iDir)*Domega(q,g1)*Lomega_p(gdx(iDir))
-              j = index_3to1(g1, q,g3)                           
+              j = index_3to1(g1, q,g3)
               Ehat_m(j) = Ehat_m(j) + Ktilde(2,iDir)*Domega(q,g2)*Lomega_m(gdx(iDir))
               Ehat_p(j) = Ehat_p(j) + Ktilde(2,iDir)*Domega(q,g2)*Lomega_p(gdx(iDir))
-              j = index_3to1(g1,g2, q)                           
+              j = index_3to1(g1,g2, q)
               Ehat_m(j) = Ehat_m(j) + Ktilde(3,iDir)*Domega(q,g3)*Lomega_m(gdx(iDir))
               Ehat_p(j) = Ehat_p(j) + Ktilde(3,iDir)*Domega(q,g3)*Lomega_p(gdx(iDir))
             END DO !q
@@ -267,16 +267,16 @@ DO iElem=1,PP_nElems
     !Stmp2 = MATMUL( Ehat(:,:,jLocSide,iElem) , Stmp1 )
     CALL DGEMM('N','N',nGP_face,nGP_face,nGP_vol,1., &
                         Ehat(:,:,jLocSide,iElem), nGP_face, &
-                        Stmp1,nGP_vol,0.,& 
-                        Stmp2,nGP_face)  
+                        Stmp1,nGP_vol,0.,&
+                        Stmp2,nGP_face)
     Smat(:,:,jLocSide,jLocSide,iElem) = Smat(:,:,jLocSide,jLocSide,iElem) + Stmp2
     ! off-diagonal terms
     DO iLocSide=jLocSide+1,6
       !Stmp2 = MATMUL( Ehat(:,:,iLocSide,iElem) , Stmp1 )
       CALL DGEMM('N','N',nGP_face,nGP_face,nGP_vol,1., &
                           Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          Stmp1,nGP_vol,0.,& 
-                          Stmp2,nGP_face)  
+                          Stmp1,nGP_vol,0.,&
+                          Stmp2,nGP_face)
       ! Using the fact that Smat is symmetric
       Smat(:,:,iLocSide,jLocSide,iElem) = Smat(:,:,iLocSide,jLocSide,iElem) + Stmp2
       Smat(:,:,jLocSide,iLocSide,iElem) = Smat(:,:,jLocSide,iLocSide,iElem) + TRANSPOSE(Stmp2)
@@ -328,7 +328,7 @@ END SUBROUTINE Elem_Mat
 
 SUBROUTINE BuildPrecond()
 !===================================================================================================================================
-! Build a block-diagonal preconditioner for the lambda system 
+! Build a block-diagonal preconditioner for the lambda system
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -339,7 +339,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_MINE
-#endif /*MPI*/ 
+#endif /*MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -368,7 +368,7 @@ CASE(1)
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
-      ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+      ElemID    = SideToElem(S2E_ELEM_ID,SideID)
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
     END IF !locSideID.NE.-1
     ! neighbour element
@@ -398,7 +398,7 @@ CASE(1)
 #endif /*MPI*/
   DO SideID=1,nSides-nMPIsides_YOUR
     ! do choleski and store into Precond
-    CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info) 
+    CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info)
     IF (lapack_info .NE. 0) THEN
       STOP 'MATRIX INVERSION FAILED!'
     END IF
@@ -411,7 +411,7 @@ CASE(2)
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
-      ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+      ElemID    = SideToElem(S2E_ELEM_ID,SideID)
       DO igf = 1, nGP_face
         InvPrecondDiag(igf,SideID) = InvPrecondDiag(igf,SideID)+ &
                               Smat(igf,igf,locSideID,locSideID,ElemID)
@@ -455,7 +455,7 @@ END SUBROUTINE BuildPrecond
 
 SUBROUTINE PostProcessGradient(u_in,lambda_in,q_out)
 !===================================================================================================================================
-! Build a block-diagonal preconditioner for the lambda system 
+! Build a block-diagonal preconditioner for the lambda system
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -473,10 +473,10 @@ REAL,INTENT(IN)  :: lambda_in(0:PP_N,0:PP_N,nSides)
 REAL,INTENT(OUT) :: q_out(3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem 
+INTEGER          :: iElem
 INTEGER          :: SideID(6),Flip(6)
 INTEGER          :: q,g1,g2,g3,gdx(3),jdx(3),jDir
-REAL             :: aCon(3,3),q_loc 
+REAL             :: aCon(3,3),q_loc
 !===================================================================================================================================
 q_out=0.
 DO iElem=1,PP_nElems
@@ -497,22 +497,22 @@ DO iElem=1,PP_nElems
         !  aCon(:,2)=sJ(g1,g2,g3,iElem)*MATMUL(chi,JaCon2(:))
         !  aCon(:,3)=sJ(g1,g2,g3,iElem)*MATMUL(chi,JaCon3(:))
         !END ASSOCIATE
-        ! If q is the gradient gradu_I=-K^{-1} q 
+        ! If q is the gradient gradu_I=-K^{-1} q
         aCon(:,1)=sJ(g1,g2,g3,iElem)*Metrics_fTilde(:,g1,g2,g3,iElem)
         aCon(:,2)=sJ(g1,g2,g3,iElem)*Metrics_gTilde(:,g1,g2,g3,iElem)
         aCon(:,3)=sJ(g1,g2,g3,iElem)*Metrics_hTilde(:,g1,g2,g3,iElem)
 
-        gdx=(/g1,g2,g3/) 
+        gdx=(/g1,g2,g3/)
         !---------------------------------------------------------------
         ! q =- K^{-1} ( -A^{-1} B^T *u - A^{-1}C^T *lambda )
         DO jDir=1,3
           q_loc=0.
-          jdx = gdx 
+          jdx = gdx
           DO q=0,PP_N
             jdx(jDir)=q
             q_loc=q_loc + Domega(q,gdx(jDir))*U_in(jdx(1),jdx(2),jdx(3),iElem)
           END DO !q
-          ASSOCIATE(mLocSide=>dirPm2iSide(1,jDir), & 
+          ASSOCIATE(mLocSide=>dirPm2iSide(1,jDir), &
                     pLocSide=>dirPm2iSide(2,jDir) )
           ! X direction
           ASSOCIATE(p_m => VolToSideA(1,g1,g2,g3,Flip(mLocSide),mLocSide), &

@@ -21,7 +21,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                   :: QDSInitDGIsDone = .FALSE.
 LOGICAL                   :: DoQDS                    ! true/false switch for QDS calculation procedures

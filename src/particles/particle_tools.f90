@@ -30,7 +30,7 @@ INTERFACE DiceDeflectedVector
   MODULE PROCEDURE DiceDeflectedVector
 END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ SUBROUTINE UpdateNextFreePosition()
   DO i = n+1,PDM%maxParticleNumber
    PDM%nextFreePosition(counter1) = i
    counter1 = counter1 + 1
-  END DO 
+  END DO
   PDM%nextFreePosition(counter1:PDM%MaxParticleNumber)=0 ! exists if MaxParticleNumber is reached!!!
   IF (counter1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber)=0
 
@@ -207,6 +207,6 @@ FUNCTION DiceUnitVector()
   DiceUnitVector(1) = sin_chi * COS(eps)
   DiceUnitVector(2) = sin_chi * SIN(eps)
 
-END FUNCTION DiceUnitVector 
+END FUNCTION DiceUnitVector
 
 END MODULE MOD_part_tools

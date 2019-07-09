@@ -1,0 +1,10 @@
+P_anlay = 1000**2 * (1.602176634e-19)**2 / 9.1093826E-31 * Time
+
+
+in particle_analyze.f90:
+!! Test
+      IF(iter.GT.0)THEN
+!! Analytische Lösung paralel:
+        P_anlay = 1000**2 * (1.602176634e-19)**2 / 9.1093826E-31 * Time 
+      END IF
+!! Test

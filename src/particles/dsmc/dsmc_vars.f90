@@ -23,7 +23,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tTLU_Data
   DOUBLE PRECISION                        :: Emin
@@ -31,7 +31,7 @@ TYPE tTLU_Data
   DOUBLE PRECISION                        :: deltaE
   DOUBLE PRECISION , ALLOCATABLE          :: deltabj(:)
   DOUBLE PRECISION , ALLOCATABLE          :: ChiTable(:,:)
-END TYPE 
+END TYPE
 
 TYPE(tTLU_Data)                           :: TLU_Data
 
@@ -417,8 +417,8 @@ REAL,ALLOCATABLE                 :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues 
                                                                      ! 4: Recombination Coefficient
 
 ! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
-!  REAL                           :: Heatflux                ! 
+!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
+!  REAL                           :: Heatflux                !
 !  REAL                           :: Force(3)                ! x, y, z direction
 !  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
 !  REAL                           :: CounterOut              ! Wall-Collision counter for Output
@@ -582,7 +582,7 @@ TYPE tNodeVolume
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)
-  
+
 TYPE tOctreeVdm
   TYPE (tOctreeVdm), POINTER     :: SubVdm => null()
   REAL,ALLOCATABLE               :: Vdm(:,:)

@@ -26,7 +26,7 @@ INTERFACE DSMC_prob_calc
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !prob ist, dass hier nicht die gesamte Ec sonder nur die SchwerpunktsEc gebracuht wird.
 !     ! hier muß also für relativistische Fälle noch etwas getan werden
 !     !      Ec = 0 ! Energy of collision (in case of e + A = Ekin)
-!     !      
+!     !
 !     !      !relativistic Ekin of particle 1
 !     !      partV2 = PartState(collPart1ID,4) * PartState(collPart1ID,4) &
 !     !               + PartState(collPart1ID,5) * PartState(collPart1ID,5) &
@@ -225,7 +225,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(8) !Electron - Electron
       Coll_pData(iPair)%Prob = 0
 !         CASE(14) !Electron - Atomic Ion
-!           ! again simple VHS idea as for molecules, etc. 
+!           ! again simple VHS idea as for molecules, etc.
 !           DoSimpleElectronColl=.TRUE.
 !           Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(collPairID)*Coll_pData(iPair)%CRela2
 !           IF (SpecDSMC(PartSpecies(collPart1ID))%InterID.eq.1) THEN
@@ -268,7 +268,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       aEL = ChemReac%ELa(NbrOfReaction)
       bEL = ChemReac%ELb(NbrOfReaction)
       IF (ChemReac%DoScat(NbrOfReaction)) THEN
-        IF (Coll_pData(iPair)%CRela2.EQ.0) THEN 
+        IF (Coll_pData(iPair)%CRela2.EQ.0) THEN
           sigma_tot = 0
         ELSE
           !Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(collPairID)*Coll_pData(iPair)%CRela2
@@ -319,7 +319,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !    CASE(20) !Atomic Ion - Atomic Ion
 !      Coll_pData(iPair)%Prob = 0
 !         CASE(24) !Molecular Ion - Electron
-!           ! again simple VHS idea as for molecules, etc. 
+!           ! again simple VHS idea as for molecules, etc.
 !           DoSimpleElectronColl=.TRUE.
 !           Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(collPairID)*Coll_pData(iPair)%CRela2
 !           SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(collPart1ID)),8) !number of particles of spec 1
@@ -351,7 +351,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !     !    CASE(30) !Atomic Ion - Molecular Ion
 !     !      Coll_pData(iPair)%Prob = 0
 !     !    CASE(40) !Molecular Ion - Molecular Ion
-!     !      Coll_pData(iPair)%Prob = 0    
+!     !      Coll_pData(iPair)%Prob = 0
     CASE DEFAULT
       CALL Abort(&
 __STAMP__&

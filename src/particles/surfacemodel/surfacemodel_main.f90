@@ -21,7 +21,7 @@ MODULE MOD_SurfaceModel
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ USE MOD_Particle_Vars ,ONLY: PartSurfaceModel, SolidSimFlag, LiquidSimFlag
 USE MOD_SMCR          ,ONLY: SMCR_PartDesorb
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -65,16 +65,16 @@ SUBROUTINE UpdateSurfModelVars()
 !===================================================================================================================================
 !> Update and sample surface values for adsorption, desorption and reactions on surfaces (heterogeneous reactions)
 !> Only procs with surface enter function, all other exit routine
-!> 1. Communicate number of particles that were adsorbed on halo-sides of neighbour procs, 
+!> 1. Communicate number of particles that were adsorbed on halo-sides of neighbour procs,
 !>    so that own proc has number of total adsorption particles for each species on own surfaces
 !> 2. After communication go through all own sides (no mpi halo sides) and adjust coverage resulting from changes through
 !>    adsorption and reactions for all surfacemodels
-!> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum 
+!> 2.1  For surfacemodel=3 calculate number of adsorbate change (surfacempf!=gasmpf) and if changed Call AdjustReconstructMapNum
 !>      to adjust number of adsorbates on reconstructed Monte Carlo surface
 !> 3. Sample macroscopic surface coverage values
 !> 4. Reinitialized surface reaction counters
 !> 5. Calculated global adsorption probabilities for surfacemodel=1,2
-!> 6. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides 
+!> 6. Send Coverages and Distribution info of own sides to halo sides of other procs (other procs have own sides as halo sides
 !>    and need coverage info for adsorption calculation
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -94,7 +94,7 @@ USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, E
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites, SideID, PartboundID
@@ -248,7 +248,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum

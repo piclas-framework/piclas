@@ -112,7 +112,7 @@ SUBROUTINE LD_output_calc()
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
 INTEGER                       :: iElem, iSpec                  !
-REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum 
+REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(MacroDSMC(nElems,nSpecies + 1))
@@ -132,9 +132,9 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
   MacroDSMC(1:nElems,1:nSpecies+1)%TVib      = 0
   MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0
   MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0
-  
+
   DO iSpec = 1, nSpecies
-    DO iElem = 1, nElems ! element/cell main loop    
+    DO iElem = 1, nElems ! element/cell main loop
       IF(SampDSMC(iElem,iSpec)%PartNum.GT. 0) THEN
 ! compute flow velocity
         MacroDSMC(iElem,iSpec)%PartV(1) = SampDSMC(iElem,iSpec)%PartV(1) / SampDSMC(iElem,iSpec)%PartNum
@@ -144,35 +144,35 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
                                               + MacroDSMC(iElem,iSpec)%PartV(2)**2 &
                                               + MacroDSMC(iElem,iSpec)%PartV(3)**2 )
 ! compute flow Temperature
-        MacroDSMC(iElem,iSpec)%Temp(1:3) = 0.0 
+        MacroDSMC(iElem,iSpec)%Temp(1:3) = 0.0
         MacroDSMC(iElem,iSpec)%Temp(4)   = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
 ! compute density
         MacroDSMC(iElem,iSpec)%PartNum = SampDSMC(iElem,iSpec)%PartNum / REAL(DSMC%SampNum)
         ! Comment: if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
         IF (usevMPF) THEN
           MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-        ELSE 
+        ELSE
           MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
         END IF
-! compute internal energies / has to be changed for vfd 
+! compute internal energies / has to be changed for vfd
         IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
           (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
             TVib_TempFac=SampDSMC(iElem,iSpec)%EVib &
                       /(SampDSMC(iElem,iSpec)%PartNum*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
             IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-              MacroDSMC(iElem,iSpec)%TVib = 0.0           
+              MacroDSMC(iElem,iSpec)%TVib = 0.0
             ELSE
               MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
             END IF
           ELSE                                            ! TSHO-model
-            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant) 
-          END IF       
+            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
+                , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant)
+          END IF
           MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
         END IF
 
-!!!!!!!!!!!!! compute internal energies / has to be changed for vfd 
+!!!!!!!!!!!!! compute internal energies / has to be changed for vfd
 !!!!!!!!!!!!        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
 !!!!!!!!!!!!          (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
 !!!!!!!!!!!!          MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
@@ -186,7 +186,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
     END DO
   END DO
 ! compute total values
-  DO iElem = 1, nElems ! element/cell main loop 
+  DO iElem = 1, nElems ! element/cell main loop
     MolecPartNum = 0
     HeavyPartNum = 0
     DO iSpec = 1, nSpecies
@@ -235,7 +235,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
     MacroDSMC(iElem,nSpecies + 1)%PartV(4) = SQRT(MacroDSMC(iElem,nSpecies + 1)%PartV(1)**2 &
                                             + MacroDSMC(iElem,nSpecies + 1)%PartV(2)**2 &
                                             + MacroDSMC(iElem,nSpecies + 1)%PartV(3)**2)
-    MacroDSMC(iElem,nSpecies + 1)%NumDens = MacroDSMC(iElem,nSpecies + 1)%PartNum * Species(1)%MacroParticleFactor & 
+    MacroDSMC(iElem,nSpecies + 1)%NumDens = MacroDSMC(iElem,nSpecies + 1)%PartNum * Species(1)%MacroParticleFactor &
                                    / GEO%Volume(iElem) ! the calculation is limitied for MPF = const.
     IF (usevMPF) THEN
       MacroDSMC(iElem,nSpecies + 1)%PartNum = 0
@@ -281,7 +281,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
 
   IF (LD_CalcResidual) THEN! residual output
     CALL LD_ResidualOutout
-    DO iElem = 1, nElems ! element/cell main loop  
+    DO iElem = 1, nElems ! element/cell main loop
       LD_Residual(iElem,1) = MacroDSMC(iElem,nSpecies + 1)%PartV(1)
       LD_Residual(iElem,2) = MacroDSMC(iElem,nSpecies + 1)%PartV(2)
       LD_Residual(iElem,3) = MacroDSMC(iElem,nSpecies + 1)%PartV(3)
@@ -294,7 +294,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
 
   CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
   DEALLOCATE(MacroDSMC)
-  
+
 END SUBROUTINE LD_output_calc
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
@@ -326,42 +326,42 @@ SUBROUTINE LD_ResidualOutout
     IF (.NOT.isOpen) THEN
       outfile = 'LD_Residual.csv'
       OPEN(unit_index,file=TRIM(outfile))
-      !--- insert header  
-      WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME' 
+      !--- insert header
+      WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_Linf' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_Linf'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_L1' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_L1'
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_L1' 
-      WRITE(unit_index,'(A14)') ' ' 
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_L1'
+      WRITE(unit_index,'(A14)') ' '
     END IF
 
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') 'Write LD_Residual....'
-    LD_ResidualTemp_Linf = MAXVAL(LD_Residual,1) 
+    LD_ResidualTemp_Linf = MAXVAL(LD_Residual,1)
     LD_ResidualTemp_L1  = SUM(LD_Residual,1) / nElems
 
     WRITE(unit_index,104,ADVANCE='NO') Time
@@ -393,7 +393,7 @@ SUBROUTINE LD_ResidualOutout
     WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(5)
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
     WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(6)
-    WRITE(unit_index,'(A14)') ' ' 
+    WRITE(unit_index,'(A14)') ' '
 
 104    FORMAT (e25.14)
 

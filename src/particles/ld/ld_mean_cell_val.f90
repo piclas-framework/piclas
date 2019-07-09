@@ -132,7 +132,7 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
     BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom / MPFSum
     BulkValues(iElem)%MassDens = CellMass / GEO%Volume(iElem)
     CellTemp = CellTempMean &
-             + CellMass / MPFSum /(BulkValues(iElem)%DegreeOfFreedom * BoltzmannConst) & 
+             + CellMass / MPFSum /(BulkValues(iElem)%DegreeOfFreedom * BoltzmannConst) &
              * (nPart/(nPart-1)) &
              * (CellVelo2 - ( BulkValues(iElem)%CellV(1)**2 &
                             + BulkValues(iElem)%CellV(2)**2 &
@@ -209,8 +209,8 @@ IF (LowPartCount.GE. 1) THEN
       END IF
       BulkValues(iElem)%CellV(1:3) = BulkValues(iElem)%CellV(1:3) / nNei
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom / nNei
-      BulkValues(iElem)%Beta = BulkValues(iElem)%Beta / nNei   
-    END IF     
+      BulkValues(iElem)%Beta = BulkValues(iElem)%Beta / nNei
+    END IF
   END DO
 END IF
 #endif
@@ -238,7 +238,7 @@ USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
 USE MOD_Mesh_Vars,              ONLY : SideToElem
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE    
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
   REAL  , ALLOCATABLE :: MPI_LDSendBuffer(:)  ! Buffer for MIPSend (nMPISide*5)
   REAL  , ALLOCATABLE :: MPI_LDRecvBuffer(:)  ! Buffer for MIPRecv (nMPISide*5)
@@ -327,7 +327,7 @@ USE MOD_Mesh_Vars,              ONLY : SideToElem
         MPINeighborBulkVal(iSideID,6) = MPI_LDRecvBuffer(8*RecvBufferCount + 6)
         MPINeighborBulkVal(iSideID,7) = MPI_LDRecvBuffer(8*RecvBufferCount + 7)
         MPINeighborBulkVal(iSideID,8) = MPI_LDRecvBuffer(8*RecvBufferCount + 8)
-        RecvBufferCount = RecvBufferCount + 1 
+        RecvBufferCount = RecvBufferCount + 1
       END DO
     END IF
 

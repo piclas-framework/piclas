@@ -20,14 +20,14 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL              :: Pi
-REAL              :: IniWavenumber(3) ! wavenumbers in 3 directions (sinus periodic with exactfunc=6) 
+REAL              :: IniWavenumber(3) ! wavenumbers in 3 directions (sinus periodic with exactfunc=6)
 INTEGER           :: IniExactFunc
 REAL              :: IniCenter(3)
-REAL              :: IniAmplitude 
-REAL              :: IniHalfwidth 
+REAL              :: IniAmplitude
+REAL              :: IniHalfwidth
 
 REAL,ALLOCATABLE  :: chitens(:,:,:,:,:,:) !diffusion 3x3 tensor on each gausspoint
 REAL,ALLOCATABLE  :: chitensInv(:,:,:,:,:,:) ! inverse of diffusion 3x3 tensor on each gausspoint
@@ -42,8 +42,8 @@ CHARACTER(LEN=255),DIMENSION(7),PARAMETER :: StrVarNames(7)=(/ CHARACTER(LEN=255
                                                                                      'MagneticFieldZ'/)
 
 LOGICAL           :: EquationInitIsDone=.FALSE.
-REAL              :: eps0 
-REAL              :: mu0, smu0 
+REAL              :: eps0
+REAL              :: mu0, smu0
 REAL              :: c
 REAL              :: c2
 REAL              :: c2_inv

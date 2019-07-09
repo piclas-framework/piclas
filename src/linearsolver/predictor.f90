@@ -20,7 +20,7 @@ MODULE MOD_Predictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -49,7 +49,7 @@ CONTAINS
 
 SUBROUTINE InitPredictor()
 !===================================================================================================================================
-! Allocate global variable 
+! Allocate global variable
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -64,7 +64,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 PredictorType = GETINT('Predictor','0')
 dtOld=1.
@@ -131,7 +131,7 @@ REAL,INTENT(IN)              :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL               :: tphi
 #if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121)
 REAL               :: tphi2
@@ -155,11 +155,11 @@ SELECT CASE(PredictorType)
     U=LinSolverRHS
   CASE(2)
     ! second order dense output
-#if  (PP_TimeDiscMethod==121) 
+#if  (PP_TimeDiscMethod==121)
     !tphi = 1.+RK_c(iStage) | because dt^n+1/dt = 1 (Maxwell timestep)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
-    U=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2) *(FieldStage (:,:,:,:,:,iStage-1)) 
+    U=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2) *(FieldStage (:,:,:,:,:,iStage-1))
     DO iCounter = 1,iStage-2
       U = U + (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi2) *(FieldStage (:,:,:,:,:,iCounter))
     END DO
@@ -199,7 +199,7 @@ __STAMP__&
           DO i=0,PP_N
             DO iVar=1,PP_nVar
               U(iVar,i,j,k,iElem) = ( Upast(iVar,i,j,k,iElem,0)-Upast(iVar,i,j,k,iElem,-1)) * DeltaT_inv &
-                                           *(time+dt*RK_c(iStage)-tpast(-1)) + Upast(iVar,i,j,k,iElem,-1) 
+                                           *(time+dt*RK_c(iStage)-tpast(-1)) + Upast(iVar,i,j,k,iElem,-1)
             END DO ! iVar=1,PP_nVar
           END DO ! i=0,PP_N
         END DO ! j=0,PP_N
@@ -221,7 +221,7 @@ __STAMP__&
   CASE(7)
 #if (PP_TimeDiscMethod==122)
     IF(iter.EQ.0) RETURN
-    IF(iStage.LE.1) RETURN 
+    IF(iStage.LE.1) RETURN
     U=Upredict(:,:,:,:,:,iStage)
 #else
    CALL abort(&
@@ -277,8 +277,8 @@ REAL,INTENT(IN)              :: dt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-#if (PP_TimeDiscMethod==122) 
+! LOCAL VARIABLES
+#if (PP_TimeDiscMethod==122)
 REAL               :: tphi3
 #endif
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -300,7 +300,7 @@ SELECT CASE(PredictorType)
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     !tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
-    tphi2= tphi*tphi 
+    tphi2= tphi*tphi
     PartState(PartID,1:6)=(RK_bs(iStage-1,1)*tphi+RK_bs(iStage-1,2)*tphi2)*PartStage(PartID,1:6,iStage-1)
     DO iCounter=1,iStage-2
       PartState(PartID,1:6) = PartState(PartID,1:6) + &
@@ -378,7 +378,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 #if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121)
 REAL                       :: tphi2
 #endif
@@ -403,7 +403,7 @@ CASE(4)
   ELSE
     tpast( 0) =time+dt*RK_c(iStage-1)
   END IF
-CASE(5) 
+CASE(5)
   Upast(:,:,:,:,:,-2)=Upast(:,:,:,:,:,-1)
   Upast(:,:,:,:,:,-1)=Upast(:,:,:,:,:, 0)
   Upast(:,:,:,:,:, 0)=U
@@ -466,7 +466,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(Upast)
 END SUBROUTINE FinalizePredictor

@@ -14,10 +14,10 @@
 
 MODULE  MOD_InitializeBackgroundField
 !===================================================================================================================================
-! Module performing the init. of a BackGround-Field 
+! Module performing the init. of a BackGround-Field
 !===================================================================================================================================
-IMPLICIT NONE                                                                                   
-PRIVATE                                                                                         
+IMPLICIT NONE
+PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC ::  InitializeBackgroundField,FinalizeBackGroundField
 !===================================================================================================================================
@@ -31,7 +31,7 @@ INTERFACE FinalizeBackGroundField
 END INTERFACE
 !===================================================================================================================================
 
-CONTAINS                                                                                           
+CONTAINS
 
 SUBROUTINE InitializeBackgroundField
 !===================================================================================================================================
@@ -64,7 +64,7 @@ CHARACTER(255)                          :: BGFileName,NodeType_BGField,MeshFile_
 CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
 REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), Vdm_BGFieldIn_BGField(:,:)
 REAL,ALLOCATABLE                        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
-INTEGER                                 :: Rank,N_in 
+INTEGER                                 :: Rank,N_in
 INTEGER                                 :: iElem,i,j,k
 REAL                                    :: BGFieldScaling
 INTEGER(HID_T)                          :: Dset_ID,FileSpace
@@ -75,11 +75,11 @@ SWRITE(UNIT_stdOut,'(132("~"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 
 BGFileName = GETSTR('PIC-BGFileName','none')
-IF(TRIM(BGFileName).EQ.'none')THEN 
+IF(TRIM(BGFileName).EQ.'none')THEN
   CALL abort(&
   __STAMP__&
   ,'ERROR: No Filename for Background-Field defined!')
-END IF 
+END IF
 
 NBG = GETINT('PIC-NBG','1')
 BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
@@ -94,7 +94,7 @@ CALL OpenDataFile(BGFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,commu
 
 ! get attributes
 CALL H5DOPEN_F(File_ID, 'BGField', Dset_ID, iError)
-! Get the data space of the dataset. 
+! Get the data space of the dataset.
 CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
 ! Get number of dimensions of data space
 CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, Rank, iError)
@@ -148,7 +148,7 @@ ASSOCIATE (&
       N_in          => INT(N_in,IK)       ,&
       PP_nElems     => INT(PP_nElems,IK)  ,&
       NBG           => INT(NBG,IK)        ,&
-      OffsetElem    => INT(OffsetElem,IK) ) 
+      OffsetElem    => INT(OffsetElem,IK) )
   IF(NBG.EQ.N_IN)THEN
     ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
     CALL ReadArray('BGField',5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)

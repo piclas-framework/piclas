@@ -42,7 +42,7 @@ PUBLIC::WriteElemTimeStatistics
 CONTAINS
 
 #ifdef MPI
-SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime) 
+SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
 ! Modification for performance on root
@@ -57,7 +57,7 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars,   ONLY:TargetWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: OldElems
 REAL,INTENT(IN)                   :: ElemTime(1:OldElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -120,12 +120,12 @@ DO iRank=minRank,maxRank
     END DO
     IF(ABS(WeightSplit - Opt_Split) .GT. ABS(WeightSplit-Opt_Split-ElemTime(mid)))THEN
       ! return 0 IF the splitter is left of the lower boundary
-      mid = mid - 1 
+      mid = mid - 1
     ELSE
       IF (mid+1 .LE. OldElems) THEN
         IF (ABS(WeightSplit - opt_split) .GT. ABS(WeightSplit - opt_split + ElemTime(mid+1))) THEN
           ! return myElems at most
-          mid = mid + 1 
+          mid = mid + 1
         END IF
       ELSE
         IF (opt_split .GT. UpperBoundary) mid = OldElems
@@ -173,7 +173,7 @@ USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -216,7 +216,7 @@ IF(PartIntExists)THEN
   ! Check integer KIND=8 possibility
   CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),2_IK/),0_IK,1,IntegerArray=PartInt)
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 #endif /*PARTICLES*/
 ALLOCATE(PartsInElem(1:nGlobalElems))
 PartsInElem=0
@@ -577,14 +577,14 @@ CASE(4)
   SWRITE(*,*) 'TargetWeight', TargetWeight_loc !,ParticleMPIWeight
   offsetElemMPI(nProcessors)=nGlobalElems
   DO iProc=0, nProcessors-1
-    offsetElemMPI(iProc)=curiElem - 1 
-    DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-      CurWeight=CurWeight+ElemGlobalTime(iElem)  
+    offsetElemMPI(iProc)=curiElem - 1
+    DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc
+      CurWeight=CurWeight+ElemGlobalTime(iElem)
       IF (CurWeight.GE.TargetWeight_loc*(iProc+1)) THEN
-        curiElem = iElem + 1 
+        curiElem = iElem + 1
         EXIT
       END IF
-    END DO   
+    END DO
   END DO
   ElemDistri=0
   DO iProc=0,nProcessors-1
@@ -778,7 +778,7 @@ CASE(5,6)
 #ifdef CODE_ANALYZE
           SWRITE(*,*)'MaxLoadIdx.GE.MinLoadIdx...'
 #endif /*CODE_ANALYZE*/
-        END IF    
+        END IF
         !-- save optimal distri
         IF (MaxLoadVal.LT.MaxLoadVal_opt) THEN
           MaxLoadVal_opt=MaxLoadVal
@@ -1003,7 +1003,7 @@ END SUBROUTINE CalcDistriFromOffsets
 
 SUBROUTINE checkList(offSetElemMPI,identical,numOfCalls)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LoadBalance_Vars
@@ -1063,7 +1063,7 @@ END SUBROUTINE checkList
 
 SUBROUTINE freeList()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LoadBalance_Vars
@@ -1105,7 +1105,7 @@ USE MOD_Globals          ,ONLY: abort
 USE MOD_Globals          ,ONLY: nProcessors
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 LOGICAL,INTENT(IN)                  :: WriteHeader
 REAL,INTENT(IN),OPTIONAL            :: time
 INTEGER(KIND=8),INTENT(IN),OPTIONAL :: iter
@@ -1130,8 +1130,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'SimulationWallTime',&
     'InitializationWallTime'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called mutiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2 
-CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+CHARACTER(LEN=1000)                      :: tmpStr2
+CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 !===================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
 
@@ -1163,8 +1163,8 @@ IF(WriteHeader)THEN ! create new file
   tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
-  CLOSE(ioUnit) 
-ELSE ! 
+  CLOSE(ioUnit)
+ELSE !
   IF(.NOT.PRESENT(time))THEN
     time_loc=-1.
   ELSE
@@ -1187,7 +1187,7 @@ ELSE !
         delimiter,WallTime,&
         delimiter,InitializationWallTime
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-    CLOSE(ioUnit) 
+    CLOSE(ioUnit)
   ELSE
     SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
   END IF

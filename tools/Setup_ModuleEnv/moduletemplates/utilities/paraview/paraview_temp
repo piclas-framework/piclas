@@ -1,0 +1,29 @@
+#%Module1.0#####################################################################
+##
+## modules paraview/paraviewversion
+##
+## modulefiles/utilities/paraview/paraviewversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "paraview-paraviewversion - sets the Environment for ParaView-paraviewversion"
+}
+
+module-whatis   "Sets the environment for using paraview-paraviewversion"
+
+conflict paraview
+
+prereq cmake/CMAKEVERSIONFLAG
+prereq gcc/GCCVERSIONFLAG
+prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
+prereq hdf5/HDF5VERSIONFLAG/gcc/GCCVERSIONFLAG/openmpi/MPIVERSIONFLAG
+
+# for Tcl script use only
+set     topdir          /opt/paraview/paraviewversion
+set     version         paraviewversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib
+#set-alias       paraviewmpi "paraview --mpi$

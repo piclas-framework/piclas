@@ -14,7 +14,7 @@
 
 MODULE MOD_Precond
 !===================================================================================================================================
-! Module for the Block-Jacobi Preconditioner  
+! Module for the Block-Jacobi Preconditioner
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -27,7 +27,7 @@ END INTERFACE
 
 #ifdef maxwell
 INTERFACE BuildPrecond
-  MODULE PROCEDURE BuildPrecond 
+  MODULE PROCEDURE BuildPrecond
 END INTERFACE
 #endif /*maxwell*/
 
@@ -156,7 +156,7 @@ END SUBROUTINE InitPrecond
 #ifdef maxwell
 SUBROUTINE BuildPrecond(t,tStage,tDeriv,alpha,dt)
 !===================================================================================================================================
-! Build preconditioner for each element, calls a type of preconditioner 
+! Build preconditioner for each element, calls a type of preconditioner
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -166,7 +166,7 @@ USE MOD_Precond_Vars      ,ONLY: invXi,invEta,invZeta,dRdXi,dRdZeta,dRdEta
 USE MOD_LinearSolver_Vars ,ONLY: nDOFelem,mass,nDOFLine
 USE MOD_Precond_Vars      ,ONLY: invP,PrecondType,DebugMatrix
 USE MOD_Jac_ex            ,ONLY: Jac_ex, Jac_Ex_Neighbor,Jac_ex1D
-USE MOD_Jac_FD            ,ONLY: Jac_FD_slow                               
+USE MOD_Jac_FD            ,ONLY: Jac_FD_slow
 USE MOD_JacDG             ,ONLY: BuildJacDG
 USE MOD_DG                ,ONLY: DGTimeDerivative_WeakForm
 USE MOD_SparseILU         ,ONLY: BuildILU0
@@ -214,7 +214,7 @@ SELECT CASE(PrecondType)
   CASE(1,2)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem), &
               Ploc1(1:nDOFElem,1:nDOFElem) )
-  CASE(3,4) 
+  CASE(3,4)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem))
   CASE(204,215)
     ALLOCATE( Ploc (1:nDOFElem,1:nDOFElem), &
@@ -238,18 +238,18 @@ DO iElem=1,PP_nElems
         Ploc(r,s)=0.
       END DO !r
     END DO !s
-    IF(PrecondType.EQ.1) THEN 
+    IF(PrecondType.EQ.1) THEN
       ! obtained by finite difference
-      !Prepare Linearisation State 
+      !Prepare Linearisation State
       CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
-      ! finit differences per Element ! never to use ... 
+      ! finit differences per Element ! never to use ...
       CALL Jac_FD_slow(t,tStage,tDeriv,iElem,Ploc)
     ELSE
       ! analytic per Element
       CALL Jac_ex(iElem,Ploc)
-    END IF 
+    END IF
     IF(DebugMatrix.NE.0) Ploc1=Ploc
-  
+
     !IF(PrecondType.NE.60)THEN
     ! add contibution I-alpha*dt*dRdU
 #ifdef IMPA
@@ -332,10 +332,10 @@ DO iElem=1,PP_nElems
                                                               *Mass(1,ll,nn,oo,iElem)
         v2=nn*PP_nVar
         dRdEta (v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo,iElem)=dRdEta (v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo,iElem) &
-                                                              *Mass(1,mm,ll,oo,iElem) 
+                                                              *Mass(1,mm,ll,oo,iElem)
         v2=oo*PP_nVar
         dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn,iElem)=dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn,iElem) &
-                                                            *Mass(1,mm,nn,ll,iElem) 
+                                                            *Mass(1,mm,nn,ll,iElem)
         v1=v1+PP_nVar
       END DO !ll
     END DO; END DO; END DO! mm,nn,oo=0,PP_N
@@ -350,8 +350,8 @@ DO iElem=1,PP_nElems
     CALL BuildILU0(Ploc,iElem)
   CASE(4)
     CALL BuildBILU0BCSR(Ploc,iElem)
-  CASE(201) 
-    ! compute the inverse of the 1D preconditioner 
+  CASE(201)
+    ! compute the inverse of the 1D preconditioner
     DO q=0,PP_N
       DO p=0,PP_N
         invXi  (:,:,p,q,iElem)=getInverse(nDOFLine,dRdXi  (:,:,p,q,iElem))
@@ -388,7 +388,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 
 
 SELECT CASE(PrecondType)
-  CASE(1,2) 
+  CASE(1,2)
     DEALLOCATE( Ploc, Ploc1)
   CASE(3,4)
     DEALLOCATE( Ploc )
@@ -513,7 +513,7 @@ END SUBROUTINE CheckBJPrecond
 
 SUBROUTINE FinalizePrecond()
 !===================================================================================================================================
-! Finalizes variables 
+! Finalizes variables
 !===================================================================================================================================
 ! MODULES
 USE MOD_Precond_Vars,ONLY:invP,PrecondInitIsDone,PrecondType,neighborElemID
