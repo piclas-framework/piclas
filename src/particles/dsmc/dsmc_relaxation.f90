@@ -59,7 +59,7 @@ IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
 ELSE
   Ec = Coll_pData(iPair)%Ec
 END IF
-  
+
 MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib)  &
           - DSMC%GammaQuant
 iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)

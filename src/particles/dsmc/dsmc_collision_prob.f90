@@ -67,7 +67,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   INTEGER                             :: iReac, iSpec
 #endif
 !===================================================================================================================================
-  
+
   iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
   iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
 
@@ -109,16 +109,16 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
   IF (VarTimeStep%UseVariableTimeStep) THEN
     dtCell = dt * (VarTimeStep%ParticleTimeStep(iPart_p1) + VarTimeStep%ParticleTimeStep(iPart_p2))*0.5
-  ELSE 
-    dtCell = dt 
+  ELSE
+    dtCell = dt
   END IF
 
   SELECT CASE(iPType)
 
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
-    ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
-      IF (BGGas%BGGasSpecies.NE.0) THEN       
+    ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
+      IF (BGGas%BGGasSpecies.NE.0) THEN
         Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Species(iSpec_p1)%MacroParticleFactor                  &

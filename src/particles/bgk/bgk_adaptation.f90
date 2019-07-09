@@ -734,7 +734,7 @@ END IF
 ! 1.) Sorting the received particles to the respective QuadTree child node
 !
 !      Numbering of the 4 ChildNodes of the QuadTree
-!      _________ 
+!      _________
 !     |    |    |   |y
 !     | 3  | 2  |   |
 !     |----|----|   |

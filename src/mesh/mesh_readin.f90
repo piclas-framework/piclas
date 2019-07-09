@@ -322,7 +322,7 @@ IF(VarTimeStep%UseDistribution) THEN
 END IF
 #endif
 
-IF (DoRestart) THEN 
+IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! 1) Only MPIRoot does readin of ElemTime

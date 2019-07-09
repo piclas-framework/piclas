@@ -21,7 +21,7 @@ MODULE MOD_Particle_VarTimeStep
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -60,7 +60,7 @@ CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
                             , 'TODO-DEFINE-PARAMETER')
-! 2D: Radial and axial scaling towards 
+! 2D: Radial and axial scaling towards
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint'  &
                             , 'TODO-DEFINE-PARAMETER')
@@ -345,7 +345,7 @@ END SUBROUTINE VarTimeStep_InitDistribution
 
 REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -431,7 +431,7 @@ IF (VarTimeStep%Direction(1).GT.0.0) THEN
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(GEO%xmaxglob-VarTimeStep%StartPoint(1)) &
           * (GEO%ElemMidPoint(1,iElem)-VarTimeStep%StartPoint(1))
-    ELSE 
+    ELSE
       IF (GEO%ElemMidPoint(1,iElem).GT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
@@ -447,7 +447,7 @@ ELSE
     ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
       VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-GEO%xminglob) &
           * (VarTimeStep%StartPoint(1)-GEO%ElemMidPoint(1,iElem))
-    ELSE 
+    ELSE
       IF (GEO%ElemMidPoint(1,iElem).LT.VarTimeStep%EndPoint(1)) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
@@ -463,7 +463,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 
 ! SUBROUTINE VarTimeStep_SmoothDistribution(onlyMPIExchange)
 ! !===================================================================================================================================
-! ! 
+! !
 ! !===================================================================================================================================
 ! ! MODULES
 ! USE MOD_Particle_Vars           ,ONLY: VarTimeStep
@@ -504,7 +504,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
 !       ALLOCATE(TempArrayProc(iProc)%SendMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems))
 !       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems
-!         TempArrayProc(iProc)%SendMsg(iElem) & 
+!         TempArrayProc(iProc)%SendMsg(iElem) &
 !           = VarTimeStep%ElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%SendElems(iElem))
 !       END DO
 !     END IF
@@ -535,7 +535,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
 !     END IF
 !   END IF
-! END DO 
+! END DO
 
 ! ! Sort recv message
 ! MPIElemFac = 0.0
@@ -545,11 +545,11 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems
 !         MPIElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%RecvElems(iElem)) &
 !           = TempArrayProc(iProc)%RecvMsg(iElem)
-!       END DO 
+!       END DO
 !     END IF
 !   END IF
 ! END DO
-! DEALLOCATE(TempArrayProc)  
+! DEALLOCATE(TempArrayProc)
 ! #endif
 
 ! IF (PRESENT(onlyMPIExchange)) RETURN
@@ -582,7 +582,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !     IF (MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems.GT.0) THEN
 !       ALLOCATE(TempArrayProc(iProc)%SendMsg(MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems))
 !       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumSendElems
-!         TempArrayProc(iProc)%SendMsg(iElem) & 
+!         TempArrayProc(iProc)%SendMsg(iElem) &
 !           = VarTimeStep%ElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%SendElems(iElem))
 !       END DO
 !     END IF
@@ -613,7 +613,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !           ,MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)
 !     END IF
 !   END IF
-! END DO 
+! END DO
 
 ! ! Sort recv message
 ! MPIElemFac = 0.0
@@ -623,7 +623,7 @@ END SUBROUTINE VarTimeStep_CalcElemFacs
 !       DO iElem = 1, MPIGEO%MPIElemsToCommunicate(iProc)%NumRecvElems
 !         MPIElemFac(MPIGEO%MPIElemsToCommunicate(iProc)%RecvElems(iElem)) &
 !           = TempArrayProc(iProc)%RecvMsg(iElem)
-!       END DO 
+!       END DO
 !     END IF
 !   END IF
 ! END DO

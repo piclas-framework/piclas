@@ -1564,7 +1564,7 @@ END SELECT
 
 DO pcount = 0,tempDelay
     locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
-END DO         
+END DO
 
 #ifdef MPI
 sendbuf(1)=locnPart
@@ -1582,7 +1582,7 @@ nPart_glob=locnPart
 ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
-  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum)) 
+  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
   !+1 is real number of necessary vib quants for the particle
 END IF
 iPart=offsetnPart
@@ -1618,7 +1618,7 @@ DO iDelay=0,tempDelay
         PartData(iPart,11)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
       ELSE IF (usevMPF) THEN
         PartData(iPart,10)=ClonedParticles(pcount,iDelay)%WeightingFactor
-      END IF     
+      END IF
     ELSE IF (usevMPF) THEN
         PartData(iPart,10)=ClonedParticles(pcount,iDelay)%WeightingFactor
     END IF
@@ -1632,7 +1632,7 @@ DO iDelay=0,tempDelay
       END IF
     END IF
   END DO
-END DO 
+END DO
 
 ALLOCATE(StrVarNames(PartDataSize))
 StrVarNames(1)='ParticlePositionX'

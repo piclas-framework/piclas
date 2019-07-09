@@ -3414,7 +3414,7 @@ DO iPart=1,PDM%ParticleVecLength
     SELECT CASE(Method)
     CASE(0) ! 1.0   for distributions where the drift is negligible
       ElectronTemperatureCell(ElemID) = ElectronTemperatureCell(ElemID)+CalcEkinPart(iPart)
-    CASE(1) ! 1.1   remove drift from distribution 
+    CASE(1) ! 1.1   remove drift from distribution
       PartVandV2(ElemID,1:3) = PartVandV2(ElemID,1:3) + PartState(iPart,4:6)    * WeightingFactor
       PartVandV2(ElemID,4:6) = PartVandV2(ElemID,4:6) + PartState(iPart,4:6)**2 * WeightingFactor
     END SELECT

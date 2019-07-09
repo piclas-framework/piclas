@@ -81,7 +81,7 @@ DO iElem = 1, nElems
     TotalMass = TotalMass + partWeight
     iPart = PEM%pNext(iPart)
   END DO
-  
+
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     dens = TotalMass / GEO%Volume(iElem)
   ELSE

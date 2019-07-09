@@ -423,7 +423,7 @@ nPart = PartNum
 IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
 DO iPair = 1, PairNum_Node
   loopStart = 0
-  CALL RANDOM_NUMBER(iRan) 
+  CALL RANDOM_NUMBER(iRan)
   iPart1 = 1 + INT(nPart * iRan)
   Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
   iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
@@ -440,7 +440,7 @@ DO iPair = 1, PairNum_Node
   Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
           - PartState(iPartIndx_Node(iPart2),1))**2 &
           +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-          - PartState(iPartIndx_Node(iPart2),2))**2  
+          - PartState(iPartIndx_Node(iPart2),2))**2
   DO iLoop = 2 + loopStart, nPart
     IF (CollInf%ProhibitDoubleColl) THEN
         IF (iPartIndx_Node(iLoop).EQ.CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1)) THEN
@@ -450,7 +450,7 @@ DO iPair = 1, PairNum_Node
     Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
             - PartState(iPartIndx_Node(iLoop),1))**2 &
             +(PartState(Coll_pData(iPair)%iPart_p1,2) &
-            - PartState(iPartIndx_Node(iLoop),2))**2 
+            - PartState(iPartIndx_Node(iLoop),2))**2
     IF (Dist2.LT.Dist1) THEN
       iPart2 = iLoop
       Dist1 = Dist2
@@ -460,9 +460,9 @@ DO iPair = 1, PairNum_Node
   iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
   nPart = nPart - 1
 
-  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1   
+  cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-  
+
   IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
     TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
     IF (TempMPFFac .GE. MPFFac) THEN
@@ -476,7 +476,7 @@ DO iPair = 1, PairNum_Node
     END IF
   END IF
 
-  iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
+  iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
@@ -488,7 +488,7 @@ DO iPair = 1, PairNum_Node
                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                            -  PartState(Coll_pData(iPair)%iPart_p2,6))**2 
+                            -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -545,7 +545,7 @@ DO iPair = 1,  PairNum_Node
           iCase = CollInf%Coll_Case(cSpec1, cSpec2)
           ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
           CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(cSpec1) + GetParticleWeight(cSpec2))*0.5
-          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1            
+          CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
           Coll_pData(iPair+1)%CRela2 = (PartState(Coll_pData(iPair+1)%iPart_p1,4) &
                                       -  PartState(Coll_pData(iPair+1)%iPart_p2,4))**2 &
                                       + (PartState(Coll_pData(iPair+1)%iPart_p1,5) &
@@ -592,7 +592,7 @@ DO iPair = 1,  PairNum_Node
     ELSE
       IF (CollInf%ProhibitDoubleColl) THEN
         CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p1) = 0
-        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = 0  
+        CollInf%OldCollPartner(Coll_pData(iPair)%iPart_p2) = 0
       END IF
     END IF
   END IF
@@ -893,7 +893,7 @@ END SUBROUTINE AddOctreeNode
 
 SUBROUTINE DSMC_pairing_quadtree(iElem)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
@@ -934,7 +934,7 @@ TYPE(tTreeNode), POINTER      :: TreeNode
       SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
       iPart = PEM%pNext(iPart)
     END DO
-    
+
     DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
 
     ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
@@ -1017,7 +1017,7 @@ IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
 END IF
 
 !         Numbering of the 4 ChildNodes of the QuadTree
-!      _________ 
+!      _________
 !     |    |    |   |y
 !     | 3  | 2  |   |
 !     |----|----|   |
@@ -1042,7 +1042,7 @@ DO iPart=1,TreeNode%PNum_Node
   ELSE
     PartNumChildNode(4) = PartNumChildNode(4) + 1
     iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)   
+    MappedPart_ChildNode(4,PartNumChildNode(4),1:2) = TreeNode%MappedPartStates(iPart,1:2)
   END IF
 END DO
 
@@ -1107,7 +1107,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN 
+    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
@@ -1466,8 +1466,8 @@ INTEGER, INTENT(INOUT)                    :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
 TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
-REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1) 
-REAL, INTENT(INOUT)                       :: FacexGP(2,0:2**NodeDepth-1,0:2**NodeDepth-1)  
+REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1)
+REAL, INTENT(INOUT)                       :: FacexGP(2,0:2**NodeDepth-1,0:2**NodeDepth-1)
 TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1483,7 +1483,7 @@ IF (PRESENT(SubNodesIn)) THEN
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
   SubNodesOut(1:OldNodeNum) = SubNodesIn(1:OldNodeNum)
-ELSE 
+ELSE
   OldNodeNum = 0
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
@@ -1527,7 +1527,7 @@ ELSE
     ! y direction
     IF ((SubNodesOut(j).LT.4).AND.(SubNodesOut(j).GT.1)) THEN
       VolPos(2)= VolPos(2) + 2**NodeDepth/2**j
-    END IF       
+    END IF
   END DO
   Pos(1) = VdmLocal%xGP(VolPos(1))
   Pos(2) = VdmLocal%xGP(VolPos(2))
@@ -1635,7 +1635,7 @@ IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
 END IF
 
 DO iPair = 1, nPair                               ! statistical pairing
-  CALL RANDOM_NUMBER(iRan) 
+  CALL RANDOM_NUMBER(iRan)
   cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
   Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(cPart1)
   iPartIndx_Node(cPart1) = iPartIndx_Node(nPart)
@@ -1692,7 +1692,7 @@ DO iPair = 1, nPair                               ! statistical pairing
                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
-END DO  
+END DO
 IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
   ChemReac%RecombParticle = iPartIndx_Node(1)
 END IF
@@ -1859,15 +1859,15 @@ FUNCTION Calc_dF_inv2D(xi,P)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: xi(2)      ! 
-REAL,INTENT(IN)          :: P(2,4)     ! 
+REAL,INTENT(IN)          :: xi(2)
+REAL,INTENT(IN)          :: P(2,4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: Calc_dF_inv2D(2,2)  !  
+REAL                     :: Calc_dF_inv2D(2,2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-REAL                     :: dF(2,2) 
-REAL                     :: dF_inv(2,2)  !  
+! LOCAL VARIABLES
+REAL                     :: dF(2,2)
+REAL                     :: dF_inv(2,2)
 REAL                     :: detjb
 !===================================================================================================================================
 dF = 0.
@@ -1876,8 +1876,7 @@ dF(:,2)= 0.25 * ((P(:,4)-P(:,1))*(1-xi(1))+(P(:,3)-P(:,2))*(1+xi(1)))
 
 ! Determines the determinant of xj and checks for zero values
 !
-detjb = dF(1, 1) * dF(2, 2) - dF(1, 2) * dF(2, 1) 
-
+detjb = dF(1, 1) * dF(2, 2) - dF(1, 2) * dF(2, 1)
 
 IF ( detjb <= 0.d0 ) then
   WRITE(*,*)"Negative determinant of Jacobian in calc_df_inv:"
@@ -1896,12 +1895,13 @@ dF_inv(2, 1) = - dF(2, 1) / detjb
 dF_inv(2, 2) = dF(1, 1) / detjb
 
 Calc_dF_inv2D = dF_inv
-END FUNCTION Calc_dF_inv2D 
+
+END FUNCTION Calc_dF_inv2D
 
 
 FUNCTION Calc_inv2D(M)
 !===================================================================================================================================
-! calc inverse of M
+!> calc inverse of M
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1909,13 +1909,13 @@ USE MOD_Globals
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: M(2,2)     ! 
+REAL,INTENT(IN)          :: M(2,2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: Calc_inv2D(2,2)  !  
+REAL                     :: Calc_inv2D(2,2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-REAL                     :: M_inv(2,2)  !  
+! LOCAL VARIABLES
+REAL                     :: M_inv(2,2)
 REAL                     :: detjb
 !===================================================================================================================================
 M_inv = 0.
@@ -1933,126 +1933,125 @@ M_inv (1, 2) = - M (1, 2) / detjb
 M_inv (2, 1) = - M (2, 1) / detjb
 M_inv (2, 2) = M (1, 1) / detjb
 Calc_inv2D = M_inv
-END FUNCTION Calc_inv2D 
+END FUNCTION Calc_inv2D
+
 
 SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 !===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
-! xi is defined in the 1DrefElem xi=[-1,1]
+!> interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+!> first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+!> xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Mesh_Vars,ONLY:GEO
-  USE MOD_DSMC_Vars, ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER,INTENT(IN)  :: iElem                                 ! elem index
-  REAL,INTENT(IN)     :: x_in(2)                                  ! physical position of particle 
+INTEGER,INTENT(IN)            :: iElem                                 !< elem index
+REAL,INTENT(IN)               :: x_in(2)                               !< physical position of particle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL,INTENT(INOUT)    :: xi_Out(2)  ! Interpolated Pos
+REAL,INTENT(INOUT)            :: xi_Out(2)  ! Interpolated Pos
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-  INTEGER             :: i,j,k, iNode, SideID
-  REAL                :: xi(2)     
-  REAL              :: P(2,4), F(2), dF_inv(2,2), s(2) 
-  REAL, PARAMETER   :: EPS=1E-10
-  REAL              :: T_inv(2,2), DP(2), T(2,2)
+! LOCAL VARIABLES
+INTEGER                       :: i,j,k, iNode, SideID
+REAL                          :: xi(2)
+REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
+REAL, PARAMETER               :: EPS=1E-10
+REAL                          :: T_inv(2,2), DP(2), T(2,2)
 !===================================================================================================================================
-  ! --------------------------------------------------
-  ! 1.) Mapping: get xi,eta,zeta value from x,y,z
-  ! --------------------------------------------------
-  ! 1.1.) initial guess from linear part:
-  SideID = SymmetrySide(iElem,2)
-  DO iNode = 1,4
-    P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
-  END DO
-  T(:,1) = 0.5 * (P(:,2)-P(:,1))
-  T(:,2) = 0.5 * (P(:,4)-P(:,1))
-  T_inv = Calc_inv2D(T)
+! --------------------------------------------------
+! 1.) Mapping: get xi,eta,zeta value from x,y,z
+! --------------------------------------------------
+! 1.1.) initial guess from linear part:
+SideID = SymmetrySide(iElem,2)
+DO iNode = 1,4
+  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
+END DO
+T(:,1) = 0.5 * (P(:,2)-P(:,1))
+T(:,2) = 0.5 * (P(:,4)-P(:,1))
+T_inv = Calc_inv2D(T)
 
-  ! transform also the physical coordinate of the point 
-  ! into the unit element (this is the solution of the 
-  ! linear problem already 
-  xi = 0.
-  DP = x_in - P(:,1)
-  DO i=1,2
-    DO j=1,2
-      xi(i)= xi(i) + T_inv(i,j) * DP(j) 
-    END DO
+! transform also the physical coordinate of the point into the unit element (this is the solution of the linear problem already)
+xi = 0.
+DP = x_in - P(:,1)
+DO i=1,2
+  DO j=1,2
+    xi(i)= xi(i) + T_inv(i,j) * DP(j)
   END DO
-  
-  IF ((xi(1).GE.0.0.AND.xi(1).LE.2.0).AND.(xi(2).GE.0.0.AND.xi(2).LE.2.0)) THEN
-    xi = xi - (/1.,1./)
-  ELSE
-    xi = (/0.,0./)
-  END IF
-  ! 1.2.) Newton-Method to solve non-linear part
-  !       If linear elements then F should becom 0 and no 
-  !       Newton step is required.
+END DO
 
+IF ((xi(1).GE.0.0.AND.xi(1).LE.2.0).AND.(xi(2).GE.0.0.AND.xi(2).LE.2.0)) THEN
+  xi = xi - (/1.,1./)
+ELSE
+  xi = (/0.,0./)
+END IF
+
+! 1.2.) Newton-Method to solve non-linear part (if linear elements then F should become 0 and no Newton step is required).
+
+F = Calc_F2D(xi,x_in,P)
+DO WHILE(SUM(ABS(F)).GE.EPS)
+  dF_inv = Calc_dF_inv2D(xi,P)
+  s=0.
+  DO j = 1,2
+    DO k = 1,2
+      s(j) = s(j) + dF_inv(j,k) * F(k)
+    END DO ! k
+  END DO ! j
+  xi = xi - s
   F = Calc_F2D(xi,x_in,P)
-  DO WHILE(SUM(ABS(F)).GE.EPS) 
-    dF_inv = Calc_dF_inv2D(xi,P)
-    s=0.
-    DO j = 1,2
-      DO k = 1,2
-        s(j) = s(j) + dF_inv(j,k) * F(k) 
-      END DO ! k
-    END DO ! j
-    xi = xi - s
-    F = Calc_F2D(xi,x_in,P)
-  END DO ! i
-  IF ((xi(1).GE.-1.0.AND.xi(1).LE.1.0).AND.(xi(2).GE.-1.0.AND.xi(2).LE.1.0)) THEN
-    xi_Out = xi
-  ELSE IF ((xi(1).LE.-1.0)) THEN
-    xi_Out = xi
-    xi_Out(1) = -0.9999999999999
-  ELSE IF ((xi(1).GE.1.0)) THEN
-    xi_Out = xi
-    xi_Out(1) = 0.9999999999999
-  ELSE IF ((xi(2).LE.-1.0)) THEN
-    xi_Out = xi
-    xi_Out(2) = -0.9999999999999
-  ELSE IF ((xi(2).GE.1.0)) THEN
-    xi_Out = xi
-    xi_Out(2) = 0.9999999999999
-  END IF    
+END DO ! i
+IF ((xi(1).GE.-1.0.AND.xi(1).LE.1.0).AND.(xi(2).GE.-1.0.AND.xi(2).LE.1.0)) THEN
+  xi_Out = xi
+ELSE IF ((xi(1).LE.-1.0)) THEN
+  xi_Out = xi
+  xi_Out(1) = -0.9999999999999
+ELSE IF ((xi(1).GE.1.0)) THEN
+  xi_Out = xi
+  xi_Out(1) = 0.9999999999999
+ELSE IF ((xi(2).LE.-1.0)) THEN
+  xi_Out = xi
+  xi_Out(2) = -0.9999999999999
+ELSE IF ((xi(2).GE.1.0)) THEN
+  xi_Out = xi
+  xi_Out(2) = 0.9999999999999
+END IF
 
 END SUBROUTINE GeoCoordToMap2D
 
+
 FUNCTION MapToGeo2D(xi,iElem)
 !===================================================================================================================================
-!
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
-USE MOD_DSMC_Vars, ONLY: SymmetrySide
+USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL,INTENT(IN)          :: xi(2)
-  INTEGER, INTENT(IN)      :: iElem
+REAL,INTENT(IN)                 :: xi(2)
+INTEGER, INTENT(IN)             :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                  :: SideID, iNode
-  REAL                     :: MapToGeo2D(2),P(2,4) 
+INTEGER                         :: SideID, iNode
+REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
-  SideID = SymmetrySide(iElem,2)
-  DO iNode = 1,4
-    P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
-  END DO
+SideID = SymmetrySide(iElem,2)
+DO iNode = 1,4
+  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,SideID,iElem))
+END DO
 
-  MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &
-                + P(:,2)*(1+xi(1)) * (1-xi(2)) &
-                + P(:,3)*(1+xi(1)) * (1+xi(2)) &
-                + P(:,4)*(1-xi(1)) * (1+xi(2))) 
+MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &
+              + P(:,2)*(1+xi(1)) * (1-xi(2)) &
+              + P(:,3)*(1+xi(1)) * (1+xi(2)) &
+              + P(:,4)*(1-xi(1)) * (1+xi(2)))
 
-END FUNCTION MapToGeo2D 
+END FUNCTION MapToGeo2D
 
 END MODULE MOD_DSMC_ParticlePairing

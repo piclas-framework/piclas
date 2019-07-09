@@ -322,7 +322,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
       IF(.NOT.PRESENT(NumDens)) THEN
         CALL abort(__STAMP__,&
           'CalcReactionProb: Number density required for recombination reaction: ',iReac)
-      END IF 
+      END IF
       IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
         Tcoll =ReducedMass*Coll_pData(iPair)%CRela2*2./(Weight1+Weight2)  &
               / (BoltzmannConst * 2.*(2.-SpecDSMC(EductReac(1))%omegaVHS))
@@ -504,7 +504,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
-  IF(.NOT.PRESENT(iPart_p3)) THEN 
+  IF(.NOT.PRESENT(iPart_p3)) THEN
     IF(ProductReac(3).NE.0) THEN
       !.... Get free particle index for the 3rd particle produced
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
@@ -863,7 +863,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
         ! Scattering 2 -> 3
         FracMassCent1 = CollInf%FracMassCent(EductReac(1), Coll_pData(iPair)%PairType)
         FracMassCent2 = CollInf%FracMassCent(EductReac(2), Coll_pData(iPair)%PairType)
-      END IF      
+      END IF
 
       !Calculation of velo from center of mass
       VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
@@ -983,7 +983,7 @@ USE MOD_Particle_Vars          ,ONLY: Symmetry2D
         ! Scattering 2 -> 3
         FracMassCent1 = CollInf%FracMassCent(EductReac(1),CollInf%Coll_Case(EductReac(1),EductReac(2)))
         FracMassCent2 = CollInf%FracMassCent(EductReac(2),CollInf%Coll_Case(EductReac(1),EductReac(2)))
-      END IF   
+      END IF
 
       VxPseuMolec = FracMassCent1 * PartState(React1Inx, 4) &
              + FracMassCent2 * PartState(React2Inx, 4)

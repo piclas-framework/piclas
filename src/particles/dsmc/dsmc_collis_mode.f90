@@ -39,7 +39,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 !===================================================================================================================================
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
-! MODULES  
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF, RadialWeighting
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF, VarTimeStep, Species
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -87,7 +87,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
          + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
 
   IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
-    IF (iPair.EQ.PairE_vMPF(1)) THEN  
+    IF (iPair.EQ.PairE_vMPF(1)) THEN
       Coll_pData(iPair)%CRela2 = Coll_pData(iPair)%CRela2 + 2 * GEO%DeltaEvMPF(iElem) &
                                / CollInf%MassRed(Coll_pData(iPair)%PairType) &
                                / PartMPF(PairE_vMPF(2))
@@ -373,7 +373,7 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
 
   Xi_rel = 2*(2. - SpecDSMC(iSpec1)%omegaVHS)
     ! DOF of relative motion in VHS model, only for one omega!!
- 
+
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
 
 !  IF((usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)).AND.(iPair.EQ.PairE_vMPF(1))) THEN         ! adding energy lost due to vMPF

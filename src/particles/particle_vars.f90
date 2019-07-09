@@ -472,7 +472,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
   LOGICAL                              :: UseDistribution
-  REAL, ALLOCATABLE                    :: ParticleTimeStep(:) 
+  REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
   REAL, ALLOCATABLE                    :: ElemFac(:)
   REAL, ALLOCATABLE                    :: ElemWeight(:)
   REAL                                 :: StartPoint(3)

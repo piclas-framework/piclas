@@ -507,7 +507,7 @@ ELSE
 END IF
 
 IF ((SBGKEnergyConsMethod.EQ.2).AND.(nRelax.GT.2)) THEN
-  DO iLoop = 1, nRelax 
+  DO iLoop = 1, nRelax
     partWeight = GetParticleWeight(iPartIndx_NodeRelax(iLoop))
     V_rel(1:3) = DSMC_RHS(iPartIndx_NodeRelax(iLoop),1:3) - vBulkRelax(1:3)
     NewEn = NewEn + (V_rel(1)**2. + V_rel(2)**2. + V_rel(3)**2.)*0.5*Species(1)%MassIC*partWeight
@@ -976,7 +976,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     ELSE IF (betaR.GT.maxexp) THEN
       RotExp = 0.
     ELSE
-      RotExp = exp(-betaR) 
+      RotExp = exp(-betaR)
     END IF
   END IF
   RotFrac = nPart*(1.-RotExp)
@@ -1099,7 +1099,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   RotFrac = nPart*(1.-RotExp)
   IF(DoVibRelax) THEN
     IF (ABS(TVib-TEqui).LT.1E-3) THEN
-      VibExp = exp(-vibrelaxfreq*dtCell/correctFac) 
+      VibExp = exp(-vibrelaxfreq*dtCell/correctFac)
     ELSE
       betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dtCell/correctFac
       IF (-betaV.GT.0.0) THEN
