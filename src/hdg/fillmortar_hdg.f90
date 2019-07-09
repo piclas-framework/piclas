@@ -42,10 +42,12 @@ PUBLIC::SmallToBigMortar_HDG
 
 CONTAINS
 
-SUBROUTINE BigToSmallMortar_HDG(nVar_in,lambda_in,doMPISides)
+SUBROUTINE BigToSmallMortar_HDG(nVar_in,lambda_in)
 !===================================================================================================================================
 !> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation 
 !> operators M_0_1,M_0_2
+!>
+!> REMARK: NO doMPISides, because nMortarMPIsides=0 has to be guaranteed!
 !
 !     Type 1               Type 2              Type3
 !      eta                  eta                 eta
@@ -59,12 +61,12 @@ SUBROUTINE BigToSmallMortar_HDG(nVar_in,lambda_in,doMPISides)
 !
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-USE MOD_Mesh_Vars,   ONLY: FS2M,nSides 
+USE MOD_Mesh_Vars,   ONLY: nSides 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,22 +75,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: nVar_in
 REAL,INTENT(INOUT) :: lambda_in(1:nVar_in,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
-LOGICAL,INTENT(IN) :: doMPISides                        !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER      :: p,q,l
 INTEGER      :: iMortar,nMortars
-INTEGER      :: firstMortarSideID,lastMortarSideID
 INTEGER      :: MortarSideID,SideID,locSide,flip
 REAL         :: U_tmp( 1:nVar_in,0:PP_N,0:PP_N,1:4)
 REAL         :: U_tmp2(1:nVar_in,0:PP_N,0:PP_N,1:2)
 !===================================================================================================================================
 
-firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides) 
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides) 
 
-
-DO MortarSideID=firstMortarSideID,lastMortarSideID
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
   !
   SELECT CASE(MortarType(1,MortarSideID))
   CASE(1) !1->4
@@ -177,7 +174,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE BigToSmallMortar_HDG
 
-SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in,doMPISides)
+SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
 !
@@ -185,6 +182,8 @@ SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in,doMPISides)
 !> and adds to the big sides, using the transpose of the BigToSmall interpolation operator
 !> and also sets then the small mortar contribution to zero!
 !>
+!> REMARK: NO doMPISides, because nMortarMPIsides=0 has to be guaranteed!
+!
 !     Type 1               Type 2              Type3
 !      eta                  eta                 eta
 !       ^                    ^                   ^
@@ -197,25 +196,23 @@ SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in,doMPISides)
 !
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,FS2M
-USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN) :: nVar_in
 REAL,INTENT(INOUT) :: mv_in(nVar_in,0:PP_N,0:PP_N,1:nSides)
-LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER  :: p,q,l
 INTEGER  :: iMortar,nMortars
-INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
 REAL     :: mv_tmp( nVar_in,0:PP_N,0:PP_N,1:4)
 REAL     :: mv_tmp2(nVar_in,0:PP_N,0:PP_N,1:2)
@@ -224,10 +221,7 @@ REAL     :: M_1_0(0:PP_N,0:PP_N),M_2_0(0:PP_N,0:PP_N)
 M_1_0 = TRANSPOSE(M_0_1)
 M_2_0 = TRANSPOSE(M_0_2)
 
-firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
-
-DO MortarSideID=firstMortarSideID,lastMortarSideID  !Big SideID
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
 
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
   iSide=MortarType(2,MortarSideID)  !index of Big Side in MortarInfo

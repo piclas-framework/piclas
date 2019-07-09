@@ -338,7 +338,6 @@ USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_MINE
 #endif /*MPI*/ 
 
 ! IMPLICIT VARIABLE HANDLING
@@ -350,10 +349,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID, locSideID, SideID, igf
-#ifdef MPI
-INTEGER          :: startbuf,endbuf
-REAL,ALLOCATABLE :: P_reshape(:,:,:,:)
-#endif /*MPI*/
 INTEGER           :: lapack_info
 !===================================================================================================================================
 
@@ -370,32 +365,26 @@ CASE(1)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
+      DO igf=1,nGP_face
+        Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,locSideID,ElemID)
+      END DO
     END IF !locSideID.NE.-1
     ! neighbour element
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
+      DO igf=1,nGP_face
+        Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,locSideID,ElemID)
+      END DO
     END IF !locSideID.NE.-1
-    DO igf=1,nGP_face
-      Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,SideID)
-    END DO
   END DO ! SideID=1,nSides
 #ifdef MPI
-  startbuf=nSides-nMPISides+1
-  ALLOCATE(P_reshape(nGP_face,0:PP_N,0:PP_N,startbuf:nSides))
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  P_reshape=RESHAPE(Precond(:,:,startbuf:nSides),(/nGP_face,PP_N+1,PP_N+1,nSides-startbuf+1/))
-  CALL StartReceiveMPIData(nGP_face,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   nGP_face,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(                    SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPISides_MINE.GT.0)THEN
-    Precond(:,:,startbuf:endbuf)=Precond(:,:,startbuf:endbuf) &
-                                +RESHAPE(P_reshape(:,:,:,startbuf:endbuf),(/nGP_face,nGP_face,endbuf-startbuf+1/))
-  END IF !nMPIsides_MINE>0
-  DEALLOCATE(P_reshape)
-  IF(nMPISides_YOUR.GT.0) Precond(:,:,nSides-nMPIsides_YOUR+1:nSides )=0. !set send buf to zero
+  CALL Mask_MPISides(nGP_face,Precond)
 #endif /*MPI*/
+  !TODO MORTAR
+
+  !TODO MORTAR
   DO SideID=1,nSides-nMPIsides_YOUR
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info) 
@@ -423,28 +412,17 @@ CASE(2)
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
       DO igf = 1, nGP_face
         InvPrecondDiag(igf,SideID) = InvPrecondDiag(igf,SideID)+ &
-                              Smat(igf,igf,locSideID,locSideID,ElemID)
+                              Smat(igf,igf,locSideID,locSideID,ElemID) &
+                             -Fdiag(igf,locSideID,ElemID)
       END DO ! igf
     END IF !locSideID.NE.-1
-    DO igf=1,nGP_face
-      InvPrecondDiag(igf,SideID)=InvPrecondDiag(igf,SideID)-Fdiag(igf,SideID)
-    END DO
   END DO ! SideID=1,nSides
 #ifdef MPI
-  startbuf=nSides-nMPISides+1
-  ALLOCATE(P_reshape(1,0:PP_N,0:PP_N,startbuf:nSides))
-  endbuf=nSides-nMPISides+nMPISides_MINE
-  P_reshape=RESHAPE(InvPrecondDiag(:,startbuf:nSides),(/1,PP_N+1,PP_N+1,nSides-startbuf+1/))
-  CALL StartReceiveMPIData(1,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(             SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPISides_MINE.GT.0)THEN
-    InvPrecondDiag(:,startbuf:endbuf)=InvPrecondDiag(:,startbuf:endbuf) &
-                                +RESHAPE(P_reshape(:,:,:,startbuf:endbuf),(/nGP_face,endbuf-startbuf+1/))
-  END IF !nMPIsides_MINE>0
-  DEALLOCATE(P_reshape)
-  IF(nMPISides_YOUR.GT.0) InvPrecondDiag(:,nSides-nMPIsides_YOUR+1:nSides )=0. !set send buf to zero
+  CALL Mask_MPISides(1,InvPrecondDiag)
 #endif /*MPI*/
+  !TODO MORTAR
+
+  !TODO MORTAR
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
     InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)
