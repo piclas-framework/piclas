@@ -26,7 +26,7 @@ INTERFACE DSMC_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -76,7 +76,7 @@ SUBROUTINE DSMC_main(DoElement)
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES     
+! INPUT VARIABLES
   LOGICAL,OPTIONAL  :: DoElement(nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -99,7 +99,7 @@ SUBROUTINE DSMC_main(DoElement)
   END IF
   DSMCSumOfFormedParticles = 0
 
-  IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
+  IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -111,7 +111,7 @@ SUBROUTINE DSMC_main(DoElement)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
     IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0 
+      DSMC%CollProbMax = 0.0
       DSMC%CollProbMean = 0.0
       DSMC%CollProbMeanCount = 0
       DSMC%CollSepDist = 0.0
@@ -199,8 +199,8 @@ SUBROUTINE DSMC_main(DoElement)
 ! Output!
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles 
-  IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas 
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
+  IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_FinalizeBGGas
 #if (PP_TimeDiscMethod==42)
   IF ((.NOT.DSMC%ReservoirSimu).AND.(.NOT.WriteMacroVolumeValues).AND.(.NOT.WriteMacroSurfaceValues)) THEN
 #else
@@ -248,7 +248,7 @@ SUBROUTINE DSMC_main(DoElement)
         IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
           DSMC%NumOutput = DSMC%NumOutput - 1
           ! Skipping outputs immediately after the first few iterations
-          IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
+          IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
             CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
           END IF

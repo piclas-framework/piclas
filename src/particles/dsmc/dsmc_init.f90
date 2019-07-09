@@ -34,7 +34,7 @@ INTERFACE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ CALL prms%SetSection("DSMC")
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshInit'      &
                                         ,  'not working currently | Writeoutput mesh for constant pressure BC at initialization.'&
                                         , '.FALSE.')
-                                  
+
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      &
                                         , 'not working currently | Write output mesh for constant pressure BC with sampling'//&
                                           'values at t_analyze.' , '.FALSE.')
@@ -379,7 +379,7 @@ IMPLICIT NONE
 
   ! Initialize counter (Count the number of ReactionProb>1)
   ReactionProbGTUnityCounter = 0
-  
+
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
   DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
@@ -391,7 +391,7 @@ IMPLICIT NONE
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
-  DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')  
+  DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
@@ -461,7 +461,7 @@ __STAMP__&
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
   DSMC_RHS = 0
 
-  IF (nSpecies.LE.0) THEN 
+  IF (nSpecies.LE.0) THEN
     CALL Abort(&
     __STAMP__&
     ,"ERROR: nSpecies .LE. 0:", nSpecies)
@@ -516,7 +516,7 @@ __STAMP__&
     END DO
   END DO
   nCase = iCase
-  CollInf%NumCase = nCase 
+  CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
   DSMC%NumColl = 0
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
@@ -546,7 +546,7 @@ __STAMP__&
   ALLOCATE(CollInf%KronDelta(nCase))
   CollInf%Cab = 0
   CollInf%KronDelta = 0
-  
+
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
@@ -565,7 +565,7 @@ __STAMP__&
       A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
             /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
       CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
+            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS
             !the omega should be the same for both in vhs!!!
     END DO
   END DO
@@ -640,7 +640,7 @@ __STAMP__&
             __STAMP__&
             ,'Error! CollNumRotRef or TempRefRot is not set or equal to zero!')
           END IF
-        END IF 
+        END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
         IF(DSMC%VibRelaxProb.GT.1.0) THEN
           ALLOCATE(SpecDSMC(iSpec)%MW_Const(1:nSpecies))
@@ -661,7 +661,7 @@ __STAMP__&
             __STAMP__&
             ,'Error! CollNumVib not set or equal to zero for Species!', iSpec)
           END IF
-        END IF 
+        END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
         SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb    !0.02
@@ -847,7 +847,7 @@ __STAMP__&
 !          ALLOCATE( &
 !              PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(1:PolyatomMolDSMC(iPolyatMole)%VibDOF, &
 !                                                             0:Species(iSpec)%NumberOfInits+Species(iSpec)%nSurfacefluxBCs))
-!          DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits 
+!          DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
 !            CALL DSMC_FindFirstVibPick(iInit, iSpec, 1)
 !          END DO
 !          DO iInit = 1,Species(iSpec)%nSurfacefluxBCs
@@ -915,7 +915,7 @@ __STAMP__&
         END IF
       END IF
     END DO
-    
+
 #if (PP_TimeDiscMethod==42)
 #ifdef CODE_ANALYZE
     ! Debug Output for initialized electronic state
@@ -1010,7 +1010,7 @@ __STAMP__&
 ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
               END IF
             END IF
-          ELSE            
+          ELSE
             IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
               CALL abort(&
 __STAMP__&
@@ -1027,12 +1027,12 @@ __STAMP__&
         END IF
       END IF
       !-----------------------------------------------------------------------------------------------------------------------------
-      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
+      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')
       SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
       SpecDSMC(iSpec)%NumEquivElecOutShell  = GETINT('Part-Species'//TRIM(hilf)//'-NumEquivElecOutShell','0')
       SpecDSMC(iSpec)%NumOfPro              = GETINT('Part-Species'//TRIM(hilf)//'-NumOfProtons','0')
       IF((SpecDSMC(iSpec)%Eion_eV*SpecDSMC(iSpec)%RelPolarizability*SpecDSMC(iSpec)%NumEquivElecOutShell &
-              *SpecDSMC(iSpec)%NumOfPro).eq.0) THEN    
+              *SpecDSMC(iSpec)%NumOfPro).eq.0) THEN
         SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
       END IF
     END DO
@@ -1067,7 +1067,7 @@ __STAMP__&
 ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
             END IF
           END IF
-        ELSE            
+        ELSE
           IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
             CALL abort(&
 __STAMP__&
@@ -1119,7 +1119,7 @@ __STAMP__&
         __STAMP__&
         ,'ERROR: Polyatomic species as background gas are not yet available!')
       ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib & 
+        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
                   + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
                   /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
                   - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
@@ -1189,7 +1189,7 @@ END SUBROUTINE InitDSMC
 
 SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
@@ -1197,7 +1197,7 @@ USE MOD_DSMC_Vars            ,ONLY: SpecDSMC
 USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -1213,20 +1213,23 @@ END IF
 END SUBROUTINE SetElectronicModel
 
 
-SUBROUTINE CalcHeatOfFormation() 
+SUBROUTINE CalcHeatOfFormation()
 !===================================================================================================================================
 ! Calculating the heat of formation for ionized species (including higher ionization levels)
 ! Requires the completed read-in of species data
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: abort,mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf2
@@ -1272,19 +1275,22 @@ END DO
 END SUBROUTINE CalcHeatOfFormation
 
 
-SUBROUTINE SetNextIonizationSpecies() 
+SUBROUTINE SetNextIonizationSpecies()
 !===================================================================================================================================
 ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
 ! NextIonizationSpecies => SpeciesID of the next higher ionization level
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf2
@@ -1330,7 +1336,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1453,7 +1459,7 @@ __STAMP__&
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 
-SUBROUTINE FinalizeDSMC() 
+SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize dsmc variables
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1464,7 +1470,7 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_Vars, ONLY:PDM
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -24,7 +24,7 @@ MODULE MOD_QDS_VolInt
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ DO iElem=firstElemID,lastElemID
     DO j=0,PP_N
       DO i=0,PP_N
         DO iPart=0,7
-        !f(1+5*iVar,i,j,k) = UQDS(2+5*iVar,i,j,k,iElem)*UQDS(1+5*iVar,i,j,k,iElem) 
+        !f(1+5*iVar,i,j,k) = UQDS(2+5*iVar,i,j,k,iElem)*UQDS(1+5*iVar,i,j,k,iElem)
           fTilde(1+5*iPart:5+5*iPart)= UQDS(2+5*iPart,i,j,k,iElem)
           gTilde(1+5*iPart:5+5*iPart)= UQDS(3+5*iPart,i,j,k,iElem)
           hTilde(1+5*iPart:5+5*iPart)= UQDS(4+5*iPart,i,j,k,iElem)

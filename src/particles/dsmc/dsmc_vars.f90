@@ -23,7 +23,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tTLU_Data
   DOUBLE PRECISION                        :: Emin
@@ -31,7 +31,7 @@ TYPE tTLU_Data
   DOUBLE PRECISION                        :: deltaE
   DOUBLE PRECISION , ALLOCATABLE          :: deltabj(:)
   DOUBLE PRECISION , ALLOCATABLE          :: ChiTable(:,:)
-END TYPE 
+END TYPE
 
 TYPE(tTLU_Data)              :: TLU_Data
 
@@ -61,7 +61,7 @@ INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for M
                                                               ! 3 = LD3
 REAL                          :: CRelaMax                   ! Max relative velocity
 REAL                          :: CRelaAv                    ! Average relative velocity
-  
+
 TYPE tSpecInit
   REAL                        :: TVib                       ! vibrational temperature, ini_1
   REAL                        :: TRot                       ! rotational temperature, ini_1
@@ -72,7 +72,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   TYPE(tSpecInit),ALLOCATABLE :: Init(:) !   =>NULL()
   TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
   LOGICAL                     :: PolyatomicMol              ! Species is a polyatomic molecule
-  INTEGER                     :: SpecToPolyArray            ! 
+  INTEGER                     :: SpecToPolyArray            !
   CHARACTER(LEN=64)           :: Name                       ! Species Name, required for DSMCSpeciesElectronicDatabase
   INTEGER                     :: InterID                    ! Identification number (e.g. for DSMC_prob_calc), ini_2
                                                             !     1   : Atom
@@ -92,9 +92,9 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: Eion_eV                    ! Energy of Ionisation in eV, ini_2
   REAL                        :: RelPolarizability          ! relative polarizability, ini_2
   INTEGER                     :: NumEquivElecOutShell       ! number of equivalent electrons in outer shell, ini2
-  INTEGER                     :: Xi_Rot                     ! Rotational DOF 
-  REAL                        :: GammaVib                   ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact 
-                                                            ! for vib relaxation -> see 'Vibrational relaxation rates 
+  INTEGER                     :: Xi_Rot                     ! Rotational DOF
+  REAL                        :: GammaVib                   ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
+                                                            ! for vib relaxation -> see 'Vibrational relaxation rates
                                                             ! in the DSMC method', Gimelshein et al., 2002
   REAL                        :: CharaTVib                  ! Charac vibrational Temp, ini_2
   REAL                        :: Ediss_eV                   ! Energy of Dissosiation in eV, ini_2
@@ -108,14 +108,14 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: ElecRelaxProb              ! electronic relaxation probability
                                                             !this should be a value for every transition, and not fix!
   REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
-  REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or 
+  REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or 
+  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
   REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
   REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
   REAL                        :: VibCrossSec                ! vibrational cross section, ini_2
-  REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib 
+  REAL, ALLOCATABLE           :: CharaVelo(:)               ! characteristic velocity according to Boyd & Abe, nec for vib
                                                             ! relaxation
 #if (PP_TimeDiscMethod==42)
 #ifdef CODE_ANALYZE
@@ -140,10 +140,10 @@ END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
-TYPE tDSMC 
+TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
-  REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
+  REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
   INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
@@ -153,12 +153,12 @@ TYPE tDSMC
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
   LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
                                                             ! Switch to enable to create reaction rates curves
-  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages                                                          
+  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
                                                             ! Default Value is false
-  INTEGER                       :: VibEnergyModel           ! Model for vibration Energy: 
+  INTEGER                       :: VibEnergyModel           ! Model for vibration Energy:
                                                             !       0: SHO (default value!)
-                                                            !       1: TSHO 
+                                                            !       1: TSHO
   LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
@@ -185,7 +185,7 @@ TYPE tDSMC
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
-  LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC) 
+  LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC)
                                                             ! with sampling values at t_analyze
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
@@ -215,7 +215,7 @@ TYPE(tDSMC)                     :: DSMC
 TYPE tBGGas
   INTEGER                       :: BGGasSpecies             ! Number which Species is Background Gas
   REAL                          :: BGGasDensity             ! Density of Background Gas
-  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell   
+  REAL                          :: BGColl_SpecPartNum       ! PartNum of BGGas per cell
   INTEGER                       :: BGMeanEVibQua            ! Mean EVib qua number for dissociation probability
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
@@ -240,7 +240,7 @@ END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision pairs into a cell (nPair)
 
-TYPE tCollInf             ! informations of collision                                              
+TYPE tCollInf             ! informations of collision
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                        :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE    :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
@@ -253,7 +253,7 @@ END TYPE
 
 TYPE(tCollInf)               :: CollInf
 
-TYPE tSampDSMC             ! DSMC sample                                              
+TYPE tSampDSMC             ! DSMC sample
   REAL                           :: PartV(3), PartV2(3)     ! Velocity, Velocity^2 (vx,vy,vz)
   REAL                           :: PartNum                 ! Particle Number
   INTEGER                        :: SimPartNum
@@ -264,11 +264,11 @@ END TYPE
 
 TYPE(tSampDSMC), ALLOCATABLE     :: SampDSMC(:,:)           ! DSMC sample array (number of Elements, nSpec)
 
-TYPE tMacroDSMC           ! DSMC output 
+TYPE tMacroDSMC           ! DSMC output
   REAL                            :: PartV(4), PartV2(3)    ! Velocity, Velocity^2 (vx,vy,vz,|v|)
   REAL                            :: PartNum                ! Particle Number
   REAL                            :: Temp(4)                ! Temperature (Tx, Ty, Tz, Tt)
-  REAL                            :: NumDens                ! Particle density        
+  REAL                            :: NumDens                ! Particle density
   REAL                            :: TVib                   ! Vibrational Temp
   REAL                            :: TRot                   ! Rotational Temp
   REAL                            :: TElec                  ! Electronic Temp
@@ -276,13 +276,13 @@ END TYPE
 
 TYPE(tMacroDSMC), ALLOCATABLE     :: MacroDSMC(:,:)         ! DSMC sample array (number of Elements, nSpec)
 
-TYPE tReactInfo  
-   REAL,  ALLOCATABLE             :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)  
-   REAL,  ALLOCATABLE             :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability 
-                                                            ! (quant num part1, quant num part2)   
-   REAL,  ALLOCATABLE             :: Beta_Exch_Arrhenius(:,:) ! Beta_d for calculation of the Excchange reaction probability 
-                                                            ! (quant num part1, quant num part2) 
-   REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability 
+TYPE tReactInfo
+   REAL,  ALLOCATABLE             :: Xi_Total(:,:)          ! Total DOF of Reaction (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Diss_Arrhenius(:,:) ! Beta_d for calculation of the Dissociation probability
+                                                            ! (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Exch_Arrhenius(:,:) ! Beta_d for calculation of the Excchange reaction probability
+                                                            ! (quant num part1, quant num part2)
+   REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability
                                                             ! (nSpecies, quant num part3)
    INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)     ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE
@@ -310,12 +310,12 @@ TYPE tChemReactions
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
                                                             !    x (simple charge exchange reaction)
-  INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction 
+  INTEGER, ALLOCATABLE            :: DefinedReact(:,:,:)    ! Defined Reaction
                                                             !(reaction num; 1:reactant, 2:product;
                                                             !  1-3 spezieses of reactants and products,
                                                             ! 0: no spezies -> only 2 reactants or products)
   INTEGER, ALLOCATABLE            :: ReactCase(:,:)             ! Case of reaction in combination of (spec1, spec2)
-  INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2, 
+  INTEGER, ALLOCATABLE            :: ReactNum(:,:,:)            ! Number of Reaction of (spec1, spec2,
                                                                 ! Case 1: Recomb: func. of species 3
                                                                 ! Case 2: dissociation, only 1
                                                                 ! Case 3: exchange reaction, only 1
@@ -340,8 +340,8 @@ TYPE tChemReactions
    REAL,  ALLOCATABLE             :: Arrhenius_Powerfactor(:)   ! powerfactor bf of temperature in Arrhenius ansatz (nReactions)
    REAL,  ALLOCATABLE             :: EActiv(:)              ! activation energy (relative to k) (nReactions)
    REAL,  ALLOCATABLE             :: EForm(:)               ! heat of formation  (relative to k) (nReactions)
-   REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of 
-   INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of 
+   REAL,  ALLOCATABLE             :: MeanEVib_PerIter(:)    ! MeanEVib per iteration for calculation of
+   INTEGER,  ALLOCATABLE          :: MeanEVibQua_PerIter(:) ! MeanEVib per iteration for calculation of
                                                             ! xi_vib per cell (nSpecies)
    REAL,  ALLOCATABLE             :: CEXa(:)                ! CEX log-factor (g-dep. cross section in Angstrom (nReactions)
    REAL,  ALLOCATABLE             :: CEXb(:)                ! CEX const. factor (g-dep. cross section in Angstrom (nReactions)
@@ -365,7 +365,7 @@ TYPE tTreeNode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
   REAL                            :: NodeVolume(8)
-  INTEGER                         :: NodeDepth        
+  INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -375,7 +375,7 @@ TYPE tQKAnalytic
   REAL, ALLOCATABLE               :: ForwardRate(:)
 END TYPE
 
-TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)       
+TYPE(tQKAnalytic), ALLOCATABLE    :: QKAnalytic(:)
 
 REAL                              :: realtime               ! realtime of simulation
 
@@ -386,7 +386,7 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   REAL, ALLOCATABLE              :: CharaTVibDOF(:)        ! Chara TVib for each DOF
   INTEGER,ALLOCATABLE           :: LastVibQuantNums(:,:)    ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
   INTEGER, ALLOCATABLE          :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
-  REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions             
+  REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions
   REAL                            :: TVib
   REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
   REAL, ALLOCATABLE              :: VibRelaxProb(:)
@@ -410,8 +410,8 @@ REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues
                                                                    ! 4: Recombination Coefficient
 
 ! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
-!  REAL                           :: Heatflux                ! 
+!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
+!  REAL                           :: Heatflux                !
 !  REAL                           :: Force(3)                ! x, y, z direction
 !  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
 !  REAL                           :: CounterOut              ! Wall-Collision counter for Output
@@ -424,16 +424,16 @@ INTEGER(KIND=8)                   :: iter_macvalout             ! iterations sin
 INTEGER(KIND=8)                   :: iter_macsurfvalout         ! iterations since last macro surface output
 !-----------------------------------------------convergence criteria-------------------------------------------------
 LOGICAL                           :: SamplingActive             ! Identifier if DSMC Sampling is activated
-LOGICAL                           :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for 
+LOGICAL                           :: UseQCrit                   ! Identifier if Q-Criterion (Burt,Boyd) for
                                                                 ! Sampling Start is used
-INTEGER                           :: QCritTestStep              ! Time Steps between Q criterion evaluations 
+INTEGER                           :: QCritTestStep              ! Time Steps between Q criterion evaluations
                                                                 ! (=Length of Analyze Interval)
 INTEGER(KIND=8)                  :: QCritLastTest              ! Time Step of last Q criterion evaluation
 REAL                              :: QCritEpsilon               ! Steady State if Q < 1 + Qepsilon
-INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Collision Counter for 
+INTEGER, ALLOCATABLE              :: QCritCounter(:,:)          ! Exit / Wall Collision Counter for
                                                                 ! each boundary side (Side, Interval)
 REAL, ALLOCATABLE                 :: QLocal(:)                  ! Intermediate Criterion (per cell)
-LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection 
+LOGICAL                           :: UseSSD                     ! Identifier if Steady-State-Detection
                                                                 ! for Sampling Start is used (only  if UseQCrit=FALSE)
 INTEGER                           :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
 !                                                               ! reaching 1000 outputs of said warning
@@ -448,32 +448,32 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection
 END TYPE
 
 TYPE (tSampler), ALLOCATABLE      :: Sampler(:,:)               ! DSMC sample array (number of Elements, number of Species)
-TYPE (tSampler), ALLOCATABLE      :: History(:,:,:)             ! History of Averaged Values (number of Elements, 
+TYPE (tSampler), ALLOCATABLE      :: History(:,:,:)             ! History of Averaged Values (number of Elements,
                                                                 ! number of Species, number of Samples)
 INTEGER                           :: iSamplingIters             ! Counter for Sampling Iteration
 INTEGER                           :: nSamplingIters             ! Number of Iterations for one Sampled Value (Sampling Period)
 INTEGER                           :: HistTime                   ! Counter for Sampled Values in History
-INTEGER                           :: nTime                      ! Length of History of Sampled Values 
+INTEGER                           :: nTime                      ! Length of History of Sampled Values
                                                                 ! (Determines Sample Size for Statistical Tests)
-REAL, ALLOCATABLE                 :: CheckHistory(:,:)          ! History Array for Detection Algorithm 
+REAL, ALLOCATABLE                 :: CheckHistory(:,:)          ! History Array for Detection Algorithm
                                                                 ! (number of Elements, number of Samples)
 INTEGER, ALLOCATABLE              :: SteadyIdentGlobal(:,:)     ! Identifier if Domain ist stationary (number of Species, Value)
-INTEGER, ALLOCATABLE              :: SteadyIdent(:,:,:)         ! Identifier if Cell is stationary 
+INTEGER, ALLOCATABLE              :: SteadyIdent(:,:,:)         ! Identifier if Cell is stationary
                                                                 ! (number of Elements, number of Species, Value)
 REAL                              :: Critical(2)                ! Critical Values for the Von-Neumann-Ratio
 REAL, ALLOCATABLE                 :: RValue(:)                  ! Von-Neumann-Ratio (number of Elements)
-REAL                              :: Epsilon1, Epsilon2         ! Parameters for the Critical Values of 
+REAL                              :: Epsilon1, Epsilon2         ! Parameters for the Critical Values of
                                                                 ! the Euclidean Distance method
-REAL, ALLOCATABLE                 :: ED_Delta(:)    ! Offset of Euclidian Distance Statistic to stationary 
+REAL, ALLOCATABLE                 :: ED_Delta(:)    ! Offset of Euclidian Distance Statistic to stationary
                                                                 ! value (number of Elements)
 REAL                              :: StudCrit                   ! Critical Value for the Student-t Test
-REAL, ALLOCATABLE                 :: Stud_Indicator(:)    ! Stationary Index of the Student-t Test 
+REAL, ALLOCATABLE                 :: Stud_Indicator(:)    ! Stationary Index of the Student-t Test
                                                                 ! (0...1, 1 = steady  state) (number of Elements)
 REAL                              :: PITCrit                    ! Critical Value for the Polynomial Interpolation Test
-REAL, ALLOCATABLE                 :: ConvCoeff(:)               ! Convolution Coefficients (Savizky-Golay-Filter) 
+REAL, ALLOCATABLE                 :: ConvCoeff(:)               ! Convolution Coefficients (Savizky-Golay-Filter)
                                                                 ! for the Polynomial Interpolation Test
 REAL, ALLOCATABLE                 :: PIT_Drift(:)    ! Relative Filtered Trend Index (<1 = steady state) (number of Elements)
-REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter for the Mann - Kendall - Test 
+REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter for the Mann - Kendall - Test
                                                                 ! (-1<x<1 = steady state) (number of Elements)
 REAL, ALLOCATABLE                 :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
 !-----------------------------------------------convergence criteria-------------------------------------------------
@@ -511,8 +511,8 @@ END TYPE
 TYPE (tDSMCSampNearInt) DSMCSampNearInt
 
 TYPE tDSMCSampCellVolW
-  REAL,ALLOCATABLE                      :: xGP(:)    
-  REAL,ALLOCATABLE                      :: SubVolumes(:,:,:,:) 
+  REAL,ALLOCATABLE                      :: xGP(:)
+  REAL,ALLOCATABLE                      :: SubVolumes(:,:,:,:)
 END TYPE
 
 TYPE (tDSMCSampCellVolW) DSMCSampCellVolW
@@ -523,7 +523,7 @@ TYPE tAdaptedElem
 END TYPE
 
 TYPE tDSMCSampAdaptCellVolW
-  REAL,ALLOCATABLE                       :: xGP(:)    
+  REAL,ALLOCATABLE                       :: xGP(:)
   LOGICAL, ALLOCATABLE                  :: IsAdaptedElem(:)
   TYPE(tAdaptedElem), ALLOCATABLE        :: AdaptedElem(:)
   INTEGER                                 :: AdaptPartNum
@@ -575,7 +575,7 @@ TYPE tNodeVolume
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)
-  
+
 TYPE tOctreeVdm
   TYPE (tOctreeVdm), POINTER                :: SubVdm => null()
   REAL,ALLOCATABLE                          :: Vdm(:,:)

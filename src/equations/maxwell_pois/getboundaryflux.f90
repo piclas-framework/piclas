@@ -21,7 +21,7 @@ MODULE MOD_GetBoundaryFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
@@ -121,7 +121,7 @@ DO i=1,nBCs
     CALL ReadBCFlow(BCStateFile)
     !CALL abort(__STAMP__&
     !     'no BC defined in maxwell/getboundaryflux.f90!')
-    EXIT    
+    EXIT
   END IF
 END DO
 
@@ -209,14 +209,14 @@ DO iBC=1,nBCs
        CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
    END DO
 
-  CASE(3) ! 1st order absorbing BC 
+  CASE(3) ! 1st order absorbing BC
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
     epsBC=1e-10
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
 
       U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero. 
+      ! A problem of the absorbing BC arises if E or B is close to zero.
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
       DO q=0,PP_N
@@ -227,10 +227,10 @@ DO iBC=1,nBCs
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
-  
+
       CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     ! Determine the exact BC state
     DO iSide=1,nBCLoc
@@ -248,16 +248,16 @@ DO iBC=1,nBCs
       ! Dirichlet means that we use the gradients from inside the grid cell
       CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
     END DO
- 
-  CASE(5) ! 1st order absorbing BC 
+
+  CASE(5) ! 1st order absorbing BC
         ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
-    ! A problem of the absorbing BC arises if E or B is close to zero. 
+    ! A problem of the absorbing BC arises if E or B is close to zero.
     ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
     !          that E cross n is zero which is enforced through the div. cleaning of E
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero. 
+      ! A problem of the absorbing BC arises if E or B is close to zero.
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
       DO q=0,PP_N
@@ -266,7 +266,7 @@ DO iBC=1,nBCs
           U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
         END DO ! p
       END DO ! q
-  
+
       CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
     END DO
 
@@ -276,7 +276,7 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero. 
+      ! A problem of the absorbing BC arises if E or B is close to zero.
       ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
       !          that E cross n is zero which is enforced through the div. cleaning of E
       DO q=0,PP_N
@@ -288,7 +288,7 @@ DO iBC=1,nBCs
           END IF ! sum(abs(B)) > epsBC
         END DO ! p
       END DO ! q
-  
+
       !CALL Riemann(Flux(:,:,:,SideID),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
       CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Face_loc(  :,:,:),NormVec(:,:,:,SideID))
     END DO
@@ -319,7 +319,7 @@ DO iBC=1,nBCs
       ! Dirichlet means that we use the gradients from inside the grid cell
       CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
     END DO
-  
+
   CASE DEFAULT ! unknown BCType
     CALL abort(&
     __STAMP__&
@@ -446,7 +446,7 @@ IF(.NOT. InterpolateSolution)THEN
         OffsetElem => INT(OffsetElem,IK) )
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1_IK,PP_N+1_IK,PP_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U_N)
   END ASSOCIATE
-  ! read additional data (e.g. indicators etc)                                                
+  ! read additional data (e.g. indicators etc)
 ELSE
   SWRITE(UNIT_stdOut,'(A)')' Interpolating BC-state...'
   ! We need to interpolate the solution to the new computational grid
@@ -486,7 +486,7 @@ ELSE
   DEALLOCATE(U_local,Vdm_NHDF5_N)
   DEALLOCATE(wGP_tmp,xGP_tmp,wBary_tmp)
 END IF
-CALL CloseDataFile() 
+CALL CloseDataFile()
 
 SWRITE(UNIT_stdOut,'(A)')'  Interpolating the BC flow on the BC sides...'
 CALL ProlongToFace_BC(U_N,BCData)

@@ -22,7 +22,7 @@ MODULE MOD_Mortar
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -50,13 +50,13 @@ CONTAINS
 
 SUBROUTINE InitMortar()
 !===================================================================================================================================
-! Basic Mortar initialization. 
+! Basic Mortar initialization.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone,NodeType 
+USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone,NodeType
 USE MOD_Interpolation     ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
 IMPLICIT NONE
@@ -207,7 +207,7 @@ END SUBROUTINE MortarBasis_SmallToBig
 
 SUBROUTINE FinalizeMortar()
 !===================================================================================================================================
-! Basic Mortar initialization. 
+! Basic Mortar initialization.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mortar_Vars

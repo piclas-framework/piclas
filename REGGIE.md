@@ -8,48 +8,59 @@ PICLas utilizes the Reggie2.0 toolbox for regression testing. A detailed documen
 
 Overview of the test cases performed after a commit.
 
-| **No.** |           **Case**           |                  **CMAKE-CONFIG**                   |                                 **Feature**                                 | **Execution**  |     **Comparing**      |                          **Readme**                          |
-| :-----: | :--------------------------: | :-------------------------------------------------: | :-------------------------------------------------------------------------: | :------------: | :--------------------: | :----------------------------------------------------------: |
-|   01    |          run_basic           |                     maxwell,RK4                     |                                 DG-Operator                                 | nProcs=1,2,5,8 |        L2,Linf         |                                                              |
-|   02    |         CHE_maxwell          |                 pure maxwell DG,RK4                 |                                 DG-Operator                                 | nProcs=1,2,5,8 |        L2,Linf         |                                                              |
-|   03    |         CHE_poisson          |                     Poisson,RK3                     |                                 DG-Operator                                 | nProcs=1,2,5,8 |        L2,Linf         |                                                              |
-|   05    | CHE_PIC_gyrotron_variable_Bz |                   maxwell,PIC,RK4                   |                              PIC, variable Bz                               |   nProcs=1,2   | Database.csv, relative |                                                              |
-|   06    | CHE_PIC_single_particle_PML  |                   maxwell,PIC,RK4                   |                                  PIC, PML                                   |    particle    |   nProcs=1,2,5,8,10    |                                                              |
-|   07    |     CHE_PIC_IMD_coupling     |                   maxwell,PIC,RK4                   |                         mapping from IMP to PICLas                          |    nProcs=1    |    PartPata in Box     |                                                              |
-|   08    |    [CHE_DSMC](#che_dsmc)     |                        DSMC                         |                                                                             |                |                        |                                                              |
-|   09    |  CHE_PIC_maxwell_implicitBC  |               maxwell,PIC,ImplicitO4                |                       Implicit reflective particle BC                       |    nProcs=1    |   Particle Position    |                                                              |
-|   10    |       CHE_BGK/RELAX_N2       |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | N2: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration  |    nProcs=1    |  T_rot,T_vib,T_trans   |  [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)   |
-|   10    |      CHE_BGK/RELAX_CH4       |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | CH4: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration |    nProcs=1    |  T_rot,T_vib,T_trans   |  [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)  |
-|   10    |     CHE_FPFlow/RELAX_N2      | [BGK](regressioncheck/checks/CHE_FPFlow/builds.ini) |    N2: Relax to thermal equi. with ESFP, continuous/quantized vibration     |    nProcs=1    |  T_rot,T_vib,T_trans   | [Link](regressioncheck/checks/CHE_FPFlow/RELAX_N2/readme.md) |
+| **No.** |                  **Case**                   |                  **CMAKE-CONFIG**                   |                                 **Feature**                                 | **Execution**  |    **Comparing**    |                          **Readme**                          |
+| :-----: | :-----------------------------------------: | :-------------------------------------------------: | :-------------------------------------------------------------------------: | :------------: | :-----------------: | :----------------------------------------------------------: |
+|   01    |                  run_basic                  |                     maxwell,RK4                     |                                 DG-Operator                                 | nProcs=1,2,5,8 |       L2,Linf       |                                                              |
+|   02    |                 CHE_maxwell                 |                 pure maxwell DG,RK4                 |                                 DG-Operator                                 | nProcs=1,2,5,8 |       L2,Linf       |                                                              |
+|   03    |                 CHE_poisson                 |                     Poisson,RK3                     |                                 DG-Operator                                 | nProcs=1,2,5,8 |       L2,Linf       |                                                              |
+|   04    | [CHE_PIC_maxwell_RK4](#CHE_PIC_maxwell_RK4) |                 PIC (maxwell, RK4)                  |                                                                             |                |                     |                                                              |
+|   05    |            [CHE_DSMC](#CHE_DSMC)            |                        DSMC                         |                                                                             |                |                     |                                                              |
+|   06    |         CHE_PIC_maxwell_implicitBC          |               maxwell,PIC,ImplicitO4                |                       Implicit reflective particle BC                       |    nProcs=1    |  Particle Position  |                                                              |
+|   07    |              CHE_BGK/RELAX_N2               |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | N2: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration  |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_N2/readme.md)   |
+|   07    |              CHE_BGK/RELAX_CH4              |  [BGK](regressioncheck/checks/CHE_BGK/builds.ini)   | CH4: Relax to thermal equi. with ESBGK/SBGK, continuous/quantized vibration |    nProcs=1    | T_rot,T_vib,T_trans |  [Link](regressioncheck/checks/CHE_BGK/RELAX_CH4/readme.md)  |
+|   08    |             CHE_FPFlow/RELAX_N2             | [BGK](regressioncheck/checks/CHE_FPFlow/builds.ini) |    N2: Relax to thermal equi. with ESFP, continuous/quantized vibration     |    nProcs=1    | T_rot,T_vib,T_trans | [Link](regressioncheck/checks/CHE_FPFlow/RELAX_N2/readme.md) |
+
+#### CHE_PIC_maxwell_RK4
+
+Regression testing for PIC, solving the complete Maxwell equations with RK4: [Link to build](regressioncheck/checks/CHE_PIC_maxwell_RK4/builds.ini).
+
+| **No.** |       **Case**       | **CMAKE-CONFIG** |        **Feature**         | **Execution** |     **Comparing**      | **Readme** |
+| :-----: | :------------------: | :--------------: | :------------------------: | :-----------: | :--------------------: | :--------: |
+|   01    | gyrotron_variable_Bz |                  |        variable Bz         |  nProcs=1,2   | Database.csv, relative |            |
+|   02    |     IMD_coupling     |                  | mapping from IMP to PICLas |   nProcs=1    |    PartPata in Box     |            |
+|   03    |  initialIonization   |                  |                            |   nProcs=2    |        PartPata        |            |
+|   04    | single_particle_PML  |                  |            PML             |   particle    |   nProcs=1,2,5,8,10    |            |
 
 #### CHE_DSMC
 
 Small test cases to check DSMC features: [Link to build](regressioncheck/checks/CHE_DSMC/builds.ini).
 
-| **No.** |               **Case**                | **CMAKE-CONFIG** |                **Feature**                | **Execution** |           **Comparing**            |                                     **Readme**                                     |
-| :-----: | :-----------------------------------: | :--------------: | :---------------------------------------: | :-----------: | :--------------------------------: | :--------------------------------------------------------------------------------: |
-|  08-1   | BC_surfaceflux_adaptive_constPressure |                  |     SurfaceFlux with AdaptiveType=1/2     |   nProcs=4    |        Integrated mass flux        |                                                                                    |
-|  08-2   | BC_surfaceflux_adaptive_constMassflow |                  |     SurfaceFlux with AdaptiveType=3,4     |   nProcs=1    |        Integrated mass flux        |                                                                                    |
-|  08-3   |              BC_porousBC              |                  |     PorousBC as a pump with 2 species     |   nProcs=3    | Total # of removed part through BC |                                                                                    |
-|  08-4   |                 cube                  |                  |              Collismode=2,3               |   nProcs=2    |                                    |                                                                                    |
-|  08-5   |          BC_InnerReflective           |                  | Inner reflective BC (dielectric surfaces) |   nProcs=1    |       h5diff: DSMCSurfState        | [Link](regressioncheck/checks/NIG_Reservoir/CHEM_dissocication_rate_CH4/readme.md) |
+| **No.** |                 **Case**                 | **CMAKE-CONFIG** |                                                    **Feature**                                                    | **Execution** |           **Comparing**            |                                         **Readme**                                         |
+| :-----: | :--------------------------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------: | :-----------: | :--------------------------------: | :----------------------------------------------------------------------------------------: |
+|   01    |   SurfFlux_Tria_Adaptive_ConstPressure   |                  |                                       TriaSurfaceFlux with AdaptiveType=1/2                                       |   nProcs=4    |        Integrated mass flux        |                                                                                            |
+|   02    |   SurfFlux_Tria_Adaptive_ConstMassflow   |                  |                                       TriaSurfaceFlux with AdaptiveType=3,4                                       |   nProcs=1    |        Integrated mass flux        |                                                                                            |
+|   03    |               BC_PorousBC                |                  |                                         PorousBC as a pump with 2 species                                         |   nProcs=3    | Total # of removed part through BC |                                                                                            |
+|   04    |                   cube                   |                  |                                                  Collismode=2,3                                                   |   nProcs=2    |                                    |                                                                                            |
+|   05    |            BC_InnerReflective            |                  |                                     Inner reflective BC (dielectric surfaces)                                     |   nProcs=1    |       h5diff: DSMCSurfState        |            [Link](regressioncheck/checks/CHE_DSMC/BC_InnerReflective/readme.md)            |
+|   06    | SurfFlux_RefMapping_Tracing_TriaTracking |                  | Surface flux emission (collisionless) with ARM (with all three trackings) and TriaSurfaceFlux (only TriaTracking) |   nProcs=1    |   PartAnalyze: nPart, TransTemp    | [Link](regressioncheck/checks/CHE_DSMC/SurfFlux_RefMapping_Tracing_TriaTracking/readme.md) |
 
 ## Nightly
 
 Overview of the test cases performed during the nightly regression testing.
 
-| **No.** | **Case**                                | **CMAKE-CONFIG**        | **Feature**                      | **Execution**                               | **Comparing**                    | **Readme**                                                                                              |
-| :-----: | :-------------------------------------: | :---------------------: | :------------------------------: | :-----------------------------------------: | :----------------------------:   | :-----------------------------------------------------------------------------------------------------: |
-| 10      | [NIG_Reservoir](#nig_reservoir)         | maxwell, DSMC           | Relaxation, (Surface-) Chemistry |                                             |                                  |                                                                                                         |
-| 11      | [NIG_tracking_DSMC](#nig_tracking_dsmc) | maxwell, DSMC           | Tracking                         |                                             |                                  |                                                                                                         |
-| 12      | NIG_PIC_maxwell_bgfield                 | maxwell,PIC,RK4         | External Background-field,h5     | nProcs=2                                    | DG_Solution                      |                                                                                                         |
-| 13      | feature_poisson_powerdensity            | Poisson, Crank-Nicolson | Implicit, CalcTimeAvg            | DoRefMapping=T/F, nProcs=2                  | Final TimeAvg, h5diff            |                                                                                                         |
-| 14      | feature_poisson_powerdensity            | poisson,CN              | CalcTimeAvg                      | DoRefMapping=1,2, nProcs=2, CN implicit     | TimeAvg                          |                                                                                                         |
-| 15      | feature_emission_gyrotron               | maxwell,RK4             | Part-Inflow,TimeDep              | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle | LineIntegration of nPartIn       |                                                                                                         |
-| 16      | feature_TWT_recordpoints                | maxwell,RK4             | RPs, ExactFlux                   | nProcs=1,4, RPs, interior TE-Inflow         | RP_State, RP_Daata               |                                                                                                         |
-| 17      | feature_PIC_HDG_plasma_wave             | poisson,RK4,CN          | Poisson-PIC,Shape-Function-1D    | nProcs=2, Imex for CN                       | W_el LineIntegration over 2Per   |                                                                                                         |
-| 18-1    | NIG_PIC_poisson_innerBC_SFLocalDepoBC   | poisson                 | Poisson-PIC,Shape-Function-ND    | nProcs=1,2,5,10,                            | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/poisson_2D_depo_innerBC/readme.md)  |
-| 18-2    | NIG_PIC_poisson_innerBC_SFLocalDepoBC   | poisson                 | Poisson-PIC,Shape-Function-ND    | nProcs=1,2,5,10,                            | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_innerBC_SFLocalDepoBC/poisson_2D_depo_periodic/readme.md) |
+| **No.** |                      **Case**                      |      **CMAKE-CONFIG**       |                    **Feature**                    |       **Execution**        |         **Comparing**          |                                         **Readme**                                          |
+| :-----: | :------------------------------------------------: | :-------------------------: | :-----------------------------------------------: | :------------------------: | :----------------------------: | :-----------------------------------------------------------------------------------------: |
+|   10    |          [NIG_Reservoir](#nig_reservoir)           |        maxwell, DSMC        |         Relaxation, (Surface-) Chemistry          |                            |                                |                                                                                             |
+|   11    |      [NIG_tracking_DSMC](#nig_tracking_dsmc)       |        maxwell, DSMC        |                     Tracking                      |                            |                                |                                                                                             |
+|   12    |    [NIG_PIC_poisson_RK3](#nig_pic_poisson_RK3)     |      poisson, PIC, RK3      |                                                   |                            |                                |                                                                                             |
+|   13    |    [NIG_PIC_maxwell_RK4](#nig_pic_maxwell_RK4)     |      maxwell, PIC, RK4      |                                                   |                            |                                |                                                                                             |
+|   14    |        [NIG_maxwell_RK4](#nig_maxwell_RK4)         | maxwell, RK4, Particles=OFF |                                                   |                            |                                |                                                                                             |
+|   15    |              NIG_poisson_powerdensity              |   Poisson, Crank-Nicolson   |               Implicit, CalcTimeAvg               | DoRefMapping=T/F, nProcs=2 |     Final TimeAvg, h5diff      |                                                                                             |
+|   19    |            NIG_PIC_poisson_plasma_wave             |       poisson,RK4,CN        |           Poisson-PIC,Shape-Function-1D           |   nProcs=2, Imex for CN    | W_el LineIntegration over 2Per |                                                                                             |
+|  19-1   |      NIG_PIC_poisson_Leapfrog/parallel_plates      |      poisson,Leapfrog       |           Poisson-PIC,CalcCoupledPower            |          nProcs=1          |  PartAnalyzeLeapfrog_ref.csv   |      [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates/readme.md)      |
+|  19-2   |    NIG_PIC_poisson_Leapfrog/parallel_plates_AC     |      poisson,Leapfrog       |           Poisson-PIC,CalcCoupledPower            |          nProcs=1          |  PartAnalyzeLeapfrog_ref.csv   |    [Link](regressioncheck/checks/NIG_PIC_poisson_Leapfrog/parallel_plates_AC/readme.md)     |
+|  21-1   | NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean |         maxwell,RK3         | Maxwell-PIC,shape function (different dimensions) |       nProcs=1,5,10        |        Particle_ref.csv        | [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_cell_volweight_mean/readme.md) |
+|  21-2   |   NIG_PIC_Deposition/Plasma_Ball_Shape-function    |         maxwell,RK3         |    Maxwell-PIC,deposition cell_volweight_mean     |       nProcs=1,5,10        |        Xd_X-dir_ref.csv        |   [Link](regressioncheck/checks/NIG_PIC_Deposition/Plasma_Ball_Shape-function/readme.md)    |
 
 #### NIG_Reservoir
 
@@ -77,17 +88,50 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 
 Testing of different tracking routines with DSMC: [Link to build](regressioncheck/checks/NIG_tracking_DSMC/builds.ini).
 
-| **No.** |     **Case**      | **CMAKE-CONFIG** |          **Feature**          |                 **Execution**                 |          **Comparing**           | **Readme** |
-| :-----: | :---------------: | :--------------: | :---------------------------: | :-------------------------------------------: | :------------------------------: | :--------: |
-|  11-1   |     ANSA box      |                  |                               |         DoRefMapping=T,F, nProcs=1,2          | PartInt, PartPos in bounding box |            |
-|  11-2   |      curved       |                  |                               |         DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
-|  11-3   |      mortar       |                  |                               |         DoRefMapping=T,F, nProcs=1,2          | PartInt, PartPos in bounding box |            |
-|  11-4   |     periodic      |                  |                               |       DoRefMapping=T,F, nProcs=1,2,5,10       | PartInt, PartPos in bounding box |            |
-|  11-5   |  periodic_2cells  |                  |                               |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1  |     PartPos in bounding box      |            |
-|  11-6   |    semicircle     |                  |                               |         DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
-|  11-7   |    sphere_soft    |                  |                               | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2 |     PartPos in bounding box      |            |
-|  11-8   | tracing_cylinder1 |                  | mortar,curved,single particle |           DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
-|  11-9   | tracing_cylinder2 |                  | mortar,curved,single particle |           DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+| **No.** |     **Case**      | **CMAKE-CONFIG** |           **Feature**           |                 **Execution**                  |          **Comparing**           | **Readme** |
+| :-----: | :---------------: | :--------------: | :-----------------------------: | :--------------------------------------------: | :------------------------------: | :--------: |
+|  11-1   |     ANSA box      |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+|  11-2   |      curved       |                  |                                 |          DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
+|  11-3   |      mortar       |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+|  11-4   |  mortar_hexpress  |                  | Mortar mesh built with HEXPRESS |           TriaTracking=T; nProcs=2,4           |             PartInt              |            |
+|  11-5   |     periodic      |                  |                                 |       DoRefMapping=T,F, nProcs=1,2,5,10        | PartInt, PartPos in bounding box |            |
+|  11-6   |  periodic_2cells  |                  |                                 |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1   |     PartPos in bounding box      |            |
+|  11-7   |    semicircle     |                  |                                 |          DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
+|  11-8   |    sphere_soft    |                  |                                 | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |            |
+|  11-9   | tracing_cylinder1 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+|  11-10  | tracing_cylinder2 |                  |  mortar,curved,single particle  |            DoRefMapping=F, nProcs=1            |    PartPos-X in bounding box     |            |
+
+#### NIG_PIC_poisson_RK3
+
+Testing PIC compiled with Runge-Kutta 3 integration, solving Poisson's equation: [Link to build](regressioncheck/checks/NIG_PIC_poisson_RK3/builds.ini).
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |    **Feature**    |  **Execution**  |          **Comparing**           |                                       **Readme**                                       |
+| :-----: | :-----------------------: | :--------------: | :---------------: | :-------------: | :------------------------------: | :------------------------------------------------------------------------------------: |
+|  12-1   | 2D_SFLocalDepoBC_innerBC  |                  | Shape-Function-ND | nProcs=1,2,5,10 | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/2D_SFLocalDepoBC_innerBC/readme.md)  |
+|  12-2   | 2D_SFLocalDepoBC_periodic |                  | Shape-Function-ND | nProcs=1,2,5,10 | h5diff of DG_Source and ElemData | [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/2D_SFLocalDepoBC_periodic/readme.md) |
+|  12-3   |      parallel_plates      |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |      [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates/readme.md)      |
+|  12-4   |    parallel_plates_AC     |                  | CalcCoupledPower  |    nProcs=1     |      PartAnalyzeRK3_ref.csv      |    [Link](regressioncheck/checks/NIG_PIC_poisson_RK3/parallel_plates_AC/readme.md)     |
+|  12-5   |          turner           |                  |                   |    nProcs=4     |    L2 error, PartAnalyze.csv     |                                                                                        |
+
+#### NIG_PIC_maxwell_RK4
+
+Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_PIC_maxwell_RK4/builds.ini).
+
+| **No.** |     **Case**      | **CMAKE-CONFIG** |         **Feature**          |                **Execution**                |       **Comparing**        | **Readme** |
+| :-----: | :---------------: | :--------------: | :--------------------------: | :-----------------------------------------: | :------------------------: | :--------: |
+|  13-1   | external_bgfield  |                  | External Background-field,h5 |                  nProcs=2                   |        DG_Solution         |            |
+|  13-2   | emission_gyrotron |                  |     Part-Inflow,TimeDep      | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle | LineIntegration of nPartIn |            |
+|  13-3   |  single_particle  |                  |                              |              nProcs=1,2,3,4,5               |    L2 error, DG_Source     |            |
+|  13-4   | TWT_recordpoints  |                  |        RPs, ExactFlux        |     nProcs=1,4, RPs, interior TE-Inflow     |     RP_State, RP_Data      |            |
+
+#### NIG_maxwell_RK4
+
+Testing the field solver (without compiling particle related routines) with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_maxwell_RK4/builds.ini).
+
+| **No.** |      **Case**       | **CMAKE-CONFIG** | **Feature** | **Execution** |     **Comparing**      | **Readme** |
+| :-----: | :-----------------: | :--------------: | :---------: | :-----------: | :--------------------: | :--------: |
+|  14-1   | dipole_cylinder_PML |                  |             |  nProcs=1,4   | L2 error, DG_Solution  |            |
+|  14-2   |    ExactFlux_PML    |                  |             | nProcs=1,4,8  | L2 error, FieldAnalyze |            |
 
 ## Weekly
 

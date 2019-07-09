@@ -22,7 +22,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver    ! abort tolerance for DG linear solver
 REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)                                   ! temp. storage of source terms
@@ -38,13 +38,13 @@ INTEGER              :: nDofGlobal, nDofGlobalMPI                               
 LOGICAL              :: LinearSolverInitIsDone=.FALSE.                              ! init routine
 INTEGER              :: nGP2D,nGP3D                ! (N+1)**2, (N+1)**3             ! number of GP points on face, volume
 INTEGER              :: nDOFside,nDOFelem          ! nVar*nGP2D, nVar*nGP3D         ! number of GP*nvar
-REAL                 :: nDOFGlobalMPI_inv                                              ! inverse number of global dof 
+REAL                 :: nDOFGlobalMPI_inv                                              ! inverse number of global dof
 INTEGER              :: nDOFLine                                                    ! number of 1D DOFs
 INTEGER              :: maxIter_LinearSolver                                        ! limit of iter for linear solver
 INTEGER              :: totalIterLinearSolver,nInnerIter                            ! global counter of iterations
 INTEGER              :: ldim                                                        ! Number of BiCGStab(l) subspaces
 #if defined(PARTICLES)
-#if defined(IMPA) 
+#if defined(IMPA)
 INTEGER              :: nPartNewton                                                 ! some limits or counter
 INTEGER              :: nPartNewtonIter                                             ! some limits or counter
 INTEGER              :: FreezePartInNewton                                          ! particle is moved after each Newton step
@@ -69,7 +69,7 @@ LOGICAL              :: DoPrintConvInfo =.FALSE.                                
 #endif /*IMPA or ROS*/
 #if IMPA
 LOGICAL              :: PartNewtonLinTolerance                                      ! use normal (linear) or square decrease for forcing
-                                                                                    ! term of particles 
+                                                                                    ! term of particles
 REAL                 :: PartNewtonRelaxation                                        ! scaling factor for lambda. A value <0
                                                                                     ! disables Armijo rule and uses a fixed value
 REAL,ALLOCATABLE     :: ExplicitPartSource(:,:,:,:,:)                               ! temp. storage of source terms 121,122
@@ -90,9 +90,9 @@ REAL                 :: FullgammaEW                                             
 REAL                 :: FulletaMax                                                  ! Eisenstat-Walker eta-Max
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
 #ifdef PARTICLES
-LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 
+LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position
                                                                                     ! in each rk stage
-LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration 
+LOGICAL              :: DoFullNewton                                                ! use a full Newton instate of iteration
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
                                                                                     ! UNFP each nth iteration

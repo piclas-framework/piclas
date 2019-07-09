@@ -55,7 +55,7 @@ PUBLIC::DefineParametersLoadBalance
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersLoadBalance()
 ! MODULES
@@ -114,7 +114,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 #ifdef PARTICLES
 ! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
-! calculated with ParticleMPIWeight 
+! calculated with ParticleMPIWeight
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
 IF (ParticleMPIWeight.LT.0.0) THEN
   CALL abort(&
@@ -191,7 +191,7 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 USE MOD_LoadBalance_Vars       ,ONLY: CurrentImbalance,PerformLBSample
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -380,7 +380,7 @@ CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -
 ! restart
 CALL Restart()
 
-! compute imbalance 
+! compute imbalance
 !CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemTime)  ! --> new imbalance has already been calculated in mesh_readin
 
 ! zero ElemTime, the measurement starts again
@@ -435,7 +435,7 @@ USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

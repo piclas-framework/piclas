@@ -21,7 +21,7 @@ MODULE MOD_PICInit
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -112,7 +112,6 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
                                                        'Writes the source to hdf5', '.FALSE.')
 
 CALL prms%SetSection("PIC Deposition")
-
 CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_function\n'                   //&
                                                              '1.2)  shape_function_1d\n'                //&
@@ -120,8 +119,9 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '1.4)  shape_function_cylindrical\n'       //&
                                                              '1.5)  shape_function_spherical\n'         //&
                                                              '1.6)  shape_function_simple\n'            //&
-                                                             '      requires PIC-shapefunction-radius\n'//& 
-                                                             '               PIC-shapefunction-alpha\n' //&
+                                                             '      1.1) to 1.6) require\n'            //&
+                                                             '        PIC-shapefunction-radius\n'//&
+                                                             '        PIC-shapefunction-alpha\n' //&
                                                              '      1.2) and 1.3) require\n'            //&
                                                              '        PIC-shapefunction1d-direction\n'  //&
                                                              '      1.4) and 1.5) require\n'            //&
@@ -131,13 +131,14 @@ CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_functi
                                                              '3.)   epanechnikov\n'                     //&
                                                              '4.)   nearest_gausspoint\n'               //&
                                                              '5.)   delta_distri\n'                     //&
-                                                             '      requires PIC-DeltaType\n'           //& 
-                                                             '               PIC-DeltaType-N\n'         //& 
+                                                             '      requires PIC-DeltaType\n'           //&
+                                                             '               PIC-DeltaType-N\n'         //&
                                                              '6.1)  cartmesh_volumeweighting\n'         //&
                                                              '6.2)  cartmesh_splines\n'                 //&
                                                              '      requires PIC-BGMdeltas\n'           //&
                                                              '               PIC-FactorBGM\n'           //&
-                                                             '7.)   nearest-blurrycenter'                 &
+                                                             '7.)   nearest-blurrycenter\n'             //&
+                                                             '8.)   cell_volweight_mean'                &
                                                            , 'nearest-blurrycenter') ! Default
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
 CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
@@ -231,7 +232,7 @@ CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFIN
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateLogicalOption(  'PIC-SFResampleReducePartNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
+                                                                     'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
 CALL prms%CreateIntOption(      'PIC-PartNumThreshold'      ,              'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'Threshold for checking inserted '//&
                                                                            'parts per deposition (otherwise abort)', '0')
@@ -268,6 +269,8 @@ SUBROUTINE InitPIC()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars,  ONLY: externalField
+USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
+USE MOD_PICDepo                ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -284,6 +287,9 @@ IF(PICInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
+
+CALL InitializeParticleInterpolation()
+CALL InitializeDeposition()
 
 ! So far, nothing to do here...
 IF (externalField(6).NE.0) PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))
