@@ -125,7 +125,7 @@ before_script:
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
 
-### 2. Installation Steps for Gitlab Runners 
+### Installation Steps for Gitlab Runners 
 Latest test: on ubuntu (18.04), 3 Jul 2019
 
 1. Install gitlab-runner from ubuntu packages (choose old version to avoid problems https://gitlab.com/gitlab-org/gitlab-runner/issues/1379)
@@ -170,7 +170,7 @@ NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.ser
 
 
 
-### 3. **Configuration files**
+### **Configuration files**
 
 The runner services can be adjusted by changing the settings in the file
 
@@ -231,3 +231,27 @@ check_interval = 0
   limit = 1
   [runners.cache]
 ```
+
+### Automatic Deployment to other platforms
+1. Add the required ssh key to the deploy keys on the respective platform (e.g. github)
+1. Clone a code from the platform to update the list of known hosts. Do not forget to copy the
+    information to the correct location for the runner to have access to the platform
+    ```
+    sudo cp~/.ssh/.ssh/known_hosts /var/lib/gitlab-runner/.ssh/known_hosts
+    ```
+1. PICLas deployment in performed by the gitlab runner in the *deployment stage*
+    ```
+    github:
+      stage: deploy
+      tags:
+        - withmodules-concurrent
+      script:
+        - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
+        - rm -rf piclas_github || true ;
+        - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
+        - cd piclas_github ;
+        - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
+        - git push --force --follow-tags piclas-framework master ;
+    ```
+
+    This script clones the master branch of PICLas and deploys it on github.
