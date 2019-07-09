@@ -2125,7 +2125,7 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('cuboid','sphere')
+    CASE('cuboid')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
@@ -2154,6 +2154,20 @@ DO iSpec=1,nSpecies
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
+      RegionOnProc=BoxInProc(xCoords,8)
+    CASE('sphere')
+      ASSOCIATE ( radius => Species(iSpec)%Init(iInit)%RadiusIC        ,&
+                  origin => Species(iSpec)%Init(iInit)%BasePointIC(1:3) )
+        ! Set the 8 bounding box coordinates depending on the origin and radius
+        xCoords(1:3,1)=origin + (/ radius  , -radius , -radius/)
+        xCoords(1:3,2)=origin + (/ radius  , radius  , -radius/)
+        xCoords(1:3,3)=origin + (/ -radius , radius  , -radius/)
+        xCoords(1:3,4)=origin + (/ -radius , -radius , -radius/)
+        xCoords(1:3,5)=origin + (/ radius  , -radius , radius /)
+        xCoords(1:3,6)=origin + (/ radius  , radius  , radius /)
+        xCoords(1:3,7)=origin + (/ -radius , radius  , radius /)
+        xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
+      END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cylinder')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
