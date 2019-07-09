@@ -165,6 +165,10 @@ CALL prms%CreateIntOption(      'Part-CollisionModel'  &
                                            ,'Flags which model is used for collision. Check Bird for more information.\n '//&
                                             '0 : Variable Hard Sphere (VHS)\n'//&
                                             '1 : Variable Soft Sphere (VSS)', '0')
+CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
+                                           ,'Flags if diameter is calculated with \n'//&
+                                            '0 : dref  - reference diameter\n'//&
+                                            '1 : muref - viscosity at reference temperature\', '0')
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                            ,' VSS exponent as defined in Bird (2.36). Default alpha==1'                        //&
                                             ' for VHS calculation. See Bird 1994 p.42 for more information.',                  //&
@@ -509,12 +513,9 @@ __STAMP__&
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
       SpecDSMC(iSpec)%omegaVHS= GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
-      SpecDSMC(iSpec)%muRef   = GETREAL('Part-Species'//TRIM(hilf)//'-muRef','1') 
+      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muRef','1') 
 
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
-      ! SpecDSMC(iSpec)%TrefVSS = GETREAL('Part-Species'//TRIM(hilf)//'-VSSReferenceTemp','0')
-      ! SpecDSMC(iSpec)%DrefVSS = GETREAL('Part-Species'//TRIM(hilf)//'-VSSReferenceDiam','0')
-      ! SpecDSMC(iSpec)%omegaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVSS','0') ! Variable Soft Sphere
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
       END IF
@@ -616,8 +617,12 @@ __STAMP__&
     END DO
   END DO
 
-  CollInf%collMod = GETINT('Part-CollisionModel','0') 
-  IF(CollInf%collMod.EQ.1) THEN                             ! VSS
+!-----------------------------------------------------------------------------------------------------------------------------------
+! reading in VSS variables 
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CollInf%collMod      = GETINT('Part-CollisionModel','0') 
+  CollInf%diameterCase = GETINT('Part-CollisionDiameterCase','0')
+  IF(CollInf%collMod.EQ.1) THEN ! VSS
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
     ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
@@ -626,15 +631,19 @@ __STAMP__&
     CollInf%omegaVSS=0.                                     
     CollInf%dref=0.                                    
     CollInf%Tref=0.                                     
-    DO iSpec=1,CollInf%NumCase                              ! alphaVSS and omegaVSS (collision specific parameters-> Matrix) read-in
+    DO iSpec=1,CollInf%NumCase ! alphaVSS and omegaVSS (collision-specific parameters-> Matrix) read-in
       DO jSpec=iSpec,CollInf%NumCase
         iCase=iCase+1
         WRITE(UNIT=hilf,FMT='(I0)') iCase
         CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
+        CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
         IF (CollInf%alphaVSS(iSpec,jSpec).NE.1) THEN 
           CollInf%omegaVSS(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omegaVSS')
+          CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)
           CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
+          CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
           CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
+          CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
           IF(CollInf%omegaVSS(iSpec,jSpec.EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
         ELSEIF((CollInf%alphaVSS(iSpec,jSpec).EQ.1)) THEN
           CALL Abort(&
@@ -644,14 +653,20 @@ __STAMP__&
         END IF
       END DO
     END DO
-  ELSEIF (CollInf%collMod.EQ.0) THEN                       ! VHS default 
-    CollInf%alphaVSS=1.
+  ELSEIF (CollInf%collMod.EQ.0) THEN ! VHS default 
+    CollInf%alphaVSS=1. !=alphaVHS=1
     CollInf%omegaVSS=0.
       DO iSpec=1,nSpecies
-      ! das kann dann geändert werden 
-      ! bleibt man direct bei SpecDSMC
-      ! oder stellt man so um, dass mit collinf omega gerechnet wird - to be solved
-        CollInf%omegaVSS(iSpec,iSpec)=SpecDSMC(iSpec)%omegaVHS
+        ! das kann dann geändert werden 
+        ! bleibt man direct bei SpecDSMC
+        ! oder stellt man so um, dass mit collinf omega gerechnet wird - to be solved
+        ! was ist mit den i.NE.j feldern - man könnte nach krishnan collision averaged arbeiten. D.h. dass dannfür die felder der
+        ! mittelwert gebildet wird- dann kann man das aber direkt für alle machen
+        ! oder soll dann einfach weiterhin nur das erste omega berücksichtigt werden?
+        DO jSpec=1,nSpecies
+          CollInf%omegaVSS(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omegaVHS + SpecDSMC(jSpec)%omegaVHS)
+          CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)  
+        END DO
       END DO
   ELSE 
     CALL Abort(&

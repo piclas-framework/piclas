@@ -2887,7 +2887,7 @@ __STAMP__&
 
 END SUBROUTINE DSMC_calc_P_vib
 
-REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
+REAL FUNCTION DSMC_Cross_Section(iPair,CRela2)
 !===================================================================================================================================
 ! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not collision-averaged.(Krishnan 2015/2016) 
 !===================================================================================================================================
@@ -2900,7 +2900,6 @@ REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)              :: dref,Tref                 ! reference diameter and temperature  must be set in ini.
   REAL, INTENT(IN)              :: CRela2 
   INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2909,19 +2908,26 @@ REAL FUNCTION DSMC_Cross_Section(iPair,dref,Tref,CRela2)
                                                              ! with (p.42 l.2)!! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: collPart1ID,collPart2ID,Spec1ID,Spec2ID       ! colliding particles and species, respectively
-  REAL                          :: diameter_squared                              ! viscosity-based diameter bird (3.74) 
+  INTEGER                       :: Spec1ID,Spec2ID           ! colliding particles and species, respectively
+  REAL                          :: diameter_squared          !  
 !===================================================================================================================================
- ! brauch ich noch  collPart1ID = Coll_pData(iPair)%iPart_p1
- ! brauch ich noch  collPart2ID = Coll_pData(iPair)%iPart_p2
    Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
    Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
   ! mu ref einlesen !to be solved
-  ! set FLAG HERE
-  energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1D,Spec2D))*CRela2
-  diameter_squared     = PI * ((5 * (alpha + 1) * (alpha + 2) * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5 & 
-                       * (BoltzmannConst * Tref) ** (omega - 0.5)) / (16 * alpha * GAMMA(4.0 - omega)                           &
-                       * (SpecDSMC(Spec1ID)%muRef+SpecDSMC(Spec2ID)%muRef)/2 * (energy_translational)**(omega-1.0)) 
+  IF(Calc_diameterCase.EQ.0) THEN ! via d(dref)
+    ! dref-based diameter bird to be solved ansonsten krishnan 
+    diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
+                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature
+  ELSE ! via d(muref)
+    energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1D,Spec2D))*CRela2
+    ! viscosity-based diameter bird (3.74)
+    diameter_squared     = PI * ((5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
+                         * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5                                     & 
+                         * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omegaVSS(Spec1ID,Spec2ID) - 0.5))      &
+                         / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omegaVSS(Spec1ID,Spec2ID))            &
+                         * (SpecDSMC(Spec1ID)%muRef+SpecDSMC(Spec2ID)%muRef) / 2                                               &
+                         * (energy_translational) ** (CollInf%Tref(Spec1ID,Spec2ID)omega - 1.0)) 
+  END IF
   VSS_Cross_Section    = PI*diameter_squared
 END FUNCTION DSMC_Cross_Section
 

@@ -68,7 +68,7 @@ TYPE tBulkValuesOpenBC                                                  ! LD bul
   REAL                              :: Beta                       ! Thermal speed scale
   REAL                              :: MassDens                   ! Mass Density
   REAL                              :: DynamicVisc                ! dynamic viscousity
-  REAL                              :: ThermalCond                ! thermal conuctivity
+  REAL                              :: ThermalCond                ! thermal conductivity
 END TYPE
 TYPE(tBulkValuesOpenBC), ALLOCATABLE :: BulkValuesOpenBC(:)       ! LD bulk values array for open BCs (number of Elements)
 

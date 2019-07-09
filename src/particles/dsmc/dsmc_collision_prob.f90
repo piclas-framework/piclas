@@ -64,6 +64,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   INTEGER                             :: iPType, NbrOfReaction, collPart1ID, collPart2ID, collPairID
   INTEGER(KIND=8)                     :: SpecNum1, SpecNum2i
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot !total collision cross-section
+  REAL, ALLOCATABLE
   REAL(KIND=8)                        :: Volume ! cell volume
 !  INTEGER                             :: SpecToExec
 !  LOGICAL                             :: DoSimpleElectronColl
@@ -90,34 +91,34 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
       SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(collPart1ID)),8) ! number of particles of spec 1
       SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(collPart2ID)),8) ! number of particles of spec 2
-      IF (BGGas%BGGasSpecies.NE.0) THEN                                     
-        ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)          ! to be solved not sure why Na*Nb/Sab=BGColl_SpecPartNum     
-        Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                & 
-                               * CollInf%Cab(collPairID) * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume &
-                               * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
-                               ! Cab combination specific factor
-                               ! MPF as weighting factor, here only one MPF is used in the assumption it is equal in both species!
-                               ! dt timestep (should be scaled in time_disc) 
-                               ! relative velocity to the power of phi_c=(1 -2omega) Laux(2.47) - only the first omega is used! 
-      ELSE                                                                  
-        ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
-        Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
-                               * CollInf%Cab(collPairID) / CollInf%Coll_CaseNum(collPairID)           &          
-                               * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
-                               * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
-      ! to be solved - formel nicht nachvollziehbar
-      ELSE IF(CollInf%CollMod.EQ.1) THEN                                                                  ! VSS
+      IF(CollInf%collMod.EQ.0) THEN
+        IF (BGGas%BGGasSpecies.NE.0) THEN                                     
+          ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        ! to be solved not sure why Na*Nb/Sab=BGColl_SpecPartNum     
+          Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                & 
+                                 * CollInf%Cab(collPairID) * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume &
+                                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
+                                 ! Cab combination specific factor
+                                 ! MPF as weighting factor, here only one MPF is used in the assumption it is equal in both species!
+                                 ! dt timestep (should be scaled in time_disc) 
+                                 ! relative velocity to the power of phi_c=(1 -2omega) Laux(2.47) - only the first omega is used! 
+        ELSE                                                                  
+          ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
+          Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
+                                 * CollInf%Cab(collPairID) / CollInf%Coll_CaseNum(collPairID)           &          
+                                 * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
+                                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
+        END IF
+
+      ELSE ! VSS
+        ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
+        !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
         sigma_vss(iPair)       = DSMC_Cross_Section( iPair, CollInf%dref, CollInf%Tref, Coll_pData(iPair)%CRela2 )
-        ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
         Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
-                               * sigma_vss / CollInf%Coll_CaseNum(collPairID)                         &          
-                               * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
-                               * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
+                               * Species(PartSpecies(collPart1ID))%MacroParticleFactor
+                               * dt / (Volume + CollInf%Coll_CaseNum(collPairID)) & 
+                               * sigma_vss * Coll_pData(iPair)%CRela2 
+      END IF
 
-
-
-
-      ! end to be solved
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron
 !           ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair
 !           Coll_pData(iPair)%Sigma = 0
@@ -424,7 +425,6 @@ END SUBROUTINE DSMC_prob_calc
 !    CollFreq = 0.0 
 !    DO iSpec = 1, nSpecies
 !    !marcel gefragt warum
-!    ! .5
 !    ! 2.0
 !    !richtige Temperatur?
 !    CollFreq = CollFreq +( 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS))**2.0 &

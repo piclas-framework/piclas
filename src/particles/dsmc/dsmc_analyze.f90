@@ -766,33 +766,35 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
   IF (Temp.LE.0) RETURN
-  DO iSpec = 1, nSpecies
-    MFP_Tmp = 0.0
-    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-      DO jSpec = 1, nSpecies
-        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+    IF(CollInf%CollMod.EQ.0) ! to be solved
+      DO iSpec = 1, nSpecies
+        MFP_Tmp = 0.0
+        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+          DO jSpec = 1, nSpecies
+            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                    * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                    * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+            END IF
+          END DO
+          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
         END IF
       END DO
-      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-    END IF
-  END DO
-ELSE
-  DO iSpec = 1, nSpecies
-    MFP_Tmp = 0.0
-    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-      DO jSpec = 1, nSpecies
-        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+    ELSE
+      DO iSpec = 1, nSpecies
+        MFP_Tmp = 0.0
+        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+          DO jSpec = 1, nSpecies
+            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                    * (CollInf%Tref()/Temp)**(omega) &
+                                    * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+            END IF
+          END DO
+          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
         END IF
       END DO
-      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
     END IF
-  END DO
-END IF
 RETURN
 END FUNCTION CalcMeanFreePath
 
@@ -844,7 +846,6 @@ DO iSpec = 1, nSpecies
     END IF
   END IF
 END DO
-
 END SUBROUTINE CalcGammaVib
 
 

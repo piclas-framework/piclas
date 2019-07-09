@@ -244,7 +244,8 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                              ! Collision information 
-  INTEGER                       :: CollMod                 ! Collision model used. 0 - VHS,1 - VSS
+  INTEGER                       :: collMod                 ! Collision model used. 0 - VHS,1 - VSS
+  INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0- d(dref), 1- d(muref)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
@@ -255,7 +256,8 @@ TYPE tCollInf                                              ! Collision informati
   REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision, ini_2
   REAL          , ALLOCATABLE   :: omegaVSS(:,:)           ! VSS exponent omega per collision, ini_2
-  REAL          , ALLOCATABLE   :: dRef(:,:)               ! Reference diameter per collision, ini_2 
+  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of omegaVSS, ini_2 
+  REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter per collision, ini_2 
 END TYPE
 
 TYPE(tCollInf)                  :: CollInf
