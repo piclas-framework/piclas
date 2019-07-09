@@ -908,6 +908,7 @@ DO iElem=1,nElems
       MortarType(2,aSide%SideID)=SideID
       DO iMortar=1,aSide%nMortars
         mSide=>aSide%MortarSide(iMortar)%sp
+        MortarType(1,mSide%SideID)=mSide%MortarType
         MortarInfo(MI_SIDEID,iMortar,SideID)=mSide%SideID
         MortarInfo(MI_FLIP,iMortar,SideID)=mSide%Flip
       END DO ! iMortar
@@ -918,7 +919,7 @@ END DO ! iElem
 
 MortarSlave2MasterInfo(:) = -1
 DO SideID=1,nSides
-  IF (MortarType(MI_SIDEID,SideID).NE.-1) THEN
+  IF (MortarType(1,SideID).GT.0) THEN
     DO iMortar=1,4
       IF (MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID)).NE.-1) THEN
       MortarSlave2MasterInfo(MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID))) = SideID
@@ -954,23 +955,23 @@ DO iElem=1,nElems
   LOGWRITE(*,*)'=============== iElem= ',iElem, '==================='
   DO LocSideID=1,6
     aSide=>aElem%Side(LocSideID)%sp
-    LOGWRITE(*,'(5(A,I4))')'globSideID= ',aSide%ind, &
-                 ', flip= ',aSide%flip ,&
-                 ', SideID= ', aSide%SideID,', nMortars= ',aSide%nMortars,', nbProc= ',aSide%nbProc
+    LOGWRITE(*,'(6(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
+             ', nbProc= ',aSide%nbProc, ', MortarType= ',aSide%MortarType,    ', nMortars= ',aSide%nMortars
     IF(aSide%nMortars.GT.0)THEN ! mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
-        LOGWRITE(*,'(I4,4(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
+        LOGWRITE(*,'(I4,5(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
                      ', flip= ',aSide%MortarSide(iMortar)%sp%Flip, &
                      ', SideID= ',aSide%MortarSide(iMortar)%sp%SideID, &
-                     ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc
-
+                     ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc, &
+                     ', MortarType= ',aSide%MortarSide(iMortar)%sp%MortarType
       END DO ! iMortar
     END IF ! mortarSide
   END DO ! LocSideID
 END DO ! iElem
 LOGWRITE(*,*)'============================= END SIDE CHECKER ==================='
 
+LOGWRITE_BARRIER
 
 ! build global connection of elements to elements
 FirstElemID=offsetElem+1

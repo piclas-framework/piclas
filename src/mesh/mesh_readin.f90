@@ -205,7 +205,7 @@ USE MOD_Mesh_Vars,          ONLY:NGeo,NGeoTree
 USE MOD_Mesh_Vars,          ONLY:NodeCoords,TreeCoords
 USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
 USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
-USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides
+USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
 USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
 USE MOD_Mesh_Vars,          ONLY:nGlobalUniqueSides
 USE MOD_Mesh_Vars,          ONLY:useCurveds
@@ -373,7 +373,8 @@ IF(nElems.LE.0) CALL abort(__STAMP__,&
 
 ! Set element offset for every processor and write info to log file
 offsetElem=offsetElemMPI(myRank)
-LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
+LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
+             ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
 
 
 
@@ -536,7 +537,7 @@ DO iElem=FirstElemInd,LastElemInd
     ELSE
       aSide%nMortars=0
     END IF
-    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-1 !marks side as belonging to a mortar
+    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-1 !marks small neighbor  side as belonging to a mortar
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem
@@ -893,9 +894,10 @@ ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
 
 #ifdef MPI
-CALL MPI_REDUCE(ReduceData,ReduceData_glob,11,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-ReduceData=ReduceData_glob
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
+
+nGlobalMortarSides=ReduceData(9)
 
 IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
@@ -905,7 +907,7 @@ IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',ReduceData(9) !nMortarSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides 
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
@@ -915,6 +917,7 @@ IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(132("."))')
 END IF
 
+LOGWRITE_BARRIER
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh
 

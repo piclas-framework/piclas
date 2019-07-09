@@ -268,15 +268,15 @@ nSidesMaster    = lastMasterSide-firstMasterSide+1
 nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 
 LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8)')   'first/lastMasterSide     ', firstMasterSide,lastMasterSide
-LOGWRITE(*,'(A25,I8)')   'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMasterSide     ', firstMasterSide,lastMasterSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
 LOGWRITE(*,*)'-------------------------------------------------------'
 LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
 LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
 LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
 LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
 LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
-LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
 LOGWRITE(*,*)'-------------------------------------------------------'
 
 

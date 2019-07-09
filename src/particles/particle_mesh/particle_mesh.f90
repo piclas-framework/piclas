@@ -5416,29 +5416,37 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
-! check is working on CONFORM mesh!!!
-DO iElem=1,nTotalElems
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
-    IF(DoRefMapping)THEN
-      IF(SideID.LT.1) CYCLE
-    ELSE
-      IF(SideID.LE.0) CALL abort(&
+IF(nGlobalMortarSides.GT.0) THEN
+  SWRITE(UNIT_StdOut,*)
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(*,*)'===> TODO TODO TODO: CHECKS for particle mesh do not work on NON-CONFORMING MESHES  !!!'
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(UNIT_StdOut,*)
+ELSE
+  ! check is working on CONFORM mesh!!!
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+      IF(DoRefMapping)THEN
+        IF(SideID.LT.1) CYCLE
+      ELSE
+        IF(SideID.LE.0) CALL abort(&
 __STAMP__&
-       , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
-    END IF
-    IF(MortarType(1,SideID).NE.0) CYCLE
-    BCID=BC(SideID)
-    IF(BCID.NE.0)THEN
-      IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
-    END IF
-    IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
-       CALL abort(&
-__STAMP__&
-      , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+         , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
       END IF
-  END DO ! ilocSide=1,6
-END DO
+      IF(MortarType(1,SideID).NE.0) CYCLE
+      BCID=BC(SideID)
+      IF(BCID.NE.0)THEN
+        IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
+      END IF
+      IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
+         CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+        END IF
+    END DO ! ilocSide=1,6
+  END DO
+END IF
 
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
