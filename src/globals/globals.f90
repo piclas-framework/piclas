@@ -23,7 +23,7 @@ USE mpi
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,PARAMETER  :: UNIT_stdOut=6
 INTEGER,PARAMETER  :: UNIT_logOut=133
@@ -39,7 +39,7 @@ INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
 #ifdef MPI
-!#include "mpif.h" 
+!#include "mpif.h"
 INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
 INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
@@ -134,7 +134,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                        :: OpenStat
 CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
@@ -176,13 +176,13 @@ END SUBROUTINE InitGlobals
 ! !===================================================================================================================================
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."
-! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless.
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs
 ! !      to your calculation. Maybe."
-! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want.
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs.
 ! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink.
 ! !      Good luck and God speed."
 ! !===================================================================================================================================
 ! ! MODULES
@@ -210,13 +210,13 @@ END SUBROUTINE InitGlobals
 ! !===================================================================================================================================
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."
-! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless.
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs
 ! !      to your calculation. Maybe."
-! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want.
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs.
 ! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink.
 ! !      Good luck and God speed."
 ! !===================================================================================================================================
 ! ! MODULES
@@ -245,13 +245,13 @@ END SUBROUTINE InitGlobals
 ! ! Performe an almost zero check. But ...
 ! ! Bruce Dawson quote:
 ! ! "There is no silver bullet. You have to choose wisely."
-! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless. 
-! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs 
+! !    * "If you are comparing against zero, then relative epsilons and ULPs based comparisons are usually meaningless.
+! !      You’ll need to use an absolute epsilon, whose value might be some small multiple of FLT_EPSILON and the inputs
 ! !      to your calculation. Maybe."
-! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want. 
-! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs. 
+! !    * "If you are comparing against a non-zero number then relative epsilons or ULPs based comparisons are probably what you want.
+! !      You’ll probably want some small multiple of FLT_EPSILON for your relative epsilon, or some small number of ULPs.
 ! !      An absolute epsilon could be used if you knew exactly what number you were comparing against."
-! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink. 
+! !    * "If you are comparing two arbitrary numbers that could be zero or non-zero then you need the kitchen sink.
 ! !      Good luck and God speed."
 ! !===================================================================================================================================
 ! ! MODULES
@@ -267,10 +267,10 @@ END SUBROUTINE InitGlobals
 ! !-----------------------------------------------------------------------------------------------------------------------------------
 ! ! LOCAL VARIABLES
 ! !===================================================================================================================================
-! 
+!
 ! AlmostZero=.FALSE.
 ! IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
-! 
+!
 ! END FUNCTION AlmostZero
 
 #ifdef MPI
@@ -346,23 +346,23 @@ END SUBROUTINE AbortProg
 !==================================================================================================================================
 !> print a warning to the command line (only MPI root)
 !==================================================================================================================================
-SUBROUTINE PrintWarning(msg) 
+SUBROUTINE PrintWarning(msg)
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*) :: msg
 !===================================================================================================================================
-IF (myRank.EQ.0) THEN 
+IF (myRank.EQ.0) THEN
   WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
   WRITE(UNIT_stdOut,*) 'WARNING:'
   WRITE(UNIT_stdOut,*) TRIM(msg)
   WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-END IF 
+END IF
 END SUBROUTINE PrintWarning
 
 
 !==================================================================================================================================
 !> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
-!> 
+!>
 !> Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
 !> Terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
 !> This routine can only be used if ALL processes are guaranteed to generate the same error at the same time!
@@ -531,7 +531,7 @@ CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '=' (default i
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#' (default is '!')
 CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
 LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
-                                                          !> display DefMsg or errors if the parameter or the file is not found 
+                                                          !> display DefMsg or errors if the parameter or the file is not found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                              :: ExistFile         !> file exists=.true., file does not exist=.false.
@@ -557,7 +557,7 @@ output=''
 ! read from file
 INQUIRE(File=TRIM(FileName),EXIST=ExistFile)
 IF(ExistFile) THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ') 
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(FileName),STATUS="OLD",IOSTAT=iSTATUS,ACTION='READ')
   DO
     READ(ioUnit,'(A)',iostat=iSTATUS)temp
     IF(ADJUSTL(temp(1:LEN(TRIM(CommentSymbol)))).EQ.TRIM(CommentSymbol)) CYCLE  ! complete line is commented out
@@ -565,7 +565,7 @@ IF(ExistFile) THEN
     IF(LEN(trim(temp)).GT.1)THEN                    ! exclude empty lines
       IndNum=INDEX(temp,TRIM(ParameterName))        ! e.g. 'timestep'
       IF(IndNum.GT.0)THEN
-        IF(IndNum-1.GT.0)THEN                       ! check if the parameter name is contained within a substring of another 
+        IF(IndNum-1.GT.0)THEN                       ! check if the parameter name is contained within a substring of another
           IF(temp(IndNum-1:IndNum-1).NE.' ')CYCLE   ! parameter, e.g., "timestep" within "fd_timestep" -> skip
         END IF
         temp2=TRIM(ADJUSTL(temp(IndNum+LEN(TRIM(ParameterName)):LEN(temp))))
@@ -589,22 +589,22 @@ IF(ExistFile) THEN
   END DO
   CLOSE(ioUnit)
   IF(output.EQ.'')THEN
-    IF(PRESENT(DoDisplayInfo))THEN                                                                                                 
-      IF(DoDisplayInfo)THEN                                                                                                        
-        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'             
-      END IF                                                                                                                       
-    ELSE                                                                                                                           
-      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'               
+    IF(PRESENT(DoDisplayInfo))THEN
+      IF(DoDisplayInfo)THEN
+        SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
+      END IF
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: Parameter ['//TRIM(ParameterName)//'] not found.'
     END IF
     output='ParameterName does not exist'
   END IF
-ELSE 
-  IF(PRESENT(DoDisplayInfo))THEN                                                                                                 
-    IF(DoDisplayInfo)THEN                                                                                                        
-      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'                       
-    END IF                                                                                                                       
-  ELSE                                                                                                                           
-    SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'                         
+ELSE
+  IF(PRESENT(DoDisplayInfo))THEN
+    IF(DoDisplayInfo)THEN
+      SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
+    END IF
+  ELSE
+    SWRITE(UNIT_stdOut,'(A)') ' SUBROUTINE GetParameterFromFile: File ['//TRIM(FileName)//'] not found.'
   END IF
   output='file does not exist'
 END IF
@@ -619,7 +619,7 @@ FUNCTION FILEEXISTS(filename)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: filename 
+CHARACTER(LEN=*),INTENT(IN) :: filename
 LOGICAL                     :: FILEEXISTS
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -701,7 +701,7 @@ INTEGER, INTENT(IN),OPTIONAL    :: Comm
 ! OUTPUT VARIABLES
 REAL                            :: PiclasTime
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 #ifdef MPI
 IF(PRESENT(Comm))THEN
@@ -729,7 +729,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 REAL                            :: LocalTime
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 #ifdef MPI
 LocalTime=MPI_WTIME()
@@ -758,7 +758,7 @@ LOGICAL :: connected
 GetFreeUnit=55
 INQUIRE(UNIT=GetFreeUnit, OPENED=connected)
 IF(connected)THEN
-  DO  
+  DO
     GetFreeUnit=GetFreeUnit+1
     INQUIRE(UNIT=GetFreeUnit, OPENED=connected)
     IF(.NOT.connected)EXIT
@@ -775,13 +775,13 @@ PURE FUNCTION CROSS(v1,v2)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    ! 
-REAL,INTENT(IN) :: v2(3)    ! 
+REAL,INTENT(IN) :: v1(3)    !
+REAL,INTENT(IN) :: v2(3)    !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL            :: CROSS(3) !
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
 END FUNCTION CROSS
@@ -796,13 +796,13 @@ FUNCTION CROSSNORM(v1,v2)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    ! 
-REAL,INTENT(IN) :: v2(3)    ! 
+REAL,INTENT(IN) :: v1(3)    !
+REAL,INTENT(IN) :: v2(3)    !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL            :: CROSSNORM(3) !
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL            :: length
 !===================================================================================================================================
 CROSSNORM=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
@@ -812,20 +812,20 @@ END FUNCTION CROSSNORM
 
 FUNCTION UNITVECTOR(v1)
 !===================================================================================================================================
-! compute  a unit vector from a given vector 
+! compute  a unit vector from a given vector
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    ! 
+REAL,INTENT(IN) :: v1(3)    !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL            :: UNITVECTOR(3)
 REAL            :: invL
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 invL=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 invL=1./invL
@@ -842,12 +842,12 @@ FUNCTION VECNORM(v1)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: v1(3)    ! 
+REAL,INTENT(IN) :: v1(3)    !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL            :: VECNORM  !
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 VECNORM=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 END FUNCTION VECNORM

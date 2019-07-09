@@ -200,7 +200,7 @@ ind = EVAL_MORTON(disc,box%nBits)
 !CASE('hilbert')
 !ind = evalhilbert(disc(1:3),box%nbits,3)
 !END SELECT
-END FUNCTION COORD2INT 
+END FUNCTION COORD2INT
 
 
 FUNCTION EVAL_MORTON(intcoords,nBits) RESULT(ind)
@@ -216,7 +216,7 @@ INTEGER(KIND=8),INTENT(IN)  :: intcoords(3)
 INTEGER,INTENT(IN)          :: nBits
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER(KIND=8)             :: ind 
+INTEGER(KIND=8)             :: ind
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER         :: dir, i,iBit
@@ -270,7 +270,7 @@ END SUBROUTINE FinalizeParticleSFC
 !USE MOD_Mesh_Vars,ONLY:SpaceQuandt
 !USE MOD_Mesh_Tolerances,ONLY:COMPAREPOINT
 !USE MOD_SpaceFillingCurve,ONLY:EVAL_MORTON
-!USE MOD_SortingTools,ONLY: Qsort1DoubleInt1Pint  
+!USE MOD_SortingTools,ONLY: Qsort1DoubleInt1Pint
 !! IMPLICIT VARIABLE HANDLING
 !IMPLICIT NONE
 !!----------------------------------------------------------------------------------------------------------------------------------
@@ -278,7 +278,7 @@ END SUBROUTINE FinalizeParticleSFC
 !!----------------------------------------------------------------------------------------------------------------------------------
 !! OUTPUT VARIABLES
 !!----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES 
+!! LOCAL VARIABLES
 !TYPE(tElem),POINTER         :: Elem  ! ?
 !TYPE(tSide),POINTER         :: Side  ! ?
 !TYPE(tEdge),POINTER         :: Edge  ! ?
@@ -300,7 +300,7 @@ END SUBROUTINE FinalizeParticleSFC
 !WRITE(UNIT_stdOut,'(132("~"))')
 !WRITE(UNIT_stdOut,'(A)')'GLOBAL UNIQUE NODES ...'
 !sLog2=1./LOG(2.)
-!! First step: set node marker=0 
+!! First step: set node marker=0
 !Elem=>FirstElem
 !DO WHILE(ASSOCIATED(Elem))
 !  DO iNode=1,Elem%nNodes
@@ -341,7 +341,7 @@ END SUBROUTINE FinalizeParticleSFC
 !  Elem=>Elem%nextElem
 !END DO
 !
-!! Second step: set unique node marker and count 
+!! Second step: set unique node marker and count
 !NodeID=0
 !Elem=>FirstElem
 !DO WHILE(ASSOCIATED(Elem))
@@ -442,7 +442,7 @@ END SUBROUTINE FinalizeParticleSFC
 !END DO !iNode
 !box_min=box_min-RealTolerance
 !box_max=box_max+RealTolerance
-!box_nbits = (bit_size(maxIJK)-1) / 3 
+!box_nbits = (bit_size(maxIJK)-1) / 3
 !maxIJK = 2**box_nbits-1               ![0,2**box_nBits-1]
 !box_sdx = REAL(maxIJK)/(box_max-box_min)
 !
@@ -522,8 +522,8 @@ END SUBROUTINE FinalizeParticleSFC
 !
 !tol=SpaceQuandt*RealTolerance
 ! ! Size of tolerance gives a box_di for bisection (could be computed for each node seperately !!!)
-!!box_di  =MAX(0,box_nBits-FLOOR(LOG((box_max-box_min)/tol)*sLog2)) ! tol=2^x L=2^n => x=n-LOG(L/tol)/LOG(2) 
-!box_di  =MAX(0,CEILING(LOG(tol*box_sdx)*sLog2)) 
+!!box_di  =MAX(0,box_nBits-FLOOR(LOG((box_max-box_min)/tol)*sLog2)) ! tol=2^x L=2^n => x=n-LOG(L/tol)/LOG(2)
+!box_di  =MAX(0,CEILING(LOG(tol*box_sdx)*sLog2))
 !box_di=2**box_di
 !WRITE(*,*)'   size of tolerance box:',box_di
 !s_offset=box_di**3-1  !offset inside one box of size box_di, from the lower sfc index to to highest
@@ -540,12 +540,12 @@ END SUBROUTINE FinalizeParticleSFC
 !
 !  CALL FindBoxes(NodesIJK(:,iNode),box_di,s_offset,box_nBits,maxIJK,s_minmax)
 !
-!  
+!
 !  DO i=1,27
 !     IF(s_minmax(i,1).EQ.-1)CYCLE
 !     NodeID=INVMAP(s_minmax(i,1),nTotalNodes,SFCID,maxStepsINVMAP)
 !     IF(NodeID.EQ.-1) CYCLE !nothing found inside the box
-!     DO jNode=NodeID,nTotalNodes 
+!     DO jNode=NodeID,nTotalNodes
 !       IF(SFCID(jNode).GT.s_minmax(i,2)) EXIT ! check if  > s_max
 !       IF(Nodes(jNode)%np%tmp.GT.0) CYCLE ! was already treated
 !
@@ -615,7 +615,7 @@ END SUBROUTINE FinalizeParticleSFC
 !
 !SUBROUTINE FindBoxes(IntCoord,box_di,s_offset,box_nBits,maxIJK,s_minmax)
 !!==================================================================================================================================
-!! finds the ranges of the spacefilling curve which correspond to the 27 boxes with a box size of box_id. 
+!! finds the ranges of the spacefilling curve which correspond to the 27 boxes with a box size of box_id.
 !! The list is sorted by the sfc index of the boxes, and contiguous boxes are also merged
 !!==================================================================================================================================
 !! MODULES
@@ -634,7 +634,7 @@ END SUBROUTINE FinalizeParticleSFC
 !! OUTPUT VARIABLES
 !INTEGER(KIND=8),INTENT(OUT) :: s_minmax(27,2)  ! sfc index ranges of the 27 boxes
 !!----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES 
+!! LOCAL VARIABLES
 !INTEGER          :: i,j,k  ! ?
 !INTEGER(KIND=8)  :: IJK_min(3),IJK_tmp(3)  ! ?
 !!==================================================================================================================================
@@ -652,7 +652,7 @@ END SUBROUTINE FinalizeParticleSFC
 !      IF((MINVAL(IJK_tmp).LT.0).OR.(MAXVAL(IJK_tmp).GT.maxIJK)) THEN
 !        CYCLE !box definitely outside domain (s_minmax=-1 remains)
 !      END IF
-!      s_minmax(1+i+3*j+9*k,1)=EVAL_MORTON(IJK_tmp,box_nBits)  
+!      s_minmax(1+i+3*j+9*k,1)=EVAL_MORTON(IJK_tmp,box_nBits)
 !      s_minmax(1+i+3*j+9*k,2)=s_minmax(1+i+3*j+9*k,1)+s_offset
 !    END DO !k
 !  END DO !j
@@ -677,7 +677,7 @@ END SUBROUTINE FinalizeParticleSFC
 !
 !SUBROUTINE SetCountNodeID(NodeID_in,NodeID)
 !!==================================================================================================================================
-!! insert a new node id 
+!! insert a new node id
 !!==================================================================================================================================
 !! MODULES
 !! IMPLICIT VARIABLE HANDLING
@@ -688,7 +688,7 @@ END SUBROUTINE FinalizeParticleSFC
 !! OUTPUT VARIABLES
 !INTEGER,INTENT(INOUT) :: NodeID_in,NodeID  ! ?
 !!----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES 
+!! LOCAL VARIABLES
 !!==================================================================================================================================
 !IF(NodeID_in.EQ.0)THEN
 !  NodeID=NodeID+1
@@ -699,7 +699,7 @@ END SUBROUTINE FinalizeParticleSFC
 !FUNCTION INVMAP(ID,nIDs,ArrID,maxSteps)
 !!==================================================================================================================================
 !! find the inverse Mapping of sfc index in a sorted list (a sorted array of unique NodeIDs), using bisection
-!! if Index is not in the range, -1 will be returned, gives back the first entry in the sorted list  which is >= ID 
+!! if Index is not in the range, -1 will be returned, gives back the first entry in the sorted list  which is >= ID
 !!==================================================================================================================================
 !! MODULES
 !! IMPLICIT VARIABLE HANDLING
@@ -709,10 +709,10 @@ END SUBROUTINE FinalizeParticleSFC
 !INTEGER(KIND=8), INTENT(IN) :: ID            ! ID to search for
 !INTEGER, INTENT(IN)         :: nIDs          ! size of ArrID
 !INTEGER(KIND=8), INTENT(IN) :: ArrID(nIDs)   ! 1D array of IDs, SORTED!!
-!INTEGER, INTENT(IN)         :: maxSteps      ! =INT(LOG(REAL(nIDs))/LOG(2.))+1, better to compute once and pass it 
+!INTEGER, INTENT(IN)         :: maxSteps      ! =INT(LOG(REAL(nIDs))/LOG(2.))+1, better to compute once and pass it
 !!----------------------------------------------------------------------------------------------------------------------------------
 !! OUTPUT VARIABLES
-!INTEGER                     :: INVMAP         ! position in arrID, where arrID(INVMAP)  >= ID 
+!INTEGER                     :: INVMAP         ! position in arrID, where arrID(INVMAP)  >= ID
 !!----------------------------------------------------------------------------------------------------------------------------------
 !! LOCAL VARIABLES
 !INTEGER                     :: i,low,up,mid  ! ?
@@ -742,7 +742,7 @@ END SUBROUTINE FinalizeParticleSFC
 !  END IF
 !END DO
 !INVMAP=low
-!END FUNCTION INVMAP 
+!END FUNCTION INVMAP
 
 #endif /*donotcompilethis*/
 !

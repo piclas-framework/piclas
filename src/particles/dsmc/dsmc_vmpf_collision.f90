@@ -79,7 +79,7 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
     MaxMPF = PartMPF(Coll_pData(iPair)%iPart_p1)
   ELSE
     MaxMPF = MAX(PartMPF(Coll_pData(iPair)%iPart_p1), PartMPF(Coll_pData(iPair)%iPart_p2))
-  END IF 
+  END IF
   SELECT CASE(iPType)
     CASE(2,3,4,11) !Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic Ion
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
@@ -90,12 +90,12 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
         ELSE
           BGGasDensity_new=BGGas%BGGasDensity
         END IF
-        Coll_pData(iPair)%Prob = BGGasDensity_new/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) & 
+        Coll_pData(iPair)%Prob = BGGasDensity_new/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) &
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
-                * dt 
+                * dt
       ELSE
-        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  &
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * MaxMPF                                                                                &
                 / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
@@ -106,10 +106,10 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair
       Coll_pData(iPair)%Sigma = 0
       Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
-  
+
       ! Define what spezies is the atom and is execuded
       IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.eq.1) THEN
-        SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p1) 
+        SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p1)
       ELSE
         SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p2)
       END IF
@@ -132,12 +132,12 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
         ELSE
           BGGasDensity_new=BGGas%BGGasDensity
         END IF
-        Coll_pData(iPair)%Prob = BGGasDensity_new  &   
+        Coll_pData(iPair)%Prob = BGGasDensity_new  &
                 * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
                 * dt                     ! timestep (should be sclaed in time disc)
       ELSE
-        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2                                                      & 
-                * MaxMPF                                                                                &     
+        Coll_pData(iPair)%Prob = SpecNum1*SpecNum2                                                      &
+                * MaxMPF                                                                                &
                 / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                      & ! sum of coll cases Sab
                 * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0)                             &
                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
@@ -175,7 +175,7 @@ SUBROUTINE vMPF_PostVelo(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                 !
 !--------------------------------------------------------------------------------------------------!
-! Local variable declaration                 
+! Local variable declaration
   REAL                                ::  Phi
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
@@ -188,10 +188,10 @@ SUBROUTINE vMPF_PostVelo(iPair, iElem)
                           * Phi * (1 - Phi) &
                           * ( DSMC_RHS(Coll_pData(iPair)%iPart_p1,1)**2 &
                             + DSMC_RHS(Coll_pData(iPair)%iPart_p1,2)**2 &
-                            + DSMC_RHS(Coll_pData(iPair)%iPart_p1,3)**2 ) 
+                            + DSMC_RHS(Coll_pData(iPair)%iPart_p1,3)**2 )
     DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p1,1)
     DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p1,2)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p1,3)  
+    DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p1,3)
   ELSE ! IF(PartMPF(Coll_pData(iPair)%iPart_p1).lt.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
     Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
     GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + 0.5 * PartMPF(Coll_pData(iPair)%iPart_p2) &
@@ -202,7 +202,7 @@ SUBROUTINE vMPF_PostVelo(iPair, iElem)
                             + DSMC_RHS(Coll_pData(iPair)%iPart_p2,3)**2 )
     DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p2,1)
     DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p2,2)
-    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) 
+    DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = Phi * DSMC_RHS(Coll_pData(iPair)%iPart_p2,3)
   END IF
 
 END SUBROUTINE vMPF_PostVelo
@@ -226,7 +226,7 @@ SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
   REAL, INTENT(IN)                    :: W_Part, W_Spec                                          !
-  INTEGER, INTENT(IN)                 :: OrgPartIndex                               
+  INTEGER, INTENT(IN)                 :: OrgPartIndex
 !--------------------------------------------------------------------------------------------------!
 
   NumOfPart = INT(W_Part / W_Spec)
@@ -254,7 +254,7 @@ SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
     END IF
 
     DSMC_RHS(PositionNbr,1) = DSMC_RHS(OrgPartIndex,1)
-    DSMC_RHS(PositionNbr,2) = DSMC_RHS(OrgPartIndex,2) 
+    DSMC_RHS(PositionNbr,2) = DSMC_RHS(OrgPartIndex,2)
     DSMC_RHS(PositionNbr,3) = DSMC_RHS(OrgPartIndex,3)
   END DO
 
@@ -300,7 +300,7 @@ IMPLICIT NONE                                                                   
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
     React1Inx = Coll_pData(iPair)%iPart_p1
-    React2Inx = Coll_pData(iPair)%iPart_p2 
+    React2Inx = Coll_pData(iPair)%iPart_p2
   ELSE
     React2Inx = Coll_pData(iPair)%iPart_p1
     React1Inx = Coll_pData(iPair)%iPart_p2
@@ -315,7 +315,7 @@ IMPLICIT NONE                                                                   
 
   ReacMPF = MIN(PartMPF(React1Inx), PartMPF(React2Inx), PartMPF(iPart_p3))
   MPartStateVibEnOrg = PartStateIntEn(iPart_p3,1)
-  MPartStateElecEnOrg = PartStateIntEn(iPart_p3,3) 
+  MPartStateElecEnOrg = PartStateIntEn(iPart_p3,3)
 
   IF (PartMPF(React1Inx).GT.ReacMPF) THEN ! just a part of the atom A recomb
   !.... Get free particle index for the non-reacting particle part
@@ -394,8 +394,8 @@ IMPLICIT NONE                                                                   
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PDM%ParticleInside(React2Inx) = .FALSE.
 
-!--------------------------------------------------------------------------------------------------! 
-! Vibrational Relaxation of AB and X (if X is a molecule) 
+!--------------------------------------------------------------------------------------------------!
+! Vibrational Relaxation of AB and X (if X is a molecule)
 !--------------------------------------------------------------------------------------------------!
   Xi = 2.0 * (2.0 - SpecDSMC(PartSpecies(iPart_p3))%omegaVHS) + SpecDSMC(PartSpecies(iPart_p3))%Xi_Rot &
      + SpecDSMC(PartSpecies(React1Inx))%Xi_Rot
@@ -407,7 +407,7 @@ IMPLICIT NONE                                                                   
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac) - MPartStateVibEnOrg + &
                            PartStateIntEn(Coll_pData(iPair)%iPart_p1,3) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
 !--------------------------------------------------------------------------------------------------!
-! electronic relaxation  of AB and X (if X is not an electron) 
+! electronic relaxation  of AB and X (if X is not an electron)
 !--------------------------------------------------------------------------------------------------!
     CALL ElectronicEnergyExchange(iPair,React1Inx,FakXi,iPart_p3 )
     Coll_pData(iPair)%Ec =  Coll_pData(iPair)%Ec + MPartStateElecEnOrg
@@ -423,14 +423,14 @@ IMPLICIT NONE                                                                   
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
-  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi) 
+  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
     !laux diss page 31
     CALL RANDOM_NUMBER(iRan)
-    iQua = INT(iRan * iQuaMax)    
+    iQua = INT(iRan * iQuaMax)
     CALL RANDOM_NUMBER(iRan)
   END DO
   PartStateIntEn(React1Inx,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                * SpecDSMC(PartSpecies(React1Inx))%CharaTVib 
+                * SpecDSMC(PartSpecies(React1Inx))%CharaTVib
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,1)+ MPartStateVibEnOrg
 ! X particle
   IF((SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.20)) THEN
@@ -440,10 +440,10 @@ IMPLICIT NONE                                                                   
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax)
     CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi) 
+    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
      !laux diss page 31
      CALL RANDOM_NUMBER(iRan)
-     iQua = INT(iRan * iQuaMax)    
+     iQua = INT(iRan * iQuaMax)
      CALL RANDOM_NUMBER(iRan)
     END DO
     IF (PartMPF(iPart_p3).GT.ReacMPF) THEN
@@ -465,16 +465,16 @@ IMPLICIT NONE                                                                   
                     * SpecDSMC(PartSpecies(iPart_p3))%CharaTVib
       DeltaPartStateIntEn = PartMPF(iPart_p3) &
                           * (PartStateIntEnTemp - PartStateIntEn(iPart_p3,1))
-!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2))
       GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
     ELSE
       PartStateIntEn(iPart_p3,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
                     * SpecDSMC(PartSpecies(iPart_p3))%CharaTVib
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart_p3,1) 
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart_p3,1)
     END IF
   END IF
-!--------------------------------------------------------------------------------------------------! 
-! rotational Relaxation of AB and X (if X is a molecule) 
+!--------------------------------------------------------------------------------------------------!
+! rotational Relaxation of AB and X (if X is a molecule)
 !--------------------------------------------------------------------------------------------------!
   CALL RANDOM_NUMBER(iRan)
   PartStateIntEn(React1Inx,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
@@ -492,12 +492,12 @@ IMPLICIT NONE                                                                   
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(iPart_p3,2)
     END IF
   END IF
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), &
                   CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(iPart_p3)))
-  FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart_p3), & 
+  FracMassCent2 = CollInf%FracMassCent(PartSpecies(iPart_p3), &
                   CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(iPart_p3)))
 
   !Calculation of velo from center of mass
@@ -533,10 +533,10 @@ IMPLICIT NONE                                                                   
                           * Phi * (1 - Phi) &
                           * ( DSMC_RHS_M_Temp(1)**2 &
                             + DSMC_RHS_M_Temp(2)**2 &
-                            + DSMC_RHS_M_Temp(3)**2 ) 
+                            + DSMC_RHS_M_Temp(3)**2 )
     DSMC_RHS_M_Temp(1) = Phi * DSMC_RHS_M_Temp(1)
     DSMC_RHS_M_Temp(2) = Phi * DSMC_RHS_M_Temp(2)
-    DSMC_RHS_M_Temp(3) = Phi * DSMC_RHS_M_Temp(3) 
+    DSMC_RHS_M_Temp(3) = Phi * DSMC_RHS_M_Temp(3)
   END IF
   DSMC_RHS(iPart_p3,1) = DSMC_RHS(iPart_p3,1) + DSMC_RHS_M_Temp(1)
   DSMC_RHS(iPart_p3,2) = DSMC_RHS(iPart_p3,2) + DSMC_RHS_M_Temp(2)
@@ -584,9 +584,9 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
 ! input variable declaration                                                                       !
   INTEGER, INTENT(IN)           :: iPair, Part_1, Part_2
 !--------------------------------------------------------------------------------------------------!
-! output variable declaration    
+! output variable declaration
   INTEGER, INTENT(IN)           :: iElem
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 
   DoRot2 = .FALSE.
   DoVib2 = .FALSE.
@@ -599,14 +599,14 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
   CRela2 = (PartState(Part_1,4) - PartState(Part_2,4))**2 &
          + (PartState(Part_1,5) - PartState(Part_2,5))**2 &
          + (PartState(Part_1,6) - PartState(Part_2,6))**2
-  Xi_rel = 2*(2 - SpecDSMC(PartSpec1)%omegaVHS) 
-    ! DOF of relative motion in VHS model, only for one omega!! 
+  Xi_rel = 2*(2 - SpecDSMC(PartSpec1)%omegaVHS)
+    ! DOF of relative motion in VHS model, only for one omega!!
   CollisionEnergy = 0.5 * CollInf%MassRed(iCase)*CRela2
   Xi = Xi_rel ! Xi are all DOF in the collision
 
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Decision if Relaxation of particles is performed
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 
   IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
@@ -655,9 +655,9 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
     END IF
   END IF
 
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Vibrational Relaxation
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
   IF(DoVib2) THEN
@@ -693,18 +693,18 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
                     * SpecDSMC(PartSpec2)%CharaTVib
       DeltaPartStateIntEn = PartMPF(Part_2) &
                           * (PartStateIntEnTemp - PartStateIntEn(Part_2,1))
-!      CollisionEnergy = CollisionEnergy + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
+!      CollisionEnergy = CollisionEnergy + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2))
       GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
     ELSE
       PartStateIntEn(Part_2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
                     * SpecDSMC(PartSpec2)%CharaTVib
-      CollisionEnergy = CollisionEnergy - PartStateIntEn(Part_2,1) 
+      CollisionEnergy = CollisionEnergy - PartStateIntEn(Part_2,1)
     END IF
   END IF
 
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 
   IF(DoRot2) THEN
     CALL RANDOM_NUMBER(iRan)
@@ -764,10 +764,10 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
                           * Phi * (1 - Phi) &
                           * ( DSMC_RHS(Part_1,1)**2 &
                             + DSMC_RHS(Part_1,2)**2 &
-                            + DSMC_RHS(Part_1,3)**2 ) 
+                            + DSMC_RHS(Part_1,3)**2 )
     DSMC_RHS(Part_1,1) = Phi * DSMC_RHS(Part_1,1)
     DSMC_RHS(Part_1,2) = Phi * DSMC_RHS(Part_1,2)
-    DSMC_RHS(Part_1,3) = Phi * DSMC_RHS(Part_1,3)  
+    DSMC_RHS(Part_1,3) = Phi * DSMC_RHS(Part_1,3)
   ELSE ! IF(PartMPF(Part_1).lt.PartMPF(Part_2)) THEN
     Phi = PartMPF(Part_1) / PartMPF(Part_2)
     GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + 0.5 * PartMPF(Part_2) &
@@ -778,7 +778,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(iPair, Part_1, Part_2, iElem)
                             + DSMC_RHS(Part_2,3)**2 )
     DSMC_RHS(Part_2,1) = Phi * DSMC_RHS(Part_2,1)
     DSMC_RHS(Part_2,2) = Phi * DSMC_RHS(Part_2,2)
-    DSMC_RHS(Part_2,3) = Phi * DSMC_RHS(Part_2,3) 
+    DSMC_RHS(Part_2,3) = Phi * DSMC_RHS(Part_2,3)
   END IF
 
 END SUBROUTINE DSMC_RelaxForNonReacPart

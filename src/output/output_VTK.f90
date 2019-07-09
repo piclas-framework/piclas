@@ -25,7 +25,7 @@ MODULE MOD_OutPutVTK
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -53,8 +53,8 @@ INTEGER,INTENT(IN)            :: NPlot                   ! Number of output poin
 INTEGER,INTENT(IN)            :: nElems                  ! Number of Elements
 INTEGER,INTENT(IN)            :: nVal                    ! Number of nodal output variables
 CHARACTER(LEN=32),INTENT(IN)  :: VarNames(nVal) ! Names of all variables that will be written out
-REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector 
-REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector 
+REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector
+REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector
 CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -65,7 +65,7 @@ INTEGER            :: iElem
 INTEGER            :: NodeIDElem,nPlot_p1_2,nPlot_p1_3
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."  
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
   OPEN(1112,FILE=FileString,STATUS='replace')
   WRITE(1112,'(A)')'# vtk DataFile Version 2.0'
   WRITE(1112,'(A)')'Debug Mesh '
@@ -78,10 +78,10 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
       DO j=0,NPlot
         DO i=0,NPlot
           WRITE(1112,*) Coord(:,i,j,k,iElem)
-        END DO 
-      END DO 
-    END DO 
-  END DO 
+        END DO
+      END DO
+    END DO
+  END DO
   WRITE(1112,*)''
   WRITE(1112,'(A,I0,1X,I0)')'CELLS ',nElems*NPlot**3,9*(nElems*NPlot**3)
   NodeIDElem = 0
@@ -99,17 +99,17 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
           ,NodeIDElem - 1 +i+  (j-1)*(NPlot+1)+ k   *NPlot_p1_2 &  !P5
           ,NodeIDElem - 1 +i+1+(j-1)*(NPlot+1)+ k   *NPlot_p1_2 &  !P6
           ,NodeIDElem - 1 +i+1+ j   *(NPlot+1)+ k   *NPlot_p1_2 &  !P7
-          ,NodeIDElem - 1 +i+   j   *(NPlot+1)+ k   *NPlot_p1_2   !P8         
-        END DO 
-      END DO 
-    END DO 
+          ,NodeIDElem - 1 +i+   j   *(NPlot+1)+ k   *NPlot_p1_2   !P8
+        END DO
+      END DO
+    END DO
     NodeIDElem=NodeIDElem+NPlot_p1_3
-  END DO 
+  END DO
   WRITE(1112,*)''
   WRITE(1112,'(A,I0)')'CELL_TYPES ',nElems*NPlot**3
   DO iElem=1,nElems*NPlot**3
     WRITE(1112,'(1X,I0)',ADVANCE="NO")12
-  END DO  
+  END DO
   WRITE(1112,*)''
   WRITE(1112,*)''
   WRITE(1112,'(A,I0)')'POINT_DATA ',nElems*(NPlot+1)**3
@@ -122,10 +122,10 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
         DO j=0,NPlot
           DO i=0,NPlot
             WRITE(1112,'(E22.15)') Value(iVal,i,j,k,iElem)
-          END DO 
-        END DO 
-      END DO 
-    END DO 
+          END DO
+        END DO
+      END DO
+    END DO
   END DO
   CLOSE(1112)
 
@@ -147,8 +147,8 @@ INTEGER,INTENT(IN)            :: NPlot                   ! Number of output poin
 INTEGER,INTENT(IN)            :: nElems                  ! Number of Elements
 INTEGER,INTENT(IN)            :: nVal                    ! Number of nodal output variables
 CHARACTER(LEN=32),INTENT(IN)  :: VarNames(nVal) ! Names of all variables that will be written out
-REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector 
-REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector 
+REAL,INTENT(IN)               :: Coord(3,0:NPlot,0:NPlot,0:NPlot,nElems)      ! CoordsVector
+REAL,INTENT(IN)               :: Value(1:nVal,0:NPlot,0:NPlot,0:NPlot,nElems) ! Statevector
 CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -161,7 +161,7 @@ CHARACTER(LEN=255) :: cbuffer
 CHARACTER(LEN=3)   :: dbuffer
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."   
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
   OPEN(1112,FILE=FileString,&
 !        FORM='unformatted',&
 !        RECORDTYPE='STREAM_LF',&
@@ -182,10 +182,10 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
         DO i=0,NPlot
           WRITE(cbuffer,fmt='(ES22.15,1X,ES22.15,1X,ES22.15)')Coord(:,i,j,k,iElem)
           WRITE(1112) TRIM(cbuffer)//char(10)
-        END DO 
-      END DO 
-    END DO 
-  END DO 
+        END DO
+      END DO
+    END DO
+  END DO
   WRITE(1112)''//char(10)
   WRITE(cbuffer,fmt='(A,I0,1X,I0)')'CELLS ',nElems*NPlot**3,9*(nElems*NPlot**3)
   WRITE(1112)TRIM(cbuffer)//char(10)
@@ -204,20 +204,20 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
           ,NodeIDElem - 1 +i+  (j-1)*(NPlot+1)+ k   *NPlot_p1_2 &  !P5
           ,NodeIDElem - 1 +i+1+(j-1)*(NPlot+1)+ k   *NPlot_p1_2 &  !P6
           ,NodeIDElem - 1 +i+1+ j   *(NPlot+1)+ k   *NPlot_p1_2 &  !P7
-          ,NodeIDElem - 1 +i+   j   *(NPlot+1)+ k   *NPlot_p1_2   !P8  
+          ,NodeIDElem - 1 +i+   j   *(NPlot+1)+ k   *NPlot_p1_2   !P8
           WRITE(1112)TRIM(cbuffer)//char(10)
         END DO
-      END DO 
-    END DO 
+      END DO
+    END DO
     NodeIDElem=NodeIDElem+NPlot_p1_3
-  END DO 
+  END DO
   WRITE(1112)''//char(10)
   WRITE(cbuffer,fmt='(A,I0)')'CELL_TYPES ',nElems*NPlot**3
   WRITE(1112)TRIM(cbuffer)//char(10)
   DO iElem=1,nElems*NPlot**3
     WRITE(dbuffer,fmt='(I0,1X)') 12
     WRITE(1112) dbuffer
-  END DO  
+  END DO
   WRITE(1112)''//char(10)
   CLOSE(1112)
 END SUBROUTINE WriteDataToVTKBin

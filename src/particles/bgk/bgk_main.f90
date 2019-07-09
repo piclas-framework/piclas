@@ -26,7 +26,7 @@ INTERFACE BGK_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ DO iElem = 1, nElems
     ELSE
       CALL BGK_octree_adapt(iElem)
     END IF
-  ELSE  
+  ELSE
     ALLOCATE(iPartIndx_Node(nPart))
     TotalMass = 0.0
     vBulk(1:3) = 0.0
@@ -121,7 +121,7 @@ DO iElem = 1, nElems
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk, &
           ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
                CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ELSE 
+    ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, GEO%Volume(iElem), vBulk)
     END IF
     IF(DSMC%CalcQualityFactors) THEN
@@ -240,7 +240,7 @@ IF(SamplingActive) THEN
     IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
       DSMC%NumOutput = DSMC%NumOutput - 1
       ! Skipping outputs immediately after the first few iterations
-      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
+      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
         CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
         IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
       END IF

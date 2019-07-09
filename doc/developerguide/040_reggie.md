@@ -104,6 +104,26 @@ cd ../..
 rm hdf5-1.10.5.tar.bz2
 ```
 
+When no module environment is to be used on the server, the following commands must be places in the
+*.gitlab-ci.yml* file:
+
+```
+# Export the paths on new reggie2@reggie2 (no module env any more)
+before_script:
+  - ulimit -s unlimited
+  - export PATH=/opt/openmpi/3.1.3/bin:$PATH
+  - export LD_LIBRARY_PATH=/opt/openmpi/3.1.3/lib/:$LD_LIBRARY_PATH
+  - export CMAKE_PREFIX_PATH=/opt/openmpi/3.1.3/share/cmake:$CMAKE_PREFIX_PATH
+  - export CMAKE_LIBRARY_PATH=/opt/openmpi/3.1.3/lib:$CMAKE_LIBRARY_PATH
+  - export HDF5_DIR=/opt/hdf5/1.10.5/share/cmake/
+  - export PATH=/opt/hdf5/1.10.5/bin:$PATH
+  - export LD_LIBRARY_PATH=/opt/hdf5/1.10.5/lib/:$LD_LIBRARY_PATH
+  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.10.5/:$CMAKE_PREFIX_PATH
+  - export CMAKE_LIBRARY_PATH=/opt/hdf5/1.10.5/lib:$CMAKE_LIBRARY_PAT
+```
+
+NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
+by memory consuming programs
 
 ### 2. Installation Steps for Gitlab Runners 
 Latest test: on ubuntu (18.04), 3 Jul 2019
@@ -150,3 +170,64 @@ NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.ser
 
 
 
+### 3. **Configuration files**
+
+The runner services can be adjusted by changing the settings in the file
+
+    /etc/systemd/system/gitlab-runner.service
+
+in which the runner configuration file is specified:
+
+```
+[Unit]
+Description=GitLab Runner
+After=syslog.target network.target
+ConditionFileIsExecutable=/usr/bin/gitlab-runner
+
+[Service]
+StartLimitInterval=5
+StartLimitBurst=10
+ExecStart=/usr/bin/gitlab-runner "run" "--working-directory" "/var/lib/gitlab-runner/" "--config" "/etc/gitlab-runner/config.toml" "--service" "gitlab-runner" "--syslog" "--user" "gitlab-runner"
+
+
+Restart=always
+RestartSec=120
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The runner configuration settings can be edited by changing the settings in the file
+
+    /etc/gitlab-runner/config.toml
+
+where the number of runners, the concurrency level and runner limits are specified:
+
+```
+concurrent = 2
+check_interval = 0
+
+[[runners]]
+  name = "flexirunner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "-yi9ffuLr_-mhjut32gp"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+
+[[runners]]
+  name = "mphase-runner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "wuwa9NKx4uUxCm8_sRqi"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+
+[[runners]]
+  name = "eosrunner"
+  url = "https://gitlabext.iag.uni-stuttgart.de/"
+  token = "jPwzkCzEzcZz5WeGrdPC"
+  executor = "shell"
+  limit = 1
+  [runners.cache]
+```

@@ -20,7 +20,7 @@ MODULE MOD_part_emission
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -169,7 +169,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflo
                                 , 'Massflow in [kg/s] for the adaptive boundary conditions of type 3 and 4.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticleEmission
-                                                                                                   
+
 SUBROUTINE InitializeParticleEmission()
 !===================================================================================================================================
 ! Initialize particles / Insert initial particles
@@ -388,9 +388,9 @@ SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 END SUBROUTINE InitializeParticleEmission
 
 #ifdef MPI
-SUBROUTINE ParticleInserting(mode_opt)                                                             
+SUBROUTINE ParticleInserting(mode_opt)
 #else
-SUBROUTINE ParticleInserting()                                                                     
+SUBROUTINE ParticleInserting()
 #endif
 !===================================================================================================================================
 ! Particle Inserting
@@ -404,7 +404,7 @@ USE MOD_Timedisc_Vars         , ONLY : dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
+USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
@@ -426,15 +426,15 @@ INTEGER, OPTIONAL                :: mode_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! Local variable declaration                                                                       
+! Local variable declaration
 INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
-INTEGER                , SAVE    :: NbrOfParticle=0                                             
-INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time               
-INTEGER(KIND=8)                  :: inserted_Particle_diff  
+INTEGER                , SAVE    :: NbrOfParticle=0
+INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
+INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime
 #ifdef MPI
-INTEGER                          :: mode                                            
+INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
 !===================================================================================================================================
@@ -469,15 +469,15 @@ DO i=1,nSpecies
           ELSE IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
             PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac  ! emitted particles during time-slab
             inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over 
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal) ! total number of emitted particle over
                                                                                         ! simulation
             CALL RANDOM_NUMBER(RandVal1)
-            !-- random-round the inserted_Particle_time for preventing periodicity 
+            !-- random-round the inserted_Particle_time for preventing periodicity
             ! PO & SC: why, sometimes we do not want this add, TB is bad!
             IF (inserted_Particle_iter.GE.1) THEN
               CALL RANDOM_NUMBER(RandVal1)
-              inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE 
-            ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN 
+              inserted_Particle_time = INT(PartIns + RandVal1,8) ! adds up to ONE
+            ELSE IF((inserted_Particle_iter.GE.0).AND.(inserted_Particle_iter.LT.1)) THEN
                                                        !needed, since InsertedParticleSurplus can increase
                                                        !and _iter>1 needs to be possible for preventing periodicity
               IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
@@ -505,7 +505,7 @@ DO i=1,nSpecies
             IF(RiseTime.GT.0.)THEN
               IF(Time-DelayTime.LT.RiseTime)THEN
                 RiseFactor=(time-DelayTime)/RiseTime
-              ELSE 
+              ELSE
                 RiseFactor=1.
               END IF
             ELSE
@@ -526,7 +526,7 @@ DO i=1,nSpecies
             IF(RiseTime.GT.0.)THEN
               IF(Time-DelayTime.LT.RiseTime)THEN
                 RiseFactor=(time-DelayTime)/RiseTime
-              ELSE 
+              ELSE
                 RiseFactor=1.
               END IF
             ELSE
@@ -543,7 +543,7 @@ DO i=1,nSpecies
           IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
             ! only procs which are part of group take part in the communication
              !NbrOfParticle based on RandVals!
-            CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR) 
+            CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
           ELSE
             NbrOfParticle=0
           END IF
@@ -752,7 +752,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 ! USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
-!INCLUDE 'mpif.h'                                                                               
+!INCLUDE 'mpif.h'
 !#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -775,22 +775,22 @@ LOGICAL                                  :: InsideMyBGM
 REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: allocStat
 INTEGER                                  :: i,j,k,ParticleIndexNbr
-INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles              
+INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles
 INTEGER                                  :: nChunks, chunkSize, chunkSize2
-REAL                                     :: lineVector(3),VectorGap(3)         
-REAL                                     :: RandVal(3), Particle_pos(3),lineVector2(3)                  
+REAL                                     :: lineVector(3),VectorGap(3)
+REAL                                     :: RandVal(3), Particle_pos(3),lineVector2(3)
 REAL                                     :: n(3) , radius_vec(3)
 REAL                                     :: II(3,3),JJ(3,3),NN(3,3)
 REAL                                     :: RandVal1
-REAL                                     :: radius, argumentTheta                    
-REAL                                     :: rgyrate, Bintpol, pilen                    
+REAL                                     :: radius, argumentTheta
+REAL                                     :: rgyrate, Bintpol, pilen
 REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos
 REAL                                     :: xlen, ylen, zlen
 REAL                                     :: IMD_array(12),xMin,xMax,yMin,yMax,zMin,zMax
 INTEGER                                  :: Nshift,ioUnit,io_error,IndNum
 CHARACTER(LEN=255)                       :: StrTmp
 INTEGER                                  :: iPart
-REAL,ALLOCATABLE                         :: particle_positions_Temp(:) 
+REAL,ALLOCATABLE                         :: particle_positions_Temp(:)
 REAL                                     :: Vec3D(3), l_ins, v_line, delta_l, v_drift_line, A_ins, PartIns
 REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_lengths(2), v_BV(2), delta_lBV(2)
 REAL                                     :: intersecPoint(3), orifice_delta, lPeri, ParaCheck(3)
@@ -802,7 +802,7 @@ INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemoved
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
 INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
-#endif                        
+#endif
 !===================================================================================================================================
 ! emission group communicator
 #ifdef MPI
@@ -1066,7 +1066,7 @@ IF (mode.EQ.1) THEN
         IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
         NbrOfParticle = INT(PartIns + RandVal1)
         DoPoissonRounding = .FALSE.
-      ELSE IF (DoPoissonRounding) THEN 
+      ELSE IF (DoPoissonRounding) THEN
         !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
         CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
       ELSE ! DoTimeDepInflow
@@ -1145,17 +1145,17 @@ __STAMP__&
           END IF
         END IF
       END IF
-      
+
       lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * &
            lineVector(2) + lineVector(3) * lineVector(3))
-      
+
       lineVector2(1) = Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(3) - &
            Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(2)
       lineVector2(2) = Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(1) - &
            Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(3)
       lineVector2(3) = Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(2) - &
            Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(1)
-      
+
       lineVector2 = lineVector2 / SQRT(lineVector2(1) * lineVector2(1) + lineVector2(2) * &
            lineVector2(2) + lineVector2(3) * lineVector2(3))
 
@@ -1203,17 +1203,17 @@ __STAMP__&
             END IF
          END IF
       END IF
-      
+
       lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * &
            lineVector(2) + lineVector(3) * lineVector(3))
-      
+
       lineVector2(1) = Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(3) - &
            Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(2)
       lineVector2(2) = Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(1) - &
            Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(3)
       lineVector2(3) = Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(2) - &
            Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(1)
-      
+
       lineVector2 = lineVector2 / SQRT(lineVector2(1) * lineVector2(1) + lineVector2(2) * &
            lineVector2(2) + lineVector2(3) * lineVector2(3))
 
@@ -1254,17 +1254,17 @@ __STAMP__&
             END IF
          END IF
       END IF
-      
+
       lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * &
            lineVector(2) + lineVector(3) * lineVector(3))
-      
+
       lineVector2(1) = Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(3) - &
            Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(2)
       lineVector2(2) = Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(1) - &
            Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(3)
       lineVector2(3) = Species(FractNbr)%Init(iInit)%NormalIC(1) * lineVector(2) - &
            Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(1)
-      
+
       lineVector2 = lineVector2 / SQRT(lineVector2(1) * lineVector2(1) + lineVector2(2) * &
            lineVector2(2) + lineVector2(3) * lineVector2(3))
 
@@ -1301,8 +1301,8 @@ __STAMP__&
                                            + RandVal1 * Species(FractNbr)%Init(iInit)%CuboidHeightIC
          ELSE
            particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                           + RandVal1 * dt*RKdtFrac & 
-                                           * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha 
+                                           + RandVal1 * dt*RKdtFrac &
+                                           * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha
          END IF
 
 !        2. calculate curved B-field at z-position in order to determine size of gyro radius
@@ -1320,7 +1320,7 @@ __STAMP__&
            rgyrate =  Species(FractNbr)%Init(iInit)%RadiusICGyro
          END IF
 
-         radius_vec = MATMUL( NN+cos(argumentTheta)*(II-NN)+sin(argumentTheta)*JJ , radius_vec ) 
+         radius_vec = MATMUL( NN+cos(argumentTheta)*(II-NN)+sin(argumentTheta)*JJ , radius_vec )
          radius_vec(1:3) = radius_vec(1:3) / SQRT(radius_vec(1)**2+radius_vec(2)**2+radius_vec(3)**2) &
                        * rgyrate !Species(1)%RadiusICGyro
          ! Set new particles position:
@@ -1354,7 +1354,7 @@ __STAMP__&
             END IF
          END IF
       END IF
-                 
+
       lineVector2(1) = Species(FractNbr)%Init(iInit)%NormalIC(2) * lineVector(3) - &
            Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(2)
       lineVector2(2) = Species(FractNbr)%Init(iInit)%NormalIC(3) * lineVector(1) - &
@@ -1405,7 +1405,7 @@ __STAMP__&
           IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
             Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
           ELSE
-            Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3) 
+            Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CuboidHeightIC * RandVal(3)
           END IF
         CASE ('cylinder')
           radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
@@ -1462,7 +1462,7 @@ __STAMP__&
     CASE('cuboid_vpi')
       i=1
       chunkSize2=0
-      DO WHILE (i .LE. chunkSize)          
+      DO WHILE (i .LE. chunkSize)
         ! Check if particle would reach comp. domain in one timestep
         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
@@ -1472,7 +1472,7 @@ __STAMP__&
           IF (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) i=i+1
           CYCLE !particle would not reach comp. domain -> try new velo
         END IF
-        SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType)) 
+        SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType))
         CASE('perpendicular_extrusion')
           ! set particle positions depending on SpaceIC
           Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1) &
@@ -1502,7 +1502,7 @@ __STAMP__&
           Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC &
                        + Species(FractNbr)%Init(iInit)%BaseVector1IC/BV_lengths(1) * delta_lBV(1) &
                        + Species(FractNbr)%Init(iInit)%BaseVector2IC/BV_lengths(2) * delta_lBV(2) &
-                       + lineVector * delta_l 
+                       + lineVector * delta_l
         CASE('orifice')
           ! set particle position (to be tried) depending on SpaceIC
           v_BV(1) = Vec3D(1)*Species(FractNbr)%Init(iInit)%BaseVector1IC(1) &
@@ -1518,7 +1518,7 @@ __STAMP__&
           delta_lBV(2) = delta_lBV(2) + BV_lengths(2) * ( RandVal(2)*(lrel_ins_BV(3)+1.0+lrel_ins_BV(4)) - lrel_ins_BV(3) )
           Particle_pos = Species(FractNbr)%Init(iInit)%BaseVector1IC/BV_lengths(1) * delta_lBV(1) &
                        + Species(FractNbr)%Init(iInit)%BaseVector2IC/BV_lengths(2) * delta_lBV(2) &
-                       + lineVector * delta_l 
+                       + lineVector * delta_l
           IntersecPoint = Particle_pos - Vec3D * delta_l/v_line !Vector from BP to Intersec point of virt. path with orifice plane
           orifice_delta = (IntersecPoint(1)*Species(FractNbr)%Init(iInit)%BaseVector1IC(1) &
                          + IntersecPoint(2)*Species(FractNbr)%Init(iInit)%BaseVector1IC(2) &
@@ -1575,7 +1575,7 @@ __STAMP__&
     CASE('cylinder_vpi')
       i=1
       chunkSize2=0
-      DO WHILE (i .LE. chunkSize)        
+      DO WHILE (i .LE. chunkSize)
         ! Check if particle would reach comp. domain in one timestep
         CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
         CALL RANDOM_NUMBER(RandVal)
@@ -1585,7 +1585,7 @@ __STAMP__&
           IF (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) i=i+1
           CYCLE !particle would not reach comp. domain -> try new velo
         END IF
-        SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType)) 
+        SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType))
         CASE('perpendicular_extrusion')
           ! set particle positions depending on SpaceIC
           radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
@@ -1610,7 +1610,7 @@ __STAMP__&
                            Particle_pos(3) * Particle_pos(3) )
           END DO
           Particle_pos = Particle_pos + dt*RKdtFrac*Vec3D - lineVector*(dt*RKdtFrac*v_line-delta_l) !get old RandVal(3) for l_ins*R3
-          
+
           IntersecPoint = Particle_pos - Vec3D * delta_l/v_line !Vector from BP to Intersec point of virt. path with orifice plane
           orifice_delta = (IntersecPoint(1)*Species(FractNbr)%Init(iInit)%BaseVector1IC(1) &
                          + IntersecPoint(2)*Species(FractNbr)%Init(iInit)%BaseVector1IC(2) &
@@ -1726,7 +1726,7 @@ __STAMP__&
       END DO
 #endif
     !------------------SpaceIC-case: cuboid_with_equidistant_distribution-----------------------------------------------------------
-    CASE ('cuboid_with_equidistant_distribution') 
+    CASE ('cuboid_with_equidistant_distribution')
        IF(Species(FractNbr)%Init(iInit)%initialParticleNumber.NE. &
             (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
             * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
@@ -1778,7 +1778,7 @@ __STAMP__&
          __STAMP__&
          ,'ERROR: Number of particles in init / emission region',iInit)
        END IF
-       xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
+       xlen = abs(GEO%xmaxglob  - GEO%xminglob)
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
        zlen = abs(GEO%zmaxglob  - GEO%zminglob)
        pilen=2.0*PI/xlen
@@ -1793,7 +1793,7 @@ __STAMP__&
           DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
             y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
             DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-              particle_positions(iPart*3-2) = x_pos                                
+              particle_positions(iPart*3-2) = x_pos
               particle_positions(iPart*3-1) = y_pos
               particle_positions(iPart*3  ) = GEO%zminglob &
                                         + k * z_step - z_step * 0.5
@@ -1964,7 +1964,7 @@ __STAMP__&
          PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
        END DO
      END IF
-   END DO   
+   END DO
  ELSE
     IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
       ALLOCATE( PartMPIInsert%send_message(0:0), STAT=allocStat )
@@ -2028,7 +2028,7 @@ __STAMP__&
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
       !--- (non-blocking:) send messages to all procs receiving particles from myself
       IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
-        CALL MPI_ISEND(PartMPIInsert%send_message(iProc)%content, DimSend*PartMPIInsert%nPartsSend(iProc),& 
+        CALL MPI_ISEND(PartMPIInsert%send_message(iProc)%content, DimSend*PartMPIInsert%nPartsSend(iProc),&
          MPI_DOUBLE_PRECISION, iProc, 1022+FractNbr, PartMPI%InitGroup(InitGroup)%COMM, PartMPIInsert%SendRequest(iProc,2), IERROR)
       END IF
     END DO
@@ -2041,7 +2041,7 @@ ELSE ! mode.NE.1:
        chunkSize=INT( REAL(SIZE(PartMPIInsert%send_message(0)%content)) / REAL(DimSend) )
        ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
        particle_positions(:)=PartMPIInsert%send_message(0)%content(:)
-       DEALLOCATE( PartMPIInsert%send_message(0)%content )      
+       DEALLOCATE( PartMPIInsert%send_message(0)%content )
        DEALLOCATE( PartMPIInsert%send_message )
     END IF
     !IF( (Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) .OR. &
@@ -2055,7 +2055,7 @@ ELSE ! mode.NE.1:
     END IF
     CALL MPI_BCAST(particle_positions, chunkSize*DimSend, MPI_DOUBLE_PRECISION,0,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
     nChunksTemp=1
-  ELSE   
+  ELSE
     DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
       CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
     END DO
@@ -2154,7 +2154,7 @@ __STAMP__&
 ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
- 
+
 ! we want always warnings to know if the emission has failed. if a timedisc does not require this, this
 ! timedisc has to be handled separately
 #ifdef MPI
@@ -2167,7 +2167,7 @@ __STAMP__&
     ! particle from their list
     DO i=1,chunkSize
       IF(PartFoundInProc(2,i).GT.-1)THEN ! particle has been previously found by MyRank
-        IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank 
+        IF(PartFoundInProc(1,i).NE.MyRank)THEN ! particle should not be found by MyRank
           !ParticleIndexNbr = PartFoundInProc(2,i)
           ParticleIndexNbr = PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition)
           IF(.NOT.PDM%ParticleInside(ParticleIndexNbr)) WRITE(UNIT_stdOut,*) ' Error in emission in parallel!!'
@@ -2178,7 +2178,7 @@ __STAMP__&
           ! set update next free position to zero for removed particle
           PDM%nextFreePosition(PartFoundInProc(2,i) + PDM%CurrentNextFreePosition) = 0
           !mySumOfMatchedParticles = mySumOfMatchedParticles -1
-        END IF 
+        END IF
       END IF
     END DO ! i=1,chunkSize
     DEALLOCATE(PartFoundInProc)
@@ -2205,7 +2205,7 @@ __STAMP__&
         SWRITE(UNIT_StdOut,'(I0,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
       END IF
     ELSE
-      ! add number of matching error to particle emission to fit 
+      ! add number of matching error to particle emission to fit
       ! number of added particles
       Species(FractNbr)%Init(iInit)%InsertedParticleMisMatch = nbrOfParticle  - sumOfMatchedParticles
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
@@ -2276,13 +2276,13 @@ USE MOD_PIC_Vars
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf                                                  
+INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)            :: NbrOfParticle            
+INTEGER,INTENT(INOUT)            :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i,j,PositionNbr        
+INTEGER                          :: i,j,PositionNbr
 REAL                             :: Radius(3), n_vec(3), tan_vec(3), Velo1, Angle, Velo2, f
 REAL                             :: Vec3D(3), RandVal(3), Vec1D
 REAL                             :: II(3,3),JJ(3,3),NN(3,3)
@@ -2290,7 +2290,7 @@ INTEGER                          :: distnum,Rotation
 REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01,y_02, RandVal1
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_ElemMacro
-REAL                             :: sigma(3), ftl, PartVelo 
+REAL                             :: sigma(3), ftl, PartVelo
 REAL                             :: RandN_save
 LOGICAL                          :: RandN_in_Mem
 CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
@@ -2358,14 +2358,14 @@ CASE(1) !iInit
         ! the input value is the spread in percent, hence, 5% => v = v +- 0.05*v at 10% of maximum value
         ! width of the velocity spread, deltaV:
         VelocitySpread = 2.0*VelocitySpread * VeloIC
-        ! computing the corresponding sigma 
+        ! computing the corresponding sigma
         VelocitySpread = VelocitySpread / (2.*SQRT(2.*LOG(10.)))
       ELSE
      CALL abort(&
 __STAMP__&
 ,' This method for the velocity spread is not implemented.')
       END IF
-      IF(alpha.GT.0) THEN 
+      IF(alpha.GT.0) THEN
         vMag2 = (1.0+1./(alpha*alpha)) * VeloIC*VeloIC
       ELSE
         vMag2 = VeloIC*VeloIC
@@ -2406,19 +2406,19 @@ CASE('random')
   END DO
 !  CASE('EOC_Test')
 !     ! for leapfrog EOC test velo has to be set half dt before ICPos.
-!     Radius = Species(1)%BasePointIC 
+!     Radius = Species(1)%BasePointIC
 !     IF (Species(1)%BasePointIC(1) > 0. ) THEN
-!       n_vec = (/0.,0.,-1./) 
+!       n_vec = (/0.,0.,-1./)
 !       Angle = 0.
 !       Angle = Angle - PIC%GyrationFrequency * dt * 0.5
 !       Radius(1) = cos(Angle)
-!       Radius(2) = sin(Angle)   
-!     ELSEIF (Species(1)%BasePointIC(3) > 0. ) THEN  
-!       n_vec = (/0.,1.,0./) 
+!       Radius(2) = sin(Angle)
+!     ELSEIF (Species(1)%BasePointIC(3) > 0. ) THEN
+!       n_vec = (/0.,1.,0./)
 !       Angle = PI
 !       Angle = Angle - PIC%GyrationFrequency * dt * 0.5
 !       Radius(1) = sin(Angle)
-!       Radius(3) = cos(Angle)   
+!       Radius(3) = cos(Angle)
 !     END IF
 !     tan_vec(1) = Radius(2)*n_vec(3) - Radius(3)*n_vec(2)
 !     tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3)
@@ -2449,7 +2449,7 @@ CASE('radial_constant')
         Radius(1:3) = PartState(PositionNbr,1:3) - BasePointIC(1:3)
         !  Unity radius
         !Radius(1:3) = Radius(1:3) / RadiusIC
-        Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2) 
+        Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2)
         PartState(PositionNbr,4:6) = Radius(1:3) * VeloIC
      END IF
      i = i + 1
@@ -2502,7 +2502,7 @@ CASE('tangential_constant')
           END IF
           ! velocity spread of tangential velocity
           IF(Rotation.EQ.1)THEN
-            Vec3D  = tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread) 
+            Vec3D  = tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread)
           ELSE
             Vec3D = -tan_vec(1:3) * (VeloIC+Vec1D*VelocitySpread)
           END IF
@@ -2515,9 +2515,9 @@ __STAMP__&
           PartState(PositionNbr,4:6) = Vec3D+n_vec(1:3) * Vec1D
         ELSE ! no velocity spread
           ! If Gyrotron resonator: Add velocity in normal direction!
-          IF (Alpha .gt. 0.) THEN 
+          IF (Alpha .gt. 0.) THEN
             n_vec = n_vec * ( 1 / Alpha )
-          ELSE 
+          ELSE
             n_vec = 0
           END IF
           !  And finally the velocities
@@ -2526,7 +2526,7 @@ __STAMP__&
           ELSE
             PartState(PositionNbr,4:6) = -tan_vec(1:3) * VeloIC + n_vec(1:3) * VeloIC
           END IF
-        END IF 
+        END IF
      END IF
      i = i + 1
   END DO
@@ -2576,13 +2576,13 @@ CASE('gyrotron_circle')
        END IF
        CALL RANDOM_NUMBER(RandVal1)
        IF (RandVal1 .ge. 0.5) THEN
-         Radius(1) = PartState(PositionNbr,1) - x_01 
-         Radius(2) = PartState(PositionNbr,2) - y_01 
+         Radius(1) = PartState(PositionNbr,1) - x_01
+         Radius(2) = PartState(PositionNbr,2) - y_01
        ELSE
          Radius(1) = PartState(PositionNbr,1) - x_02
          Radius(2) = PartState(PositionNbr,2) - y_02
-       END IF     
-     
+       END IF
+
         Radius(3) = 0.
         !Check if Radius has correct length
         IF ((SQRT(Radius(1)**2+Radius(2)**2)-r1).ge.1E-15) THEN
@@ -2592,8 +2592,8 @@ CASE('gyrotron_circle')
         !  Normal Vector of circle
         n_vec(1:3) = NormalIC(1:3)
 
-        ! If we're doing Leapfrog, then use velocities from half-timestep before. This only applies in 
-        ! x- and y-direction. z has allways same velo. 
+        ! If we're doing Leapfrog, then use velocities from half-timestep before. This only applies in
+        ! x- and y-direction. z has allways same velo.
 !           IF (ParticlePushMethod.EQ.'boris_leap_frog_scheme') THEN
 !             ! get angle of part on gyrocircle
 !             Angle = ACOS(Radius(1)/Species(1)%RadiusICGyro)
@@ -2602,9 +2602,9 @@ CASE('gyrotron_circle')
 !             END IF
 !             ! shift position angle half dt back in time (as particle moves clockwise,
 !             ! we add dalpha in ccw direction)
-!             Angle = Angle + PIC%GyrationFrequency * dt * 0.5 * PIC%GyroVecDirSIGN  
+!             Angle = Angle + PIC%GyrationFrequency * dt * 0.5 * PIC%GyroVecDirSIGN
 !             Radius(1) = cos(Angle)
-!             Radius(2) = sin(Angle)                 
+!             Radius(2) = sin(Angle)
 !           END IF
            !  Unity radius
            Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2)
@@ -2613,9 +2613,9 @@ CASE('gyrotron_circle')
            tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3) *PIC%GyroVecDirSIGN
            tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
            ! If Gyrotron resonator: Add velocity in normal direction!
-           IF (Alpha .gt. 0.) THEN 
+           IF (Alpha .gt. 0.) THEN
              n_vec = n_vec * ( 1. / Alpha )
-           ELSE 
+           ELSE
              n_vec = 0.
            END IF
            !  And finally the velocities
@@ -2667,7 +2667,7 @@ CASE('emmert')
 CASE('maxwell')
   v_sum(1:3) = 0.0
   v2_sum = 0.0
-  
+
   i = 1
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
@@ -2712,16 +2712,16 @@ CASE('maxwell')
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
        PartState(PositionNbr,4:6) = (PartState(PositionNbr,4:6) - v_sum(1:3)) * maxwellfac &
-                                    + VeloIC *VeloVecIC(1:3)        
+                                    + VeloIC *VeloVecIC(1:3)
      END IF
      i = i + 1
   END DO
-  
+
 CASE('maxwell-juettner')
   xixi = Species(FractNbr)%MassIC*c2/ &
          (BoltzmannConst*MWTemperatureIC)
   BesselK2 = BessK(2,xixi)
-  
+
   ! Find initial value for Newton Algorithm
   IF (xixi .LT. 4.d0) THEN
     gamm_k = 5.d0 * BoltzmannConst*MWTemperatureIC/ &
@@ -2729,9 +2729,9 @@ CASE('maxwell-juettner')
   ELSE
     gamm_k = 1.d0 + BoltzmannConst*MWTemperatureIC/ &
                     (Species(FractNbr)%MassIC*c2)
-  END IF  
+  END IF
   f_gamm = DEVI(Species(FractNbr)%MassIC, MWTemperatureIC, gamm_k)
-  
+
   ! Newton Algorithm to find maximum value of distribution function
   ! (valid for both the relativistic and quasi relativistic distribution)
   i = 0
@@ -2745,21 +2745,21 @@ CASE('maxwell-juettner')
 __STAMP__&
 ,' Newton Algorithm to find maximum value of Maxwell-Juettner distribution has not been successfull!')
   END DO
-  
+
   u_max = sqrt(1.d0-1.d0/(gamm_k*gamm_k))*c
   IF (xixi .LT. 692.5_8) THEN                  ! due to numerical precision
         max_val = SYNGE(u_max, MWTemperatureIC, &
                               Species(FractNbr)%MassIC, BesselK2)
-      ELSE 
+      ELSE
         max_val = QUASIREL(u_max, MWTemperatureIC, &
                                  Species(FractNbr)%MassIC)
       END IF
-  
+
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     anta  = 1._8
     value = 0._8
-    
+
     ! acception rejection method for velocity's absolute value
     DO WHILE (anta .GT. value)
       CALL RANDOM_NUMBER(velabs)
@@ -2769,12 +2769,12 @@ __STAMP__&
       IF (xixi .LT. 692.5_8) THEN
         value = SYNGE(velabs, MWTemperatureIC, &
                               Species(FractNbr)%MassIC, BesselK2)
-      ELSE 
+      ELSE
         value = QUASIREL(velabs, MWTemperatureIC, &
                                  Species(FractNbr)%MassIC)
       END IF
     END DO
-    
+
     ! polar method for velocity's x&y direction
     ! (required to generate elliptical random distribution)
     qq = 2._8
@@ -2786,7 +2786,7 @@ __STAMP__&
     qq = sqrt(-2._8*log(qq)/qq)
     Vec3D(1) = RandVal(1)*qq*MJRatio(1)
     Vec3D(2) = RandVal(2)*qq*MJRatio(2)
-    
+
     ! polar method for velocity's z direction
     qq = 2._8
     DO WHILE ((qq .GT. 1._8) .OR. (qq .EQ. 0._8))
@@ -2796,7 +2796,7 @@ __STAMP__&
     END DO
     qq = sqrt(-2._8*log(qq)/qq)
     Vec3D(3) = RandVal(1)*qq*MJRatio(3)
-    
+
     Velosq  = sqrt(Vec3D(1)*Vec3D(1)+Vec3D(2)*Vec3D(2)+Vec3D(3)*Vec3D(3))
     PartState(PositionNbr,4:6) = velabs/Velosq*Vec3D
   END DO
@@ -2805,7 +2805,7 @@ __STAMP__&
 CASE('weibel')
   v_sum(:)  = 0.0
   sigma(:) = 0.0
-  
+
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
@@ -2819,7 +2819,7 @@ CASE('weibel')
         Velosq = sqrt(-2*log(Velosq)/Velosq)
         Vec3D(1) = RandVal(1)*Velosq
         Vec3D(2) = RandVal(2)*Velosq
-        
+
         IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
           Vec3D(3) = RandN_save
           RandN_in_Mem=.FALSE.
@@ -2862,26 +2862,26 @@ CASE('weibel')
 !  !       NPart(elemNbr) = NPart(elemNbr) + 1
 !      END DO
 
-  
+
   IF (NbrOfParticle .GT. 1) THEN
     v_sum(:)  = v_sum(:)/NbrOfParticle
-    sigma(:) = (NbrOfParticle/(NbrOfParticle-1))*(sigma(:)/NbrOfParticle-v_sum(:)**2)  
+    sigma(:) = (NbrOfParticle/(NbrOfParticle-1))*(sigma(:)/NbrOfParticle-v_sum(:)**2)
         ! Verschiebungssatz der korrigierten Stichprobenkovarianz:
-  ELSE                                                                            ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)   
+  ELSE                                                                            ! s^2(X)=1/(N-1)(N*E(X^2) - N*E(X)^2)
     v_sum(:) = 0.
     sigma(:) = 1.
   END IF
-                                                                                      
+
   ftl = 0
   DO i=1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
       PartState(PositionNbr,4)   = (PartState(PositionNbr,4)  -v_sum(1)) * &
                                     SQRT(WeibelVeloPar**2/sigma(1)) *c
-      PartState(PositionNbr,5:6) = (PartState(PositionNbr,5:6)-v_sum(2:3)) * & 
+      PartState(PositionNbr,5:6) = (PartState(PositionNbr,5:6)-v_sum(2:3)) * &
                                     SQRT(WeibelVeloPer**2/sigma(2:3)) *c
       PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
-      
+
       DO WHILE (PartVelo .GE. c)
         ftl = ftl+1
         IPWRITE(UNIT_stdOut,*) 'Number of Particles FTL:', ftl
@@ -2895,7 +2895,7 @@ CASE('weibel')
           Velosq = sqrt(-2*log(Velosq)/Velosq)
           Vec3D(1) = RandVal(1)*Velosq
           Vec3D(2) = RandVal(2)*Velosq
-          
+
           IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
             Vec3D(3) = RandN_save
             RandN_in_Mem=.FALSE.
@@ -2916,12 +2916,12 @@ CASE('weibel')
 !          Vec3D(2) = rnor()
 !          Vec3D(3) = rnor()
 !        END IF
-        
+
         PartState(PositionNbr,4:6) = Vec3D(1:3)
-        
+
         PartState(PositionNbr,4)   = (Vec3D(1)  -v_sum(1)) * &
             SQRT(WeibelVeloPar**2/sigma(1)) *c
-        PartState(PositionNbr,5:6) = (Vec3D(2:3)-v_sum(2:3)) * & 
+        PartState(PositionNbr,5:6) = (Vec3D(2:3)-v_sum(2:3)) * &
             SQRT(WeibelVeloPer**2/sigma(2:3)) *c
         PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
       END DO
@@ -2950,7 +2950,7 @@ CASE('OneD-twostreaminstabilty')
                                                    OneDTwoStreamVelo
       PartState(PositionNbr,6) = RandVal(2)*OneDTwoStreamTransRatio* &
                                                    OneDTwoStreamVelo
-    END IF  
+    END IF
   END DO
 
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
@@ -2965,7 +2965,7 @@ END SELECT
 END SUBROUTINE SetParticleVelocity
 
 
-SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)                                        
+SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)
 !===================================================================================================================================
 ! And partilces mass and charge
 !===================================================================================================================================
@@ -2973,16 +2973,16 @@ SUBROUTINE SetParticleChargeAndMass(FractNbr,NbrOfParticle)
 USE MOD_Particle_Vars,    ONLY : PDM, PartSpecies
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE                                                                                    
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr                                                     
+INTEGER,INTENT(IN)                       :: FractNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                    :: NbrOfParticle                                                
+INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr                                                
+INTEGER                                  :: i,PositionNbr
 !===================================================================================================================================
 
 IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
@@ -2999,7 +2999,7 @@ END DO
 
 END SUBROUTINE SetParticleChargeAndMass
 
-SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle) 
+SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)
 !===================================================================================================================================
 ! finally, set the MPF
 !===================================================================================================================================
@@ -3007,16 +3007,16 @@ SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)
 USE MOD_Particle_Vars,    ONLY : PDM, PartMPF, Species
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE                                          
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr    
+INTEGER,INTENT(IN)                       :: FractNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr 
+INTEGER                                  :: i,PositionNbr
 !===================================================================================================================================
 
 IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
@@ -3067,7 +3067,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
   ! step 1: count and build array of particles in cell (of current species only)
   ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
   NbrPartsInCell = 0
-  iPart = PEM%pStart(Elem)   
+  iPart = PEM%pStart(Elem)
   DO i = 1, PEM%pNumber(Elem)
     IF (PartSpecies(iPart).EQ.iSpec) THEN
       NbrPartsInCell = NbrPartsInCell + 1
@@ -3087,7 +3087,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
     DO i = 1, NbrNewParts
       ! set random position in -1,1 space
       CALL RANDOM_NUMBER(RandVal3)
-      RandVal3 = RandVal3 * 2.0 - 1.0 
+      RandVal3 = RandVal3 * 2.0 - 1.0
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
         CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
@@ -3180,7 +3180,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
   ! step 1: count and build array of particles in cell (of current species only)
   ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
   NbrPartsInCell = 0
-  iPart = PEM%pStart(Elem)   
+  iPart = PEM%pStart(Elem)
   DO i = 1, PEM%pNumber(Elem)
     IF (PartSpecies(iPart).EQ.iSpec) THEN
       NbrPartsInCell = NbrPartsInCell + 1
@@ -3199,7 +3199,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
     DO i = 1, NbrPartsInCell
       ! set random position in -1,1 space
       CALL RANDOM_NUMBER(RandVal3)
-      RandVal3 = RandVal3 * 2.0 - 1.0 
+      RandVal3 = RandVal3 * 2.0 - 1.0
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
         CALL TensorProductInterpolation(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
@@ -3345,7 +3345,7 @@ __STAMP__&
        = MPFSum / GEO%Volume(iElem) * BoltzmannConst * Samp_Temp(4)
   Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) &                              !a**2 = kappa * k/mt * T
        = kappa_part * BoltzmannConst/Species(iSpec)%MassIC * Samp_Temp(4)
-  
+
 
 !----Ralaxationfaktor due to statistical noise in DSMC Results
   IF(iter.NE.0) THEN
@@ -3545,7 +3545,7 @@ REAL                             :: p0 ! base pressure
 ! c_s = sqrt(gamma*R*T/M)
 !   gamma := 1.4
 !   R     := 8.3144598
-!   T     := 273.15 
+!   T     := 273.15
 !   M     := 28.0134e-3
 ASSOCIATE( V0   => 101.0694686816                       ,& !Species(FractNbr)%Init(iInit)%VeloIC ,&
            x    => ElemBaryNGeo(1,Element)              ,&
@@ -3673,7 +3673,7 @@ ELSE IF(PRESENT(Temperature))THEN
   Ty=Temperature
   Tz=Temperature
   v_drift=0.0
-ELSE 
+ELSE
 CALL abort(&
 __STAMP__&
 ,'PO: force temperature!!')
@@ -4019,7 +4019,7 @@ __STAMP__&
         ,area=tmp_SubSideAreas(iSample,jSample) &
         ,TriNum=jSample,ElemID_opt=ElemID,LocSideID_opt=ilocSide)
       SurfMeshSideAreas(BCSideID)=SurfMeshSideAreas(BCSideID)+tmp_SubSideAreas(iSample,jSample)
-    END DO; END DO  
+    END DO; END DO
   ELSE
     IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(&
 __STAMP__&
@@ -4045,7 +4045,7 @@ IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
 IPWRITE(*,*)"totalArea       = ",totalArea
 IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
 IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
-#endif /*CODE_ANALYZE*/ 
+#endif /*CODE_ANALYZE*/
 
 UseCircularInflow=.FALSE.
 UseAdaptive=.FALSE.
@@ -4525,7 +4525,7 @@ DEALLOCATE(TmpMapToBC &
           ,TmpSideStart &
           ,TmpSideNumber &
           ,TmpSideEnd &
-          ,TmpSideNext) 
+          ,TmpSideNext)
 
 !-- 3.: initialize Surfaceflux-specific data
 ! Allocate sampling of near adaptive boundary element values
@@ -5037,7 +5037,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! Local variable declaration                                                                       
+! Local variable declaration
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID, iLoop
 INTEGER                     :: NbrOfParticle, ExtraParts
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSF, PartInsSubSide, iPart, iPartTotal, IntSample
@@ -5727,7 +5727,7 @@ __STAMP__&
 !__STAMP__&
 !,'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
 !          END IF
-!#endif /*CODE_ANALYZE*/ 
+!#endif /*CODE_ANALYZE*/
 #if defined(IMPA) || defined(ROS)
             IF(DoRefMapping)THEN
               CALL GetPositionInRefElem(PartState(ParticleIndexNbr,1:3),PartPosRef(1:3,ParticleIndexNbr),ElemID) !RefMap PartState
@@ -5763,7 +5763,7 @@ __STAMP__&
                  ,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
 #endif
             END IF
-#endif /*CODE_ANALYZE*/ 
+#endif /*CODE_ANALYZE*/
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
             PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
@@ -5790,13 +5790,13 @@ __STAMP__&
           .OR. Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
           CALL SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide)
         END IF
-        
+
         PartsEmitted = PartsEmitted + PartInsSubSide
 #if USE_LOADBALANCE
         !used for calculating LoadBalance of tCurrent(LB_SURFFLUX) ==> "2b.: set remaining properties"
         nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide
 #endif /*USE_LOADBALANCE*/
-        
+
       END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
 #if USE_LOADBALANCE
       CALL LBElemSplitTime(ElemID,tLBStart)
@@ -5851,7 +5851,7 @@ __STAMP__&
        END DO
 #endif
 !    CALL UpdateNextFreePosition()
-    
+
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
@@ -6001,7 +6001,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES           
+! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: i,PositionNbr,envelope,currentBC
@@ -6119,7 +6119,7 @@ CASE('constant') !constant with normal velocities (for VeloVecIC see SetParticle
 
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr .NE. 0) THEN 
+    IF (PositionNbr .NE. 0) THEN
 !-- In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
       IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
         vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
@@ -6135,7 +6135,7 @@ CASE('constant') !constant with normal velocities (for VeloVecIC see SetParticle
 __STAMP__&
 ,'this should not happen!')
       END IF !VeloIsNormal
-      
+
 !-- build complete velo-vector
       Vec3D(1:3) = vec_nIn(1:3) * Species(FractNbr)%Surfaceflux(iSF)%VeloIC
       PartState(PositionNbr,4:6) = Vec3D(1:3)
@@ -6166,7 +6166,7 @@ CASE('maxwell_surfaceflux')
 
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr .NE. 0) THEN 
+    IF (PositionNbr .NE. 0) THEN
 !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
       IF (Species(FractNbr)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
         vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
@@ -6310,7 +6310,7 @@ CASE('maxwell_surfaceflux')
 __STAMP__&
 ,'wrong enevelope in SetSurfacefluxVelocities!')
       END SELECT
-      
+
 !-- 2.: sample normal directions and build complete velo-vector
       Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC)*(a-zstar)
 !      IF (.NOT.DoZigguratSampling) THEN !polar method
@@ -6361,8 +6361,8 @@ IMPLICIT NONE
 REAL,INTENT(IN)                :: RealTarget
 LOGICAL,INTENT(INOUT),OPTIONAL :: Flag_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES      
-INTEGER,INTENT(OUT)            :: IntSample    
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)            :: IntSample
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL         :: Flag
@@ -6418,8 +6418,8 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)               :: Ntot, length
 REAL,INTENT(IN)                  :: Ai(1:length)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES      
-INTEGER,INTENT(INOUT)            :: Ni(1:length)     
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)            :: Ni(1:length)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER         :: iN, iRan, Nitemp, Nrest, Ntot0
@@ -6717,7 +6717,7 @@ INTEGER,INTENT(IN)  :: ord
 REAL                :: BessK
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL     :: BessI0, BessI1, BessK0, BessK1, BessK0_old 
+REAL     :: BessI0, BessI1, BessK0, BessK1, BessK0_old
 REAL     :: rr, eps, ct, w0
 REAL     :: set_a(12), set_b(12), set_c(8)
 INTEGER  :: kk, k0
@@ -6725,34 +6725,34 @@ INTEGER  :: kk, k0
 
   !em = 0.577215664901533_8        ! Euler–Mascheroni constant
   eps= 1E-15_8
-  
+
   set_a = (/0.125E0_8, 7.03125E-2_8,                  &
           7.32421875E-2_8, 1.1215209960938E-1_8,      &
           2.2710800170898E-1_8, 5.7250142097473E-1_8, &
           1.7277275025845E0_8, 6.0740420012735E0_8,    &
           2.4380529699556E01_8, 1.1001714026925E02_8, &
           5.5133589612202E02_8, 3.0380905109224E03_8/)
-     
+
   set_b = (/-0.375E0_8, -1.171875E-1_8,                 &
           -1.025390625E-1_8, -1.4419555664063E-1_8,     &
           -2.7757644653320E-1_8, -6.7659258842468E-1_8, &
           -1.9935317337513E0_8, -6.8839142681099E0_8,   &
           -2.7248827311269E01_8, -1.2159789187654E02_8, &
           -6.0384407670507E02_8, -3.3022722944809E03_8/)
-     
+
   set_c = (/0.125E0_8, 0.2109375E0_8,                 &
           1.0986328125E0_8, 1.1775970458984E01_8,     &
           2.1461706161499E2_8, 5.9511522710323E03_8,  &
           2.3347645606175E05_8, 1.2312234987631E07_8/)
-        
-  
+
+
 !==========================================================================================!
 ! Compute I_0(x) and I_1(x)
 !==========================================================================================!
   IF (arg .EQ. 0.) THEN
     BessI1 = 0.
     BessI0 = 1.
-    
+
   ELSE IF (arg .LE. 18.) THEN
     BessI0 = 1.
     rr     = 1.
@@ -6774,11 +6774,11 @@ INTEGER  :: kk, k0
     END DO
     BessI1 = 0.5*arg*BessI1
 !     WRITE(*,*) 'BessI1:', BessI1
-    
+
   ELSE
     IF      (arg .LT. 35.) THEN
       k0 = 12
-    ELSE IF (arg .LT. 50.) THEN 
+    ELSE IF (arg .LT. 50.) THEN
       k0 =  9
     ELSE
       k0 =  7
@@ -6796,8 +6796,8 @@ INTEGER  :: kk, k0
     BessI1 = exp(arg)/sqrt(2._8*pi*arg)*BessI1
 !     WRITE(*,*) 'BessI1: ', BessI1
   END IF
-    
-!==========================================================================================! 
+
+!==========================================================================================!
 ! Compute K_0(x)
 !==========================================================================================!
   IF (arg .LE. 0.) THEN
@@ -6809,7 +6809,7 @@ __STAMP__&
     ct = -log(arg/2.)-EuMas
     w0 = 1._8
     rr = 0.25*arg*arg
-    BessK0 = rr*(w0+ct) 
+    BessK0 = rr*(w0+ct)
     BessK0_old = 1.E20
     DO WHILE (abs((BessK0-BessK0_old)/BessK0) .GT. eps)
       kk = kk+1
@@ -6828,12 +6828,12 @@ __STAMP__&
 !     WRITE(*,*) 'BessK0: ', BessK0
   END IF
 
-!==========================================================================================! 
+!==========================================================================================!
 ! Compute K_1(x) and K_n(x)
 !==========================================================================================!
   BessK1 = (1._8/arg-BessI1*BessK0)/BessI0
   BessK = 2._8*(ord-1._8)*BessK1/arg + BessK0
-  
+
 END FUNCTION BessK
 
 
@@ -7118,7 +7118,7 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartMPI
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iSpec, iSF
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -7262,7 +7262,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, Sur
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iSpec, iSF, iSide, BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES

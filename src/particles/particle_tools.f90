@@ -26,7 +26,7 @@ INTERFACE UpdateNextFreePosition
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ SUBROUTINE UpdateNextFreePosition()
    IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
    PDM%nextFreePosition(counter1) = i
    counter1 = counter1 + 1
-  END DO 
+  END DO
   PDM%nextFreePosition(counter1:PDM%MaxParticleNumber)=0 ! exists if MaxParticleNumber is reached!!!
   IF (counter1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber)=0
 

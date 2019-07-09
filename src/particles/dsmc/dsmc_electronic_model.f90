@@ -55,7 +55,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : Species, PEM
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE                                                                                    
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPart, iSpecies, iInit, init_or_sf
@@ -63,7 +63,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iQua                                                        
+  INTEGER                       :: iQua
   REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2
   REAL                        :: Telec                      ! electronic temperature
 !===================================================================================================================================
@@ -124,7 +124,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE                                                                                    
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair, iPart1
@@ -227,7 +227,7 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE                                                                                    
+  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPart1
@@ -425,15 +425,15 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   IF (ALMOSTEQUAL(DSMC%EpsElecBin, 0.0).OR.(dims(2).EQ.2)) THEN
     ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
     SpecDSMC(iSpec)%ElectronicState = ElectronicState
-    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
-  ELSE    
+    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
+  ELSE
     ALLOCATE (SortElectronicState(0:dims(2)-1 ))
     SortElectronicState(0) = 0
     nQuants = 1
     tempEnergy =  ElectronicState(2,1)
     SortElectronicState(1) = nQuants
     DO iQua = 2, INT(dims(2),4)-2
-      tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))   
+      tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))
       IF (tempEnergyDiff.LE.DSMC%EpsElecBin) THEN
         SortElectronicState(iQua) = nQuants
       ELSE
@@ -460,7 +460,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
     END DO
     SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
     SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
-    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2) 
+    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
     SWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
         ' (+1 for the ground state)'
   END IF
@@ -504,14 +504,14 @@ SUBROUTINE SortEnergies(ElectronicState, nQuants)
   DO WHILE (changed.OR.iStep.GT.1)
     changed = .false.
     IF (iStep.GT.1) THEN
-      iStep = INT(iStep/1.3)       
+      iStep = INT(iStep/1.3)
     END IF
     DO iLoop = 0, nQuants - 1 - iStep
       IF (ElectronicState(2,iLoop).GT.ElectronicState(2,iLoop+iStep)) THEN
         TempState(1:2) = ElectronicState(1:2,iLoop+iStep)
         ElectronicState(1:2,iLoop+iStep) = ElectronicState(1:2,iLoop)
-        ElectronicState(1:2,iLoop) = TempState(1:2) 
-        changed = .true.      
+        ElectronicState(1:2,iLoop) = TempState(1:2)
+        changed = .true.
       END IF
     END DO
   END DO
@@ -539,13 +539,13 @@ REAL FUNCTION DiffElecEnergy(En1, En2)
   IF (ALMOSTEQUAL(En2,0.0)) CALL Abort(&
      __STAMP__,&
     'Energy of Electronic Shell is 0!!!')
-  
+
   IF (ALMOSTEQUAL(En1,En2)) THEN
     DiffElecEnergy = 0.0
   ELSE
     DiffElecEnergy = (En2-En1)/En1
   END IF
-  
+
   RETURN
 
 END FUNCTION DiffElecEnergy

@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! Performs the vibrational relaxation of diatomic molecules
 !===================================================================================================================================
-! MODULES  
+! MODULES
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartMPF, usevMPF, PEM, VarTimeStep
@@ -72,7 +72,7 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
 END DO
-IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN    
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
   IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
     iElem = PEM%Element(iPart)
     Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)

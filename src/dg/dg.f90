@@ -15,7 +15,7 @@
 MODULE MOD_DG
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U 
+! Computes the different DG spatial operators/residuals(Ut) using U
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -81,7 +81,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone)THEN
    CALL abort(&
@@ -128,10 +128,10 @@ U_slave=0.
 
 #ifndef PP_HDG
 ! unique flux per side
-! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
-! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
-ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) 
-ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) 
+! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
+! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
+ALLOCATE(Flux_Master(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Flux_Slave(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
 Flux_Master=0.
 Flux_Slave=0.
 #endif /*PP_HDG*/
@@ -168,12 +168,12 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
 INTEGER                                    :: iMass
 #ifdef PP_HDG
-#ifdef MPI  
+#ifdef MPI
 REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
 #endif /*MPI*/
 #endif /*PP_HDG*/
@@ -424,7 +424,7 @@ CALL ProlongToFace_Pois(Phi,Phi_master,Phi_slave,doMPiSides=.TRUE.)
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-!CALL StartExchangeMPIData(Phi_slave,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
+!CALL StartExchangeMPIData(Phi_slave,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2)
 CALL StartSendMPIData(4,Phi_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 ! Send YOUR - receive MINE
 #if USE_LOADBALANCE
@@ -572,7 +572,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(D)
 SDEALLOCATE(D_T)

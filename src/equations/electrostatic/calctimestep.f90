@@ -89,7 +89,7 @@ DO iElem=1,PP_nElems
 ! VERSION 2: quadratic superposition
 !  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 ! --------------------------------------------
-! VERSION 1: linear superposition 
+! VERSION 1: linear superposition
   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
 ! --------------------------------------------
   IF(locTimeStepConv.NE.locTimeStepConv)THEN

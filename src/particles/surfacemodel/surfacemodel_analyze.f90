@@ -151,7 +151,7 @@ USE MOD_Restart_Vars              ,ONLY: DoRestart
 #ifdef MPI
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*MPI*/
-#if ( PP_TimeDiscMethod ==42) 
+#if ( PP_TimeDiscMethod ==42)
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption
 #endif /* DSMC*/

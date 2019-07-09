@@ -30,7 +30,7 @@ INTERFACE DSMC_pairing_statistical
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   IF (usevMPF) MPFFac = 1
   DO iPair = 1, PairNum_Node
-    CALL RANDOM_NUMBER(iRan) 
+    CALL RANDOM_NUMBER(iRan)
     iPart1 = 1 + INT(nPart * iRan)
     Coll_pData(iPair)%iPart_p1 = iPartIndx_Node(iPart1)
     iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
@@ -124,14 +124,14 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
            +(PartState(Coll_pData(iPair)%iPart_p1,2) &
            - PartState(iPartIndx_Node(iPart2),2))**2 &
            +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-           - PartState(iPartIndx_Node(iPart2),3))**2 
+           - PartState(iPartIndx_Node(iPart2),3))**2
     DO iLoop = 2, nPart
       Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
              - PartState(iPartIndx_Node(iLoop),1))**2 &
              +(PartState(Coll_pData(iPair)%iPart_p1,2) &
              - PartState(iPartIndx_Node(iLoop),2))**2 &
              +(PartState(Coll_pData(iPair)%iPart_p1,3) &
-             - PartState(iPartIndx_Node(iLoop),3))**2 
+             - PartState(iPartIndx_Node(iLoop),3))**2
       IF (Dist2.LT.Dist1) THEN
         iPart2 = iLoop
         Dist1 = Dist2
@@ -141,9 +141,9 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     iPartIndx_Node(iPart2) = iPartIndx_Node(nPart)
     nPart = nPart - 1
 
-    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1   
+    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
-    
+
     IF (usevMPF) THEN
       TempMPFFac = PartMPF(Coll_pData(iPair)%iPart_p1) + PartMPF(Coll_pData(iPair)%iPart_p2)
       IF (TempMPFFac .GE. MPFFac) THEN
@@ -157,7 +157,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       END IF
     END IF
 
-    iCase = CollInf%Coll_Case(cSpec1, cSpec2) 
+    iCase = CollInf%Coll_Case(cSpec1, cSpec2)
 
     IF(VarTimeStep%UseVariableTimeStep) THEN
       CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
@@ -170,7 +170,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
                              + (PartState(Coll_pData(iPair)%iPart_p1,5) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
                              + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2 
+                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
     Coll_pData(iPair)%PairType = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO
@@ -183,7 +183,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END IF
 
   DO iPair = 1,  PairNum_Node
-    IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN  
+    IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
       IF (usevMPF) THEN            ! calculation of collision prob
         CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
       ELSE
@@ -270,7 +270,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
-    ! check if particle is on wall and chose next particle until particle is not at wall 
+    ! check if particle is on wall and chose next particle until particle is not at wall
     IF (KeepWallParticles) THEN
       DO WHILE (PDM%ParticleAtWall(iPart))
         iPart = PEM%pNext(iPart)
@@ -298,7 +298,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) MPFFac = 1
 
   DO iPair = 1, nPair                               ! statistical pairing
-    CALL RANDOM_NUMBER(iRan) 
+    CALL RANDOM_NUMBER(iRan)
     cPart1 = 1 + INT(nPart * iRan)                       ! first pair particle
     Coll_pData(iPair)%iPart_p1 = iPartIndx(cPart1)
     iPartIndx(cPart1) = iPartIndx(nPart)
@@ -348,7 +348,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
     ChemReac%RecombParticle = iPartIndx(1)
   END IF
-  
+
   DEALLOCATE(iPartIndx)
 END SUBROUTINE DSMC_pairing_statistical
 
@@ -671,12 +671,12 @@ IF (nPart.GT.1) THEN
       IF (DoRefMapping) THEN
         DO iLoop = 1, nPart
           TreeNode%MappedPartStates(iLoop,1:3)=PartPosRef(1:3,iPart)
-          iPart = PEM%pNext(iPart)    
+          iPart = PEM%pNext(iPart)
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
           CALL GetPositionInRefElem(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
-          iPart = PEM%pNext(iPart)    
+          iPart = PEM%pNext(iPart)
         END DO
       END IF ! DoRefMapping
       TreeNode%NodeDepth = 1
@@ -698,7 +698,7 @@ IF (nPart.GT.1) THEN
     END IF
   END IF
 
-  DEALLOCATE(TreeNode%iPartIndx_Node) 
+  DEALLOCATE(TreeNode%iPartIndx_Node)
   DEALLOCATE(TreeNode)
 END IF !nPart > 0
 
@@ -739,7 +739,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
     CALL Abort(&
 __STAMP__&
 ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
-  END IF 
+  END IF
   !         Numbering of the 8 ChildNodes of the Octree
   !          __________
   !         /    /    /|   |z
@@ -788,7 +788,7 @@ __STAMP__&
       PartNumChildNode(7) = PartNumChildNode(7) + 1
       iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
       MappedPart_ChildNode(7,PartNumChildNode(7),1:3) = TreeNode%MappedPartStates(iPart,1:3)
-    ELSE 
+    ELSE
       PartNumChildNode(8) = PartNumChildNode(8) + 1
       iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
       MappedPart_ChildNode(8,PartNumChildNode(8),1:3) = TreeNode%MappedPartStates(iPart,1:3)
@@ -1296,7 +1296,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes(iElem, NodeDepth, Node)
   ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
   ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:PP_N))
   CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm)
-  CALL ChangeBasis3D(1,PP_N, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))  
+  CALL ChangeBasis3D(1,PP_N, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))
   CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes
@@ -1330,7 +1330,7 @@ RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc
     NodePointNum = 2**LocalDepth - 1
     ALLOCATE(OctreeVdmLoc%Vdm(0:NodePointNum, 0:PP_N), OctreeVdmLoc%xGP(0:NodePointNum))
     DO i=0,NodePointNum
-      OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5) 
+      OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
     END DO
     OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
     CALL InitializeVandermonde(PP_N,NodePointNum,wBary,xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
@@ -1355,8 +1355,8 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 ! INPUT VARIABLES
   INTEGER, INTENT(INOUT)                    :: NodeDepth
   INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node     
-  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)  
+  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
   TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1370,7 +1370,7 @@ IF (PRESENT(SubNodesIn)) THEN
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
   SubNodesOut(1:OldNodeNum) = SubNodesIn(1:OldNodeNum)
-ELSE 
+ELSE
   OldNodeNum = 0
   NewNodeNum = OldNodeNum + 1
   ALLOCATE(SubNodesOut(NewNodeNum))
@@ -1438,11 +1438,11 @@ ELSE
     ! y direction
     IF ((SubNodesOut(j).LT.3).OR.((SubNodesOut(j).LT.7).AND.(SubNodesOut(j).GT.4))) THEN
       VolPos(2)= VolPos(2) + 2**NodeDepth/2**j
-    END IF    
+    END IF
     ! z direction
     IF ((SubNodesOut(j).EQ.2).OR.(SubNodesOut(j).EQ.3).OR.(SubNodesOut(j).EQ.6).OR.(SubNodesOut(j).EQ.7)) THEN
       VolPos(3)= VolPos(3) + 2**NodeDepth/2**j
-    END IF    
+    END IF
   END DO
   Node%Volume = DetJac(1, VolPos(1), VolPos(2), VolPos(3)) * VdmLocal%wGP**3
 END IF
@@ -1587,7 +1587,7 @@ INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
-  
+
 nPart = PartNum
 nPair = INT(nPart/2)
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CollInf%MeanMPF = 0.
@@ -1821,7 +1821,7 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
-  
+
 END SUBROUTINE FindStatisticalNeigh
 
 
@@ -1833,21 +1833,21 @@ FUNCTION Calc_F2D(xi,x,P)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)          :: xi(2)      ! 
-REAL,INTENT(IN)          :: x(2)       ! 
-REAL,INTENT(IN)          :: P(2,4)     ! 
+REAL,INTENT(IN)          :: xi(2)
+REAL,INTENT(IN)          :: x(2)
+REAL,INTENT(IN)          :: P(2,4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: Calc_F2D(2)  !  
+REAL                     :: Calc_F2D(2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 Calc_F2D = 0.25 *(P(:,1)*(1-xi(1)) * (1-xi(2)) &
               + P(:,2)*(1+xi(1)) * (1-xi(2)) &
               + P(:,3)*(1+xi(1)) * (1+xi(2)) &
               + P(:,4)*(1-xi(1)) * (1+xi(2))) &
               - x;
-END FUNCTION Calc_F2D 
+END FUNCTION Calc_F2D
 
 
 FUNCTION Calc_dF_inv2D(xi,P)

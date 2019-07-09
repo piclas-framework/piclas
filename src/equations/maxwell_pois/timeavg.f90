@@ -14,8 +14,8 @@
 
 !==================================================================================================================================
 !> Routine performing time averaging of variables and the preparation to computing fluctuations
-!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and 
-!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$ 
+!> The terms computed in this routine are therefore the TimeAvg: \f$ \overline{U} \f$ and
+!> the squared solution denoted by Fluc: \f$ \overline{U^2} \f$
 !> the fluctuations are the RMS values
 !> list structure: 1:PP_nVar - Varnames of equationsystem
 !>                 PP_nVar+  - additional variables
@@ -56,7 +56,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,    ONLY: CNTSTR,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars,      ONLY: nElems
-USE MOD_Timeaverage_Vars 
+USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

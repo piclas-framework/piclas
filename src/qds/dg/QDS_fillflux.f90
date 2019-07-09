@@ -26,7 +26,7 @@ MODULE MOD_QDS_FillFlux
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ USE MOD_QDS_Equation_vars,   ONLY:QDSnVar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 REAL,INTENT(IN)    :: t           ! time
 INTEGER,INTENT(IN) :: tDeriv      ! deriv
 REAL,INTENT(IN)    :: UQDS_Master(QDSnVar,0:PP_N,0:PP_N,1:nSides)
@@ -70,9 +70,9 @@ INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using RiemannQDS solver
-IF(doMPISides)THEN 
+IF(doMPISides)THEN
   ! fill only flux for MINE MPISides
-  ! fill only flux for MINE MPISides (where the local proc is master) 
+  ! fill only flux for MINE MPISides (where the local proc is master)
   firstSideID_wo_BC = firstMPISide_MINE
   firstSideID = firstMPISide_MINE
   lastSideID =  lastMPISide_MINE
@@ -88,7 +88,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   CALL RiemannQDS(FluxQDS_Master(1:QDSnVar,:,:,SideID),UQDS_Master( :,:,:,SideID),UQDS_Slave(  :,:,:,SideID),NormVec(:,:,:,SideID))
 END DO ! SideID
-  
+
 IF(.NOT.doMPISides)THEN
   CALL GetBoundaryFluxQDS(t,tDeriv,FluxQDS_Master (1:QDSnVar,0:PP_N,0:PP_N,1:nBCSides) &
                                   ,UQDS_Master    (1:QDSnVar,0:PP_N,0:PP_N,1:nBCSides) &
