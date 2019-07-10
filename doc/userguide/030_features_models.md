@@ -419,6 +419,58 @@ The simulation time step $\Delta t$ is defined by
 
     Particles-ManualTimeStep = 1.00E-7
 
+### Macroscopic Restart \label{sec:macro_restart}
+
+The so-called macroscopic restart, allows to restart the DSMC simulation by using a DSMC output file of a previous simulation run (the regular state file has still to be supplied). This enables to change the weighting factor, without beginning a new simulation.
+
+    Particles-MacroscopicRestart = T
+    Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
+
+The particle velocity distribution within the domain is then generated assuming a Maxwell-Boltzmann distribution, using the translational temperature per direction of each species per cell. The rotational and vibrational energy per species is initialized assuming an equilibrium distribution.
+
+### Variable Time Step \label{sec:vartimestep}
+
+A spatially variable time step (VTS) can be activated for steady-state DSMC simulations
+
+    Part-VariableTimeStep = T
+
+Two options are currently available and described in the following:
+
+* Distribution: use a simulation result to adapt the time step in order to resolve physical parameters (e.g. collision frequency)
+* Linear scaling: use a linearly increasing/decreasing time step along a direction
+
+#### Distribution
+
+The first option which is currently only available for DSMC is to adapt the time step during a simulation restart based on certain parameters of the DSMC simulation such as maximal collision probability, mean collision separation distance over mean free path and particle number. This requires the read-in of a DSMC state file that includes DSMC quality factors (see Section \ref{sec:dsmc_quality}).
+
+    Part-VariableTimeStep-Distribution = T
+    Part-VariableTimeStep-Distribution-Adapt = T
+    Part-VariableTimeStep-Distribution-TargetMCSoverMFP = 0.3   ! Default = 0.25
+    Part-VariableTimeStep-Distribution-TargetMaxCollProb = 0.8  ! Default = 0.8
+    Part-VariableTimeStep-Distribution-MaxFactor = 1.0
+    Part-VariableTimeStep-Distribution-MinFactor = 0.1
+    Part-VariableTimeStep-Distribution-MinPartNum = 10          ! Optional
+    Particles-MacroscopicRestart = T    ! Disable if no adaptation is performed!
+    Particles-MacroscopicRestart-Filename = Test_DSMCState.h5
+
+The second flag allows to enable/disable the adaption of the time step distribution. Typically, a simulation would be performed until a steady-state (or close to it, e.g. the particle number is not increasing significantly anymore) is reached with a uniform time step. Then a restart with the above options would be performed, where the time step distribution is adapted using the DSMC output of the last simulation. Now, the user can decide to continue adapting the time step with the subsequent DSMC outputs (Note: Do not forget to update the DSMCState file name!) or to disable the adaptation and to continue the simulation with the distribution from the last simulation (particle time step is saved with the regular state file). It should be noted that if after a successful restart at e.g. $t=2$, the simulation fails during the runtime at $t=2.5$ before the next state file could be written out at $t=3$, an adaptation for the next simulation attempt shoud NOT be performed as the adapted time step is stored in the output of new restart file at the restart time $t=2$. Rrestart files from which the restart is performed are overwritten after a successful restart.
+
+The parameters `TargetMCSoverMFP` (ratio of the mean collision separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values for the adaption. The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_\mathrm{min} \Delta t$ and $f_\mathrm{max} \Delta t$. Finally, the time step adaptation can be used to increase the number of particles by defining a mimimum particle number (e.g `MinPartNum` = 10, optional).
+
+The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties such as flow velocity, number density and temperature (see Section \ref{sec:macro_restart}). Strictly speaking, the VTS procedure only requires the `Filename`, however, it is recommended to perform a macroscopic restart to initialize the correct particle number per cells. Otherwise, cells with a decreased/increased time step will require some time until the additional particles has reached/left the cell.
+
+#### Linear scaling
+
+The second option is to use a linearly increasing time step along a given direction. This option does not require a restart or a previous simulation result. Currently, only the increase of the time step along the **x-direction** is implemented. With the start point and end point, the region in which the linear increase should be performed can be defined. To define the domain border as the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied. Finally, the `ScaleFactor` defines the maximum time step increase towards the end point $\Delta t (x_\mathrm{end})=f \Delta t$.
+
+    Part-VariableTimeStep-LinearScaling = T
+    Part-VariableTimeStep-ScaleFactor   = 2
+    Part-VariableTimeStep-Direction     =      (/1.0,0.0,0.0/)
+    Part-VariableTimeStep-StartPoint    =     (/-0.4,0.0,0.0/)
+    Part-VariableTimeStep-EndPoint      =  (/-99999.,0.0,0.0/)
+
+Besides DSMC, the linear scaling is available for the BGK method. Finally, specific options for 2D/axisymmetric simulations are discussed in Section \ref{sec:2DAxi_vts}.
+
 ### 2D/Axisymmetric Simulation \label{sec:2DAxi}
 
 For two-dimensional and axisymmetric cases, the computational effort can be greatly reduced. Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$ ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell row, such as that $|z_\mathrm{min}|=|z_\mathrm{max}|$.
@@ -453,13 +505,29 @@ For the cloning procedure, two methods are implemented, where the information of
     Particles-RadialWeighting-CloneMode=2
     Particles-RadialWeighting-CloneDelay=10
 
-This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}).
+This serves the purpose to avoid the so-called particle avalanche phenomenon [@Galitzine2015], where clones travel on the exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same velocity vector) and thus a collision probability of zero. Combined with the nearest neighbor pairing, this would lead to an ever-increasing number of identical particles travelling on the same path. An indicator how often identical particle pairs are encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section \ref{sec:dsmc_quality}). Additionally, it should be noted that a large delay of the clone insertion might be problematic for time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to avoid the avalance phenomenon.
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
     Particles-RadialWeighting-CellLocalWeighting = T
 
 However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to the clustered cloning processes at cell boundaries.
+
+Besides DSMC, 2D/axisymmetric simulations are also possible the BGK particle method with the same parameters as discussed above (for more informatino about the BGK method see Section \ref{sec:bgk}).
+
+#### Variable Time Step: Linear scaling \label{sec:2DAxi_vts}
+
+The linear scaling of the variable time step is implemented slightly different to the 3D case. Here, a particle-based time step is used, where the time step of the particle is determined on its current position. The first scaling is applied in the radial direction, where the time step is increased towards the radial domain border. Thus, $\Delta t (y_\mathrm{max}) = f \Delta t$ and $\Delta t (y_\mathrm{min} = 0) = \Delta t$.
+
+    Part-VariableTimeStep-LinearScaling = T
+    Part-VariableTimeStep-ScaleFactor = 2
+
+Additionally, the time step can be varied along the x-direction by defining a "stagnation" point, towards which the time step is decreased from the minimum x-coordinate ($\Delta t (x_\mathrm{min}) = f_\mathrm{front}\Delta t$) and away from which the time step is increased again towards the maximum x-coordinate ($\Delta t (x_\mathrm{max}) = f_\mathrm{back}\Delta t$). Therefore, only at the stagnation the time step defined during the initialization is used.
+
+    Part-VariableTimeStep-Use2DFunction = T
+    Part-VariableTimeStep-StagnationPoint = 0.0
+    Part-VariableTimeStep-ScaleFactor2DFront = 2.0
+    Part-VariableTimeStep-ScaleFactor2DBack = 2.0
 
 ### Species Definition \label{sec:dsmc_species}
 
@@ -594,7 +662,7 @@ $$ \frac{\Delta t}{\tau} < 1,$$
 
 where $\Delta t$ is the chosen time step and $1/\tau$ the relaxation frequency. The time step should be chosen as such that the relaxation factors are below unity. The `FP_DSMC_Ratio` gives the percentage of the sampled time during which the FP model was utilized. In a couple FP-DSMC simulation this variable indicates the boundary between FP and DSMC. However, a value below 1 can occur for pure FP simulations due to low particle numbers, when an element is skipped. Additionally, the Prandtl number utilized by the ESFP model is given.
 
-### Bhatnagar-Gross-Krook Collision Operator
+### Bhatnagar-Gross-Krook Collision Operator \label{sec:bgk}
 
 The implementation of the BGK-based collision operator is based on the publications by @Pfeiffer2018a and @Pfeiffer2018b. It allows the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The collision integral is hereby approximated by a relaxation process:
 
