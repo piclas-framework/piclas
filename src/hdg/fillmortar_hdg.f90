@@ -25,6 +25,11 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+
+INTERFACE InitMortar_HDG
+  MODULE PROCEDURE InitMortar_HDG
+END INTERFACE
+
 ! reshape vector nGP_face to 0:PP_N,0:PP_N
 !INTERFACE BigToSmallMortar_HDG
 !  MODULE PROCEDURE BigToSmallMortar_HDG
@@ -35,12 +40,112 @@ PRIVATE
 !  MODULE PROCEDURE SmallToBigMortar_HDG
 !END INTERFACE
 
+INTERFACE SmallToBigMortarPrecond_HDG
+  MODULE PROCEDURE SmallToBigMortarPrecond_HDG
+END INTERFACE
+
+PUBLIC::InitMortar_HDG
 PUBLIC::BigToSmallMortar_HDG
 PUBLIC::SmallToBigMortar_HDG
+PUBLIC::SmallToBigMortarPrecond_HDG
 
 !===================================================================================================================================
 
 CONTAINS
+
+
+SUBROUTINE InitMortar_HDG()
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
+USE MOD_HDG_Vars,    ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,PrecondType,nGP_Face
+USE MOD_Mesh_Vars,   ONLY: nSides,MortarType,MortarInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER     :: SideID,iSide,mtype,iMortar,nMortars
+INTEGER     :: i,j,p,q,iGP_face,jGP_face
+REAL        :: dkron(0:PP_N,0:PP_N)
+!===================================================================================================================================
+  ALLOCATE(SmallMortarInfo(1:nSides))
+  SmallMortarInfo=0 
+  
+  !=-1: small mortar neighbor (slave)
+  !=0: not a small mortar
+  != 1: small mortar at big side
+  
+  DO SideID=1,nSides
+    mtype=MortarType(1,SideID)
+    IF(mtype.EQ.-1) THEN
+      SmallMortarInfo(SideID)= 0
+    ELSEIF(mtype.EQ.0)THEN
+      SmallMortarInfo(SideID)= 1
+    ELSEIF(mtype.EQ.-10)THEN
+      SmallMortarInfo(SideID)=-1
+    ELSEIF(mtype.GT.0) THEN
+      !is a big mortar side: 
+      nMortars=MERGE(4,2,mtype.EQ.1)
+      iSide=MortarType(2,SideID)  !index of Big Side in MortarInfo
+      DO iMortar=1,nMortars
+        SmallMortarInfo(  MortarInfo(MI_SIDEID,iMortar,iSide) ) = 1  !small sideID
+        IF(MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide)).NE.0) THEN
+          WRITE(*,*)SideID,MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide))
+          STOP 'InitMortar_HDG: check failed'
+        END IF
+      END DO
+    ELSE
+      STOP 'InitMortar_HDG: this case should not appear!!'
+    END IF 
+    IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=.TRUE.
+  END DO !SideID=1,nSides
+
+  ! not efficient but simpler: build full interpolation matrices for 3 mortartypes
+  dkron=0.
+  DO i=0,PP_N
+    dkron(i,i)=1. !kronecker
+  END DO
+
+  ALLOCATE(IntMatMortar(nGP_face,nGP_Face,4,3)) ! 4-1 , 2-1 in eta, 2-1 in xi
+  IntMatMortar=0. 
+  jGP_face=0
+  DO j=0,PP_N; DO i=0,PP_N
+    jGP_Face=jGP_Face+1
+    iGP_Face=0
+    DO q=0,PP_N; DO p=0,PP_N 
+      iGP_Face=iGP_Face+1
+      !type 1: update
+      ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M_0_1(i,p)*M_0_1(j,q)*lambda_in(:,i,j,MortarSideID)
+      ! U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M_0_2(i,p)*M_0_1(j,q)*lambda_in(:,i,j,MortarSideID)
+      ! U_tmp(:,p,q,3)=U_tmp(:,p,q,3)+M_0_1(i,p)*M_0_2(j,q)*lambda_in(:,i,j,MortarSideID)
+      ! U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M_0_2(i,p)*M_0_2(j,q)*lambda_in(:,i,j,MortarSideID)
+      IntMatMortar(iGP_Face,jGP_Face,1,1) =IntMatMortar(iGP_Face,jGP_Face,1,1) + M_0_1(i,p)*M_0_1(j,q)
+      IntMatMortar(iGP_Face,jGP_Face,2,1) =IntMatMortar(iGP_Face,jGP_Face,2,1) + M_0_2(i,p)*M_0_1(j,q)
+      IntMatMortar(iGP_Face,jGP_Face,3,1) =IntMatMortar(iGP_Face,jGP_Face,3,1) + M_0_1(i,p)*M_0_2(j,q)
+      IntMatMortar(iGP_Face,jGP_Face,4,1) =IntMatMortar(iGP_Face,jGP_Face,4,1) + M_0_2(i,p)*M_0_2(j,q)
+  
+      !type 2: update
+      ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+dkron(i,p)*M_0_1(j,q)*lambda_in(:,i,j,MortarSideID)
+      ! U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+dkron(i,p)*M_0_2(j,q)*lambda_in(:,i,j,MortarSideID)
+      IntMatMortar(iGP_Face,jGP_Face,1,2) =IntMatMortar(iGP_Face,jGP_Face,1,2) + dkron(i,p)*M_0_1(j,q)
+      IntMatMortar(iGP_Face,jGP_Face,2,2) =IntMatMortar(iGP_Face,jGP_Face,2,2) + dkron(i,p)*M_0_2(j,q)
+  
+      !type 3: update
+      ! U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M_0_1(i,p)*dkron(j,q)*lambda_in(:,i,j,MortarSideID)
+      ! U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M_0_2(i,p)*dkron(j,q)*lambda_in(:,i,j,MortarSideID)
+      IntMatMortar(iGP_Face,jGP_Face,1,3) =IntMatMortar(iGP_Face,jGP_Face,1,3) + M_0_1(i,p)*dkron(j,q)
+      IntMatMortar(iGP_Face,jGP_Face,2,3) =IntMatMortar(iGP_Face,jGP_Face,2,3) + M_0_2(i,p)*dkron(j,q)
+    END DO; END DO !p,q (iGP_face)
+  END DO; END DO !i,j (jGP_face)
+END SUBROUTINE InitMortar_HDG
+
 
 SUBROUTINE BigToSmallMortar_HDG(nVar_in,lambda_in)
 !===================================================================================================================================
@@ -174,6 +279,7 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
 END DO !MortarSideID
 END SUBROUTINE BigToSmallMortar_HDG
 
+
 SUBROUTINE SmallToBigMortar_HDG(nVar_in,mv_in)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -294,5 +400,67 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
   END SELECT ! mortarType(MortarSideID)
 END DO !MortarSideID
 END SUBROUTINE SmallToBigMortar_HDG
+
+
+SUBROUTINE SmallToBigMortarPrecond_HDG(whichPrecond)
+!===================================================================================================================================
+!> Mortar matvec action: matrix of small Mortar side (j) SMat_j is multiplied with a small lambda lambda_small_j,
+!> which was computed by interpolation with lambda_small_j = IMat_j lambda_big
+!> mv_small_j = SMat_j * lambda_small_j = SMat_j *IMat_j * lambda_big
+!> then the result is 'interpolated back' and added to big:
+!>  mv_big +=  (Imat_j)^T * mv_small_j = (Imat_j)^T SMat_j Imat_j lambda_big
+!>
+!> Here the "naked" small Side Matrix (1:nGP_face,1:nGP_face) must be multiplied with the Interpolation matrix from the left
+!> and its transpose from the right.  
+!>
+!> not optimized implementation, since buildPrecond is not so oftern called! 
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_HDG_Vars,    ONLY: nGP_Face,Precond,InvPrecondDiag,IntMatMortar
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: whichPrecond
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER     :: i,k,iSide,iMortar,nMortars,mtype,MortarSideID,SmallSideID
+!===================================================================================================================================
+  IF(whichPrecond.EQ.0) RETURN
+
+
+  DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
+  
+    nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+    mtype=MortarType(1,MortarSideID)
+    iSide=MortarType(2,MortarSideID)  !index of Big Side in MortarInfo
+    DO iMortar=1,nMortars
+      SmallSideID = MortarInfo(MI_SIDEID,iMortar,iSide) 
+      SELECT CASE(whichPrecond)
+      CASE(1) !side-block matrix 
+        Precond(:,:,MortarSideID) = Precond(:,:,MortarSideID)                           & 
+                                    + MATMUL(TRANSPOSE(IntMatMortar(:,:,iMortar,mtype)),      &
+                                             MATMUL(Precond(:,:,SmallSideID),IntMatMortar(:,:,iMortar,mtype)))
+        Precond(:,:,SmallSideID)=0.
+      CASE(2) !only diagonal part of the  matrix , M_ij= I_ki D_kk I_kj, only i=j 
+        DO i=1,nGP_Face
+          DO k=1,nGP_Face
+            InvPrecondDiag(i,MortarSideID)= InvPrecondDiag(i,MortarSideID)                  &
+                                + IntMatMortar(k,i,iMortar,mtype)*InvPrecondDiag(k,SmallSideID)*IntMatMortar(k,i,iMortar,mtype)
+          END DO !k
+        END DO !i
+        InvPrecondDiag(:,SmallSideID)=0.
+      END SELECT
+    END DO !iMortar
+  END DO !MortarSideID
+
+END SUBROUTINE SmallToBigMortarPrecond_HDG
 
 END MODULE MOD_FillMortar_HDG

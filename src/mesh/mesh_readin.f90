@@ -531,12 +531,12 @@ DO iElem=FirstElemInd,LastElemInd
       END SELECT
       ALLOCATE(aSide%MortarSide(aSide%nMortars))
       DO iMortar=1,aSide%nMortars
-        aSide%MortarSide(iMortar)%sp=>GETNEWSIDE()
+        aSide%MortarSide(iMortar)%sp=>GETNEWSIDE()  !mortarType=0
       END DO
     ELSE
       aSide%nMortars=0
     END IF
-    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-1 !marks small neighbor  side as belonging to a mortar
+    IF(SideInfo(SIDE_Type,iSide).LT.0) aSide%MortarType=-10 !marks small neighbor  side as belonging to a mortar
 
     IF(aSide%MortarType.LE.0)THEN
       aSide%Elem=>aElem

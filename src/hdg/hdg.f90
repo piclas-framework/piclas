@@ -102,7 +102,7 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart
 USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
-USE MOD_Interpolation_Vars ,ONLY: xGP,wBary
+USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -124,12 +124,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
 nGP_vol =(PP_N+1)**3
 nGP_face=(PP_N+1)**2
-
-IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
-  IF(nMortarMPISides.GT.0) CALL abort( &
-  __STAMP__,&
-  "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )") 
-END IF !mortarMesh
 
 HDGSkip = GETINT('HDGSkip','0')
 IF (HDGSkip.GT.0) THEN
@@ -189,6 +183,16 @@ maxIterCG=GETINT('maxIterCG','500')
 OnlyPostProc=GETLOGICAL('OnlyPostProc','.FALSE.')
 ExactLambda=GETLOGICAL('ExactLambda','.FALSE.')
 
+ALLOCATE(MaskedSide(1:nSides))
+MaskedSide=.FALSE.
+
+IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
+  IF(nMortarMPISides.GT.0) CALL abort( &
+  __STAMP__,&
+  "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )") 
+END IF !mortarMesh
+
+CALL InitMortar_HDG()
 
 !boundary conditions
 nDirichletBCsides=0
@@ -225,6 +229,7 @@ DO SideID=1,nBCSides
   CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
+    MaskedSide(SideID)=.TRUE.
   CASE(10,11) !Neumann, 
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
@@ -313,21 +318,6 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(INT(0,8))
 END IF
 
-
-! Standard mass matrix
-
-ALLOCATE(Fdiag(nGP_face,6,PP_nElems))
-Fdiag=0.
-DO iElem=1,PP_nElems
-  DO iLocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1)+p+1
-      Fdiag(r,iLocSide,iElem)=SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-    END DO; END DO !p,q
-  END DO !iLocSide
-  Fdiag(:,:,iElem)= - Fdiag(:,:,iElem)*Tau(iElem)
-END DO !iElem
 
 CALL BuildPrecond()
 
@@ -1211,7 +1201,7 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: Smat,Fdiag, nGP_face,nDirichletBCSides,DirichletBC
+USE MOD_HDG_Vars           ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_Mesh_Vars          ,ONLY: MortarType
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
@@ -1263,7 +1253,6 @@ DO SideID=firstSideID,lastSideID
                         lambda(:,SideID),1,1.,& !add to mv 
                         mv(:,jSideID(jLocSide)),1)  
     END DO !jLocSide 
-    mv(:,SideID)=mv(:,SideID)-Fdiag(:,locSideID,ElemID)*lambda(:,SideID)
   END IF !locSideID.NE.-1
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -1276,7 +1265,6 @@ DO SideID=firstSideID,lastSideID
                         lambda(:,SideID),1,1.,& !add to mv 
                         mv(:,jSideID(jLocSide)),1)  
     END DO !jLocSide 
-    mv(:,SideID)=mv(:,SideID)-Fdiag(:,locSideID,ElemID)*lambda(:,SideID)
   END IF !locSideID.NE.-1
   !add mass matrix
 END DO ! SideID=1,nSides
@@ -1300,7 +1288,6 @@ DO SideID=firstSideID,lastSideID
                         lambda(:,SideID),1,1.,& !add to mv 
                         mv(:,jSideID(jLocSide)),1)  
     END DO !jLocSide 
-    mv(:,SideID)=mv(:,SideID)-Fdiag(:,locSideID,ElemID)*lambda(:,SideID)
   END IF !locSideID.NE.-1
   ! neighbour element
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -1313,7 +1300,6 @@ DO SideID=firstSideID,lastSideID
                         lambda(:,SideID),1,1.,& !add to mv 
                         mv(:,jSideID(jLocSide)),1)
     END DO !jLocSide 
-    mv(:,SideID)=mv(:,SideID)-Fdiag(:,locSideID,ElemID)*lambda(:,SideID)
   END IF !locSideID.NE.-1
   !add mass matrix
 END DO ! SideID=1,nSides
@@ -1386,12 +1372,15 @@ SUBROUTINE ApplyPrecond(R, V)
 ! Apply the block-diagonal preconditioner for the lambda system
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_HDG_Vars           ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_HDG_Vars           ,ONLY: MaskedSide
+USE MOD_Mesh_Vars          ,ONLY: nSides,MortarType
+USE MOD_Mesh_Vars          ,ONLY: FirstMortarInnerSide 
+USE MOD_Mesh_Vars          ,ONLY:nMPIsides_YOUR
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPIsides_YOUR
 #endif /*MPI*/ 
 
 ! IMPLICIT VARIABLE HANDLING
@@ -1409,26 +1398,30 @@ INTEGER :: firstSideID, lastSideID, SideID, igf
 
 
 firstSideID = 1
-#ifdef MPI
 lastSideID = nSides-nMPIsides_YOUR
-#else
-lastSideID = nSides
-#endif /*MPI*/
 
 SELECT CASE(PrecondType)
 CASE(0)
   ! do nothing, should not be called
 CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   DO SideID=firstSideID,lastSideID
-    ! solve the preconditioner linear system
-    call solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
+    IF(MaskedSide(sideID)) THEN
+      V(:,SideID)=0.
+    ELSE
+      ! solve the preconditioner linear system
+      CALL solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
+    END IF !maskedSide
   END DO ! SideID=1,nSides
 CASE(2)
   DO SideID=firstSideID,lastSideID
-    ! apply inverse of diagonal preconditioner
-    DO igf = 1, nGP_face
-      V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
-    END DO ! igf
+    IF(MaskedSide(sideID)) THEN
+      V(:,SideID)=0.
+    ELSE
+      ! apply inverse of diagonal preconditioner
+      DO igf = 1, nGP_face
+        V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
+      END DO ! igf
+    END IF !maskedSide
   END DO ! SideID=1,nSides
 END SELECT ! PrecondType
 
@@ -1558,11 +1551,13 @@ SDEALLOCATE(JwGP_vol)
 SDEALLOCATE(Ehat)
 SDEALLOCATE(Smat)
 SDEALLOCATE(Tau)
-SDEALLOCATE(Fdiag)
 SDEALLOCATE(lambda)
 SDEALLOCATE(RHS_vol)
 SDEALLOCATE(Precond)
 SDEALLOCATE(InvPrecondDiag)
+SDEALLOCATE(MaskedSide)
+SDEALLOCATE(SmallMortarInfo)
+SDEALLOCATE(IntMatMortar)
 END SUBROUTINE FinalizeHDG
 
 

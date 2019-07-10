@@ -239,7 +239,7 @@ DO iElem=FirstElemInd,LastElemInd
         nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side
       END IF
     END IF ! nMortars>0
-    IF(aSide%MortarType.EQ.-1)THEN
+    IF(aSide%MortarType.EQ.-10)THEN
       nbProc_loc=aSide%nbProc
       IF(nbProc_loc.NE.-1) THEN
         iNbProc=MINLOC(ABS(NBproc(:)-nbProc_loc),1) 
@@ -393,10 +393,10 @@ DO iNbProc=1,nNbProcs
         ! KEEP all small mortars from big side as master!!!
         IF(myRank.LT.aSide%NBproc)THEN
           IF(iMortar.GT.0)  aSide%ind=-aSide%ind   ! small mortars from big sides
-          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-1)) aSide%ind=2*nGlobalUniqueSides+ aSide%ind   ! small mortar neighbors (MortarType=-1)
+          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=2*nGlobalUniqueSides+ aSide%ind   ! small mortar neighbors (MortarType=-1)
         ELSE 
           IF(iMortar.GT. 0)  aSide%ind=2*nGlobalUniqueSides+aSide%ind   ! small mortars from big sides
-          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-1)) aSide%ind=-aSide%ind   ! small mortar neighbors (MortarType=-1)
+          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=-aSide%ind   ! small mortar neighbors (MortarType=-1)
         END IF
 #else
         IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.0)) aSide%ind=-aSide%ind
@@ -914,6 +914,7 @@ DO iElem=1,nElems
       END DO ! iMortar
       nSides_MortarType(aSide%MortarType)=nSides_MortarType(aSide%MortarType)+1
     END IF ! mortarSide
+    IF((aSide%nbProc.GT.-1).AND.(aSide%MortarType.EQ.-10))MortarType(1,aSide%SideID)=-10
   END DO ! LocSideID
 END DO ! iElem
 
@@ -955,16 +956,19 @@ DO iElem=1,nElems
   LOGWRITE(*,*)'=============== iElem= ',iElem, '==================='
   DO LocSideID=1,6
     aSide=>aElem%Side(LocSideID)%sp
-    LOGWRITE(*,'(6(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
-             ', nbProc= ',aSide%nbProc, ', MortarType= ',aSide%MortarType,    ', nMortars= ',aSide%nMortars
+    LOGWRITE(*,'(7(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
+             ', nbProc= ',aSide%nbProc, ', %MortarType= ',aSide%MortarType, &
+             ', MortarTypeArray= ',MortarType(1,aSide%SideID),    ', nMortars= ',aSide%nMortars
+             
     IF(aSide%nMortars.GT.0)THEN ! mortar side
       LOGWRITE(*,*)'   --- Mortars ---'
       DO iMortar=1,aSide%nMortars
-        LOGWRITE(*,'(I4,5(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
+        LOGWRITE(*,'(I4,6(A,I4))') iMortar,', globSideID= ',aSide%MortarSide(iMortar)%sp%ind, &
                      ', flip= ',aSide%MortarSide(iMortar)%sp%Flip, &
                      ', SideID= ',aSide%MortarSide(iMortar)%sp%SideID, &
                      ', nbProc= ',aSide%MortarSide(iMortar)%sp%nbProc, &
-                     ', MortarType= ',aSide%MortarSide(iMortar)%sp%MortarType
+                     ', %MortarType= ',aSide%MortarSide(iMortar)%sp%MortarType, &
+                     ', MortarTypeArray= ',MortarType(1,aSide%MortarSide(iMortar)%sp%SideID)
       END DO ! iMortar
     END IF ! mortarSide
   END DO ! LocSideID

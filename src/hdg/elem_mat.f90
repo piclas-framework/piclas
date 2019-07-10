@@ -75,7 +75,7 @@ INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
 INTEGER              :: iDir,jDir 
 INTEGER              :: iLocSide, jLocSide
 INTEGER              :: SideID(6),Flip(6)
-REAL                 :: TauS(2,3)
+REAL                 :: TauS(2,3),Fdiag_i
 REAL                 :: Dhat(nGP_vol,nGP_vol)
 REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
@@ -270,6 +270,14 @@ DO iElem=1,PP_nElems
                         Stmp1,nGP_vol,0.,& 
                         Stmp2,nGP_face)  
     Smat(:,:,jLocSide,jLocSide,iElem) = Smat(:,:,jLocSide,jLocSide,iElem) + Stmp2
+    !standard diagonal side mass matrix Fdiag =-Tau(elem)*wGP_pq*surfelem_pq
+    ! then combined with to Smat  = Smat - F 
+    DO q=0,PP_N; DO p=0,PP_N
+      i=q*(PP_N+1)+p+1
+      Fdiag_i = - Tau(ielem)*SurfElem(p,q,SideID(jLocSide))*wGP(p)*wGP(q)
+      Smat(i,i,jLocSide,jLocSide,iElem) = Smat(i,i,jLocSide,jLocSide,iElem) -Fdiag_i
+    END DO; END DO !p,q
+
     ! off-diagonal terms
     DO iLocSide=jLocSide+1,6
       !Stmp2 = MATMUL( Ehat(:,:,iLocSide,iElem) , Stmp1 )
@@ -335,6 +343,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
 USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortarPrecond_HDG
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -365,27 +374,20 @@ CASE(1)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
-      DO igf=1,nGP_face
-        Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,locSideID,ElemID)
-      END DO
     END IF !locSideID.NE.-1
     ! neighbour element
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
-      DO igf=1,nGP_face
-        Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,locSideID,ElemID)
-      END DO
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
 #ifdef MPI
   CALL Mask_MPISides(nGP_face,Precond)
 #endif /*MPI*/
-  !TODO MORTAR
-
-  !TODO MORTAR
+  CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
+    IF(MaskedSide(SideID))CYCLE
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info) 
     IF (lapack_info .NE. 0) THEN
@@ -412,20 +414,22 @@ CASE(2)
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
       DO igf = 1, nGP_face
         InvPrecondDiag(igf,SideID) = InvPrecondDiag(igf,SideID)+ &
-                              Smat(igf,igf,locSideID,locSideID,ElemID) &
-                             -Fdiag(igf,locSideID,ElemID)
+                              Smat(igf,igf,locSideID,locSideID,ElemID)
       END DO ! igf
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
 #ifdef MPI
   CALL Mask_MPISides(1,InvPrecondDiag)
 #endif /*MPI*/
-  !TODO MORTAR
-
-  !TODO MORTAR
+  CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
-    InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)
+    IF(MaskedSide(SideID))CYCLE
+    IF (MAXVAL(ABS(InvPrecondDiag(:,SideID))).GT.1.0e-12) THEN
+      InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)
+    ELSE
+      STOP 'DIAGONAL MATRIX ENTRIES <1.0e-12,  INVERSION FAILED!'
+    END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
 END SUBROUTINE BuildPrecond

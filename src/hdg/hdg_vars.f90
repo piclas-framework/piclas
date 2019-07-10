@@ -33,7 +33,6 @@ LOGICAL             :: OnlyPostProc=.FALSE. ! Flag to initialize exact function 
 LOGICAL             :: ExactLambda =.FALSE. ! Flag to initialize exact function for lambda 
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)       ! Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
 REAL,ALLOCATABLE    :: Ehat(:,:,:,:)        ! Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
-REAL,ALLOCATABLE    :: Fdiag(:,:,:)         ! diagonal mass matrix for side sytem for each element separately (nGP_face,6,nElems)
 REAL,ALLOCATABLE    :: wGP_vol(:)           ! 3D quadrature weights 
 REAL,ALLOCATABLE    :: JwGP_vol(:,:)        ! 3D quadrature weights*Jacobian for all elements
 REAL,ALLOCATABLE    :: lambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
@@ -73,6 +72,11 @@ LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
 INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
+LOGICAL,ALLOCATABLE :: MaskedSide(:)      ! 1:nSides: all sides which are set to zero in matvec
+!mortar variables
+REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:) ! Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(Mortartype))
+INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar sides: 
+                                               ! -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
 !===================================================================================================================================
 
 
