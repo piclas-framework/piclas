@@ -25,12 +25,15 @@ INTERFACE DSMC_perform_collision
   MODULE PROCEDURE DSMC_perform_collision
 END INTERFACE
 
+INTERFACE DSMC_cross_section
+  MODULE PROCEDURE DSMC_cross_section
+END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_perform_collision
+PUBLIC :: DSMC_perform_collision,DSMC_cross_section
 !===================================================================================================================================
 
 CONTAINS
@@ -2887,7 +2890,7 @@ __STAMP__&
 
 END SUBROUTINE DSMC_calc_P_vib
 
-REAL FUNCTION DSMC_Cross_Section(iPair,CRela2)
+FUNCTION DSMC_cross_section(iPair,CRela2)
 !===================================================================================================================================
 ! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not collision-averaged.(Krishnan 2015/2016) 
 !===================================================================================================================================
@@ -2904,31 +2907,33 @@ REAL FUNCTION DSMC_Cross_Section(iPair,CRela2)
   INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                          :: VSS_Cross_Section         ! sigma_t, total collision cross-section bird1994 (2.31) 
-                                                             ! with (p.42 l.2)!! 
+  REAL                          :: DSMC_Cross_Section                    ! sigma_t, total collision cross-section bird1994 (2.31) 
+                                                                         ! with (p.42 l.2)!! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: Spec1ID,Spec2ID           ! colliding particles and species, respectively
-  REAL                          :: diameter_squared          !  
+  INTEGER                       :: Spec1ID,Spec2ID                       ! colliding particles and species, respectively
+  REAL                          :: diameter_squared,energy_translational ! to be solved, beschreibung 
+ real :: t 
 !===================================================================================================================================
+t=1.0   
    Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
    Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
   ! mu ref einlesen !to be solved
-  IF(Calc_diameterCase.EQ.0) THEN ! via d(dref)
+  IF(CollInf%diameterCase.EQ.0) THEN ! via d(dref)
     ! dref-based diameter bird to be solved ansonsten krishnan 
     diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
-                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature
+                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature in Zelle oder des Teilchens
   ELSE ! via d(muref)
-    energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1D,Spec2D))*CRela2
+    energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
     ! viscosity-based diameter bird (3.74)
-    diameter_squared     = PI * ((5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
+    diameter_squared     = (5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
                          * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5                                     & 
                          * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omegaVSS(Spec1ID,Spec2ID) - 0.5))      &
                          / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omegaVSS(Spec1ID,Spec2ID))            &
                          * (SpecDSMC(Spec1ID)%muRef+SpecDSMC(Spec2ID)%muRef) / 2                                               &
-                         * (energy_translational) ** (CollInf%Tref(Spec1ID,Spec2ID)omega - 1.0)) 
+                         * (energy_translational) ** (CollInf%omegaVSS(Spec1ID,Spec2ID) - 1.0)) 
   END IF
-  VSS_Cross_Section    = PI*diameter_squared
+  DSMC_Cross_Section    = PI*diameter_squared
 END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)

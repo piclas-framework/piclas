@@ -200,9 +200,14 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-      ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
-      DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
-                                            SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+      IF(CollInf%collModel.EQ.0) THEN
+        ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
+        DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
+                            SpecDSMC(1)%omegaVHS,DSMC%InstantTransTemp(nSpecies+1))
+      ELSE ! Calculation of mean free path with VSS model accordingly
+        DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
+                            opt_temp=DSMC%InstantTransTemp(nSpecies+1))
+      END IF
       ! Determination of the maximum MCS/MFP for the cell
       IF (DSMC%CollSepCount.GT.0 .AND. DSMC%MeanFreePath.GT.0.0) THEN
         DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)

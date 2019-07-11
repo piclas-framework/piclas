@@ -43,6 +43,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
   USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, PartState
+  USE MOD_DSMC_Collis,            ONLY : DSMC_cross_section  
 !  USE MOD_Particle_Vars,          ONLY : usevMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : Geo       ! da muss noch was getan werden (s.u.)
   USE MOD_TimeDisc_Vars,          ONLY : dt
@@ -62,9 +63,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                             :: iPType, NbrOfReaction, collPart1ID, collPart2ID, collPairID
-  INTEGER(KIND=8)                     :: SpecNum1, SpecNum2i
+  INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
   REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot !total collision cross-section
-  REAL, ALLOCATABLE
   REAL(KIND=8)                        :: Volume ! cell volume
 !  INTEGER                             :: SpecToExec
 !  LOGICAL                             :: DoSimpleElectronColl
@@ -73,7 +73,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   INTEGER                             :: iReac, iSpec
 #endif
 !===================================================================================================================================
-  
   collPart1ID = Coll_pData(iPair)%iPart_p1
   collPart2ID = Coll_pData(iPair)%iPart_p2
   collPairID  = Coll_pData(iPair)%PairType
@@ -91,7 +90,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
       SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(collPart1ID)),8) ! number of particles of spec 1
       SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(collPart2ID)),8) ! number of particles of spec 2
-      IF(CollInf%collMod.EQ.0) THEN
+      IF(CollInf%collModel.EQ.0) THEN
         IF (BGGas%BGGasSpecies.NE.0) THEN                                     
           ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        ! to be solved not sure why Na*Nb/Sab=BGColl_SpecPartNum     
           Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                & 
@@ -108,15 +107,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
                                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
         END IF
-
       ELSE ! VSS
         ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
         !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
-        sigma_vss(iPair)       = DSMC_Cross_Section( iPair, CollInf%dref, CollInf%Tref, Coll_pData(iPair)%CRela2 )
-        Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
-                               * Species(PartSpecies(collPart1ID))%MacroParticleFactor
-                               * dt / (Volume + CollInf%Coll_CaseNum(collPairID)) & 
-                               * sigma_vss * Coll_pData(iPair)%CRela2 
+        Coll_pData(iPair)%sigma(1) = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2)
+        Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
+                                   * Species(PartSpecies(collPart1ID))%MacroParticleFactor              &
+                                   * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
+                                   * Coll_pData(iPair)%sigma(1) * Coll_pData(iPair)%CRela2 
       END IF
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron

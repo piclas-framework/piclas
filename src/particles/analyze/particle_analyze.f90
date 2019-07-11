@@ -989,13 +989,9 @@ IF (CollisMode.GT.1) THEN ! for relaxation - inner DOF
       IF (PartMPI%MPIROOT) THEN
 #endif
         IF(TempTotal(nSpecAnalyze).GT.0.0) THEN
-          IF(CollInf%CollMod.EQ.0) THEN ! collision-averaged
             MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
                            GEO%MeshVolume, SpecDSMC(1)%omegaVHS, TempTotal(nSpecAnalyze))
-          ELSE ! collision-specific  !to be solved
-            MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
-                            GEO%MeshVolume, , TempTotal(nSpecAnalyze))
-          END IF                
+        END IF                
 #ifdef MPI
       END IF
 #endif

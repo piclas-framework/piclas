@@ -244,12 +244,12 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                              ! Collision information 
-  INTEGER                       :: collMod                 ! Collision model used. 0 - VHS,1 - VSS
-  INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0- d(dref), 1- d(muref)
+  INTEGER                       :: collModel               ! Collision model used. 0 - VHS,1 - VSS
+  INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0= d(dref), 1= d(muref)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination
-  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of species combination per cell Sab (number of cases)
-  REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)     ! number of particle of species n per cell (nSpec)
+  INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of simulated species combination per cell Sab (number of cases)
+  REAL          , ALLOCATABLE   :: Coll_SpecPartNum(:)     ! number of simulated particles of species n per cell (nSpec)
   REAL          , ALLOCATABLE   :: Cab(:)                  ! species factor for cross section (number of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)            ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)

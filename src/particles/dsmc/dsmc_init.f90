@@ -65,8 +65,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      &
 CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      &
                                         , 'Define mode of collision handling in DSMC.\n'//&
                                             '0: No Collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
-                                              '1: Elastic Collision \n'//&
-                                          '2: Relaxation + Elastic Collision \n'//&
+                                            '1: Elastic Collision \n'//&
+                                            '2: Relaxation + Elastic Collision \n'//&
                                             '3: Mode 2 + Chemical Reactions.', '1')
 CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'     &
                                         , 'Mode of Selection Procedure\n'//&
@@ -170,10 +170,10 @@ CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
                                             '0 : dref  - reference diameter\n'//&
                                             '1 : muref - viscosity at reference temperature\', '0')
 CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
-                                           ,' VSS exponent as defined in Bird (2.36). Default alpha==1'                        //&
-                                            ' for VHS calculation. See Bird 1994 p.42 for more information.',                  //&
-                                            ' Can be found in tables e.g. in\n' 
-                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'                              //&
+                                           ,' VSS exponent as defined in Bird (2.36). Default alpha==1'                      //&
+                                            ' for VHS calculation. See Bird 1994 p.42 for more information.'                 //&
+                                            ' Can be found in tables e.g. in\n'                                              //& 
+                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'                          //&
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
                                            ,' Reference value for temperature exponent omega for variable soft sphere model.'//&
@@ -182,7 +182,7 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
                                            ,' 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,' Collision-specific reference diameter. Values can be found in papers such as '//&
-                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373),'                           //&
+                                            ' krishnan2015(https://doi.org/10.2514/6.2015-3373)\n'                           //&
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
                                            ,' Temperature of collision-specific reference diameter.' , '1.', numberedmulti=.TRUE.)
@@ -210,7 +210,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-muRef'  &
-                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'//&
+                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
                                            , '1.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
@@ -300,7 +300,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Chemistry")
-CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
+CALL prms%CreateIntOption(      'DSMC-NumOfactions'  &
                                            ,'Number of reactions.', '0')
 CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives'  &
                                            ,'TODO-DEFINE-PARAMETER', '0', numberedmulti=.TRUE.)
@@ -620,9 +620,9 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading in VSS variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CollInf%collMod      = GETINT('Part-CollisionModel','0') 
+  CollInf%collModel      = GETINT('Part-CollisionModel','0') 
   CollInf%diameterCase = GETINT('Part-CollisionDiameterCase','0')
-  IF(CollInf%collMod.EQ.1) THEN ! VSS
+  IF(CollInf%collModel.EQ.1) THEN ! VSS
     ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
     ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
     ALLOCATE(CollInf%dref(nSpecies,nSpecies))
@@ -632,7 +632,7 @@ __STAMP__&
     CollInf%dref=0.                                    
     CollInf%Tref=0.                                     
     DO iSpec=1,CollInf%NumCase ! alphaVSS and omegaVSS (collision-specific parameters-> Matrix) read-in
-      DO jSpec=iSpec,CollInf%NumCase
+      DO jSpec=1,CollInf%NumCase
         iCase=iCase+1
         WRITE(UNIT=hilf,FMT='(I0)') iCase
         CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
@@ -644,7 +644,7 @@ __STAMP__&
           CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
           CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
           CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
-          IF(CollInf%omegaVSS(iSpec,jSpec.EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
+          IF(CollInf%omegaVSS(iSpec,jSpec).EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
         ELSEIF((CollInf%alphaVSS(iSpec,jSpec).EQ.1)) THEN
           CALL Abort(&
             __STAMP__&
@@ -653,7 +653,7 @@ __STAMP__&
         END IF
       END DO
     END DO
-  ELSEIF (CollInf%collMod.EQ.0) THEN ! VHS default 
+  ELSEIF (CollInf%collModel.EQ.0) THEN ! VHS default 
     CollInf%alphaVSS=1. !=alphaVHS=1
     CollInf%omegaVSS=0.
       DO iSpec=1,nSpecies
