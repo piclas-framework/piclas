@@ -24,7 +24,7 @@ MODULE MOD_QDS_SurfInt
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ USE MOD_QDS_Equation_vars,  ONLY:QDSnVar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE
 REAL,INTENT(IN)    :: Flux_Master(1:QDSnVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(IN)    :: Flux_Slave(1:QDSnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,7 +64,7 @@ REAL,INTENT(INOUT)   :: Ut(QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
 INTEGER            :: ElemID,Flip,SideID,locSideID
 INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL               ::L_HatMinus0,L_HatPlusN 
+REAL               ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 
@@ -95,7 +95,7 @@ END DO ! SideID=1,nSides
 
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
-  ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
@@ -126,7 +126,7 @@ REAL,INTENT(INOUT)   :: Ut(QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems)
 ! LOCAL VARIABLES
 INTEGER            :: p,q,l
 #if (PP_NodeType>1)
-REAL            ::L_HatMinus0,L_HatPlusN 
+REAL            ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 #if (PP_NodeType>1)
@@ -315,7 +315,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_MINUS)
@@ -342,7 +342,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,p,PP_N-q)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ZETA_MINUS direction
 !===================================================================================================================================
   CASE(ZETA_MINUS)
@@ -369,7 +369,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
-  
+
 !===================================================================================================================================
   CASE(XI_PLUS)
 !===================================================================================================================================
@@ -395,7 +395,7 @@ L_HatPlusN  = L_HatPlus(PP_N)
         Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,p,PP_N-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
-  
+
   ! switch to right hand system for ETA_PLUS direction
 !===================================================================================================================================
   CASE(ETA_PLUS)

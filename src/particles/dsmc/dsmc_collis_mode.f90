@@ -26,7 +26,7 @@ INTERFACE DSMC_perform_collision
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 !===================================================================================================================================
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
-! MODULES  
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -63,7 +63,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
-  
+
   !Calculation of velo from center of mass
   VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
          + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
@@ -73,7 +73,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
          + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 6)
 
   IF(usevMPF) THEN
-    IF (iPair.EQ.PairE_vMPF(1)) THEN  
+    IF (iPair.EQ.PairE_vMPF(1)) THEN
       Coll_pData(iPair)%CRela2 = Coll_pData(iPair)%CRela2 + 2 * GEO%DeltaEvMPF(iElem) &
                                / CollInf%MassRed(Coll_pData(iPair)%PairType) &
                                / PartMPF(PairE_vMPF(2))
@@ -85,8 +85,8 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   RanVelox = SQRT(Coll_pData(iPair)%CRela2) * RanVec(1)
   RanVeloy = SQRT(Coll_pData(iPair)%CRela2) * RanVec(2)
   RanVeloz = SQRT(Coll_pData(iPair)%CRela2) * RanVec(3)
-  
- ! deltaV particle 1 
+
+ ! deltaV particle 1
   DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = VeloMx + FracMassCent2*RanVelox &
           - PartState(Coll_pData(iPair)%iPart_p1, 4)
   DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = VeloMy + FracMassCent2*RanVeloy &
@@ -152,16 +152,16 @@ SUBROUTINE DSMC_Scat_Col(iPair)
   sigma_tot = ((aCEX+0.5*aEL)*0.5*LOG10(Coll_pData(iPair)%CRela2)+bCEX+0.5*bEL)
 
   CALL RANDOM_NUMBER(uRan2)
-  
+
 IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ! Calculation of relative veloocities
     CRelax = PartState(Coll_pData(iPair)%iPart_p1, 4) - PartState(Coll_pData(iPair)%iPart_p2, 4)
     CRelay = PartState(Coll_pData(iPair)%iPart_p1, 5) - PartState(Coll_pData(iPair)%iPart_p2, 5)
     CRelaz = PartState(Coll_pData(iPair)%iPart_p1, 6) - PartState(Coll_pData(iPair)%iPart_p2, 6)
-    
+
     FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
     FracMassCent2 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p2), Coll_pData(iPair)%PairType)
-  
+
     ! Calculation of velo from center of mass
     VeloMx = FracMassCent1 * PartState(Coll_pData(iPair)%iPart_p1, 4) &
       + FracMassCent2 * PartState(Coll_pData(iPair)%iPart_p2, 4)
@@ -174,8 +174,8 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     bmax = SQRT(sigma_el/Pi)
     b = bmax * SQRT(uRan2)
     Ekin = (0.5*CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2/(1.6021766208E-19))
-    
-    
+
+
     ! Determination of scattering angle by interpolation from a lookup table
     ! Check if Collision Energy is below the threshold of table
     IF (Ekin.LT.TLU_Data%Emin) THEN
@@ -214,7 +214,7 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = VeloMz - FracMassCent1*CRelazN &
       - PartState(Coll_pData(iPair)%iPart_p2, 6)
 
-    ! Decision concerning CEX 
+    ! Decision concerning CEX
     P_CEX = 0.5
     CALL RANDOM_NUMBER(uRan3)
     iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
@@ -223,13 +223,13 @@ IF ((sigma_el/sigma_tot).GT.uRan2) THEN
     ELSE
       CALL simpleMEX(iReac, iPair)
     END IF
-    
+
   ELSE
     ! Perform CEX and leave velocity vectors alone otherwise
     ! CEX
     iReac    = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
     CALL simpleCEX(iReac, iPair)
-    
+
   END IF
 
 END SUBROUTINE DSMC_Scat_Col
@@ -240,7 +240,7 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY :  TLU_Data 
+  USE MOD_DSMC_Vars,              ONLY :  TLU_Data
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -257,12 +257,12 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
   INTEGER                        :: szb,szE
   REAL                           :: chi_b_p_E_j,chi_b_p_E_jp1,chi_b_p_e_p
 !===================================================================================================================================
-  IF (E_p.GT.TLU_Data%Emax) THEN 
+  IF (E_p.GT.TLU_Data%Emax) THEN
     CALL abort(__STAMP__,&
         'Collis_mode - Error in TLU_Scat_Interpol: E_p GT Emax')
   END IF
   !write (*,*) (E_p-TLU_Data%Emin), TLU_Data%deltaE
-  j_f = (E_p-TLU_Data%Emin)/TLU_Data%deltaE 
+  j_f = (E_p-TLU_Data%Emin)/TLU_Data%deltaE
   J = FLOOR(j_f)
   w_j = j_f - J
   J = J + 1                                ! Fitting of the indices for the use in FORTRAN matrix
@@ -274,10 +274,10 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
 
   w_i_j = i_f_j - I_j
   w_i_jp1 = i_f_jp1-I_jp1
-  
+
   I_j     = FLOOR(i_f_j)+1                ! Fitting of the indices for the use in FORTRAN matrix
   I_jp1   = FLOOR(i_f_jp1)+1              !
-  
+
   szE = SIZE(TLU_Data%Chitable,dim=1)   !SIZE(delta_b_j)
   szB = SIZE(TLU_Data%Chitable,dim=2)
 
@@ -293,7 +293,7 @@ SUBROUTINE TLU_Scat_Interpol(E_p,b_p,ScatAngle)
     chi_b_p_E_p   = (1-w_j)     * chi_b_p_E_j               + w_j     * chi_b_p_E_jp1
   END IF
   ScatAngle = chi_b_p_E_p
-  
+
   !write(*,*) (ScatAngle/ACOS(-1.0)*180), I_jp1, szB
 END SUBROUTINE TLU_Scat_Interpol
 
@@ -302,12 +302,12 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 ! Performs inelastic collisions with energy exchange (CollisMode = 2/3), allows the relaxation of both collision partners
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
-! MODULES  
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF!, Debug_Energy
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
-  USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
+  USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
@@ -342,10 +342,10 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   DoVib2  = .FALSE.
   DoElec1 = .FALSE.
   DoElec2 = .FALSE.
-  
+
   Xi_rel = 2*(2. - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS)
     ! DOF of relative motion in VHS model, only for one omega!!
- 
+
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
 
 !  IF((usevMPF).AND.(iPair.EQ.PairE_vMPF(1))) THEN         ! adding energy lost due to vMPF
@@ -498,14 +498,14 @@ END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
   END IF
 
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
   IF(DoRot1) THEN
     IF(SpecDSMC(iSpec1)%PolyatomicMol.AND. &
         (SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
@@ -607,18 +607,18 @@ END SUBROUTINE DSMC_Relax_Col_LauxTSHO
 SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !===================================================================================================================================
 ! Performs inelastic collisions with energy exchange (CollisMode = 2/3)
-! Selection procedure according to Gimelshein et al. (Physics of Fluids, V 14, No 12, 2002: 'Vibrational Relaxation rates in the 
+! Selection procedure according to Gimelshein et al. (Physics of Fluids, V 14, No 12, 2002: 'Vibrational Relaxation rates in the
 ! DSMC Method') For further understanding see Zhang, Schwarzentruber, Physics of Fluids, V25, 2013: 'inelastic collision selection
 ! procedures for DSMC calculation of gas mixtures')
 !===================================================================================================================================
-! MODULES  
+! MODULES
   USE MOD_Globals,                ONLY : Abort
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, VibQuantsPar, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, usevMPF, PartMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
+  USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
@@ -671,7 +671,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
-  
+
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib1, ProbVibMax1)
@@ -856,13 +856,13 @@ __STAMP__&
       END IF
     ELSE
       CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)      
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
     END IF
   END IF
 
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
-!--------------------------------------------------------------------------------------------------! 
+!--------------------------------------------------------------------------------------------------!
 
   IF(DoRot1) THEN
     !check if correction term in distribution (depending on relaxation model) is needed
@@ -875,7 +875,7 @@ __STAMP__&
     ! check for polyatomic treatment
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ! no polyatomic treatment
     ELSE
@@ -1014,8 +1014,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! LOCAL VARIABLES
   LOGICAL                       :: RelaxToDo
 !===================================================================================================================================
-  
-  IF(DSMC%CalcQualityFactors) THEN  
+
+  IF(DSMC%CalcQualityFactors) THEN
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) &
                                          - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
@@ -1287,7 +1287,7 @@ REAL (KIND=8)                 :: iRan, iRan2, iRan3
             Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
                                  + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
                                  + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-            CALL CalcReactionProb(iPair,iReac,ReactionProb)                     
+            CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirRateStatistic) THEN
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
@@ -2162,7 +2162,7 @@ __STAMP__&
           iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
                                                                                       PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,nPartNode,Volume)
-        ELSE 
+        ELSE
           ReactionProb3 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
@@ -2266,7 +2266,7 @@ __STAMP__&
           iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
                                                                                   PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,nPartNode,Volume)
-        ELSE 
+        ELSE
           ReactionProb3 = 0.0
         END IF
 #if (PP_TimeDiscMethod==42)
@@ -2671,7 +2671,7 @@ __STAMP__&
         ! traditional Recombination
           ! Calculation of reaction probability
           CALL CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
-          
+
 #if (PP_TimeDiscMethod==42)
           IF (.NOT.DSMC%ReservoirRateStatistic) THEN
             ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
@@ -2849,19 +2849,19 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
     ProbRot = DSMC%RotRelaxProb * CorrFact
   ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
-    ProbRot = 1/SpecDSMC(iSpec)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec)%omegaVHS) & 
+    ProbRot = 1/SpecDSMC(iSpec)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec)%omegaVHS) &
             / lacz_gamma(RotDOF+1.5-SpecDSMC(iSpec)%omegaVHS) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(iSpec)%TempRefRot &
             / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-SpecDSMC(iSpec)%omegaVHS)  &
             / lacz_gamma(RotDOF+1.-SpecDSMC(iSpec)%omegaVHS) * (BoltzmannConst*SpecDSMC(iSpec)%TempRefRot &
             / (TransEn + RotEn) ) * (PI**2./4. + PI)) &
-            * CorrFact     
+            * CorrFact
 
   ELSEIF(DSMC%RotRelaxProb.EQ.3.0) THEN ! P_rot according to Zhang (NDD)
-    ! if model is used for further species but N2, it should be checked if factors n = 0.5 and Cn = 1.92 are still valid 
+    ! if model is used for further species but N2, it should be checked if factors n = 0.5 and Cn = 1.92 are still valid
     ! (see original eq of Zhang)
     ProbRot = 1.92 * lacz_gamma(Xi_rel/2.) * lacz_gamma(RotDOF/2.) / lacz_gamma(Xi_rel/2.+0.5) / lacz_gamma(RotDOF/2.-0.5) &
             * (1 + (Xi_rel/2-0.5)*BoltzmannConst*SpecDSMC(iSpec)%TempRefRot/TransEn) * (TransEn/RotEn)**0.5 &
-            * CorrFact  
+            * CorrFact
     ProbRotMax = MAX(ProbRot, 0.5) ! BL energy redistribution correction factor
     ProbRot = MIN(ProbRot, 0.5)
   ELSE
@@ -2961,7 +2961,7 @@ RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES                                                                                
+! INPUT VARIABLES
   REAL(KIND=8), INTENT(IN) :: a
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

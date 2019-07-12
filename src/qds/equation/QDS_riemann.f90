@@ -24,7 +24,7 @@ MODULE MOD_QDS_Riemann
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -55,14 +55,14 @@ REAL,INTENT(OUT)                                 :: F(QDSnVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                          :: p,q, iVar,L
 REAL                                             :: velocompL, velocompR,LambdaMax
 !===================================================================================================================================
 !Lax-Friedrich
 DO iVar=0,7
   L=iVar*5
-  DO q=0,PP_N; DO p=0,PP_N 
+  DO q=0,PP_N; DO p=0,PP_N
     IF(U_L(1+L,p,q).GT.0.0)THEN
       velocompL = U_L(2+L,p,q)/U_L(1+L,p,q)*nv(1,p,q) + &
                   U_L(3+L,p,q)/U_L(1+L,p,q)*nv(2,p,q) + &
@@ -89,12 +89,12 @@ DO iVar=0,7
 
 !    Lambda_L = 0.5 * (LambdaMax + ABS(LambdaMax))
 !    Lambda_R = 0.5 * (LambdaMax - ABS(LambdaMax))
-!    F(1 + iVar*5,p,q) =  (Lambda_L * U_L(1 + iVar*5,p,q) + Lambda_R * U_R(1 + iVar*5,p,q)) 
+!    F(1 + iVar*5,p,q) =  (Lambda_L * U_L(1 + iVar*5,p,q) + Lambda_R * U_R(1 + iVar*5,p,q))
 !    F(2 + iVar*5,p,q) =  (Lambda_L * U_L(2 + iVar*5,p,q) + Lambda_R * U_R(2 + iVar*5,p,q))
 !    F(3 + iVar*5,p,q) =  (Lambda_L * U_L(3 + iVar*5,p,q) + Lambda_R * U_R(3 + iVar*5,p,q))
 !    F(4 + iVar*5,p,q) =  (Lambda_L * U_L(4 + iVar*5,p,q) + Lambda_R * U_R(4 + iVar*5,p,q))
-!    F(5 + iVar*5,p,q) =  (Lambda_L * U_L(5 + iVar*5,p,q) + Lambda_R * U_R(5 + iVar*5,p,q)) 
-    
+!    F(5 + iVar*5,p,q) =  (Lambda_L * U_L(5 + iVar*5,p,q) + Lambda_R * U_R(5 + iVar*5,p,q))
+
 
 
      F(1+L,p,q) =   0.5*(velocompL* U_L(1+L,p,q) + velocompR* U_R(1+L,p,q)) &
@@ -118,7 +118,7 @@ DO iVar=0,7
 !     F(4 + iVar*5,p,q) = 0.5*(velocompL* U_L(4 + iVar*5,p,q) + velocompR* U_R(4 + iVar*5,p,q))
 !     F(5 + iVar*5,p,q) = 0.5*(velocompL* U_L(5 + iVar*5,p,q) + velocompR* U_R(5 + iVar*5,p,q))
 
-     
+
 !    LambdaMax = MAX(ABS(velocompL), ABS(velocompR))
 !    F(1 + iVar*5,p,q) =  0.5*(velocompL * U_L(1 + iVar*5,p,q) +velocompR * U_R(1 + iVar*5,p,q) &
 !          + LambdaMax *(U_L(1 + iVar*5,p,q) -  U_R(1 + iVar*5,p,q)))

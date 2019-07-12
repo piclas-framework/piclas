@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTERFACE BubbleSortID
   MODULE PROCEDURE BubbleSortID
@@ -50,7 +50,7 @@ CONTAINS
 
 SUBROUTINE InsertionSort(a,id,len)
 !===================================================================================================================================
-! Insertion sort 
+! Insertion sort
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -187,7 +187,7 @@ END SUBROUTINE Qsort1DoubleInt1PInt
 
 SUBROUTINE Partition1DoubleInt1PInt(A,P,marker)
 !===================================================================================================================================
-!  Sorting routine used by QSort1int above. This routine is PRIVATE 
+!  Sorting routine used by QSort1int above. This routine is PRIVATE
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -250,7 +250,7 @@ SUBROUTINE RootsOfBesselFunctions( targetN, targetM, p, zo )
 ! Required for TE/TE modes
 ! p-0 TE mode
 ! p-1 TM mode
-! 
+!
 ! routine taken from
 ! http://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html
 ! at
@@ -264,8 +264,8 @@ SUBROUTINE RootsOfBesselFunctions( targetN, targetM, p, zo )
 !
 !  Licensing:
 !
-!    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However, 
-!    they give permission to incorporate this routine into a user program 
+!    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However,
+!    they give permission to incorporate this routine into a user program
 !    provided that the copyright is acknowledged.
 !
 !  Modified:
@@ -286,8 +286,8 @@ SUBROUTINE RootsOfBesselFunctions( targetN, targetM, p, zo )
 !    LC: QA351.C45.
 !
 !  Parameters:
-! 
-!    INPUT, INTEGER(kind=4) targetN, targetM 
+!
+!    INPUT, INTEGER(kind=4) targetN, targetM
 
 !    INPUT, INTEGER(kind=4) p 0-TE mode, 1 TM mode
 
@@ -299,7 +299,7 @@ SUBROUTINE RootsOfBesselFunctions( targetN, targetM, p, zo )
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=4),INTENT(IN) ::  p ! select TE-0 or TM-1 mode 
+INTEGER(KIND=4),INTENT(IN) ::  p ! select TE-0 or TM-1 mode
 INTEGER(KIND=4),INTENT(IN) ::  targetN
 INTEGER(KIND=4),INTENT(IN) ::  targetM
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -334,10 +334,10 @@ REAL ( KIND = 8)  :: bessel
 
     if(p.EQ.0)THEN ! TE modes
       if ( targetN+1 == 1 .and. j == 1 ) then
-  
+
         l1 = l1 + 1
         zoc(l1) = x
-  
+
         if ( targetN+1 <= 15 ) then
           x1 = x + 3.057D+00 + 0.0122D+00 * ( targetN ) &
             + ( 1.555D+00 + 0.41575D+00 * ( targetN ) ) / ( j + 1 ) ** 2
@@ -345,11 +345,11 @@ REAL ( KIND = 8)  :: bessel
           x1 = x + 2.918D+00 + 0.01924D+00 * ( targetN ) &
             + ( 6.26D+00 + 0.13205D+00 * ( targetN ) ) / ( j + 1 ) ** 2
         end if
-  
+
       else
-  
+
         x = x1
-  
+
         do
           ! newton step
 
@@ -366,11 +366,11 @@ REAL ( KIND = 8)  :: bessel
 
           x0 = x
           x = x - dbessel / d2bessel
-  
+
           if ( abs ( x - x0 ) <= 1.0D-10 ) then
             l1 = l1 + 1
             zoc(l1) = x
-  
+
             if ( targetN+1 <= 15 ) then
               x1 = x + 3.057D+00 + 0.0122D+00 * ( targetN ) &
                 + ( 1.555D+00 + 0.41575D+00 * ( targetN ) ) / ( j + 1 ) ** 2
@@ -380,7 +380,7 @@ REAL ( KIND = 8)  :: bessel
             end if
             exit
           end if
-  
+
         end do
       end if
 
@@ -399,7 +399,7 @@ REAL ( KIND = 8)  :: bessel
 
        x0 = x
        !x = x - bj(targetN+1) / dj(targetN+1)
-       x = x - bessel / dbessel 
+       x = x - bessel / dbessel
 
        if ( abs ( x - x0 ) <= 1.0D-10 ) then
          exit
@@ -442,7 +442,7 @@ REAL ( KIND = 8)  :: bessel
     end if
 
     if ( l1 == 0 ) then
-      exit 
+      exit
     end if
 
   end do

@@ -51,7 +51,7 @@ END SUBROUTINE DefineParametersPiclas
 
 
 
-SUBROUTINE InitPiclas(IsLoadBalance) 
+SUBROUTINE InitPiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! init Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -114,7 +114,7 @@ USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
 use mod_readIMD, only:initReadIMDdata
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 LOGICAL,INTENT(IN)      :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -221,7 +221,7 @@ call initReadIMDdata()
 END SUBROUTINE InitPiclas
 
 
-SUBROUTINE FinalizePiclas(IsLoadBalance) 
+SUBROUTINE FinalizePiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize Piclas data structure
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -274,6 +274,7 @@ USE MOD_BGK_Init,                  ONLY:FinalizeBGK
 USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
 USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
+USE MOD_PIC_Vars,                  ONLY:PICInitIsDone
 #ifdef MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
@@ -282,7 +283,7 @@ USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
 USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 LOGICAL,INTENT(IN)      :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -319,7 +320,7 @@ CALL FinalizeParticleBoundarySampling()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
-CALL FinalizeDeposition() 
+CALL FinalizeDeposition()
 #ifdef MPI
 CALL FinalizeParticleMPI()
 #endif /*MPI*/
@@ -338,7 +339,8 @@ CALL FinalizeMPI()
 #endif /*MPI*/
 
 #ifdef PARTICLES
-ParticlesInitIsDone=.FALSE.  
+ParticlesInitIsDone = .FALSE.
+PICInitIsDone = .FALSE.
 #ifdef MPI
 ParticleMPIInitIsDone=.FALSE.
 #endif /*MPI*/

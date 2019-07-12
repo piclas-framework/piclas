@@ -13,7 +13,7 @@
 #elif PGI
 #  define NO_ISNAN
 #endif
-#ifndef __FILENAME__ 
+#ifndef __FILENAME__
 #define __FILENAME__ __FILE__
 #endif
 #define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
@@ -28,8 +28,8 @@
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
 #elif CRAY
-#define CHECKSAFEINT(x,k)  
-#define CHECKSAFEREAL(x,k) 
+#define CHECKSAFEINT(x,k)
+#define CHECKSAFEREAL(x,k)
 #else
 #define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  ## k).OR.x<-HUGE(1_  ## k)) CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
 #define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ ## k).OR.x<-HUGE(1._ ## k)) CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
@@ -41,6 +41,9 @@
 ! for fixed relative tolerance (for double precision use twice the machine precision 2E-52 ~ 2.22e-16 -> 2*2.22E-16=4.44E-16)
 #define ALMOSTEQUAL(x,y)  (ABS((x)-(y)).LE.MAX(ABS(x),ABS(y))*(4.441E-16))
 #define ALMOSTZERO(x) (ABS(x).LE.(2.22e-16))
+
+! Check for charged particles: x = iPart
+#define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE

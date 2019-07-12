@@ -21,7 +21,7 @@ MODULE MOD_SurfaceModel_MPI
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfCoverageSendBuf, SurfCoverageRecvBuf
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ USE MOD_SurfaceModel_MPI_Vars  ,ONLY: SurfModelExchange, SurfDistSendBuf, SurfDi
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,7 +150,7 @@ END SUBROUTINE InitSMCR_MPI
 
 SUBROUTINE ExchangeAdsorbNum()
 !===================================================================================================================================
-!> exchange the number of adsorbing particles on halo surface 
+!> exchange the number of adsorbing particles on halo surface
 !> only processes with samling sides in their halo region and the original process participate on the communication
 !> structure is similar to surface sampling/particle communication
 !> each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
@@ -166,7 +166,7 @@ USE MOD_SurfaceModel_MPI_Vars  ,ONLY: AdsorbSendBuf, AdsorbRecvBuf, SurfModelExc
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -222,7 +222,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfCOMM%COMM                            &
                 , SurfModelExchange%SendRequest(iProc)          &
                 , IERROR)
-END DO ! iProc                                                
+END DO ! iProc
 
 ! 4) Finish Received number of particles
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -279,7 +279,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -378,7 +378,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -534,7 +534,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!

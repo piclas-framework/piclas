@@ -39,9 +39,9 @@ For this purpose, the developer can select the respective template for his merge
 
 ## Release and deploy
 
-After the successful completion of all regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master. This merge request should be associated with a milestone (e.g. Release 1.X.X).
+For a release, a merge of the master.dev branch into the master branch is required. This merge request should be associated with a milestone (e.g. Release 1.X.X). For this specific merge request, the template `Release` can be chosen, which contains the to-do list as well as the template for the release notes as given below. After the successful completion of all to-do's and regression checks (check-in, nightly, weekly), the master.dev branch can be merged into the master.
 
-### Create a Release Tag
+### Release Tag
 
 A release can be created through the web interface ([Repository -> Tags](https://gitlab.com/piclas/piclas/tags) -> New tag), as the `Tag name` the new version should be used
 
@@ -71,7 +71,7 @@ The tag should be created from the `master` branch and the `Message` left empty.
 
     * Treatment of non-linear polyatomic molecules during analyze and wall interaction
 
-Headlines without changes/additions within a releases can be omitted.
+Headlines without changes/additions within a release can be omitted.
 
 ### Collaborative Numerics Group
 
