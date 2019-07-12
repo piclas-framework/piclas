@@ -59,59 +59,57 @@ SUBROUTINE InitPiclas(IsLoadBalance)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,        ONLY:prms
-USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
-USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
-USE MOD_Restart,            ONLY:InitRestart
-USE MOD_Restart_Vars,       ONLY:DoRestart
-!USE MOD_ReadInTools,        ONLY:IgnoredStrings
-USE MOD_Mesh,               ONLY:InitMesh
-USE MOD_Equation,           ONLY:InitEquation
-USE MOD_GetBoundaryFlux,    ONLY:InitBC
-USE MOD_DG,                 ONLY:InitDG
-USE MOD_Mortar,             ONLY:InitMortar
+USE MOD_ReadInTools          ,ONLY: prms
+USE MOD_Interpolation_Vars   ,ONLY: InterpolationInitIsDone
+USE MOD_Restart_Vars         ,ONLY: RestartInitIsDone
+USE MOD_Restart              ,ONLY: InitRestart
+USE MOD_Restart_Vars         ,ONLY: DoRestart
+USE MOD_Mesh                 ,ONLY: InitMesh
+USE MOD_Equation             ,ONLY: InitEquation
+USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+USE MOD_DG                   ,ONLY: InitDG
+USE MOD_Mortar               ,ONLY: InitMortar
 #ifndef PP_HDG
-USE MOD_PML,                ONLY:InitPML
+USE MOD_PML                  ,ONLY: InitPML
 #endif /*PP_HDG*/
-USE MOD_Dielectric,         ONLY:InitDielectric
-USE MOD_Filter,             ONLY:InitFilter
-USE MOD_Analyze,            ONLY:InitAnalyze
-USE MOD_RecordPoints,       ONLY:InitRecordPoints
+USE MOD_Dielectric           ,ONLY: InitDielectric
+USE MOD_Filter               ,ONLY: InitFilter
+USE MOD_Analyze              ,ONLY: InitAnalyze
+USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver,       ONLY:InitLinearSolver
+USE MOD_LinearSolver         ,ONLY: InitLinearSolver
 #endif /*ROS or IMPA*/
-!#ifdef IMEX
-!USE MOD_CSR,                ONLY:InitCSR
-!#endif /*IMEX*/
-USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullifySolution
 #ifdef MPI
-USE MOD_MPI,                ONLY:InitMPIvars
+USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars,          ONLY:UseDSMC
-USE MOD_LD_Vars,            ONLY:UseLD
-USE MOD_ParticleInit,       ONLY:InitParticles
-USE MOD_TTMInit,            ONLY:InitTTM,InitIMD_TTM_Coupling
-USE MOD_TTM_Vars,           ONLY:DoImportTTMFile
-USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
-USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
-USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
-USE MOD_SurfaceModel_Analyze,ONLY:InitSurfModelAnalyze
-USE MOD_Particle_MPI,       ONLY:InitParticleMPI
+USE MOD_DSMC_Vars            ,ONLY: UseDSMC
+USE MOD_LD_Vars              ,ONLY: UseLD
+USE MOD_ParticleInit         ,ONLY: InitParticles
+USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
+USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
+USE MOD_Particle_Surfaces    ,ONLY: InitParticleSurfaces
+USE MOD_Particle_Mesh        ,ONLY: InitParticleMesh, InitElemBoundingBox
+USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
+USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
+USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
+#ifdef MPI
+USE mod_readIMD              ,ONLY: initReadIMDdata
+#endif /* MPI */
 #if defined(IMPA) || defined(ROS)
-USE MOD_ParticleSolver,     ONLY:InitPartSolver
+USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
 #endif
 #ifdef PP_HDG
-USE MOD_HDG,                ONLY:InitHDG
+USE MOD_HDG                  ,ONLY: InitHDG
 #endif
-USE MOD_Interfaces,         ONLY:InitInterfaces
+USE MOD_Interfaces           ,ONLY: InitInterfaces
 #if USE_QDS_DG
-USE MOD_QDS,                ONLY:InitQDS
+USE MOD_QDS                  ,ONLY: InitQDS
 #endif /*USE_QDS_DG*/
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY
+USE MOD_ReadInTools          ,ONLY: GETLOGICAL,GETREALARRAY
 
-use mod_readIMD, only:initReadIMDdata
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -199,6 +197,10 @@ CALL InitHDG()
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
+#ifdef MPI
+! New IMD binary format (not TTM needed as this information is stored on the atoms)
+call initReadIMDdata()
+#endif /* MPI */
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
@@ -216,7 +218,6 @@ IF (.NOT.IsLoadBalance) THEN
   CALL prms%RemoveUnnecessary()
 END IF
 
-call initReadIMDdata()
 
 END SUBROUTINE InitPiclas
 
