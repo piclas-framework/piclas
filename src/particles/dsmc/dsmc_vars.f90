@@ -148,7 +148,7 @@ TYPE tDSMC
   REAL                          :: EpsElecBin              ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant              ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
                                                            ! should be 0.5 or 0
-  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)              ! Number of Collision for each case + entire Collision number
+  INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)              ! Number of collision for each case + total collision number
   REAL                          :: TimeFracSamp=0.         ! %-of simulation time for sampling
   INTEGER                       :: SampNum                 ! number of Samplingsteps
   INTEGER                       :: NumOutput               ! number of Outputs
@@ -202,7 +202,7 @@ TYPE tDSMC
                                                            ! loop over all vibrational modes (every mode has its own corrected
                                                            ! relaxation probability, comparison with the same random number
                                                            ! while the previous probability is added to the next)
-  REAL, ALLOCATABLE             :: InstantTransTemp(:)     ! Instantaneous translational temperature for each cell (nSpieces+1)
+  REAL, ALLOCATABLE             :: InstantTransTemp(:)     ! Instantaneous translational temperature for each cell (nSpecies+1)
   LOGICAL                       :: BackwardReacRate        ! Enables the automatic calculation of the backward reaction rate
                                                            ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp        ! Temperature limit for pre-stored partition function (DEF: 20 000K)
@@ -266,9 +266,9 @@ TYPE tSampDSMC             ! DSMC sample
   REAL                          :: PartV(3), PartV2(3)     ! Velocity, Velocity^2 (vx,vy,vz)
   REAL                          :: PartNum                 ! Particle Number
   INTEGER                       :: SimPartNum
-  REAL                          :: ERot                    ! Rotational  Energy
-  REAL                          :: EVib                    ! Vibrational Energy
-  REAL                          :: EElec                   ! electronic  Energy
+  REAL                          :: ERot                    ! Rotational  energy
+  REAL                          :: EVib                    ! Vibrational energy
+  REAL                          :: EElec                   ! Electronic  energy
 END TYPE
 
 TYPE(tSampDSMC), ALLOCATABLE    :: SampDSMC(:,:)           ! DSMC sample array (number of Elements, nSpec)
@@ -303,7 +303,7 @@ END TYPE
 
 TYPE tChemReactions
   INTEGER                        :: NumOfReact             ! Number of possible Reactions
-  TYPE(tArbDiss), ALLOCATABLE    :: ArbDiss(:)  !
+  TYPE(tArbDiss), ALLOCATABLE    :: ArbDiss(:)             ! TO BE DEFINED
   LOGICAL, ALLOCATABLE           :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE           :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:):: QKCoeff                ! QKRecombiCoeff for Birds method

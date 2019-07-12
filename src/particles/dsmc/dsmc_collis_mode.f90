@@ -2892,7 +2892,8 @@ END SUBROUTINE DSMC_calc_P_vib
 
 FUNCTION DSMC_cross_section(iPair,CRela2)
 !===================================================================================================================================
-! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not collision-averaged.(Krishnan 2015/2016) 
+! Cross section sigma_vss is calculated, as described in as described in the  which is collision-specific and not 
+! collision-averaged.(Krishnan 2015/2016) 
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
@@ -2907,22 +2908,22 @@ FUNCTION DSMC_cross_section(iPair,CRela2)
   INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  REAL                          :: DSMC_Cross_Section                    ! sigma_t, total collision cross-section bird1994 (2.31) 
-                                                                         ! with (p.42 l.2)!! 
+  REAL                          :: DSMC_cross_section                     ! sigma_t, total collision cross-section bird1994 (2.31) 
+                                                                          ! with (p.42 l.2)!! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: Spec1ID,Spec2ID                       ! colliding particles and species, respectively
-  REAL                          :: diameter_squared,energy_translational ! to be solved, beschreibung 
+  INTEGER                       :: Spec1ID, Spec2ID                       ! colliding particles and species, respectively
+  REAL                          :: diameter_squared, energy_translational ! to be solved, beschreibung 
  real :: t 
 !===================================================================================================================================
-t=1.0   
+t=1.0 ! to be solved   
    Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
    Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
   ! mu ref einlesen !to be solved
   IF(CollInf%diameterCase.EQ.0) THEN ! via d(dref)
     ! dref-based diameter bird to be solved ansonsten krishnan 
     diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
-                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature in Zelle oder des Teilchens
+                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
   ELSE ! via d(muref)
     energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
     ! viscosity-based diameter bird (3.74)

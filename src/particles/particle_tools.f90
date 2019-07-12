@@ -34,7 +34,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector,DiceDeflectedVector
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, DiceDeflectedVector
 !===================================================================================================================================
 
 CONTAINS
@@ -72,7 +72,7 @@ SUBROUTINE UpdateNextFreePosition()
    DO i=1,n
      IF (.NOT.PDM%ParticleInside(i)) THEN
        PDM%nextFreePosition(counter1) = i
-       counter1 = counter1 + 1
+       counter1 = counter1 +  1
      ELSE
        IF (PEM%pNumber(PEM%Element(i)).EQ.0) THEN
          PEM%pStart(PEM%Element(i)) = i                    ! Start of Linked List for Particles in Elem

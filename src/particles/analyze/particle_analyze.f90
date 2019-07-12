@@ -166,7 +166,7 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'CrossSectionVHS'         , 'Calculate the averaged total cross-section sigma_t per'//&
+CALL prms%CreateLogicalOption(  'CalcCrossSection'         , 'Calculate the averaged total cross-section sigma_t per'//&
                                                             ' timestep.' , '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
@@ -428,8 +428,8 @@ END IF
 CalcNumSpec     = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates   = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates   = GETLOGICAL('CalcReacRates','.FALSE.')
-CrossSectionVHS = GETLOGICAL('CrossSectionVHS','.FALSE.')
-IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates.OR.CrossSectionVHS) DoPartAnalyze = .TRUE.
+CalcCrossSection = GETLOGICAL('CalcCrossSection','.FALSE.')
+IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE. ! to be solved hier irrelevant CalcCrossSection
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
 IF (CalcVelos) THEN
@@ -559,6 +559,7 @@ INTEGER             :: RECBIM(nSpecies)
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase, iTvib,jSpec
+REAL                :: meanCrossSection
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
@@ -909,8 +910,8 @@ IF (CollisMode.GT.1) THEN ! for relaxation - inner DOF
             END DO
           END IF
         END IF
-        IF(CrossSectionVHS) THEN ! calculates averaged cross-section sigma_t per timestep
-          DO iSpec = 1, nSpecies ! to be solved - inwiefern warum ispec ispec?
+        IF(CalcCrossSection) THEN ! calculates averaged cross-section sigma_t per timestep
+          DO iSpec = 1, nSpecies 
             DO jSpec = iSpec, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,I3.3,A5)',ADVANCE='NO') OutputCounter,'-sigma_t', iSpec, jSpec,' '
@@ -1135,6 +1136,9 @@ END IF
       CALL ReacRates(RRate, NumSpecTmp, iter)
     END IF
   END IF
+  IF(CalcCrossSection) CALL CrossSection(meanCrossSection)
+   !to be solved - was kann ich da mitgeben, was ist sinnvoll. 
+  ! ielem nicht da es über alle analysiert
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
@@ -1361,6 +1365,10 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') RRate(iCase)
       END DO
+    END IF
+    IF(CalcCrossSection) THEN
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCrossSection(iCase)
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' '
@@ -2446,7 +2454,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)                :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iCase
+INTEGER                         :: iCase
 !===================================================================================================================================
 
   DO iCase=1, CollInf%NumCase + 1
@@ -2631,6 +2639,38 @@ END IF
 
 
 END SUBROUTINE ReacRates
+
+SUBROUTINE CrossSection(sigma_t)
+!===================================================================================================================================
+! Calculation of arithmetric mean cross section. 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_DSMC_Vars             ,ONLY: CollInf, Coll_pData
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: sigma_t(:) ! averaged total cross section 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPair, iElem ! to sum up all cross sections of all colliding particles in all elements
+!-----------------------------------------------------------------------------------------------------------------------------------
+sigma_t=0.0 ! reset to zero
+! to be solved- array mit zuordnung wer kollidiert? elems und coll muss auch laufen
+DO iElem = 1,nElems
+!   DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
+  DO iPair = 1,PEM%pNumber(iElem)
+    sigma_t = sigma_t + Coll_pData(iPair)%sigma(1) ! sigma(1)=sigma_t
+  END DO
+END DO
+sigma_t = sigma_t / REAL(SUM(CollInf%Coll_CaseNum(:)))
+END SUBROUTINE CrossSection
 #endif
 
 #if ( PP_TimeDiscMethod == 42)
@@ -2651,7 +2691,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(IN)                :: Time
-REAL,INTENT(IN)               :: NumSpec(:)
+REAL,INTENT(IN)                :: NumSpec(:)
 INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
 ! accary of kf
 !===================================================================================================================================

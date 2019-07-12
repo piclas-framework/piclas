@@ -158,17 +158,17 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
       END IF
     END IF
     iCase = CollInf%Coll_Case(cSpec1, cSpec2)
-    CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-    Coll_pData(iPair)%CRela2 = (PartState(Coll_pData(iPair)%iPart_p1,4) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,5) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
-                             + (PartState(Coll_pData(iPair)%iPart_p1,6) &
-                             -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
-    Coll_pData(iPair)%PairType = iCase
+    CollInf%Coll_CaseNum(iCase)  = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
+    Coll_pData(iPair)%CRela2     = (PartState(Coll_pData(iPair)%iPart_p1,4) &
+                                 -  PartState(Coll_pData(iPair)%iPart_p2,4))**2 &
+                                 + (PartState(Coll_pData(iPair)%iPart_p1,5) &
+                                 -  PartState(Coll_pData(iPair)%iPart_p2,5))**2 &
+                                 + (PartState(Coll_pData(iPair)%iPart_p1,6) &
+                                 -  PartState(Coll_pData(iPair)%iPart_p2,6))**2
+    Coll_pData(iPair)%PairType   = iCase
     Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO
-  IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).and.(MOD(PartNum, PairNum_Node).NE.0)) THEN
+  IF ((PairNum_Node.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(PartNum, PairNum_Node).NE.0)) THEN
     ChemReac%RecombParticle = iPartIndx_Node(1)
   END IF
 
@@ -176,7 +176,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     CALL SetMeanVibQua()
   END IF
 
-  DO iPair = 1,  PairNum_Node
+  DO iPair = 1, PairNum_Node
     IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
       IF (usevMPF) THEN            ! calculation of collision prob
         CALL DSMC_vmpf_prob(iElem, iPair, NodeVolume)
@@ -184,7 +184,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
         CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
       END IF
       CALL RANDOM_NUMBER(iRan)
-      IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+      IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
 #if (PP_TimeDiscMethod==42)
         IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN
 #else

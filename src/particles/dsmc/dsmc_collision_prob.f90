@@ -102,15 +102,17 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  ! relative velocity to the power of phi_c=(1 -2omega) Laux(2.47) - only the first omega is used! 
         ELSE                                                                  
           ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
+          ! does not calculate the cross-section new in every iteration. Cab is initially determined and works as reference.
           Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
                                  * CollInf%Cab(collPairID) / CollInf%Coll_CaseNum(collPairID)           &          
                                  * Species(PartSpecies(collPart1ID))%MacroParticleFactor * dt / Volume  & 
                                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
         END IF
       ELSE ! VSS
+        Coll_pData(iPair)%sigma(1) = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
+                                                                                        ! depends on the temperature
         ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
         !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
-        Coll_pData(iPair)%sigma(1) = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2)
         Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
                                    * Species(PartSpecies(collPart1ID))%MacroParticleFactor              &
                                    * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
@@ -386,7 +388,7 @@ __STAMP__&
 END SUBROUTINE DSMC_prob_calc
 
 !SUBROUTINE collisionFrequency(iElem)
-!
+! TO BE SOLVED - NEEDS TO GET DELETED
 !USE MOD_Globals_Vars,           ONLY : BoltzmannConst,PI
 !USE MOD_Particle_Vars,          ONLY : PEM, Species, nSpecies, PartSpecies
 !USE MOD_Particle_Mesh_Vars,     ONLY : GEO

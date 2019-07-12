@@ -149,7 +149,7 @@ SUBROUTINE DSMC_main(DoElement)
             ELSE
               CALL DSMC_prob_calc(iElem, iPair)
             END IF
-            CALL RANDOM_NUMBER(iRan)
+            CALL RANDOM_NUMBER(iRan)                                   ! rolling dices. If coll_prob.GE.iRan = collision
             IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
 #if (PP_TimeDiscMethod==42)
               IF(CalcEkin.OR.DSMC%ReservoirSimu) THEN

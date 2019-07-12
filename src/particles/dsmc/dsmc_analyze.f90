@@ -742,35 +742,35 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC,CollInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
-  REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! OUTPUT VARIABLES
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! LOCAL VARIABLES
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: iSpec, jSpec
-  REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
-  !===================================================================================================================================
-  DrefMixture = 0.0
-  CalcMeanFreePath = 0.0
-  ! Calculation of mixture reference diameter
-  IF (nPart.EQ.0) RETURN
-    IF(CollInf%collModel.EQ.0) THEN ! VHS 
-      DO iSpec = 1, nSpecies
-        DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
-      END DO
-    ELSE ! VSS
-      !siehe 4.77 bird
-      !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  DO iSpec = 1, CollInf%NumCase ! for collision-specific dref,  formel durchsprechen. to be solved
-      !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    DO jSpec = iSpec, CollInf%NumCase
-      !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum      DrefMixture = DrefMixture + CollInf%Coll_CaseNum(iSpec,jSpec) * CollInf%dref(iSpec,jSpec) / nPart
-      !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    END DO
-      !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  END DO
-      DO iSpec = 1, nSpecies
-        DrefMixture = DrefMixture + SpecPartNum(iSpec) * CollInf%dref(iSpec,iSpec) / nPart
-      END DO
-    END IF
+REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
+REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iSpec, jSpec
+REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
+!===================================================================================================================================
+DrefMixture = 0.0
+CalcMeanFreePath = 0.0
+! Calculation of mixture reference diameter
+IF (nPart.EQ.0) RETURN
+  IF(CollInf%collModel.EQ.0) THEN ! VHS 
+    DO iSpec = 1, nSpecies
+      DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
+    END DO
+  ELSE ! VSS
+    !siehe 4.77 bird
+    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  DO iSpec = 1, CollInf%NumCase ! for collision-specific dref,  formel durchsprechen. to be solved
+    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    DO jSpec = iSpec, CollInf%NumCase
+    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum      DrefMixture = DrefMixture + CollInf%Coll_CaseNum(iSpec,jSpec) * CollInf%dref(iSpec,jSpec) / nPart
+    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    END DO
+    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  END DO
+    DO iSpec = 1, nSpecies
+      DrefMixture = DrefMixture + SpecPartNum(iSpec) * CollInf%dref(iSpec,iSpec) / nPart
+    END DO
+  END IF
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
@@ -915,7 +915,7 @@ DO iSpec=1, nSpecies
   END IF
   ! Compute temperatures
   TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
-                        / BoltzmannConst ! Temp calculation is limitedt to one species
+                        / BoltzmannConst ! Temp calculation is limited to one species
   DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
   DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
                                         + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
