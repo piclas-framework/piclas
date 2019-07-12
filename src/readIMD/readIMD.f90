@@ -69,6 +69,12 @@ subroutine read_IMD_results()
   integer                                   :: errorLen
   character(len=254)                        :: errorString
   integer(kind=4)                           :: iPart
+  real                                      :: MaxX,MaxX_glob
+  real                                      :: MinX,MinX_glob
+  real                                      :: MaxY,MaxY_glob
+  real                                      :: MinY,MinY_glob
+  real                                      :: MaxZ,MaxZ_glob
+  real                                      :: MinZ,MinZ_glob
   ! -----------------------------------------------------------------------------
 
   SWRITE(UNIT_stdOut,'(A,A)')'Read IMD-results from file: ',trim(filenameIMDresults)
@@ -165,6 +171,25 @@ subroutine read_IMD_results()
       WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
     end if
   end do
+
+
+  CALL MPI_REDUCE(MaxX,MaxX_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MinX,MinX_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  CALL MPI_REDUCE(MaxY,MaxY_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MinY,MinY_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  CALL MPI_REDUCE(MaxZ,MaxZ_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MinZ,MinZ_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+
+  if( MPIroot )then
+    write(*,*) "Global particle information"
+    write(*,*) "MinX_glob,MaxX_glob: ", MinX_glob,MaxX_glob
+    write(*,*) "MinY_glob,MaxY_glob: ", MinY_glob,MaxY_glob
+    write(*,*) "MinZ_glob,MaxZ_glob: ", MinZ_glob,MaxZ_glob
+  end if
+
+
 
   call IRecvNbofParticles()
   call SendNbOfParticles()
