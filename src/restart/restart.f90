@@ -395,11 +395,13 @@ IF( DoRestartDummy )THEN
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
+#ifdef PARTICLES
 #ifdef MPI
   ELSE IF( useIMDresults )THEN
     if( myRank == 0)write(*,*)'useIMDresults'
     call read_IMD_results()
 #endif /*MPI*/
+#endif /*PARTICLES*/
 
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)

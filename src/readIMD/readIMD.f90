@@ -5,7 +5,9 @@ implicit none
 private
 
 #ifdef MPI
+#ifdef PARTICLES
 public :: read_IMD_results
+#endif /*PARTICLES*/
 #endif /*MPI*/
 public :: DefineParametersReadIMDdata, initReadIMDdata
 contains
@@ -38,6 +40,7 @@ end subroutine initReadIMDdata
 
 ! ==============================================================================
 
+#ifdef PARTICLES
 #ifdef MPI
 subroutine read_IMD_results()
 
@@ -216,5 +219,6 @@ subroutine read_IMD_results()
 
 end subroutine read_IMD_results
 #endif /*MPI*/
+#endif /*PARTICLES*/
 
 end module mod_readIMD
