@@ -41,40 +41,53 @@ IMPLICIT NONE
 !==================================================================================================================================
 
 CALL prms%SetSection("Variable Timestep")
-CALL prms%CreateLogicalOption('Part-VariableTimeStep', 'TODO-DEFINE-PARAMETER', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep', &
+                              'Enable/disable a spatially variable time step', '.FALSE.')
 ! Distribution
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP'  &
-                            , 'TODO-DEFINE-PARAMETER', '0.25')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb'  &
-                            , 'TODO-DEFINE-PARAMETER', '0.8')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor'  &
-                            , 'Maximal time factor to avoid too large time steps and problems with halo region/particle cloning')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum'  &
-                            , 'Optional: Define a minimum number of particles per cells to increase the number of particles by '//&
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution', &
+                              'Utilize a time step distribution, must be available in the particle state file!', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Distribution-Adapt', &
+                              'Adapt the time step distribution according to certain parameters (read-in from a DSMC state) '//&
+                              'and store it in the particle state file. Requires a macroscopic restart and a DSMC state file:\n'//&
+                              'Particles-MacroscopicRestart = T\n'//&
+                              'Particles-MacroscopicRestart-Filename = DSMCState.h5', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMCSoverMFP', &
+                              'Target ratio of the mean collision separation distance over the mean free path', '0.25')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-TargetMaxCollProb', &
+                              'Target maximum collision probability', '0.8')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MaxFactor', &
+                              'Maximum time factor to avoid too large time steps and problems with halo region/particle cloning')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-Distribution-MinFactor', &
+                              'Minimum time factor to avoid cells with a large number of particles')
+CALL prms%CreateIntOption(    'Part-VariableTimeStep-Distribution-MinPartNum', &
+                              'Optional: Define a minimum number of particles per cells to increase the number of particles by '//&
                               'decreasing the time step', '0')
 ! Linear Scaling
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor'  &
-                            , 'TODO-DEFINE-PARAMETER')
-! 2D: Radial and axial scaling towards
-CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction'                 , 'TODO-DEFINE-PARAMETER', '.FALSE.')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint'  &
-                            , 'TODO-DEFINE-PARAMETER')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront'  &
-                            , 'FRONT: Time step decreases towards the stagnation point')
-CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack'  &
-                            , 'BACK: Time step increases away from the stagnation points')
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-LinearScaling', &
+                              'Utilize a linearly increasing time step along a given direction (3D) or a linearly increasing '//&
+                              'time step in the radial direction (2D)', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor', &
+                              'Time step factor f*dt, determines the maximal time step of the linear function')
 ! 3D: Scaling along a given vector
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction'  &
-                                , 'Direction of the vector along which a linear increase is applied to the time step. '//&
-                                  'Currently only scaling along the x-axis (positive or negative direction) is allowed, '//&
-                                  'e.g. (/-1.0,0.0,0.0/)')
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint', 'Starting point of the vector.')
-CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , 'End point of the vector, to use the domain border: -99999.')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction', &
+                                'Direction of the vector along which a linear increase is applied to the time step. '//&
+                                'Currently only scaling along the x-axis (positive or negative direction) is allowed, '//&
+                                'e.g. (/-1.0,0.0,0.0/)')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint', &
+                                'Starting point of the vector, to use the domain border: -99999.')
+CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
+                                'End point of the vector, to use the domain border: -99999.')
+! 2D/Axi: Radial and axial scaling towards
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
+                              'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
+                              'away from a user-given stagnation point', '.FALSE.')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-StagnationPoint', &
+                              'Defines the point on the x-axis, towards which the time step is decreased with the factor '//&
+                              'ScaleFactor2DFront and away from which the time step is increased with the factor ScaleFactor2DBack')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront', &
+                              'FRONT: Time step decreases towards the stagnation point')
+CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack', &
+                              'BACK: Time step increases away from the stagnation points')
 
 END SUBROUTINE DefineParametersVaribleTimeStep
 
@@ -345,7 +358,7 @@ END SUBROUTINE VarTimeStep_InitDistribution
 
 REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
-!
+!> Calculates/determines the time step at a position x/y (only in 2D/Axi) or of the given element number (3D and VTS distribution)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -406,7 +419,7 @@ END FUNCTION CalcVarTimeStep
 
 SUBROUTINE VarTimeStep_CalcElemFacs()
 !===================================================================================================================================
-!> Calculates/determines the variable time step element-wise (every proc for his own domain)
+!> Calculates/determines the variable time step element-wise (every proc for his own domain) during the initialization
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

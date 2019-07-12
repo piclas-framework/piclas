@@ -511,7 +511,7 @@ DO iSurfSide=1,SurfMesh%nSides
       END IF
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
-          ! Pump capacity is already in cubic meter per second
+          ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
           MacroSurfaceVal(nVarCount+iPBC,p,q,iSurfSide) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
         END DO
       END IF

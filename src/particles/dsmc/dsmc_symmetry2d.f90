@@ -56,9 +56,9 @@ USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: SideID, iLocSide, i, j, ElemID, iNode
-REAL                          :: radius
-LOGICAL                       :: SymmetryBCExists
+INTEGER                         :: SideID, iLocSide, i, j, ElemID, iNode
+REAL                            :: radius
+LOGICAL                         :: SymmetryBCExists
 !===================================================================================================================================
 
 SymmetryBCExists = .FALSE.
@@ -94,8 +94,8 @@ DO SideID=1,nBCSides
         END IF
         SymmetrySide(ElemID,1) = SideID
         SymmetrySide(ElemID,2) = iLocSide
-        ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in the
-        ! xy-plane.
+        ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
+        ! the xy-plane.
         GEO%Volume(ElemID) = 0.0
         DO j=0,PP_N; DO i=0,PP_N
           GEO%Volume(ElemID) = GEO%Volume(ElemID) + wGP(i)*wGP(j)*SurfElem(i,j,SideID)
@@ -104,8 +104,8 @@ DO SideID=1,nBCSides
         ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
         ! requirement.
         GEO%CharLength(ElemID) = SQRT(GEO%Volume(ElemID))
-        ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the xy-plane
-        ! is rotated around the x-axis. The radius is the middle point of the cell face.
+        ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+        ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
         IF (Symmetry2DAxisymmetric) THEN
           radius = 0.
           DO iNode = 1, 4
@@ -144,11 +144,11 @@ SUBROUTINE DSMC_2D_InitRadialWeighting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Restart_Vars        ,ONLY: DoRestart
-USE MOD_PARTICLE_Vars       ,ONLY: PDM
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_PARTICLE_Vars           ,ONLY: PDM
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, ClonedParticles
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
