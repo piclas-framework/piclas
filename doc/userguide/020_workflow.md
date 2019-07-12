@@ -20,6 +20,28 @@ Note that the path to the **HOPR** executable is omitted in the command (see \re
 
 ### Mesh generation with HEXPRESS
 
+#### Hexpres Setup
+Download HEXPRESS from the official website and install the program. Execute the configure script under
+```
+/usr/numeca/COMMON/configure
+```
+
+Add the licence server (e.g. to *.bashrc*)
+```
+NUMECA_LICENSE_FILE=@name_server
+export NUMECA_LICENSE_FILE
+```
+where *name_servers* is the server alias or address.
+Next, adjust the *.driver * file in the *.numeca* directory.
+```
+~/.numeca/.driver
+```
+with the following line
+```
+name_server localhost OPENGL:OPENGL2:X11 X11
+```
+
+#### Hexpres Usage
 CAD model of complete fluid domain with FreeCAD -> Export as STL. CATIA, SolidWorks formats also supported by HEXPRESS.
 
 Export as CGNS (ADF)
