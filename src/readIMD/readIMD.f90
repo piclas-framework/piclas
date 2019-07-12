@@ -4,7 +4,10 @@ module mod_readIMD
 implicit none
 private
 
-public :: read_IMD_results, DefineParametersReadIMDdata, initReadIMDdata
+#ifdef MPI
+public :: read_IMD_results
+#endif /*MPI*/
+public :: DefineParametersReadIMDdata, initReadIMDdata
 contains
 
 ! ==============================================================================
@@ -35,6 +38,7 @@ end subroutine initReadIMDdata
 
 ! ==============================================================================
 
+#ifdef MPI
 subroutine read_IMD_results()
 
   use mod_readIMD_vars
@@ -173,14 +177,14 @@ subroutine read_IMD_results()
   end do
 
 
-  CALL MPI_REDUCE(MaxX,MaxX_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(MinX,MinX_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MaxX , MaxX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MinX , MinX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
 
-  CALL MPI_REDUCE(MaxY,MaxY_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(MinY,MinY_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MaxY , MaxY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MinY , MinY_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
 
-  CALL MPI_REDUCE(MaxZ,MaxZ_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(MinZ,MinZ_glob   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(MaxZ , MaxZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MinZ , MinZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
 
   if( MPIroot )then
     write(*,*) "Global particle information"
@@ -211,5 +215,6 @@ subroutine read_IMD_results()
   end if
 
 end subroutine read_IMD_results
+#endif /*MPI*/
 
 end module mod_readIMD

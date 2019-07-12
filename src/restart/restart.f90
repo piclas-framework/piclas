@@ -282,6 +282,8 @@ USE MOD_Particle_Boundary_Vars,  ONLY:nSurfBC
 USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBound
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+use mod_readIMD_vars,            only:useIMDresults
+use mod_readIMD,                 only:read_IMD_results
 #endif /*MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
@@ -297,8 +299,6 @@ USE MOD_QDS_DG_Vars,             ONLY:DoQDS,QDSMacroValues,nQDSElems,QDSSpeciesM
 USE MOD_HDF5_Input,              ONLY:File_ID,DatasetExists,GetDataProps,nDims,HSize
 #endif
 
-use mod_readIMD_vars,            only:useIMDresults
-use mod_readIMD,                 only:read_IMD_results
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -395,9 +395,11 @@ IF( DoRestartDummy )THEN
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
-  else if( useIMDresults )then
+#ifdef MPI
+  ELSE IF( useIMDresults )THEN
     if( myRank == 0)write(*,*)'useIMDresults'
     call read_IMD_results()
+#endif /*MPI*/
 
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
