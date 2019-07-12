@@ -95,13 +95,7 @@ Following parameters can be used for both schemes.
 
 ## Boundary Conditions
 
-This is the only case, when the order within the parameter file becomes important, when modifying boundary conditions. If you want to modify a specific boundary by addressing its name, the related boundary type has to be defined
-~~~~~~~
-BoundaryName=inflow         ! BC_Name defined in mesh file
-BoundaryType=(/2,0,0,0/)
-BoundaryName=outflow        ! BC_Name defined in mesh file
-BoundaryType=(/2,0,0,0/)
-~~~~~~~
+To-do: Modification of boundaries with the PICLas parameter file (order is of importance)
 
 ### Field
 
@@ -109,7 +103,7 @@ Dielectric -> type 100?
 
 ### Particle
 
-Within the parameter file it is possible to define different particle boundary conditions for the boundaries defined during the preprocessing with HOPR. The number of boundaries is defined by
+Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by
 
     Part-nBounds=2
     Part-Boundary1-SourceName=BC_OPEN
@@ -117,7 +111,7 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary2-SourceName=BC_WALL
     Part-Boundary2-Condition=reflective
 
-The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
+The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions (`Part-Boundary1-Condition=`) are described in the table below.
 
 |  Condition   | Description                                                                                                                                                                                 |
 | :----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -195,9 +189,9 @@ Using the regions, multiple pumps can be defined on a single boundary.
 The following section gives an overview of the available options regarding the definition of species and particle initialization and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step. First of all, the number of species is defined by
 
     Part-nSpecies=1
-    Part-MaxParticleNumber=2000000
+    Part-MaxParticleNumber=1000000
 
-The maximum particle number is defined per core and should be chosen according to the number of simulation particles you expect, including a margin to account for imbalances due transient flow features and/or the occurrence of new particles due to chemical reactions.
+The maximum particle number is defined per core and should be chosen according to the number of simulation particles you expect, including a margin to account for imbalances due transient flow features and/or the occurrence of new particles due to chemical reactions. Example: A node of a HPC cluster has 2 CPUs, each has 12 cores. Thus, the node has 24 cores that share a total of 128GB RAM. Allocating 1000000 particles per core means, you can simulate up to 24 Million particles on a single node in this example (assuming an even particle distribution). The limiting factor here is the amount of RAM available per node.
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the weighting factor $w$ [-] are required for each species.
 
@@ -242,7 +236,6 @@ In the case of molecules, the rotational and vibrational temperature [K] have to
     Part-Species1-Surfaceflux1-TempVib=300.
     Part-Species1-Surfaceflux1-TempElec=300.
 
-*Missing description: SimpleRadialVeloFit, ReduceNoise, AcceptReject, ARM_DmaxSampleN, DoForceFreeSurfaceFlux*
 
 #### Circular Inflow
 
@@ -268,7 +261,7 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single surface flux.
+Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall.
 
 #### Adaptive Boundaries
 
@@ -301,16 +294,41 @@ The adaptive particle emission can be combined with the circular inflow feature.
 
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
+#### Missing descriptions
+
+SimpleRadialVeloFit, ReduceNoise, DoForceFreeSurfaceFlux
+
+DoPoissonRounding: [@Tysanner2004]
+
+AcceptReject, ARM_DmaxSampleN: [@Garcia2006]
+
 ## Particle-In-Cell \label{sec:pic}
 
-### Deposition \label{sec:pic_deposition}
+### Charge and Current Deposition \label{sec:pic_deposition}
 
 Charge and current deposition can be performed using different methods, among others, shape
-functions, B-splines or locally volume-weighted.
+functions, B-splines or locally volume-weighted approaches.
+
+#### Linear Distribution Over Cell Interfaces
+A linear deposition method that also considers neighbouring elements can be selected by
+
+    PIC-Deposition-Type = cell_volweight_mean
+
+The method also considers the corner nodes of each element to which all neighbouring elements
+contribute, hence, resulting in a non-local deposition scheme.
 
 #### Shape Function
 
-High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006].
+High-order field solvers require deposition methods that reduce the noise, e.g., shape functions [@Jacobs2006]. The standard 3D shape function is selected by
+
+    PIC-Deposition-Type = shape_function
+
+or
+
+    PIC-Deposition-Type = shape_function_simple
+
+where `shape_function_simple` is faster for small numbers of elements per processor (high parallelization).
+
 The shape function sphere might be truncated at walls or open boundaries, which can be prevented by
 using a local deposition method near boundaries. The deposition of particles in elements where the shape
 function might be truncated is changed to *cell_volweight* for these elements via
@@ -381,12 +399,33 @@ $R$ is the cut-off radius.
 
 ## Direct Simulation Monte Carlo
 
-### Species Definition
+To enable the simulation with DSMC, an appropriate time discretization method including the DSMC module should be chosen before the code compilation. A stand-alone DSMC simulation can be enabled by compiling PICLas with the following parameter
+
+    PICLAS_TIMEDISCMETHOD = DSMC
+
+The DSMC method can then be enabled in the parameter file by
+
+    UseDSMC = T
+
+Additionally, the number of simulated physical models depending on the application can be controlled through
+
+    Particles-DSMC-CollisMode = 1   ! Elastic collisions only
+                                2   ! Internal energy exchange
+                                3   ! Chemical reactions
+
+`CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with `CollisMode = 3`. The following sections describe the required definition of species parameter (Section \ref{sec:dsmc_species}), the parameters for the internal energy exchange (Section \ref{sec:dsmc_relaxation}) and chemical reactions (Section \ref{sec:dsmc_chemistry}).
+
+The simulation time step $\Delta t$ is defined by
+
+    Particles-ManualTimeStep = 1.00E-7
+
+
+### Species Definition \label{sec:dsmc_species}
 
 For the DSMC simulation, additional species-specific parameters (collision model parameters, characteristic vibrational temperature, etc.) are required. This file is also utilized for the definition of chemical reactions paths. To define a species, its name as well as an `InteractionID` have to be defined
 
-    Part-Species1-SpeciesName=CH4
-    Part-Species1-InteractionID=2
+    Part-Species1-SpeciesName = CH4
+    Part-Species1-InteractionID = 2
 
 The name is at the moment only utilized to retrieve the electronic energy levels from an additional database. The interaction ID determines the type of a species as follows
 
@@ -398,15 +437,18 @@ The name is at the moment only utilized to retrieve the electronic energy levels
 |   10 | Atomic Ion                         |
 |   20 | Molecular Ion                      |
 
-The implemented Variable Hard Sphere (VHS) collision cross-section model requires the input of the parameter, the temperature exponent $\omega$, reference temperature $T_\mathrm{ref}$ and diameter $d_\mathrm{ref}$
+Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega$, reference temperature $T_\mathrm{ref}$ and diameter $d_\mathrm{ref}$
 
-    Part-Species1-omegaVHS=0.24
-    Part-Species1-VHSReferenceTemp=273
-    Part-Species1-VHSReferenceDiam=4.63E-10
+    Part-Species1-omegaVHS = 0.24
+    Part-Species1-VHSReferenceTemp = 273
+    Part-Species1-VHSReferenceDiam = 4.63E-10
 
-It should be noted that although species-specific $\omega$ values can be read-in, DSMC should only be utilized with a single $\omega$. Diatomic molecular species require the definition of the characteristic temperatures
+It should be noted that although species-specific $\omega$ values can be read-in, DSMC in PICLas should only be utilized with a single $\omega$ at the moment. Other collisional models and their respective parameters are given in Section \ref{sec:dsmc_collision}.
 
-    Part-Species1-CharaTempVib=4194.9
+Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV] (which is at the moment only utilized as a first guess for the upper bound of the temperature calculation)
+
+    Part-Species1-CharaTempVib = 4194.9
+    Part-Species1-Ediss_eV = 4.53
 
 Polyatomic molecular species require an additional flag, the input of the number of atoms  and whether the molecule is linear (e.g. CO$_2$, $\xi_\mathrm{rot} = 2$) or non-linear (e.g. H$_2$O, CH$_4$, $\xi_\mathrm{rot} = 3$). The number of the vibrational degrees of freedom is then given by
 
@@ -414,26 +456,52 @@ $$ \alpha = 3 N_\mathrm{atom} - 3 - \xi_\mathrm{rot} $$
 
 As an example the parameters of CH$_3$ are given below. The molecule has four vibrational modes, with two of them having a degeneracy of two. These values are simply given the according amount of times
 
-    Part-Species2-NumOfAtoms=4
-    Part-Species2-LinearMolec=FALSE
-    Part-Species2-CharaTempVib1=4320.6
-    Part-Species2-CharaTempVib2=872.1
-    Part-Species2-CharaTempVib3=4545.5
-    Part-Species2-CharaTempVib4=4545.5
-    Part-Species2-CharaTempVib5=2016.2
-    Part-Species2-CharaTempVib6=2016.2
+    Part-Species2-NumOfAtoms = 4
+    Part-Species2-LinearMolec = FALSE
+    Part-Species2-CharaTempVib1 = 4320.6
+    Part-Species2-CharaTempVib2 = 872.1
+    Part-Species2-CharaTempVib3 = 4545.5
+    Part-Species2-CharaTempVib4 = 4545.5
+    Part-Species2-CharaTempVib5 = 2016.2
+    Part-Species2-CharaTempVib6 = 2016.2
 
-**WORK IN PROGRESS**
+These parameters allow the simulation of non-reactive gases. Additional parameters required for the consideration of chemical reaction are given in Section \ref{sec:dsmc_chemistry}.
 
-### Relaxation
+### Pairing & Collision Modelling \label{sec:dsmc_collision}
 
-### Chemistry & Ionization
+WIP: octree, VHS
 
-### Surface Chemistry
+### Relaxation \label{sec:dsmc_relaxation}
+
+WIP
+
+### Chemistry & Ionization \label{sec:dsmc_chemistry}
+
+WIP
+
+### Ensuring Physical Simulation Results \label{sec:dsmc_quality}
+
+To determine whether the DSMC related parameters are chosen correctly, so-called quality factors can be written out as part of the regular DSMC state file output by
+
+    Particles-DSMC-CalcQualityFactors = T
+
+This flag writes out the spatial distribution of the mean and maximal collision probability (`DSMC_MeanCollProb` and `DSMC_MaxCollProb`). On the one hand, maximal collision probabilities above unity indicate that the time step should be reduced. On the other hand, very small collision probabilities mean that the time step can be further increased. Additionally, the ratio of the mean collision separation distance to the mean free path is written out (`DSMC_MCSoverMFP`)
+
+$$\frac{l_\mathrm{mcs}}{\lambda} < 1$$
+
+The mean collision separation distance is determined during every collision and compared to the mean free path, where its ratio should be less than unity. Values above unity indicate an insufficient particle discretization. In order to estimate the required weighting factor $w$, the following equation can be utilized for a 3D simulation
+
+$$w < \frac{1}{\left(\sqrt{2}\pi d_\mathrm{ref}^2 n^{2/3}\right)^3},$$
+
+where $d_\mathrm{ref}$ is the reference diameter and $n$ the number density. Here, the largest number density within the simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
+
+## Surface Chemistry
+
+WIP
 
 ## Modelling of Continuum Gas Flows
 
-Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids.
+Two methods are currently implemented to allow the simulation of gas flows in the continuum and transitional regime, where the DSMC method is computationally too expensive. The Fokker–Planck- and Bhatnagar-Gross-Krook-based approximation of the collision integral are compared in detail in paper to be published in Physics of Fluids. It is recommended to utilize a previous DSMC parameter file to ensure a complete simulation setup.
 
 ### Fokker–Planck Collision Operator
 
@@ -546,3 +614,42 @@ The purpose is to increase the sample size for steady gas flows. An extension of
     Particles-BGK-MovingAverageLength = 100
 
 Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage could not be observed, however, it might reduce the statistical noise for other application cases.
+
+## Output of Macroscopic Variables
+
+In general, simulation results are either available spatially resolved based on the mesh (classic CFD results) and/or as integral values (e.g. for reservoir/heat bath simulations).
+
+### Field Variables
+
+WIP
+
+### Flowfield and Surface Variables
+
+A sampling over a certain number of iterations is performed to calculate the macroscopic values such as number density, bulk velocity and temperature from the microscopic particle information. Output and sampling on surfaces can be enabled by
+
+    Particles-DSMC-CalcSurfaceVal = T
+
+Parameters indicating the quality of the simulation (e.g. the maximal collision probability in case of DSMC) can be enabled by
+
+    Particles-DSMC-CalcQualityFactors = T
+
+Two variants are available in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and output the result after the given number of iterations.
+
+The first variant is usually utilized to sample at the end of a simulation, when the steady condition is reached. The first parameter `Part-TimeFracForSampling` defines the percentage that shall be sampled relative to the simulation end time $T_\mathrm{end}$ (Parameter: `TEnd`)
+
+    Part-TimeFracForSampling = 0.1
+    Particles-NumberForDSMCOutputs = 2
+
+`Particles-NumberForDSMCOutputs` defines the number of outputs during the sampling time. Example: The simulation end time is $T_\mathrm{end}=1$, thus sampling will begin at $T=0.9$ and the first output will be written at $T=0.95$. At this point the sample will NOT be resetted but continued. Therefore, the second and last output at $T=T_\mathrm{end}=1.0$ is not independent of the previous result but contains the sample of the complete sampling duration. It should be noted that if a simulation is continued at e.g. $T=0.95$, sampling with the given parameters will begin immediately.
+
+The second variant can be used to produce outputs for unsteady simulations, while still to be able to sample for a number of iterations (Parameter: `Part-IterationForMacroVal`). The first two flags allow to enable the output of flowfield/volume and surface values, respectively.
+
+    Part-WriteMacroVolumeValues = T
+    Part-WriteMacroSurfaceValues = T
+    Part-IterationForMacroVal = 100
+
+Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above, we would sample for 100 iterations up to $T = 0.1$ and get the first output. Afterwards, the sample is deleted and the sampling begins anew for the following output at $T=0.2$. This procedure is repeated until the simulation end, resulting in 10 outputs with independent samples.
+
+### Integral Variables
+
+PartAnalyze/FieldAnalyze

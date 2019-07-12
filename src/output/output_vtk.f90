@@ -1,9 +1,9 @@
 !=================================================================================================================================
-! Copyright (c) 2010-2016  Prof. Claus-Dieter Munz 
+! Copyright (c) 2010-2016  Prof. Claus-Dieter Munz
 ! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
 ! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
 !
-! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
 ! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 !
 ! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
@@ -61,11 +61,11 @@ PUBLIC::CARRAY
 
 CONTAINS
 
-SUBROUTINE CreateConnectivity(NVisu,nElems,nodeids,dim,DGFV) 
+SUBROUTINE CreateConnectivity(NVisu,nElems,nodeids,dim,DGFV)
 USE ISO_C_BINDING
 USE MOD_Globals
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)                       :: NVisu
 INTEGER,INTENT(IN)                       :: nElems
 INTEGER,ALLOCATABLE,TARGET,INTENT(INOUT) :: nodeids(:)        !< stores the connectivity
@@ -94,7 +94,7 @@ END IF
 
 NVisu_elem = (NVisu+1)**dim
 NVisu_p1_2 = (NVisu+1)**2
-  
+
 nVTKCells  = ((NVisu+DGFV)/(1+DGFV))**dim*nElems
 SDEALLOCATE(nodeids)
 ALLOCATE(nodeids((2**dim)*nVTKCells))
@@ -361,7 +361,7 @@ IF(MPIROOT)THEN
     ElemType = 9  ! VTK_QUAD
   ELSE IF (dim.EQ.1) THEN
     ElemType = 3  ! VTK_LINE
-  END IF  
+  END IF
   WRITE(ivtk) nBytes
   WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
 
@@ -386,7 +386,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: FileString     !< Output file name
-CHARACTER(LEN=*),INTENT(IN) :: FileString_DG  !< Filename of DG VTU file 
+CHARACTER(LEN=*),INTENT(IN) :: FileString_DG  !< Filename of DG VTU file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: ivtk
@@ -441,7 +441,7 @@ IF (nElems.EQ.0) THEN
   RETURN
 END IF
 SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D COORDS TO VTX XML BINARY (VTU) ARRAY..."
-! values and coords are already in the correct structure of VTK/Paraview 
+! values and coords are already in the correct structure of VTK/Paraview
 
 ! create connectivity
 CALL CreateConnectivity(NVisu,nElems,nodeids,dim,DGFV)
@@ -487,7 +487,7 @@ IF (nElems.EQ.0) THEN
 END IF
 SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) ARRAY..."
 
-! values and coords are already in the correct structure of VTK/Paraview 
+! values and coords are already in the correct structure of VTK/Paraview
 ! set the sizes of the arrays
 values_out%len = nVal*(NVisu+1)**dim*nElems
 

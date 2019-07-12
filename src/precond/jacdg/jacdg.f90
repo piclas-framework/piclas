@@ -14,7 +14,7 @@
 
 MODULE MOD_JacDG
 !===================================================================================================================================
-! Contains the initialization of the DG global variables ! Computes the different DG spatial operators/residuals(Ut) using U 
+! Contains the initialization of the DG global variables ! Computes the different DG spatial operators/residuals(Ut) using U
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -49,7 +49,7 @@ CONTAINS
 
 SUBROUTINE InitJacDG()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -62,7 +62,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                      :: i,j,iVar,jVar
 !===================================================================================================================================
 !SWRITE(UNIT_stdOut,'(A)') ' INIT CONSTANTS FOR JACAOBIAN OF DGOPERATOR ...'
@@ -70,7 +70,7 @@ INTEGER                                      :: i,j,iVar,jVar
 ALLOCATE( JacF   (1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)  &
         , JacG   (1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)  &
         , JacH   (1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)  &
-        , JacFlux(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,1:6,1:PP_nElems)     ) 
+        , JacFlux(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N,1:6,1:PP_nElems)     )
 
 ALLOCATE( deltaOld(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N) &
         , deltaNew(1:PP_nVar,1:PP_nVar,0:PP_N,0:PP_N) )
@@ -84,10 +84,10 @@ DO jVar=1,PP_nVar
     DO j=0,PP_N
       DO i=0,PP_N
         IF((jVar.GT.iVar).AND.(j.GT.i))THEN
-          deltaOld(iVar,jVar,i,j) = 1.  
+          deltaOld(iVar,jVar,i,j) = 1.
         END IF
         IF((jVar.LT.iVar).AND.(j.LT.i))THEN
-          deltaNew(iVar,jVar,i,j) = 1.  
+          deltaNew(iVar,jVar,i,j) = 1.
         END IF
       END DO ! i
     END DO ! j
@@ -119,7 +119,7 @@ INTEGER,INTENT(IN) :: iElem
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)   :: Vout(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER            :: i,j,k,ll
 INTEGER            :: iVar, jVar
 !REAL               :: delta(0:PP_N,0:PP_N)
@@ -157,7 +157,7 @@ INTEGER            :: iVar, jVar
 !                                          + ( LL_Minus(k,oo)*JacFLUX(iVar,jVar,i,j,ZETA_MINUS,iElem)                          &
 !                                            + LL_Plus (k,oo)*JacFLUX(iVar,jVar,i,j,ZETA_PLUS,iElem) )*delta(i,mm)*delta(j,nn) &
 !                                                    * Vin(jVar,mm,nn,oo,iElem)
-! 
+!
 !                 END DO ! jVar
 !               END DO !mm
 !             END DO ! nn
@@ -179,7 +179,7 @@ INTEGER            :: iVar, jVar
 !            DO nn=0,PP_N
 !              DO mm=0,PP_N
 !                DO jVar=1,PP_nVar
-!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)   & 
+!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)   &
 !                           + ( (     D_hat(i,mm)*JacF   (iVar,jVar,i,j,k,iElem)                                           &
 !                                + LL_Minus(i,mm)*JacFLUX(iVar,jVar,  j,k,XI_MINUS,iElem)                              &
 !                                + LL_Plus (i,mm)*JacFLUX(iVar,jVar,  j,k,XI_PLUS, iElem)   )*delta(k,oo)*delta(j,nn)    &
@@ -209,7 +209,7 @@ INTEGER            :: iVar, jVar
 !        DO i=0,PP_N
 !          DO jVar=1,PP_nVar
 !            DO iVar=1,PP_nVar
-!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)                                                     & 
+!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)                                                     &
 !                             + (     D_hat(i,ll)*JacF   (iVar,jVar,i,j,k,iElem)                                       &
 !                                + LL_Minus(i,ll)*JacFLUX(iVar,jVar,  j,k,XI_MINUS,iElem)                              &
 !                                + LL_Plus (i,ll)*JacFLUX(iVar,jVar,  j,k,XI_PLUS, iElem)   )* Vin(jVar,ll,j,k,iElem)  &
@@ -244,7 +244,7 @@ INTEGER            :: iVar, jVar
 !            Vout(iVar,i,j,k,iElem) = 0.
 !            DO ll=0,PP_N
 !               DO jVar=1,PP_nVar
-!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)                                                     & 
+!                  Vout(iVar,i,j,k,iElem) = Vout(iVar,i,j,k,iElem)                                                     &
 !                             + (     D_hat(i,ll)*JacF   (iVar,jVar,i,j,k,iElem)                                       &
 !                                + LL_Minus(i,ll)*JacFLUX(iVar,jVar,  j,k,XI_MINUS,iElem)                              &
 !                                + LL_Plus (i,ll)*JacFLUX(iVar,jVar,  j,k,XI_PLUS, iElem)   )* Vin(jVar,ll,j,k,iElem)  &
@@ -281,7 +281,7 @@ INTEGER            :: iVar, jVar
         DO i=0,PP_N
           DO jVar=1,PP_nVar
             DO iVar=1,PP_nVar
-                  Vout(iVar,i,j,k) = Vout(iVar,i,j,k)                                                     & 
+                  Vout(iVar,i,j,k) = Vout(iVar,i,j,k)                                                     &
                              + (     D_hat(i,ll)*JacF   (iVar,jVar,i,j,k,iElem)                                       &
                                 + LL_Minus(i,ll)*JacFLUX(iVar,jVar,  j,k,XI_MINUS,iElem)                              &
                                 + LL_Plus (i,ll)*JacFLUX(iVar,jVar,  j,k,XI_PLUS, iElem)   )* Vin(jVar,ll,j,k)  &
@@ -340,7 +340,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                             :: iLocSide,iElem, SideID, BCType
 INTEGER                                             :: i,j,k
 REAL,DIMENSION(:,:,:,:),ALLOCATABLE                 :: JacBC
@@ -363,7 +363,7 @@ DO iElem=1,PP_nElems
       DO i=0,PP_N
         JacF(:,:,i,j,k,iElem) = fJac(:,:)*Metrics_fTilde(1,i,j,k,iElem) + &
                                 gJac(:,:)*Metrics_fTilde(2,i,j,k,iElem) + &
-                                hJac(:,:)*Metrics_fTilde(3,i,j,k,iElem) 
+                                hJac(:,:)*Metrics_fTilde(3,i,j,k,iElem)
         JacG(:,:,i,j,k,iElem) = fJac(:,:)*Metrics_gTilde(1,i,j,k,iElem) + &
                                 gJac(:,:)*Metrics_gTilde(2,i,j,k,iElem) + &
                                 hJac(:,:)*Metrics_gTilde(3,i,j,k,iElem)
@@ -384,7 +384,7 @@ DO iElem=1,PP_nElems
       CALL ConstructJacBCRiemann(BCType,nVecLoc(:,:,:,iLocSide,iElem),Surfloc(:,:,iLocSide,iElem),JacBC)
       JacFlux(:,:,:,:,iLocSide,iElem) = JacFlux(:,:,:,:,iLocSide,iElem) + JacBC(:,:,:,:)
     END IF ! BC Side
-  END DO ! iLocSide 
+  END DO ! iLocSide
 END DO ! iElems
 
 DEALLOCATE( JacBC,fJac,gJac,hJac)
@@ -408,7 +408,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 !SDEALLOCATE()
 DEALLOCATE(JacF,JacG,JacH,JacFlux)

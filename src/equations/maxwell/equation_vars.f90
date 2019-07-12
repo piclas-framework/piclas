@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: CentralFlux                             ! flag for central or upwind flux
 REAL              :: c_corr
@@ -38,8 +38,8 @@ REAL              :: c
 REAL              :: c_inv
 REAL              :: c2      ! c^2
 REAL              :: c2_inv
-REAL              :: eps0 
-REAL              :: mu0 
+REAL              :: eps0
+REAL              :: mu0
 REAL              :: smu0
 REAL              :: DipoleOmega  ! electric dipole angular frequency
 REAL              :: xDipole(1:3) ! base point of electromagnetic dipole

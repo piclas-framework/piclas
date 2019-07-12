@@ -12,21 +12,21 @@
 !==================================================================================================================================
 MODULE MOD_ChangeBasis
 !===================================================================================================================================
-! Changes a 2D or 3D Tensor Product Lagrange Points of Lagrange Basis of degree N_In to  
+! Changes a 2D or 3D Tensor Product Lagrange Points of Lagrange Basis of degree N_In to
 ! Lagrange points of a Lagrange Basis N_Out, using two
-! arbitrary point disributions xi_In(0:N_In) and xi_Out(0:N_Out) 
+! arbitrary point disributions xi_In(0:N_In) and xi_Out(0:N_Out)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ChangeBasis3D 
+INTERFACE ChangeBasis3D
   MODULE PROCEDURE ChangeBasis3D
 END INTERFACE
 
@@ -34,7 +34,7 @@ INTERFACE ChangeBasis3D_XYZ
   MODULE PROCEDURE ChangeBasis3D_XYZ
 END INTERFACE
 
-INTERFACE ChangeBasis2D 
+INTERFACE ChangeBasis2D
   MODULE PROCEDURE ChangeBasis2D
 END INTERFACE
 
@@ -50,7 +50,7 @@ CONTAINS
 SUBROUTINE ChangeBasis3D(Dim1,N_In,N_Out,Vdm,X3D_In,X3D_Out)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions xi_In(0:N_In)
-! to another 3D tensor product node positions (number of nodes N_out+1) 
+! to another 3D tensor product node positions (number of nodes N_out+1)
 ! defined by (N_out+1) interpolation point  positions xi_Out(0:N_Out)
 !  xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
@@ -66,7 +66,7 @@ REAL,INTENT(IN)     :: Vdm(0:N_Out,0:N_In)
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)    :: X3D_Out(1:Dim1,0:N_Out,0:N_Out,0:N_Out)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER             :: iN_In,jN_In,kN_In,iN_Out,jN_Out,kN_Out
 REAL                :: X3D_Buf1(1:Dim1,0:N_Out,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:Dim1,0:N_Out,0:N_Out,0:N_In) ! second intermediate results from 1D interpolations
@@ -109,7 +109,7 @@ END SUBROUTINE ChangeBasis3D
 
 SUBROUTINE ChangeBasis3D_XYZ(Dim1,NIn,NOut,Vdm_xi,Vdm_eta,Vdm_zeta,X3D_In,X3D_Out)
 !==================================================================================================================================
-!> Interpolate a 3D tensor product Lagrange polynomial defined by (NIn+1) 1D Lagrange basis functions of order (Nin) and node 
+!> Interpolate a 3D tensor product Lagrange polynomial defined by (NIn+1) 1D Lagrange basis functions of order (Nin) and node
 !> positions xi_In(0:Nin) to another 3D tensor product Lagrange basis defined by (NOut+1) 1D interpolation points on the node
 !> positions xi_out(0:NOut) using DIFFERENT 1D Vdm matrices in the xi,eta and zeta directions.
 !> xi is defined in the 1D referent element \f$ \xi \in [-1,1] \f$.
@@ -172,7 +172,7 @@ END SUBROUTINE ChangeBasis3D_XYZ
 SUBROUTINE ChangeBasis2D(Dim1,N_In,N_Out,Vdm,X2D_In,X2D_Out)
 !===================================================================================================================================
 ! interpolate a 2D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions xi_In(0:N_In)
-! to another 2D tensor product node positions (number of nodes N_out+1) 
+! to another 2D tensor product node positions (number of nodes N_out+1)
 ! defined by (N_out+1) interpolation point  positions xi_Out(0:N_Out)
 !  xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
@@ -188,7 +188,7 @@ REAL,INTENT(IN)     :: Vdm(0:N_Out,0:N_In)
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)    :: X2D_Out(1:Dim1,0:N_Out,0:N_Out)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER             :: iN_In,jN_In,iN_Out,jN_Out
 REAL                :: X2D_Buf1(1:Dim1,0:N_Out,0:N_In)  ! first intermediate results from 1D interpolations
 !===================================================================================================================================

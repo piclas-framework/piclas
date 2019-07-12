@@ -21,7 +21,7 @@ MODULE MOD_GetBoundaryFlux_Pois
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
@@ -92,7 +92,7 @@ CASE(3) ! 1st order absorbing BC
 !  DO q=0,PP_N
 !    DO p=0,PP_N
 !      resul=U_Face(:,p,q)
-!      n_loc=normal(:,p,q)   
+!      n_loc=normal(:,p,q)
 !!      U_Face_loc(1,p,q) = resul(1) - c*DOT_PRODUCT(resul(2:4),n_loc)
 !      U_Face_loc(2:4,p,q) = -resul(2:4) + c_inv*U_Face(1,p,q)*normal(1:3,p,q)
 
@@ -100,13 +100,13 @@ CASE(3) ! 1st order absorbing BC
 !  END DO
 
   CALL Riemann_Pois(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
-  
+
 CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
   ! Determine the exact BC state
   DO q=0,PP_N
     DO p=0,PP_N
       resul=U_Face(:,p,q)
-      n_loc=normal(:,p,q)    
+      n_loc=normal(:,p,q)
     ! U_Face_loc(1,p,q) = 2. * 1000. - resul(1)  !- c*DOT_PRODUCT(resul(2:4),n_loc)
       U_Face_loc(1,p,q) = 2. * (PartBound%Voltage(PartBound%MapToPartBC(BC(iSide))) &
                                +PartBound%Voltage_CollectCharges(PartBound%MapToPartBC(BC(iSide))) ) &

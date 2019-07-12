@@ -21,7 +21,7 @@ MODULE MOD_SurfaceModel_Tools
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, PartSurfaceModel
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
-#if (PP_TimeDiscMethod==42)  
+#if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -106,7 +106,7 @@ DO iSpec=1,nSpecies
           ! enhance later to co-adsorption
           Theta_req = (1.0 - Adsorption%Coverage(p,q,SurfSide,iSpec)/Adsorption%MaxCoverage(SurfSide,iSpec)) &
                     **Adsorption%Adsorbexp(SurfSide,iSpec)
-          !----- kann später auf von Wandtemperatur abhängige Werte erweitert werden          
+          !----- kann später auf von Wandtemperatur abhängige Werte erweitert werden
           Kfactor = Adsorption%PrefactorStick(SurfSide,iSpec)
           S_0 = Adsorption%InitStick(SurfSide,iSpec)
           !-----
@@ -144,7 +144,7 @@ USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
 USE MOD_TimeDisc_Vars          ,ONLY: dt
-#if (PP_TimeDiscMethod==42)  
+#if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 #endif
@@ -160,7 +160,7 @@ INTEGER                          :: PartBoundID
 ! CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
   PartBoundID = PartBound%MapToPartBC(BC(Adsorption%SurfSideToGlobSideMap(SurfSide)))
-! special TPD (temperature programmed desorption) temperature adjustment routine    
+! special TPD (temperature programmed desorption) temperature adjustment routine
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
     WallTemp = PartBound%WallTemp(PartBoundID) + (Adsorption%TPD_beta * iter * dt)
@@ -181,7 +181,7 @@ DO SurfSide=1,SurfMesh%nSides
 !   Polanyi-Wigner-eq. from Kolasinski's Surface Science (book)
 !----------------------------------------------------------------------------------------------------------------------------------!
           Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)! / Adsorption%MaxCoverage(SurfSide,iSpec)
-          !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden          
+          !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden
           E_des = Adsorption%DesorbEnergy(SurfSide,iSpec) + Adsorption%Intensification(SurfSide,iSpec) * Theta
           nu_des = 10**(Adsorption%Nu_a(SurfSide,iSpec) + Adsorption%Nu_b(SurfSide,iSpec) * Theta)!/10000
           !-----
@@ -213,7 +213,7 @@ DO SurfSide=1,SurfMesh%nSides
                   * ( 1 - exp( - Adsorption%Coverage(p,q,SurfSide, Adsorption%RecombData(1,iSpec) ) ) )
             END IF
           END IF
-        END IF ! PartSurfaceModel  
+        END IF ! PartSurfaceModel
       END DO
     END DO
   END DO
@@ -260,7 +260,7 @@ Coordination = Adsorption%Coordination(PartBoundID,Species)
 ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 !   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-x(:) = 1. ! averaged bond-index for surface atoms 
+x(:) = 1. ! averaged bond-index for surface atoms
 m(:) = 1  ! number of adsorbates belonging to surface atom
 Calc_Adsorb_Heat = 0.
 sigma = 0.
@@ -323,7 +323,7 @@ IF(SpecDSMC(Species)%InterID.EQ.2) THEN
 !        Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,Species) * (2.*x(1) - x(1)**2)
 !        Heat_M = Adsorption%HeatOfAdsZeroM(Species) * (2.*x(1) - x(1)**2)
 !        A = Heat_A * (1- ( (m*Heat_B/( m*Heat_A + Heat_B ))**2) )
-!        
+!
 !        Heat_A = Adsorption%HeatOfAdsZero2(Species) * (2.*x(2) - x(2)**2)
 !        Heat_M = Adsorption%HeatOfAdsZeroR(Species) * (2.*x(2) - x(2)**2)
 !        B = Heat_A * (1- ( (mtilde*Heat_B/( mtilde*Heat_A + Heat_B ))**2) )
@@ -433,11 +433,11 @@ END IF
 !           delta(l) = 1 / REAL(Neigh_bondorder(l))
 !         END IF
 !         Heat_D_AL = Heat_D_AL + 0.5*D_AL(l) * (2*delta(l)-delta(l)**2)
-!       END DO  
+!       END DO
 !     nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
 !     Calc_Adsorb_Heat = (Calc_Adsorb_Heat*nInterAtom + Heat_D_AL*nNeigh_interactions) /(nInterAtom + nNeigh_interactions)
 !     END IF
-!     
+!
 !     DEALLOCATE(D_AL,delta,Neigh_bondorder)
 !   END IF
 
@@ -455,17 +455,17 @@ REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reac
 !> Forward reaction is defined by D_Educt > D_Products
 !> Examples:
 !> (1)
-!> O2 desorbed directly to gasphase from reaction of two O (O_ads + O_ads -> O2_g): 
+!> O2 desorbed directly to gasphase from reaction of two O (O_ads + O_ads -> O2_g):
 !> ==> forward reaction: O2_g + (-)_ads -> O_ads + O_ads
 !> ==> IsAdsorption = .FALSE.
 !> ==> Heat_Reactant_A = Heat_O2_g = 0. | Heat_Product_A_ads = Heat_Product_B_ads = Heat_O_ads
 !> (2)
-!> adsorbed CH radical reacts with adsorbed O-atom to adsorbed C-atom and OH-radical (CH_ads + O_ads -> C_ads + OH_ads): 
+!> adsorbed CH radical reacts with adsorbed O-atom to adsorbed C-atom and OH-radical (CH_ads + O_ads -> C_ads + OH_ads):
 !> ==> forward reaction: CH_ads + O_ads -> C_ads + OH_ads
 !> ==> IsAdsorption = .TRUE.
 !> ==> Heat_Reactant_A = Heat_CH_ads | Heat_Reactant_B = Heat_O_ads | Heat_Product_A = Heat_C_ads | Heat_Product_B = Heat_OH_ads
 !> (3)
-!> adsorbed OH radical reacts with adsorbed C-atom to adsorbed O-atom and gasphase CH-radical (OH_ads + C_ads -> O_ads + CH_g): 
+!> adsorbed OH radical reacts with adsorbed C-atom to adsorbed O-atom and gasphase CH-radical (OH_ads + C_ads -> O_ads + CH_g):
 !> ==> forward reaction: CH_g + O_ads -> C_ads + OH_ads
 !> ==> IsAdsorption = .FALSE.
 !> ==> Heat_Reactant_A = Heat_CH_g = 0. | Heat_Reactant_B = Heat_O_ads | Heat_Product_A = Heat_C_ads | Heat_Product_B = Heat_OH_ads
@@ -606,7 +606,7 @@ Xi_Rot = 0
 IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iSpec)%EZeroPoint
-    ! Calculation of the vibrational degree of freedom for the particle 
+    ! Calculation of the vibrational degree of freedom for the particle
     IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iSpec)%EZeroPoint) THEN
       Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iSpec)%EZeroPoint) &
               / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
@@ -708,7 +708,7 @@ CASE(3) ! eley-rideal
   IF(SpecDSMC(PartnerSpecies)%InterID.EQ.2) THEN
     IF(SpecDSMC(PartnerSpecies)%PolyatomicMol) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(PartnerSpecies)%EZeroPoint
-      ! Calculation of the vibrational degree of freedom for the particle 
+      ! Calculation of the vibrational degree of freedom for the particle
       IF (SurfPartVibE.GT.SpecDSMC(PartnerSpecies)%EZeroPoint) THEN
         Xi_vib = Xi_vib + 2.*(SurfPartVibE-SpecDSMC(PartnerSpecies)%EZeroPoint) &
                 / (BoltzmannConst*CalcTVibPoly(SurfPartVibE, PartnerSpecies))
@@ -830,7 +830,7 @@ USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,SpecID
 INTEGER,INTENT(INOUT)            :: adsorbates_num
 !----------------------------------------------------------------------------------------------------------------------------------!
