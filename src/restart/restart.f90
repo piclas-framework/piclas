@@ -94,6 +94,11 @@ USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAt
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 #else
 #endif
+#ifdef PARTICLES
+#ifdef MPI
+USE mod_readIMD_vars       ,ONLY: useIMDresults
+#endif /*MPI*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -121,6 +126,13 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
+
+! Check for IMD data read-in
+#ifdef PARTICLES
+#ifdef MPI
+  IF(useIMDresults) DoRestart = .TRUE.
+#endif /*MPI*/
+#endif /*PARTICLES*/
 
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
@@ -371,10 +383,8 @@ INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElems
 #ifndef PP_HDG
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*not PP_HDG*/
-logical                            :: DoRestartDummy = .TRUE.
 !===================================================================================================================================
-!IF(DoRestart)THEN
-IF( DoRestartDummy )THEN
+IF(DoRestart)THEN
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
@@ -398,7 +408,7 @@ IF( DoRestartDummy )THEN
 #ifdef PARTICLES
 #ifdef MPI
   ELSE IF( useIMDresults )THEN
-    if( myRank == 0)write(*,*)'useIMDresults'
+    SWRITE(UNIT_stdOut,*)'Restarting with IMD data (useIMDresults=T)'
     call read_IMD_results()
 #endif /*MPI*/
 #endif /*PARTICLES*/

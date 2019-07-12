@@ -1,14 +1,12 @@
+#ifdef MPI
+#ifdef PARTICLES
 #include "piclas.h"
 module mod_readIMD
 
 implicit none
 private
 
-#ifdef MPI
-#ifdef PARTICLES
 public :: read_IMD_results
-#endif /*PARTICLES*/
-#endif /*MPI*/
 public :: DefineParametersReadIMDdata, initReadIMDdata
 contains
 
@@ -19,7 +17,7 @@ subroutine DefineParametersReadIMDdata()
   use MOD_ReadInTools ,only: prms
   ! -----------------------------------------------------------------------------
   call prms%CreateLogicalOption('useIMDresults', 'Use Data from IMD', '.FALSE.')
-  call prms%CreateStringOption('filenameIMDresults', 'Filename of the IMD result file')!, '')
+  call prms%CreateStringOption('filenameIMDresults', 'Filename of the IMD result file', 'None')
   call prms%CreateLogicalOption('killPIClas', 'Debugging Variable to kill IMD, only for testing', '.FALSE.')
 
 end subroutine DefineParametersReadIMDdata
@@ -40,8 +38,6 @@ end subroutine initReadIMDdata
 
 ! ==============================================================================
 
-#ifdef PARTICLES
-#ifdef MPI
 subroutine read_IMD_results()
 
   use mod_readIMD_vars
@@ -218,7 +214,7 @@ subroutine read_IMD_results()
   end if
 
 end subroutine read_IMD_results
-#endif /*MPI*/
-#endif /*PARTICLES*/
 
 end module mod_readIMD
+#endif /*MPI*/
+#endif /*PARTICLES*/
