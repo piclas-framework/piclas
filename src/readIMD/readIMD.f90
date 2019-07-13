@@ -163,18 +163,17 @@ subroutine read_IMD_results()
   PartState = PartState * 1e-10_8
   PartState(:,4:6) = PartState(:,4:6) * 10.18e15_8
 
+  ! Free an info object 
   call MPI_Info_free(mpiInfo, iError)
 
-  PDM%ParticleInside(:) = .False.
+  ! Get minimum and maximum extend of the complete particle distribution in the domain
+  MinX = MINVAL(PartState(:,1))
+  MinY = MINVAL(PartState(:,2))
+  MinZ = MINVAL(PartState(:,3))
 
-  do iPart=1,PDM%ParticleVecLength
-    PDM%ParticleInside(iPart) = .True.
-    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
-    if( .not. PDM%ParticleInside(iPart) )then
-      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
-    end if
-  end do
-
+  MaxX = MAXVAL(PartState(:,1))
+  MaxY = MAXVAL(PartState(:,2))
+  MaxZ = MAXVAL(PartState(:,3))
 
   CALL MPI_REDUCE(MaxX , MaxX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   CALL MPI_REDUCE(MinX , MinX_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
@@ -192,7 +191,15 @@ subroutine read_IMD_results()
     write(*,*) "MinZ_glob,MaxZ_glob: ", MinZ_glob,MaxZ_glob
   end if
 
-
+  ! Find particles in their host cells before communicating them to their actual host proc
+  PDM%ParticleInside(:) = .False.
+  do iPart=1,PDM%ParticleVecLength
+    PDM%ParticleInside(iPart) = .True.
+    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+    if( .not. PDM%ParticleInside(iPart) )then
+      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
+    end if
+  end do
 
   call IRecvNbofParticles()
   call SendNbOfParticles()
