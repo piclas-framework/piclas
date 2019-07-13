@@ -822,6 +822,7 @@ REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQD
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
+INTEGER                       :: iPart
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -829,7 +830,6 @@ REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-INTEGER                       :: iPart
 !===================================================================================================================================
 
 ! RK coefficients
