@@ -95,7 +95,7 @@ USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 #ifdef MPI
-USE mod_readIMD              ,ONLY: initReadIMDdata
+USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
@@ -193,13 +193,15 @@ CALL InitHDG()
 #endif
 
 #ifdef PARTICLES
+! Old IMD format
   CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
 #ifdef MPI
 ! New IMD binary format (not TTM needed as this information is stored on the atoms)
-call initReadIMDdata()
+CALL initReadIMDdata()
+CALL read_IMD_results()
 #endif /* MPI */
 #endif /*PARTICLES*/
 

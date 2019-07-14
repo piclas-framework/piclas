@@ -78,9 +78,12 @@ subroutine read_IMD_results()
   real                                      :: MinY,MinY_glob
   real                                      :: MaxZ,MaxZ_glob
   real                                      :: MinZ,MinZ_glob
+  real                                      :: StartT,EndT
   ! -----------------------------------------------------------------------------
+  if( .not. useIMDresults ) return
 
-  SWRITE(UNIT_stdOut,'(A,A)')'Read IMD-results from file: ',trim(filenameIMDresults)
+  SWRITE(UNIT_stdOut,*)'Restarting with IMD data (useIMDresults=T)'
+  SWRITE(UNIT_stdOut,*)'Read IMD-results from file: ',trim(filenameIMDresults)
   call MPI_INFO_CREATE(mpiInfo, iError)
 
   if( myRank == 0 )then
@@ -106,7 +109,7 @@ subroutine read_IMD_results()
     disp = int(disp_tmp,8)
     observables = int(observables_tmp,4)
 
-    SWRITE(UNIT_stdOut,'(3A,I15)')'Number of atmos in ',trim(filenameIMDresults),': ',nGlobalAtoms
+    SWRITE(UNIT_stdOut,*)'Number of atoms in ',trim(filenameIMDresults),': ',nGlobalAtoms
     call MPI_FILE_CLOSE(filehandle, mpiFileError)
 
   end if
@@ -133,6 +136,10 @@ subroutine read_IMD_results()
   atomBufferSize = 8 * observables * int ( nAtoms, 4 )
   allocate(AtomsBuffer(atomBufferSize))
 
+  if( mpiroot )then
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Reading from atom data file ...'
+    StartT=MPI_WTIME()
+  end if
   call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(filenameIMDresults), MPI_MODE_RDONLY,&
                       mpiInfo, filehandle, mpiFileError)
 
@@ -150,14 +157,31 @@ subroutine read_IMD_results()
 
   call MPI_FILE_CLOSE(filehandle, iError)
 
+  if( mpiroot )then
+    EndT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    StartT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Unpacking data into PartState ....'
+  end if
+
   do iPart=1,PDM%ParticleVecLength
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
                     6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+    if ( iError .NE. 0 ) &
+        WRITE(UNIT_stdOut,*)'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
 
     call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
                     int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+    if ( iError .NE. 0 ) &
+        WRITE(UNIT_stdOut,*)'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
   end do
 
+  if( mpiroot )then
+    EndT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    StartT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Getting global particle information (min and max position) ...'
+  end if
   deallocate(AtomsBuffer)
 
   PartState = PartState * 1e-10_8
@@ -184,14 +208,18 @@ subroutine read_IMD_results()
   CALL MPI_REDUCE(MaxZ , MaxZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   CALL MPI_REDUCE(MinZ , MinZ_glob , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
 
-  if( MPIroot )then
+  if( mpiroot )then
+    EndT=MPI_WTIME()
     write(*,*) "Global particle information"
     write(*,*) "MinX_glob,MaxX_glob: ", MinX_glob,MaxX_glob
     write(*,*) "MinY_glob,MaxY_glob: ", MinY_glob,MaxY_glob
     write(*,*) "MinZ_glob,MaxZ_glob: ", MinZ_glob,MaxZ_glob
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    StartT=MPI_WTIME()
   end if
 
   ! Find particles in their host cells before communicating them to their actual host proc
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Re-locating particles to their host cells ...'
   PDM%ParticleInside(:) = .False.
   do iPart=1,PDM%ParticleVecLength
     PDM%ParticleInside(iPart) = .True.
@@ -200,7 +228,12 @@ subroutine read_IMD_results()
       WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
     end if
   end do
-
+  if( mpiroot )then
+    EndT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    StartT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Sending particles to host procs ...'
+  end if
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()
@@ -210,11 +243,20 @@ subroutine read_IMD_results()
   call UpdateNextFreePosition()
 
   call MPIParticleRecv()
+  if( mpiroot )then
+    EndT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    StartT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Writing HDF5 data file ...'
+  end if
 
   !call WriteStateToHDF5( trim(meshfile), t, tFuture )
   call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
 
-  SWRITE(UNIT_stdOut,'(A)')'Read IMD data done'
+  if( mpiroot )then
+    EndT=MPI_WTIME()
+    WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'Read IMD data DONE  [',EndT-StartT,'s]'
+  end if
   if( killPIClas )then
     call MPI_FINALIZE( iError )
     stop

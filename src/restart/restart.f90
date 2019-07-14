@@ -94,11 +94,6 @@ USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAt
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 #else
 #endif
-#ifdef PARTICLES
-#ifdef MPI
-USE mod_readIMD_vars       ,ONLY: useIMDresults
-#endif /*MPI*/
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -126,13 +121,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
-
-! Check for IMD data read-in
-#ifdef PARTICLES
-#ifdef MPI
-  IF(useIMDresults) DoRestart = .TRUE.
-#endif /*MPI*/
-#endif /*PARTICLES*/
 
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
@@ -294,8 +282,6 @@ USE MOD_Particle_Boundary_Vars,  ONLY:nSurfBC
 USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBound
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-use mod_readIMD_vars,            only:useIMDresults
-use mod_readIMD,                 only:read_IMD_results
 #endif /*MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
@@ -404,14 +390,6 @@ IF(DoRestart)THEN
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-
-#ifdef PARTICLES
-#ifdef MPI
-  ELSE IF( useIMDresults )THEN
-    SWRITE(UNIT_stdOut,*)'Restarting with IMD data (useIMDresults=T)'
-    call read_IMD_results()
-#endif /*MPI*/
-#endif /*PARTICLES*/
 
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
