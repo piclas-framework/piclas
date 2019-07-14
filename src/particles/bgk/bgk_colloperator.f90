@@ -1022,7 +1022,7 @@ REAL                  :: TRot, betaV, OldEnRot, RotExp, VibExp, NewEnRot, NewEnV
 REAL                  :: CellTempRelax, vBulkAver(3), u2Aver, nPartAver
 REAL                  :: vBulkSpec(1:3, nSpecies), TotalMass, MassDens(nSpecies), TotalMassDens, u2Spec(nSpecies)
 REAL                  :: u0ijSpec(3,3,nSpecies), u0iSpec(3,nSpecies), SpecTemp(nSpecies), dynamicvisSpec(nSpecies), Phi(nSpecies)
-REAL                  :: thermalcondspec(nSpecies), thermalcond, C_P, MassCoef, PrandtlCorrection
+REAL                  :: thermalcondspec(nSpecies), thermalcond, C_P, MassCoef, PrandtlCorrection,nu,Theta
 INTEGER               :: nSpec(nSpecies), nTemp, jSpec
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
@@ -1107,6 +1107,11 @@ END DO
 CellTemp = CellTemp / nTemp
 u2 = u2/nPart
 u0ij = u0ij/nPart
+
+!second way
+!A = u0ij
+!CALL DSYEV('N','U',3,A,3,W,Work,1000,INFO)
+
 u0i(1:3) = u0i(1:3)/nPart
 dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
 InnerDOF = 0.
@@ -1158,10 +1163,11 @@ END DO
 
 !Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 Prandtl = C_P*dynamicvis/thermalcond*PrandtlCorrection
-!print*, Prandtl, dynamicvis, thermalcond, CellTemp, PrandtlCorrection
-!print*, 'Phi', Phi, nSpec, nPart
-!read*
 
+!second way
+!nu=1.-1./Prandtl
+!Theta = u2/3.
+!nu= MAX(nu,-Theta/(W(3)-Theta))
 
 relaxfreq = Prandtl*dens*BoltzmannConst*CellTempRelax/dynamicvis
 
@@ -1209,6 +1215,55 @@ IF (nRelax.GT.0) THEN
   SMat(3,1)=SMat(1,3)
   SMat(3,2)=SMat(2,3)
   CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
+
+!  !! Exact Solution
+!  W = 0.
+!  A = 0.
+!  !! Exact Solution
+!  DO fillMa1 =1, 3
+!    DO fillMa2 =fillMa1, 3
+!      IF (fillMa1.EQ.fillMa2) THEN
+!        KronDelta = 1.0
+!      ELSE
+!        KronDelta = 0.0
+!      END IF
+!      A(fillMa1, fillMa2) = (1.-nu)*KronDelta + nu*u0ij(fillMa1, fillMa2)*3./u2
+!    END DO
+!  END DO
+!  CALL DSYEV('V','U',3,A,3,W,Work,1000,INFO)
+!  SMat = 0.0
+!  IF (W(1).LT.0.0) THEN
+!    print*,'OHOOOOOO', W(:)
+!!    read*
+!    W(1) = 0.0
+!    IF (W(2).LT.0) W(2) = 0.0
+!  END IF
+!  IF (W(3).LT.0) THEN 
+!    print*, 'NEEEEEEEEEEIIIIN'   
+!    W(3) = 0.0
+!    DO fillMa1 =1, 3
+!      DO fillMa2 =fillMa1, 3
+!        IF (fillMa1.EQ.fillMa2) THEN
+!          KronDelta = 1.0
+!        ELSE
+!          KronDelta = 0.0
+!        END IF
+!        SMat(fillMa1, fillMa2)= KronDelta - (1.-Prandtl)/(2.*Prandtl) &
+!          *(3./u2*(u0ij(fillMa1, fillMa2)-u0i(fillMa1)*u0i(fillMa2))-KronDelta) 
+!      END DO
+!    END DO
+!    SMat(2,1)=SMat(1,2)
+!    SMat(3,1)=SMat(1,3)
+!    SMat(3,2)=SMat(2,3)
+!  ELSE
+!    SMat(1,1) = SQRT(W(1))
+!    SMat(2,2) = SQRT(W(2))
+!    SMat(3,3) = SQRT(W(3))
+!    SMat = MATMUL(A, SMat)
+!    SMat = MATMUL(SMat, TRANSPOSE(A))
+!  END IF
+!  CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
+
   
   DO iLoop = 1, nRelax
     iSpec = PartSpecies(iPartIndx_NodeRelax(iLoop))
