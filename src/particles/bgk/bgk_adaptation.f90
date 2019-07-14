@@ -44,7 +44,7 @@ SUBROUTINE BGK_octree_adapt(iElem)
 USE MOD_TimeDisc_Vars            ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars                ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Mesh_Vars       ,ONLY: GEO
-USE MOD_Particle_Vars            ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues
+USE MOD_Particle_Vars            ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, Species, PartSpecies
 USE MOD_Particle_Tracking_Vars   ,ONLY: DoRefMapping
 USE MOD_BGK_CollOperator         ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                 ,ONLY: BGKMinPartPerCell,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength,BGKSplittingDens
@@ -63,8 +63,8 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
-REAL                          :: vBulk(3), Dens
+INTEGER                       :: iPart, iLoop, nPart, iSpec
+REAL                          :: vBulk(3), Dens, TotalMass
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -89,13 +89,16 @@ ALLOCATE(TreeNode%iPartIndx_Node(nPart))
 TreeNode%iPartIndx_Node(1:nPart) = 0
 
 vBulk(1:3) = 0.0
+TotalMass = 0.0
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   TreeNode%iPartIndx_Node(iLoop) = iPart
-  vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+  iSpec = PartSpecies(iPart)
+  vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)*Species(iSpec)%MassIC
+  TotalMass = TotalMass + Species(iSpec)%MassIC
   iPart = PEM%pNext(iPart)
 END DO
-vBulk = vBulk / nPart
+vBulk = vBulk / TotalMass
 Dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit

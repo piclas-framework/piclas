@@ -135,7 +135,7 @@ USE MOD_Mesh_Vars           ,ONLY: nElems, MeshFile
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, SamplingActive
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
-USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Particle_Vars       ,ONLY: PEM, PartState, WriteMacroVolumeValues, WriteMacroSurfaceValues, Species, PartSpecies
 USE MOD_Restart_Vars        ,ONLY: RestartTime
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
@@ -150,9 +150,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, nOutput
+INTEGER               :: iElem, nPart, iLoop, iPart, nOutput, iSpec
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-REAL                  :: vBulk(3)
+REAL                  :: vBulk(3), TotalMass
 !===================================================================================================================================
 DSMC_RHS = 0.0
 
@@ -166,13 +166,16 @@ ELSE ! No octree cell refinement
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
     ALLOCATE(iPartIndx_Node(nPart))
     vBulk(1:3) = 0.0
+    TotalMass = 0.0
     iPart = PEM%pStart(iElem)
     DO iLoop = 1, nPart
       iPartIndx_Node(iLoop) = iPart
-      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)
+      iSpec = PartSpecies(iPart)
+      vBulk(1:3)  =  vBulk(1:3) + PartState(iPart,4:6)*Species(iSpec)%MassIC
+      TotalMass = TotalMass + Species(iSpec)%MassIC
       iPart = PEM%pNext(iPart)
     END DO
-    vBulk = vBulk / nPart
+    vBulk = vBulk / TotalMass
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
