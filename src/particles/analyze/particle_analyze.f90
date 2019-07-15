@@ -62,6 +62,9 @@ END INTERFACE
 INTERFACE AnalyticParticleMovement
   MODULE PROCEDURE AnalyticParticleMovement
 END INTERFACE
+INTERFACE CalcAnalyticalParticleState
+  MODULE PROCEDURE CalcAnalyticalParticleState
+END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
@@ -70,7 +73,7 @@ PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
 #ifdef CODE_ANALYZE
-PUBLIC:: AnalyticParticleMovement
+PUBLIC:: AnalyticParticleMovement,CalcAnalyticalParticleState
 #if (PP_TimeDiscMethod==42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -3761,7 +3764,7 @@ END SUBROUTINE CalculatePartElemData
 !===================================================================================================================================
 !> Calculate the analytical position and velocity depending on the pre-defined function
 !===================================================================================================================================
-SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic)
+SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
@@ -3776,6 +3779,8 @@ REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL,INTENT(OUT),OPTIONAL     :: alpha_out                    !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
+REAL,INTENT(OUT),OPTIONAL     :: theta_out                    !< angle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL    :: p
@@ -3840,7 +3845,7 @@ CASE(1)
     END ASSOCIATE
   CASE(31) ! old CASE(3)
     ASSOCIATE( p       => AnalyticInterpolationP , &
-          Theta_0 => 0.d0                   )
+               Theta_0 => 0.d0                   )
       gamma_0 = SQRT(p*p-1.)
       ! phase shift
       phi_0   = ATAN( (gamma_0/(p-1.)) * TAN(Theta_0/2.) )
@@ -3850,6 +3855,18 @@ CASE(1)
       PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
       ! y-pos
       PartStateAnalytic(2) = p*t - (Theta-Theta_0)
+      IF(PRESENT(alpha_out))THEN
+        ASSOCIATE( dot_theta => SIN(Theta) - p )
+          ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+            alpha_out = alpha_0
+            WRITE (*,*) "alpha_out =", alpha_out
+          END ASSOCIATE
+        END ASSOCIATE
+      END IF
+      IF(PRESENT(theta_out))THEN
+        theta_out = Theta
+        WRITE (*,*) "theta_out =", theta_out
+      END IF
     END ASSOCIATE
     !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
     !read*

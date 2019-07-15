@@ -4494,47 +4494,49 @@ SUBROUTINE TimeStepPoisson()
 ! Euler (500) or Leapfrog (509) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY: Abort, LocalTime
-USE MOD_DG_Vars,                 ONLY: U
+USE MOD_Globals                ,ONLY: Abort, LocalTime
+USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,iter,time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 #if (PP_TimeDiscMethod==509)
-USE MOD_TimeDisc_Vars,           ONLY: dt_old
+USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_HDG,                     ONLY: HDG
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
+USE MOD_HDG                    ,ONLY: HDG
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY: Deposition
-USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell!, usevMPF
-USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
-USE MOD_Particle_Vars,           ONLY: Species,PartSpecies
-USE MOD_Particle_Analyze_Vars,   ONLY: CalcCoupledPower,PCoupl, PCouplAverage
+USE MOD_PICDepo                ,ONLY: Deposition
+USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: Species,PartSpecies
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl, PCouplAverage
 #if (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-USE MOD_part_RHS,                ONLY: CalcPartRHS
-!USE MOD_part_boundary,           ONLY : ParticleBoundary
-USE MOD_part_emission,           ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,           ONLY: StartParticleMerge
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_DSMC                   ,ONLY: DSMC_main
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_PIC_Analyze            ,ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars  ,ONLY: DoVerifyCharge,PartAnalyzeStep
 #ifdef MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-USE MOD_Particle_MPI_Vars,       ONLY:  DoExternalParts
-USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
+USE MOD_Particle_MPI_Vars      ,ONLY:  DoExternalParts
+USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping,TriaTracking !,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping,TriaTracking
+USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleCollectCharges,ParticleTriaTracking
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Analyze       ,ONLY: CalcAnalyticalParticleState
+USE MOD_PICInterpolation_Vars  ,ONLY: AnalyticInterpolationP
+#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4549,6 +4551,10 @@ REAL                          :: tLBStart ! load balance
 #ifdef PARTICLES
 REAL           :: EDiff
 #endif /*PARTICLES*/
+#ifdef CODE_ANALYZE
+REAL                          :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL                          :: alpha,theta
+#endif /* CODE_ANALYZE */
 !===================================================================================================================================
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
@@ -4647,9 +4653,31 @@ IF (time.GE.DelayTime) THEN
           ! Don't push the velocity component of neutral particles!
           IF(CHARGEDPARTICLE(iPart))THEN
             !-- v(n) => v(n-0.5) by a(n):
+            WRITE (*,*) "Pt(iPart,1:3) =", Pt(iPart,2:3)
+            WRITE (*,*) "PartState(iPart,4:6) =", PartState(iPart,4:6)
             PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
             PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
             PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
+            WRITE (*,*) "PartState(iPart,4:6) =", PartState(iPart,4:6)
+#ifdef CODE_ANALYZE
+            CALL CalcAnalyticalParticleState(dt*0.5,PartStateAnalytic(1:6),alpha,theta)
+            !x -> x
+            !y -> -y
+            PartStateAnalytic(2)=-PartStateAnalytic(2) ! symmetry
+            !vx -> -vx
+            !vy -> vy
+            PartStateAnalytic(4) = - SIN(theta) ! switch sign due to symmetry
+            PartStateAnalytic(5) =   COS(theta) ! switch sign due to symmetry
+            ! v_x
+            PartState(iPart,4) = PartStateAnalytic(4)
+            ! v_y
+            PartState(iPart,5) = PartStateAnalytic(5) ! AnalyticInterpolationP-alpha*EXP(PartStateAnalytic(1))
+            WRITE (*,*) "PartStateAnalytic    =" ,PartStateAnalytic
+            WRITE (*,*) "PartState(iPart,:)   =", PartState(iPart,:)
+            !read*
+#endif /* CODE_ANALYZE */
+
+            !read*
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
