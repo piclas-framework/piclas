@@ -76,12 +76,13 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel, VarTimeStep, Symmetry2D
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
+USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -142,8 +143,8 @@ END DO
 DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
-  nSurfBC = nSurfBC + 1
-  BCName(nSurfBC) = BoundaryName(iBC)
+    nSurfBC = nSurfBC + 1
+    BCName(nSurfBC) = BoundaryName(iBC)
   END IF
 END DO
 IF (nSurfBC.GE.1) THEN
@@ -272,6 +273,9 @@ SurfMesh%nGlobalSides=SurfMesh%nBCSides+SurfMesh%nInnerSides
 SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
 
 SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
+
+IF(VarTimeStep%UseVariableTimeStep) SurfMesh%SampSize = SurfMesh%SampSize + 1
+
 #ifdef MPI
 ! split communitator
 CALL InitSurfCommunicator()
@@ -369,13 +373,6 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
-  !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
-  !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
-  !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
-  ! nullify
-  !SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         = 0.
-  !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
-  !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
 END DO
 
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -398,30 +395,34 @@ DO iSide=1,nTotalSides
     ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
     LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
     IF (ElemID.EQ.-1) THEN
-        ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-        LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+      ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+      LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     END IF
     SurfaceVal = 0.
     xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
-    DO TriNum = 1,2
-      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-      Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
-      Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
-      Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
-      Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
-      Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
-      Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
-      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-      nVal = SQRT(nx*nx + ny*ny + nz*nz)
-      SurfaceVal = SurfaceVal + nVal/2.
-    END DO
-    SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    IF(Symmetry2D) THEN
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
+    ELSE
+      DO TriNum = 1,2
+        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+        Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
+        Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
+        Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
+        Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
+        Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
+        Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
+        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+        nVal = SQRT(nx*nx + ny*ny + nz*nz)
+        SurfaceVal = SurfaceVal + nVal/2.
+      END DO
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    END IF
   ELSE
     ! call here stephens algorithm to compute area
     DO jSample=1,nSurfSample
@@ -1054,12 +1055,12 @@ IF(nPorousBC.GT.0) THEN
   ALLOCATE(PorousBCRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-      ALLOCATE(PorousBCSendBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
-      PorousBCSendBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCSendBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
+      PorousBCSendBuf(iProc)%content=0.
     END IF
     IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-      ALLOCATE(PorousBCRecvBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
-      PorousBCRecvBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCRecvBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
+      PorousBCRecvBuf(iProc)%content=0.
     END IF
   END DO ! iProc
 END IF
@@ -1702,6 +1703,7 @@ SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
 SDEALLOCATE(SurfMesh%SurfIDToSideID)
+SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)

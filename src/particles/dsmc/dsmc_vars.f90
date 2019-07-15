@@ -62,6 +62,33 @@ INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for M
 REAL                          :: CRelaMax                   ! Max relative velocity
 REAL                          :: CRelaAv                    ! Average relative velocity
 
+TYPE tRadialWeighting
+  REAL                        :: PartScaleFactor
+  INTEGER                     :: NextClone
+  INTEGER                     :: CloneDelayDiff
+  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
+  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
+                                                                 ! 2 = Clone Random Delay
+  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
+  INTEGER                     :: CloneInputDelay
+  LOGICAL                     :: CellLocalWeighting
+END TYPE tRadialWeighting
+
+TYPE(tRadialWeighting)        :: RadialWeighting
+
+TYPE tClonedParticles
+  ! Clone Delay: Clones are inserted at the next time step
+  INTEGER                     :: Species
+  REAL                        :: PartState(1:6)
+  REAL                        :: PartStateIntEn(1:3)
+  INTEGER                     :: Element
+  REAL                        :: LastPartPos(1:3)
+  REAL                        :: WeightingFactor
+  INTEGER, ALLOCATABLE        :: VibQuants(:)
+END TYPE
+
+TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
+
 TYPE tSpecInit
   REAL                        :: TVib                       ! vibrational temperature, ini_1
   REAL                        :: TRot                       ! rotational temperature, ini_1
@@ -163,6 +190,7 @@ TYPE tDSMC
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
+  LOGICAL                       :: UseNearestNeighbour      ! Flag for Nearest Neighbour or classic statistical pairing
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
@@ -174,13 +202,10 @@ TYPE tDSMC
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
-  REAL, ALLOCATABLE             :: QualityFactors(:,:)      ! Quality factors for DSMC
+  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
                                                             !     3: Mean collision separation distance over mean free path
-  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
-                                                            !     1: Time-averaged mean collision prob
-                                                            !     2: Mean collision separation distance over mean free path
   LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
@@ -208,6 +233,8 @@ TYPE tDSMC
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
 #endif
+  LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
+                                                            ! subcell is less than 7
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
@@ -249,6 +276,9 @@ TYPE tCollInf             ! informations of collision
   INTEGER       , ALLOCATABLE    :: KronDelta(:)            ! (number of case)
   REAL          , ALLOCATABLE    :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
   REAL          , ALLOCATABLE    :: MassRed(:)              ! reduced mass (number of cases)
+  REAL          , ALLOCATABLE    :: MeanMPF(:)
+  LOGICAL                        :: ProhibitDoubleColl = .FALSE.
+  INTEGER       , ALLOCATABLE    :: OldCollPartner(:)        ! index of old coll partner to prohibit double collisions(maxPartNum)
 END TYPE
 
 TYPE(tCollInf)               :: CollInf
@@ -544,6 +574,8 @@ END TYPE
 TYPE (tAdaptCellVolWRecvPart), ALLOCATABLE :: AdaptCellVolWRecvPart(:)
 #endif
 
+INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
+
 TYPE tHODSMC
   LOGICAL                 :: HODSMCOutput         !High Order DSMC Output
   INTEGER                 :: nOutputDSMC          !HO DSMC output order
@@ -572,6 +604,8 @@ TYPE tNodeVolume
     TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
     TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
+    REAL                                    :: Area
+    REAL,ALLOCATABLE                        :: PartNum(:,:)
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)

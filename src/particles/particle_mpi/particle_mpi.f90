@@ -1256,6 +1256,8 @@ USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
                                      ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
+USE MOD_DSMC_Vars,               ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1265,7 +1267,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
@@ -1404,8 +1406,9 @@ DO iProc=1,PartMPI%nMPINeighbors
         END IF
       END DO ! iElem=1,nTotalElems
       IF(PEM%ElementN(PartID).EQ.0)THEN
-        IPWRITE(*,*) 'bbbbbbb'
-        STOP 'bullshit'
+        CALL Abort(&
+          __STAMP__&
+          ,'Error with IsNewPart in MPIParticleRecv: PEM%ElementN(PartID) = 0!')
       END IF
     END IF
     jPos=jPos+1
@@ -1571,12 +1574,20 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! deallocate non used array
 END DO ! iProc
 
-
+TempNextFreePosition        = PDM%CurrentNextFreePosition
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL abort(&
     __STAMP__&
     ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Checking whether received particles have to be cloned or deleted
+  DO iPart = 1,nrecv
+    PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
+  END DO
+END IF
 
 ! validate solution and check
 ! debug

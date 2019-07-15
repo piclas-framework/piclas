@@ -191,13 +191,13 @@ ASSOCIATE (&
                         offset=    (/offsetElem, 0_IK  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
 
-  IF (DSMC%CalcQualityFactors) THEN
-    CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
-                        nValGlobal=(/nGlobalElems, 3_IK/),&
-                        nVal=      (/PP_nElems,    3_IK/),&
-                        offset=    (/offsetElem, 0_IK  /),&
-                        collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
-  END IF
+  ! IF (DSMC%CalcQualityFactors) THEN
+  !   CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
+  !                       nValGlobal=(/nGlobalElems, 3_IK/),&
+  !                       nVal=      (/PP_nElems,    3_IK/),&
+  !                       offset=    (/offsetElem, 0_IK  /),&
+  !                       collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
+  ! END IF
 
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&
@@ -390,7 +390,7 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
 USE MOD_Particle_Boundary_Sampling ,ONLY: ExchangeSurfData,MapInnerSurfData
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfCOMM
 #endif
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues, nSpecies, MacroValSampTime, PartSurfaceModel
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,PartSurfaceModel,VarTimeStep,Symmetry2D
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Restart_Vars               ,ONLY: RestartTime
@@ -404,7 +404,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iSpec,iSurfSide,p,q, iReact, nVar, nVarSpec, iPBC, nVarCount
-REAL                               :: TimeSample, ActualTime
+REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum
 INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 LOGICAL                            :: during_dt
 !===================================================================================================================================
@@ -428,6 +428,7 @@ ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
 ELSE
   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
 END IF
+
 IF(ALMOSTZERO(TimeSample)) RETURN
 
 IF (CalcSurfCollis%AnalyzeSurfCollis) THEN
@@ -472,7 +473,21 @@ END IF
 DO iSurfSide=1,SurfMesh%nSides
   DO q=1,nSurfSample
     DO p=1,nSurfSample
-      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+      CounterSum = SUM(SampWall(iSurfSide)%State(13:12+nSpecies,p,q))
+      IF(CounterSum.GT.0.0) THEN
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          TimeSampleTemp = TimeSample * SampWall(iSurfSide)%State(12+nSpecies+1,p,q) / CounterSum
+        ELSE
+          TimeSampleTemp = TimeSample
+        END IF
+      ELSE
+        ! No impacts on that surface -> skip the element
+        CYCLE
+      END IF
+      ! Force per area in x,y,z-direction
+      MacroSurfaceVal(1:3,p,q,iSurfSide) = SampWall(iSurfSide)%State(10:12,p,q)/(SurfMesh%SurfaceArea(p,q,iSurfSide)*TimeSampleTemp)
+      ! Deleting the z-component for 2D/axisymmetric simulations
+      IF(Symmetry2D) MacroSurfaceVal(3,p,q,iSurfSide) = 0.
       nVarCount = 5
       IF (PartSurfaceModel.GT.0) THEN
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
@@ -482,9 +497,9 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q) &
                                            -SampWall(iSurfSide)%Adsorption(1,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
         MacroSurfaceVal(nVarCount+1,p,q,iSurfSide) = (-SampWall(iSurfSide)%Adsorption(1,p,q))&
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
       ELSE
         MacroSurfaceVal(4,p,q,iSurfSide) = (SampWall(iSurfSide)%State(1,p,q) &
                                            +SampWall(iSurfSide)%State(4,p,q) &
@@ -492,10 +507,11 @@ DO iSurfSide=1,SurfMesh%nSides
                                            -SampWall(iSurfSide)%State(3,p,q) &
                                            -SampWall(iSurfSide)%State(6,p,q) &
                                            -SampWall(iSurfSide)%State(9,p,q)) &
-                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
+                                           /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSampleTemp)
       END IF
       IF(nPorousBC.GT.0) THEN
         DO iPBC=1, nPorousBC
+          ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
           MacroSurfaceVal(nVarCount+iPBC,p,q,iSurfSide) = SampWall(iSurfSide)%PumpCapacity * dt / TimeSample
         END DO
       END IF
@@ -737,7 +753,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -750,13 +766,20 @@ REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                         :: iSpec, jSpec
-REAL                            :: DrefMixture, omega, Temp, MFP_Tmp
+REAL                            :: DrefMixture, omega, Temp, MFP_Tmp, MacroParticleFactor
 !===================================================================================================================================
 DrefMixture = 0.0
 CalcMeanFreePath = 0.0
 
+IF(RadialWeighting%DoRadialWeighting) THEN
+  MacroParticleFactor = 1.
+ELSE
+  MacroParticleFactor = Species(1)%MacroParticleFactor
+END IF
+
+IF(nPart.LE.0) RETURN
+
 ! Calculation of mixture reference diameter
-IF (nPart.EQ.0) RETURN
 DO iSpec = 1, nSpecies
   DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
 END DO
@@ -765,28 +788,28 @@ END DO
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
-  IF (Temp.LE.0) RETURN
-  DO iSpec = 1, nSpecies
-    MFP_Tmp = 0.0
-    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-      DO jSpec = 1, nSpecies
-        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-        END IF
-      END DO
-      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-    END IF
-  END DO
+  IF(Temp.LE.0.0) RETURN
+    DO iSpec = 1, nSpecies
+      MFP_Tmp = 0.0
+      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+        DO jSpec = 1, nSpecies
+          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+          END IF
+        END DO
+        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+      END IF
+    END DO
 ELSE
   DO iSpec = 1, nSpecies
     MFP_Tmp = 0.0
     IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
       DO jSpec = 1, nSpecies
         IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
-                                * SQRT(1.+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*MacroParticleFactor / Volume &
+                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
         END IF
       END DO
       CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
@@ -820,29 +843,31 @@ INTEGER               :: iSpec, iDOF, iPolyatMole
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      IF (DSMC%PolySingleMode) THEN
-        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-          PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
-              (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
-              *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-              * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-        END DO
+  IF(DSMC%InstantTransTemp(iSpec).GT.0.0) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        IF (DSMC%PolySingleMode) THEN
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
+                (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
+                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+          END DO
+        ELSE
+          SpecDSMC(iSpec)%GammaVib = 0.0
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
+                + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
+                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+          END DO
+        END IF
       ELSE
-        SpecDSMC(iSpec)%GammaVib = 0.0
-        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-          SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
-              + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
-              *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-              * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
-        END DO
+        SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
+                                    *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                                    * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
       END IF
-    ELSE
-      SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
-                                  *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
-                                  * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
     END IF
   END IF
 END DO
@@ -859,7 +884,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_Preproc
 USE MOD_DSMC_Vars     ,ONLY: DSMC, CollInf
-USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies, PartMPF, usevMPF
+USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species, nSpecies
+USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -870,48 +896,48 @@ INTEGER, INTENT(IN)   :: iPartIndx(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iPart
-REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3)
+INTEGER               :: iSpec, iPart, SpecPartNum_Simu(nSpecies), PartID, SpecID
+REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3), SumSpecPartNum
 REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
 !===================================================================================================================================
 
-! Sum up velocity
-PartV = 0
-PartV2 = 0
+PartV = 0.
+PartV2 = 0.
+! Actual number of particles, required to avoid calculation of temperature from one particle of the species
+SpecPartNum_Simu = 0
+! Sum of particle number, might be weighted/multiplied with PartMPF and/or VariableTimeStep
+SumSpecPartNum = 0.
+! Setting temperature to zero
+DSMC%InstantTransTemp = 0.
+
 DO iPart=1,PartNum
-  IF (usevMPF) THEN
-    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                    + PartState(iPartIndx(iPart),4:6) * PartMPF(iPartIndx(iPart))
-    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                    + PartState(iPartIndx(iPart),4:6)**2 * PartMPF(iPartIndx(iPart))
-  ELSE
-    PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
-                                                    + PartState(iPartIndx(iPart),4:6)
-    PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
-                                                    + PartState(iPartIndx(iPart),4:6)**2
-  END IF
+  PartID = iPartIndx(iPart)
+  SpecID = PartSpecies(PartID)
+  PartV(SpecID,1:3) = PartV(SpecID,1:3) + PartState(PartID,4:6) * GetParticleWeight(PartID)
+  PartV2(SpecID,1:3) = PartV2(SpecID,1:3) + PartState(PartID,4:6)**2 * GetParticleWeight(PartID)
+  SpecPartNum_Simu(SpecID) = SpecPartNum_Simu(SpecID) + 1
 END DO
+
 DO iSpec=1, nSpecies
-  IF(CollInf%Coll_SpecPartNum(iSpec).NE.0) THEN
+  IF(SpecPartNum_Simu(iSpec).GT.1) THEN
     ! Compute velocity averages
     MeanPartV_2(iSpec,1:3)  = (PartV(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec))**2       ! < |v| >**2
     Mean_PartV2(iSpec,1:3)  = PartV2(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec)           ! < |v|**2 >
+    ! Compute temperatures
+    TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
+                          / BoltzmannConst ! Temp calculation is limitedt to one species
+    DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
+    DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
+                                          + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
+    ! Summing up the weights to avoid adding single particles of a species, which do not have a temperature
+    SumSpecPartNum = SumSpecPartNum + CollInf%Coll_SpecPartNum(iSpec)
   ELSE
     MeanPartV_2(iSpec,1:3) = 0.
     Mean_PartV2(iSpec,1:3) = 0.
   END IF
-  ! Compute temperatures
-  TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
-                        / BoltzmannConst ! Temp calculation is limitedt to one species
-  DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
-  DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
-                                        + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
 END DO
-IF (SUM(CollInf%Coll_SpecPartNum).GT.0) THEN
-  DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
-ELSE
-  DSMC%InstantTransTemp(nSpecies+1) = 0.0
-END IF
+
+IF(SumSpecPartNum.GT.0) DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SumSpecPartNum
 
 END SUBROUTINE CalcInstantTransTemp
 
@@ -1195,8 +1221,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: Geo
 USE MOD_Particle_Tracking_vars ,ONLY: DoRefMapping
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
-!USE MOD_part_MPFtools,          ONLY:GeoCoordToMap
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Globals
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime, LBPauseTime
@@ -1212,7 +1237,7 @@ IMPLICIT NONE
 INTEGER                       :: iPart, iElem, iLoopx, iLoopy, iLoopz, k, l, m, i, kk, ll, mm, iSpec, a, b, ii
 REAL, ALLOCATABLE             :: BGMSource(:,:,:,:,:), alphaSum(:,:,:,:),BGMSourceCellVol(:,:,:,:,:,:)
 REAL, ALLOCATABLE             :: alphaSumCellVol(:,:,:,:,:), Source(:,:,:,:,:,:)
-REAL                          :: alpha1, alpha2, alpha3, TSource(1:11)
+REAL                          :: alpha1, alpha2, alpha3, TSource(1:11), partWeight
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1416,23 +1441,24 @@ CASE('nearest_gausspoint')
         + Source(:,:,:,:,:,:))/REAL(DSMC%SampNum)
 CASE('cell_mean')
   kk = 1 ; ll = 1 ; mm = 1
-  DO i=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(i)) THEN
-      iSpec = PartSpecies(i)
-      iElem = PEM%Element(i)
-      DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(1:3,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)
-      DSMC_HOSolution(4:6,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(4:6,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)**2
-      DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + 1.0  !density number
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+      iSpec = PartSpecies(iPart)
+      iElem = PEM%Element(iPart)
+      partWeight = GetParticleWeight(iPart)
+      DSMC_HOSolution(1:3,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(1:3,kk,ll,mm,iElem,iSpec) + PartState(iPart,4:6)*partWeight
+      DSMC_HOSolution(4:6,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(4:6,kk,ll,mm,iElem,iSpec) + PartState(iPart,4:6)**2*partWeight
+      DSMC_HOSolution(7,kk,ll,mm,iElem,iSpec) = DSMC_HOSolution(7,kk,ll,mm,iElem, iSpec) + partWeight  !density number
       IF(useDSMC)THEN
         IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-          IF ((SpecDSMC(PartSpecies(i))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(i))%InterID.EQ.20)) THEN
+          IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
             DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(8,kk,ll,mm,iElem, iSpec) &
-              + PartStateIntEn(i,1) - SpecDSMC(iSpec)%EZeroPoint
-            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,2)
+              + (PartStateIntEn(iPart,1) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
+            DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(9,kk,ll,mm,iElem, iSpec)+PartStateIntEn(iPart,2)*partWeight
           END IF
           IF (DSMC%ElectronicModel) THEN
             IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-              DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) = DSMC_HOSolution(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+              DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)=DSMC_HOSolution(10,kk,ll,mm,iElem,iSpec)+PartStateIntEn(iPart,3)*partWeight
             END IF
           END IF
         END IF
@@ -1573,17 +1599,18 @@ SUBROUTINE DSMCHO_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC
+USE MOD_DSMC_Vars          ,ONLY: HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues
+USE MOD_Particle_Vars      ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry2D
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_TimeDisc_Vars      ,ONLY: time,TEnd,iter,dt
 USE MOD_Restart_Vars       ,ONLY: RestartTime
 USE MOD_FPFlow_Vars        ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_BGK_Vars           ,ONLY: BGKInitDone, BGK_QualityFacSamp
+  USE MOD_Particle_VarTimeStep  ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1654,7 +1681,12 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
             ! mean flow Temperature
             Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
             ! compute number density
-            Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /GEO%Volume(iElem)
+            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              ! PartNum contains the weighted particle number
+              Macro_Density = Macro_PartNum / GEO%Volume(iElem)
+            ELSE
+              Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /GEO%Volume(iElem)
+            END IF
             ! Compute total values for a gas mixture (nSpecies > 1)
             IF(nSpecies.GT.1) THEN
               Total_PartNum   = Total_PartNum + Macro_PartNum
@@ -1722,6 +1754,14 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
           END IF
         END IF
       END IF
+      ! Radial weighting, vMPF, variable timestep: Getting the actual number of simulation particles without weighting factors
+      IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+        Total_PartNum = 0.0
+        DO iSpec = 1, nSpecies
+          DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) / REAL(DSMC%SampNum)
+          IF(nSpecies.GT.1) Total_PartNum = Total_PartNum + DSMC_MacroVal(nVarLoc*(iSpec-1)+11,kk,ll,mm, iElem)
+        END DO
+      END IF
     END ASSOCIATE
   END DO
 
@@ -1737,12 +1777,26 @@ IF (HODSMC%SampleType.EQ.'cell_mean') THEN
       END IF
     END IF
     DO iElem=1,nElems
+      nVarCount = nVar
       IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-        DSMC_MacroVal(nVar+1,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1) / DSMC%QualityFacSamp(iElem,4)
-        DSMC_MacroVal(nVar+2,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,2) / DSMC%QualityFacSamp(iElem,4)
-        DSMC_MacroVal(nVar+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,3) / DSMC%QualityFacSamp(iElem,4)
+        DSMC_MacroVal(nVarCount+1:nVarCount+3,kk,ll,mm,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
       END IF
       nVarCount = nVar + 3
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        IF(VarTimeStep%UseLinearScaling.AND.Symmetry2D) THEN
+          ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
+          ! midpoint is used to calculate the time step
+          VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem))
+        END IF
+        DSMC_MacroVal(nVarCount+1,kk,ll,mm,iElem) = VarTimeStep%ElemFac(iElem)
+        nVarCount = nVarCount + 1
+      END IF
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
+          DSMC_MacroVal(nVarCount+1:nVarCount+2,kk,ll,mm,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
+        END IF
+        nVarCount = nVarCount + 2
+      END IF
       IF(FPInitDone) THEN
         IF(FP_QualityFacSamp(2,iElem).GT.0) THEN
           ! Mean relaxation factor (mean over all octree subcells)
@@ -2006,14 +2060,14 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 !> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: HODSMC, DSMC, RadialWeighting
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -2051,6 +2105,8 @@ END IF
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
+  IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
+  IF(RadialWeighting%DoRadialWeighting) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 4
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
@@ -2090,11 +2146,21 @@ StrVarNames(nVarCount+DSMC_TELEC      )='Total_TempElec'
 StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Total_SimPartNum'
 StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Total_TempTransMean'
 nVarCount=nVarCount+nVarloc
+
 IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+1) ='DSMC_MaxCollProb'
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
   nVarCount=nVarCount+3
+  IF(VarTimeStep%UseVariableTimeStep) THEN
+    StrVarNames(nVarCount+1) ='VariableTimeStep'
+    nVarCount = nVarCount + 1
+  END IF
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    StrVarNames(nVarCount+1) = '2D_ClonesInCell'
+    StrVarNames(nVarCount+2) = '2D_IdenticalParticles'
+    nVarCount=nVarCount+2
+  END IF
   IF(BGKInitDone) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
     StrVarNames(nVarCount+2) ='BGK_MaxRelaxationFactor'

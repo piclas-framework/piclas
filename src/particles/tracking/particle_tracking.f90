@@ -84,6 +84,8 @@ USE MOD_Mesh_Vars,                   ONLY:BC
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -124,6 +126,9 @@ REAL                             :: tLBStart
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
 #ifdef IMPA
@@ -391,7 +396,13 @@ DO i = 1,PDM%ParticleVecLength
     IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
-END DO
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(PDM%ParticleInside(i)) THEN
+      IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
+    END IF
+  END IF
+END DO ! i = 1,PDM%ParticleVecLength
 
 END SUBROUTINE ParticleTriaTracking
 
@@ -424,6 +435,9 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
+! USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+! USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+! USE MOD_TimeDisc_Vars               ,ONLY: iter
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
@@ -490,6 +504,8 @@ END IF
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
@@ -1074,6 +1090,12 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  ! IF(RadialWeighting%DoRadialWeighting) THEN
+  !   IF(PDM%ParticleInside(iPart)) THEN
+  !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
+  !   END IF
+  ! END IF
 END DO ! iPart
 
 #ifdef CODE_ANALYZE

@@ -115,10 +115,11 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF, VarTimeStep
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Mesh_Vars,     ONLY : Geo
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+  USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
@@ -136,7 +137,13 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
 ! vMPF
   REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
 !===================================================================================================================================
-  CollisionEnergy = Coll_pData(iPair)%Ec
+
+  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
+  ELSE
+    CollisionEnergy = Coll_pData(iPair)%Ec
+  END IF
+
   iQuaMax  = 0
   ! Determine max electronic quant
   MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
@@ -173,7 +180,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi,iPart2,iElem)
     CALL RANDOM_NUMBER(iRan2)
   END DO
 
-  IF (usevMPF) THEN
+  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
     IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
       Phi = PartMPF( iPart2) / PartMPF( iPart1)
       PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
@@ -215,10 +222,10 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 !===================================================================================================================================
 ! Electronic energy exchange
 !===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
   USE MOD_Particle_Vars,          ONLY : PartSpecies, usevMPF,PartMPF
   USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Mesh_Vars,     ONLY : Geo
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -308,7 +315,7 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   END DO
 
   !vmpf muss noch gemacht werden !!!!
-  IF (usevMPF) THEN
+  IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
     IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
       Phi = PartMPF( iPart2) / PartMPF( iPart1)
       PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
@@ -562,18 +569,18 @@ REAL FUNCTION CalcXiElec(Telec, iSpec)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                         :: ii
-  REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+  INTEGER                         :: iQua
+  REAL                            :: SumOne, SumTwo
 !===================================================================================================================================
 
   SumOne = 0.0
   SumTwo = 0.0
-  DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,ii) * &
-              exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / Telec )
-    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / Telec )
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+    SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,iQua) * BoltzmannConst* SpecDSMC(iSpec)%ElectronicState(2,iQua) * &
+              EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
+    SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec)
   END DO
-  CalcXiElec = 2 * SumOne / (SumTwo * BoltzmannConst * Telec)
+  CalcXiElec = 2. * SumOne / (SumTwo * BoltzmannConst * Telec)
 
   RETURN
 
