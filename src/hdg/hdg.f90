@@ -1371,14 +1371,11 @@ SUBROUTINE ApplyPrecond(R, V)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
-USE MOD_HDG_Vars           ,ONLY: MaskedSide
-USE MOD_Mesh_Vars          ,ONLY: nSides,MortarType
-USE MOD_Mesh_Vars          ,ONLY: FirstMortarInnerSide 
-USE MOD_Mesh_Vars          ,ONLY:nMPIsides_YOUR
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
+USE MOD_HDG_Vars  ,ONLY: MaskedSide
+USE MOD_Mesh_Vars ,ONLY: nSides,MortarType
+USE MOD_Mesh_Vars ,ONLY: FirstMortarInnerSide 
+USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
