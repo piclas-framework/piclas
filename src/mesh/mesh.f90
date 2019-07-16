@@ -292,7 +292,8 @@ IF(i.NE.nGlobalUniqueSides) THEN
        IPWRITE(UNIT_StdOut,*) nUniqueSides,i,nGlobalUniqueSides
        CALL abort( &
             __STAMP__, &
-            "nGlobalUniqueSides for HDG not equal the one from meshfile....")
+            "nGlobalUniqueSides for HDG not equal the one from meshfile... &
+            (Do not change the boundary definitions given in the mesh file, this is not implemented)")
 END IF
 #endif /*HDG*/
 
