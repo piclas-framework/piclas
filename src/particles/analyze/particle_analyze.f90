@@ -3855,22 +3855,24 @@ CASE(1)
       PartStateAnalytic(1) = LOG((COS(Theta)-p)/(COS(Theta_0)-p))
       ! y-pos
       PartStateAnalytic(2) = p*t - (Theta-Theta_0)
-      IF(PRESENT(alpha_out))THEN
-        ASSOCIATE( dot_theta => SIN(Theta) - p )
-          ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
-            alpha_out = alpha_0
-            WRITE (*,*) "alpha_out =", alpha_out
-          END ASSOCIATE
-        END ASSOCIATE
-      END IF
-      IF(PRESENT(theta_out))THEN
-        theta_out = Theta
-        WRITE (*,*) "theta_out =", theta_out
-      END IF
     END ASSOCIATE
     !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
     !read*
   END SELECT
+
+  ! Optional output variables
+  IF(PRESENT(alpha_out))THEN
+    ASSOCIATE( dot_theta => SIN(Theta) - AnalyticInterpolationP )
+      ASSOCIATE( alpha_0 => -dot_theta / EXP(PartStateAnalytic(1)) )
+        alpha_out = alpha_0
+        WRITE (*,*) "alpha_out =", alpha_out
+      END ASSOCIATE
+    END ASSOCIATE
+  END IF
+  IF(PRESENT(theta_out))THEN
+    theta_out = Theta
+    WRITE (*,*) "theta_out =", theta_out
+  END IF
 END SELECT
 
 END SUBROUTINE CalcAnalyticalParticleState

@@ -4654,30 +4654,31 @@ IF (time.GE.DelayTime) THEN
           IF(CHARGEDPARTICLE(iPart))THEN
             !-- v(n) => v(n-0.5) by a(n):
             WRITE (*,*) "Pt(iPart,1:3) =", Pt(iPart,2:3)
-            WRITE (*,*) "PartState(iPart,4:6) =", PartState(iPart,4:6)
-            PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
-            PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
-            PartState(iPart,6) = PartState(iPart,6) - Pt(iPart,3) * dt*0.5
-            WRITE (*,*) "PartState(iPart,4:6) =", PartState(iPart,4:6)
-#ifdef CODE_ANALYZE
-            CALL CalcAnalyticalParticleState(dt*0.5,PartStateAnalytic(1:6),alpha,theta)
-            !x -> x
-            !y -> -y
-            PartStateAnalytic(2)=-PartStateAnalytic(2) ! symmetry
-            !vx -> -vx
-            !vy -> vy
-            PartStateAnalytic(4) = - SIN(theta) ! switch sign due to symmetry
-            PartStateAnalytic(5) =   COS(theta) ! switch sign due to symmetry
-            ! v_x
-            PartState(iPart,4) = PartStateAnalytic(4)
-            ! v_y
-            PartState(iPart,5) = PartStateAnalytic(5) ! AnalyticInterpolationP-alpha*EXP(PartStateAnalytic(1))
-            WRITE (*,*) "PartStateAnalytic    =" ,PartStateAnalytic
-            WRITE (*,*) "PartState(iPart,:)   =", PartState(iPart,:)
-            !read*
-#endif /* CODE_ANALYZE */
-
-            !read*
+            WRITE (*,*) "PartState(iPart,1:6) =", PartState(iPart,1:6)
+            PartState(iPart,4:6) = PartState(iPart,4:6) - Pt(iPart,1:3) * dt*0.5
+            WRITE (*,*) "PartState(iPart,1:6) =", PartState(iPart,1:6)
+! #ifdef CODE_ANALYZE
+!              ! Set the position at t=0
+!              CALL CalcAnalyticalParticleState(0.0,PartStateAnalytic(1:6),alpha,theta)
+!              PartState(iPart,1:3) = PartStateAnalytic(1:3)
+!              !PartState(iPart,2) = -PartState(iPart,2) ! it is 0 anyway
+! 
+!              ! Set the velocity at t = -dt/2 by calculating the velocity and position at dt/2 and mirroring the results
+!              CALL CalcAnalyticalParticleState(dt*0.5,PartStateAnalytic(1:6),alpha,theta)
+!              PartStateAnalytic(4) =   COS(theta) ! switch sign due to symmetry
+!              PartStateAnalytic(5) =   SIN(theta) ! switch sign due to symmetry
+!              PartState(iPart,4) = PartStateAnalytic(4)
+!              PartState(iPart,5) = PartStateAnalytic(5) ! AnalyticInterpolationP-alpha*EXP(PartStateAnalytic(1))
+!              write(*,*) "at dt*0.5"
+!              WRITE (*,*) "PartStateAnalytic    =" ,PartStateAnalytic
+!              write(*,*) "at -dt*0.5"
+!              PartStateAnalytic(2) = -PartStateAnalytic(2) ! mirror y-coordinate
+!              PartStateAnalytic(4) = -PartStateAnalytic(4) ! mirror x-velocity
+!              WRITE (*,*) "PartStateAnalytic    =" ,PartStateAnalytic
+!              WRITE (*,*) "PartState(iPart,:)   =", PartState(iPart,:)
+!              !read*
+!              !read*
+! #endif /* CODE_ANALYZE */
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
@@ -4691,50 +4692,36 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):
-        PartState(iPart,1) = PartState(iPart,1) + ( PartState(iPart,4) + Pt(iPart,1) * dtFrac*0.5 ) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(iPart,2) * dtFrac*0.5 ) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(iPart,3) * dtFrac*0.5 ) * dtFrac
+        PartState(iPart,1:3) = PartState(iPart,1:3) + ( PartState(iPart,4:6) + Pt(iPart,1) * dtFrac*0.5 ) * dtFrac
         ! Don't push the velocity component of neutral particles!
         IF(CHARGEDPARTICLE(iPart))THEN
           !-- v(BC) => v(n+0.5) by a(BC):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * (dtFrac - dt*0.5)
+          PartState(iPart,4:6) = PartState(iPart,4:6) + Pt(iPart,1:3) * (dtFrac - dt*0.5)
         END IF
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoForceFreeSurfaceFlux
         !-- x(n) => x(n+1) by v(n+0.5)=v(BC)
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dtFrac
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
         ! Don't push the velocity component of neutral particles!
         IF(CHARGEDPARTICLE(iPart))THEN
           !-- v(n-0.5) => v(n+0.5) by a(n):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dt
+          PartState(iPart,4:6) = PartState(iPart,4:6) + Pt(iPart,1:3) * dt
         END IF
         !-- x(n) => x(n+1) by v(n+0.5):
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dt
       END IF
 #else /*(PP_TimeDiscMethod==509)*/
         !-- x(n) => x(n+1) by v(n):
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+        PartState(iPart,1:3) = PartState(iPart,1:3) + PartState(iPart,4:6) * dtFrac
       IF (DoForceFreeSurfaceFlux .AND. DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
         ! Don't push the velocity component of neutral particles!
         IF(CHARGEDPARTICLE(iPart))THEN
           !-- v(n) => v(n+1) by a(n):
-          PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
-          PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
-          PartState(iPart,6) = PartState(iPart,6) + Pt(iPart,3) * dtFrac
+          PartState(iPart,4:6) = PartState(iPart,4:6) + Pt(iPart,1:3) * dtFrac
         END IF
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN
           PDM%dtFracPush(iPart) = .FALSE.
