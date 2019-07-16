@@ -31,7 +31,7 @@ CONTAINS
 
 SUBROUTINE InitPeriodicBC()
 !===================================================================================================================================
-! Computes the periodic-displacement vector 
+! Computes the periodic-displacement vector
 ! Both periodic sides have to be planer and parallel!
 !===================================================================================================================================
 ! MODULES
@@ -54,7 +54,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                :: iVec, ind, ind2,iBC
 CHARACTER(32)          :: hilf
 LOGICAL                :: hasPeriodic
@@ -64,7 +64,7 @@ GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
 ! sanity check with DG
 hasPeriodic=.FALSE.
 DO iBC=1,nBCs
-  IF(BoundaryType(iBC,BC_TYPE).EQ.1) hasPeriodic=.TRUE.  
+  IF(BoundaryType(iBC,BC_TYPE).EQ.1) hasPeriodic=.TRUE.
 END DO ! iBC=1,nBCs
 IF(hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)THEN
   CALL abort(&
@@ -151,7 +151,7 @@ SUBROUTINE GetPeriodicVectors()
 ! 2) Mesh has to fit into the FIBGM, therefore, the displacement is a multiple of the FIBGM-delta
 ! 3) Additionally for PIC with Volume or BSpline weighting/deposition
 !    Periodic displacement has to be multiple of BGMdeltas of deposition method
-! 
+!
 ! NEW: Cartesian mesh is required for shape-function deposition
 !      All other cases: non-Cartesian periodic vectors are possible but not allowed!
 !===================================================================================================================================
@@ -167,7 +167,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !LOGICAL                :: directions(1:3)
 INTEGER                :: iPV
 REAL                   :: eps(1:3),dummy
@@ -278,7 +278,7 @@ __STAMP__&
 ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3)))
 END IF
 
-! check if periodic vector is multiple of BGM-Delta. This BGM is for the deposition with volume or spline weighting 
+! check if periodic vector is multiple of BGM-Delta. This BGM is for the deposition with volume or spline weighting
 ! functions
 IF((DepositionType.EQ.'cartmesh_volumeweighting').OR.(DepositionType.EQ.'cartmesh_splines'))THEN
   IF (ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/BGMDeltas(1))*BGMDeltas(1)) &

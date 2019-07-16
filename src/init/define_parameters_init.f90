@@ -69,12 +69,13 @@ USE MOD_SurfaceModel_Analyze            ,ONLY: DefineParametersSurfModelAnalyze
 USE MOD_BGK_Init                        ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                     ,ONLY: DefineParametersFPFlow
 USE MOD_Particle_Boundary_Porous        ,ONLY: DefineParametersPorousBC
+USE MOD_Particle_VarTimeStep            ,ONLY: DefineParametersVaribleTimeStep
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -111,6 +112,7 @@ CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersParticles()
+CALL DefineParametersVaribleTimeStep()
 CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()
 CALL DefineParametersParticleAnalyze()

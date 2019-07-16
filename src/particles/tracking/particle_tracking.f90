@@ -84,6 +84,8 @@ USE MOD_Mesh_Vars,                   ONLY:BC
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_Particle_Intersection,       ONLY:IntersectionWithWall
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,           ONLY:LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -124,6 +126,9 @@ REAL                             :: tLBStart
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
+
+IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
 #ifdef IMPA
@@ -184,7 +189,7 @@ DO i = 1,PDM%ParticleVecLength
                  ,'ERROR: Mortar Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
               END IF
               NblocSideID = PartElemToElemAndSide(ind+4,iLocSide,ElemID)
-              nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID) 
+              nbSideID = PartElemToSide(E2S_SIDE_ID,NblocSideID,NbElemID)
               DO TriNum = 1,2
                 ThroughSide = .FALSE.
                 CALL ParticleThroughSideCheck3DFast(i,PartTrajectory,NblocSideID,NbElemID,ThroughSide,TriNum, .TRUE.)
@@ -391,7 +396,13 @@ DO i = 1,PDM%ParticleVecLength
     IF (PEM%Element(i).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
-END DO
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(PDM%ParticleInside(i)) THEN
+      IF (PEM%Element(i).LE.PP_nElems) CALL DSMC_2D_RadialWeighting(i,PEM%Element(i))
+    END IF
+  END IF
+END DO ! i = 1,PDM%ParticleVecLength
 
 END SUBROUTINE ParticleTriaTracking
 
@@ -424,6 +435,9 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputeAuxBCIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:GetPositionInRefElem
+! USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+! USE MOD_DSMC_Symmetry2D             ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+! USE MOD_TimeDisc_Vars               ,ONLY: iter
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
@@ -491,6 +505,8 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
+! IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_SetInClones()
+
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=0
   alphaOld = -1.0
@@ -541,7 +557,7 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    
+
     IF(.NOT.PARTHASMOVED(lengthPartTrajectory,ElemRadiusNGeo(ElemID)))THEN
       PEM%Element(iPart)=ElemID
       PartisDone=.TRUE.
@@ -568,7 +584,7 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     ! caution: reuse of variable, isHit=TRUE == inside
-    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
+    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
     IF(.NOT.isHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' LastPartPos not inside of element! '
 #ifdef IMPA
@@ -646,8 +662,8 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
-        !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+        !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
         flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         isCriticalParallelInFace=.FALSE.
         IF (PartDoubleCheck.EQ.1) THEN
@@ -664,7 +680,7 @@ DO iPart=1,PDM%ParticleVecLength
             CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
                                                                                           ,xi (ilocSide)      &
                                                                                           ,eta(ilocSide)      &
-                                                                                          ,iPart,flip,SideID  & 
+                                                                                          ,iPart,flip,SideID  &
                                                                                           ,isCriticalParallelInFace)
           CASE(BILINEAR,PLANAR_NONRECT)
             CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -693,7 +709,7 @@ DO iPart=1,PDM%ParticleVecLength
             CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
                                                                                           ,xi (ilocSide)      &
                                                                                           ,eta(ilocSide)      &
-                                                                                          ,iPart,flip,SideID  & 
+                                                                                          ,iPart,flip,SideID  &
                                                                                           ,isCriticalParallelInFace)
           CASE(BILINEAR,PLANAR_NONRECT)
             CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -819,7 +835,7 @@ DO iPart=1,PDM%ParticleVecLength
             CALL SelectInterSectionType(PartIsDone,crossedBC,doLocSide,flip,hitlocSide,ilocSide,PartTrajectory &
               ,lengthPartTrajectory,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,SideType(SideID),ElemID)
             IF(ElemID.NE.OldElemID)THEN
-              ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
+              ! particle moves in new element, do not check yet, because particle may encounter a boundary condition
               SwitchedElement=.TRUE.
               IF(ALMOSTZERO(lengthPartTrajectory))THEN
                 PartisDone=.TRUE.
@@ -858,7 +874,7 @@ DO iPart=1,PDM%ParticleVecLength
           ELSE
             PartIsDone= .TRUE.
             PEM%Element(iPart)=ElemID !periodic BC always exits with one hit from outside
-            EXIT 
+            EXIT
           END IF
         ELSE !IF(CrossedBC.OR.SwitchedElem)
           IF (PartDoubleCheck.EQ.1) THEN
@@ -960,7 +976,7 @@ DO iPart=1,PDM%ParticleVecLength
               PartIsDone= .FALSE.
             ELSE
               PartIsDone= .TRUE.
-              EXIT 
+              EXIT
             END IF
           ELSE !IF(CrossedBC.OR.SwitchedElem)
             IF (PartDoubleCheck.EQ.1) THEN
@@ -979,7 +995,7 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(iPart.EQ.PARTOUT)THEN
-          WRITE(UNIT_stdout,'(30("-"))') 
+          WRITE(UNIT_stdout,'(30("-"))')
           WRITE(UNIT_stdout,'(A)') '     | Output of new Element after intersections number check: '
           WRITE(UNIT_stdout,'(A,L,A,L,A,L)') '     | crossed Side: ',crossedBC,' switched Element: ',SwitchedElement,&
                   ' Particle tracking done: ',PartisDone
@@ -1028,7 +1044,7 @@ DO iPart=1,PDM%ParticleVecLength
       CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
       PEM%Element(iPart)=ElemID
       IF(.NOT.isHit) THEN
-        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating....' 
+        IPWRITE(UNIT_stdOut,'(I0,A)') '     | Relocating....'
         CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.FALSE.)!debug=.TRUE.)
       END IF
       PartIsDone=.TRUE.
@@ -1074,6 +1090,12 @@ DO iPart=1,PDM%ParticleVecLength
     IF (PEM%Element(iPart).LE.PP_nElems) CALL LBElemPauseTime(PEM%Element(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
+  ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  ! IF(RadialWeighting%DoRadialWeighting) THEN
+  !   IF(PDM%ParticleInside(iPart)) THEN
+  !     CALL DSMC_2D_RadialWeighting(iPart,PEM%Element(iPart))
+  !   END IF
+  ! END IF
 END DO ! iPart
 
 #ifdef CODE_ANALYZE
@@ -1119,7 +1141,7 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     ! caution: reuse of variable, isHit=TRUE == inside
     ElemID=PEM%Element(iPart)
-    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
+    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
     IF(.NOT.isHit)THEN  ! particle not inside
      IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '
      IF(ElemID.LE.PP_nElems)THEN
@@ -1281,8 +1303,8 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*IMPA*/
 #endif
       END IF
-!      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
+!      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside
          PEM%Element(iPart)=ElemID
 #if USE_LOADBALANCE
          IF(ElemID.GT.PP_nElems)THEN
@@ -1344,13 +1366,13 @@ DO iPart=1,PDM%ParticleVecLength
     ! relocate particle
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
     ! get background mesh cell of particle
-    CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+    CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
     CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
     CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
     CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
     CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
     CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
-          
+
     ! check all cells associated with this background mesh cell
     nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
     IF(nBGMElems.GT.1)THEN
@@ -1387,7 +1409,7 @@ DO iPart=1,PDM%ParticleVecLength
     OldXi=PartPosRef(1:3,iPart)
     newXi=HUGE(1.0)
     newElemID=-1
-    ! loop through sorted list and start by closest element  
+    ! loop through sorted list and start by closest element
     DO iBGMElem=1,nBGMElems
       IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
       ElemID=ListDistance(iBGMElem)
@@ -1416,7 +1438,7 @@ DO iPart=1,PDM%ParticleVecLength
         PEM%Element(iPart)=NewElemID
         oldElemID=NewElemID
       END IF
-    
+
       ! set stetelement
       TestElem=PEM%Element(iPart)
       IF(TestElem.EQ.0.)THEN
@@ -1557,7 +1579,7 @@ __STAMP__ &
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem-N            ', testelem+offsetelem
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'      
+                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
                 IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N             ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
                                                                + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
@@ -1566,7 +1588,7 @@ __STAMP__ &
               IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', pem%element(ipart)+offsetelem
 #endif
 #endif /*ROS or IMPA*/
-#if defined(IMPA) 
+#if defined(IMPA)
               IPWRITE(UNIT_stdOut,'(I0,A,X,L)') ' Implicit               ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
@@ -1583,7 +1605,7 @@ __STAMP__ &
                 IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
                 IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem             ', testelem+offsetelem
               ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'      
+                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
                 IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem             ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
                                                                + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
@@ -1705,7 +1727,7 @@ DO WHILE(DoTracing)
     BCSideID=PartBCSideList(SideID)
     locSideList(ilocSide)=ilocSide
     ! get correct flip, wrong for inner sides!!!
-    flip  = 0 
+    flip  = 0
     !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     IF (doublecheck) THEN
 #ifdef CODE_ANALYZE
@@ -1784,9 +1806,9 @@ DO WHILE(DoTracing)
       nInter=nInter+1
     END IF
   END DO ! ilocSide
-  
+
   IF(nInter.EQ.0)THEN
-    IF(.NOT.PeriMoved) DoTracing=.FALSE. 
+    IF(.NOT.PeriMoved) DoTracing=.FALSE.
   ELSE
     ! take first possible intersection
     !CALL BubbleSortID(locAlpha,locSideList,6)
@@ -1821,7 +1843,7 @@ DO WHILE(DoTracing)
           CALL ParticleBCTracking(lengthPartTrajectory0&
                  ,ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,PartID,PartIsDone,PartIsMoved,iCount+1)
           PartisMoved=.TRUE.
-          RETURN 
+          RETURN
         END IF
         IF(reflected) EXIT
       END IF
@@ -1916,9 +1938,9 @@ ELSE
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
       CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
-    END SELECT 
+    END SELECT
     IF(flip.NE.0) n_loc=-n_loc
-    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN 
+    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0) RETURN
   END IF
   ! update particle element
   dolocSide=.TRUE.
@@ -1956,7 +1978,7 @@ USE MOD_Particle_Vars,               ONLY: PEM
 #endif /*ROS*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: PartID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -2118,7 +2140,7 @@ IF(FastPeriodic)THEN
       __STAMP__ &
       ,' particle outside z-, PartID',PartID)
     END IF
-  END IF 
+  END IF
 ELSE
   ! x direction
   IF(GEO%directions(1)) THEN
@@ -2151,7 +2173,7 @@ ELSE
       END IF
     END IF
   END IF
-  
+
   ! y direction
   IF(GEO%directions(2)) THEN
     IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
@@ -2183,7 +2205,7 @@ ELSE
       END IF
     END IF
   END IF
-  
+
   ! z direction
   IF(GEO%directions(3)) THEN
     IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
@@ -2297,7 +2319,7 @@ DO iLocSide=firstSide,LastSide
   BCSideID=PartBCSideList(SideID)
   locSideList(ilocSide)=ilocSide
   ! get correct flip, wrong for inner sides!!!
-  flip  = 0 
+  flip  = 0
   !flip  =PartElemToSide(E2S_FLIP,ilocSide,ElemID)
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT)
@@ -2587,7 +2609,7 @@ END SUBROUTINE ParticleThroughSideLastPosCheck
 !eps = ElemRadiusNGeo(ElemID) / lengthPartTrajectory * epsilontol * 1000. !value can be further increased, so far "semi-empirical".
 !
 !DO ilocSide=1,6
-!  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+!  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
 !  flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
 !  ! new with flip
 !  IF(flip.EQ.0)THEN
@@ -2847,9 +2869,9 @@ END IF
 IF(.NOT.DoRefMapping)THEN
   ElemID=PEM%Element(PartID)
 #ifdef CODE_ANALYZE
-  CALL PartInElemCheck(PartState(PartID,1:3),PartID,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.) 
+  CALL PartInElemCheck(PartState(PartID,1:3),PartID,ElemID,isHit,IntersectionPoint,CodeAnalyze_Opt=.TRUE.)
 #else
-  CALL PartInElemCheck(PartState(PartID,1:3),PartID,ElemID,isHit,IntersectionPoint) 
+  CALL PartInElemCheck(PartState(PartID,1:3),PartID,ElemID,isHit,IntersectionPoint)
 #endif /*CODE_ANALYZE*/
   IF(.NOT.isHit)THEN  ! particle not inside
     IPWRITE(UNIT_stdOut,'(I0,A)') ' PartPos not inside of element! '

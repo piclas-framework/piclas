@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 !> 1D-Mortar Operator: interpolation full interval 0: [-1,1] to left interval 1: [-1,0] and right intervall 2: [0,1]
 REAL,ALLOCATABLE,TARGET :: M_0_1(:,:),M_0_2(:,:)

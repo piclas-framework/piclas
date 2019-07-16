@@ -12,6 +12,7 @@ date: \today
 documentclass: scrreprt
 lang: en-US
 papersize: a4
+geometry: "left=2.5cm,right=2.5cm,top=3.5cm,bottom=3.5cm"
 colorlinks: yes
 toc: yes
 header-includes:

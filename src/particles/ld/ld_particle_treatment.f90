@@ -60,42 +60,42 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
   REAL                          :: vLAG1, vLAG2, vLAG3
   REAL                          :: NVec1(3),NVec2(3),NVec3(3)!, xi_Out(3)
 !--------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES  
+! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iElem
 !--------------------------------------------------------------------------------------------------!
 
   DO iNode = 1, 8
     ! ----which three Sides belongs to Node (cgns stards)
     IF(iNode.eq.1) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 2
       iLocSide3 = 5
     ELSE IF(iNode.eq.2) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 2
       iLocSide3 = 3
     ELSE IF(iNode.eq.3) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 3
       iLocSide3 = 4
     ELSE IF(iNode.eq.4) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 4
       iLocSide3 = 5
     ELSE IF(iNode.eq.5) THEN
-      iLocSide1 = 2 
+      iLocSide1 = 2
       iLocSide2 = 5
       iLocSide3 = 6
     ELSE IF(iNode.eq.6) THEN
-      iLocSide1 = 2 
+      iLocSide1 = 2
       iLocSide2 = 3
       iLocSide3 = 6
     ELSE IF(iNode.eq.7) THEN
-      iLocSide1 = 3 
+      iLocSide1 = 3
       iLocSide2 = 4
       iLocSide3 = 6
-    ELSE 
-      iLocSide1 = 4 
+    ELSE
+      iLocSide1 = 4
       iLocSide2 = 5
       iLocSide3 = 6
     END IF
@@ -125,13 +125,13 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     Matrix(3,3) = NVec3(3)
 ! ----
     Vector(1,1) = ChosenMeanBaseD1 &
-                + vLAG1 * dt 
+                + vLAG1 * dt
 
     Vector(2,1) = ChosenMeanBaseD2 &
-                + vLAG2 * dt 
+                + vLAG2 * dt
 
     Vector(3,1) = ChosenMeanBaseD3 &
-                + vLAG3 * dt 
+                + vLAG3 * dt
     !print*,'matrix'
     !print*,matrix(1,:)
     !print*,matrix(2,:)
@@ -205,7 +205,7 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
 
     iPartIndx = PEM%pNext(iPartIndx)
   END DO
- 
+
 END SUBROUTINE LDPartTreament
 
 !--------------------------------------------------------------------------------------------------!

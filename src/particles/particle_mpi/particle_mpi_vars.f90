@@ -145,7 +145,7 @@ TYPE tParticleMPIExchange2
   INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! Receive request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! Message, required for particle emission
 END TYPE
-TYPE (tParticleMPIExchange2)     :: PartMPIInsert 
+TYPE (tParticleMPIExchange2)     :: PartMPIInsert
 
 TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! Only MPI neighbors
@@ -167,10 +167,10 @@ TYPE (tNodeMPIExchange)          :: NodeExchange
 INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local rank id for communication
 LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be sent
                                                                              ! for deposition, e.g. shape-function
-LOGICAL                                  :: DoExternalParts                  ! external particles, required for 
+LOGICAL                                  :: DoExternalParts                  ! external particles, required for
                                                                              ! shape-function or b-spline or volume weighting
 INTEGER                                  :: NbrOfExtParticles                ! number of external particles
-LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated 
+LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated
 REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state
 INTEGER, ALLOCATABLE                     :: ExtPartSpecies(:)                ! species of external particles
 INTEGER, ALLOCATABLE                     :: ExtPartToFIBGM(:,:)              ! mapping form particle to bounding box in FIBGM

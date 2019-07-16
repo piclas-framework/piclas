@@ -17,7 +17,7 @@ MODULE MOD_PIC_Analyze
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge, CalculateBRElectronsPerCell
 
 CONTAINS
 
-SUBROUTINE VerifyDepositedCharge() 
+SUBROUTINE VerifyDepositedCharge()
 !===================================================================================================================================
 ! calcs the deposited chrages
 !===================================================================================================================================
@@ -78,7 +78,7 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 ChargeNumerical=0.
 DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
-  ChargeLoc=0. 
+  ChargeLoc=0.
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if defined(IMPA)
@@ -123,7 +123,7 @@ ChargeCalcDone = .TRUE.
 END SUBROUTINE VerifyDepositedCharge
 
 
-SUBROUTINE CalcDepositedCharge() 
+SUBROUTINE CalcDepositedCharge()
 !===================================================================================================================================
 ! Calculation of deposited charge and compute the absolute and relative error
 !===================================================================================================================================
@@ -210,7 +210,7 @@ END IF
 
 END SUBROUTINE CalcDepositedCharge
 
-SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell) 
+SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 !===================================================================================================================================
 ! calcs integrated (physical) number of BR electrons in cell
 !===================================================================================================================================

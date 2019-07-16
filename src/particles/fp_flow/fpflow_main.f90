@@ -30,7 +30,7 @@ INTERFACE FP_DSMC_main
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -75,7 +75,7 @@ DoElement = .FALSE.
 
 DO iElem = 1, nElems
   nPart = PEM%pNumber(iElem)
-  dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem) 
+  dens = nPart * Species(1)%MacroParticleFactor / GEO%Volume(iElem)
   IF (dens.LT.FPDSMCSwitchDens) THEN
     DoElement(iElem) = .TRUE.
     CYCLE
@@ -211,7 +211,7 @@ IF(SamplingActive) THEN
     IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
       DSMC%NumOutput = DSMC%NumOutput - 1
       ! Skipping outputs immediately after the first few iterations
-      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
+      IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN
         CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
         IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(during_dt_opt=.TRUE.)
       END IF

@@ -31,7 +31,7 @@ IMPLICIT NONE
 !>  Named parameters for ElemInfo array in mesh file
 !> @{
 INTEGER,PARAMETER    :: ElemInfoSize=6        !< number of entry in each line of ElemInfo
-INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position, 
+INTEGER,PARAMETER    :: ELEM_Type=1           !< entry position,
 INTEGER,PARAMETER    :: ELEM_Zone=2
 INTEGER,PARAMETER    :: ELEM_FirstSideInd=3
 INTEGER,PARAMETER    :: ELEM_LastSideInd=4
@@ -231,6 +231,10 @@ USE MOD_ReadInTools
 USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
 USE MOD_StringTools,        ONLY:STRICMP
 #endif
+#ifdef PARTICLES
+USE MOD_Particle_Vars       ,ONLY:VarTimeStep
+USE MOD_Particle_VarTimeStep,ONLY:VarTimeStep_InitDistribution
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -253,7 +257,7 @@ INTEGER                        :: CornerNodeIDswitch(8)
 INTEGER                        :: iLocSide,nbLocSide
 INTEGER                        :: iSide
 INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
-INTEGER                        :: nPeriodicSides,nMPIPeriodics 
+INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
@@ -272,6 +276,9 @@ LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
 REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+#endif
+#ifdef PARTICLES
+REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
@@ -308,7 +315,15 @@ ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
 ElemTimeExists=.FALSE.
 
-IF (DoRestart) THEN 
+#ifdef PARTICLES
+IF(VarTimeStep%UseDistribution) THEN
+! Initialize variable time step distribution (done before domain decomposition to include time step as weighting for load balance)
+! Get the time step factor distribution or calculate it from quality factors from the DSMC state (from the MacroRestartFileName)
+  CALL VarTimeStep_InitDistribution()
+END IF
+#endif
+
+IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
   ! 1) Only MPIRoot does readin of ElemTime
@@ -445,18 +460,37 @@ nSurfacePartsPerElem=0
 #endif /*PARTICLES*/
 ! --
 #else /* MPI */
-nElems=nGlobalElems   ! Local number of Elements 
-offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
+nElems=nGlobalElems   ! Local number of Elements
+offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 #endif /* MPI */
 
-
-
-
-
-!IPWRITE (*,*) "MPI_BARRIER"
-!#ifdef MPI
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-!#endif /* MPI */
+!----------------------------------------------------------------------------------------------------------------------------
+!                              VARIABLE TIME STEP
+!----------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
+IF(VarTimeStep%UseDistribution) THEN
+  IF(ALLOCATED(VarTimeStep%ElemFac)) THEN
+    ALLOCATE(GlobVarTimeStep(nGlobalElems))
+    GlobVarTimeStep(1:nGlobalelems) = VarTimeStep%ElemFac(1:nGlobalelems)
+    ! Allocate new array for the time step distribution (going from global time step distribution to proc local with nElems)
+    DEALLOCATE(VarTimeStep%ElemFac)
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    ! And now get the new variable time steps for the respective elements
+    VarTimeStep%ElemFac(1:nElems) = GlobVarTimeStep(offsetElem+1:offsetElem+nElems)
+    ! Global distribution is not required anymore
+    DEALLOCATE(GlobVarTimeStep)
+  ELSE
+    ! Allocate the array for the element-wise time step factor
+    ALLOCATE(VarTimeStep%ElemFac(nElems))
+    VarTimeStep%ElemFac = 1.0
+#ifdef MPI
+    ! Allocate the array for the element-wise weighting factor
+    ALLOCATE(VarTimeStep%ElemWeight(nElems))
+    VarTimeStep%ElemWeight = 1.0
+#endif
+  END IF
+END IF
+#endif
 
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL readBCs()
@@ -495,9 +529,9 @@ END DO
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif /* MPI */
-offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1  
+offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
-!read local SideInfo from data file 
+!read local SideInfo from data file
 FirstSideInd=offsetSideID+1
 LastSideInd=offsetSideID+nSideIDs
 ALLOCATE(SideInfo(SideInfoSize,FirstSideInd:LastSideInd))
@@ -648,7 +682,7 @@ END DO !iElem
 !                              NODES
 !----------------------------------------------------------------------------------------------------------------------------
 
-!read local Node Info from data file 
+!read local Node Info from data file
 offsetNodeID=ElemInfo(ELEM_FirstNodeInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nNodeIDs=ElemInfo(ELEM_LastNodeInd,LastElemInd)-ElemInfo(ELEM_FirstNodeInd,FirstElemind)
 FirstNodeInd=offsetNodeID+1
@@ -923,7 +957,7 @@ END SUBROUTINE ReadMesh
 
 SUBROUTINE GetNodeMap()
 !===================================================================================================================================
-! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ... 
+! take NodeInfo array, sort it, eliminate mulitple IDs and return the Mapping 1->NodeID1, 2->NodeID2, ...
 ! this is useful if the NodeID list of the mesh are not contiguous, essentially occuring when using domain decomposition (MPI)
 !===================================================================================================================================
 ! MODULES
@@ -963,7 +997,7 @@ END SUBROUTINE GetNodeMap
 
 FUNCTION INVMAP(ID,nIDs,ArrID)
 !===================================================================================================================================
-! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
+! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection
 ! if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
 !===================================================================================================================================
 ! MODULES
@@ -989,7 +1023,7 @@ IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
   !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
   INVMAP=-1  ! not in the range!
   RETURN
-END IF 
+END IF
 IF(ID.EQ.ArrID(low))THEN
   INVMAP=low
 ELSEIF(ID.EQ.ArrID(up))THEN
@@ -1054,7 +1088,7 @@ ELSE
     END IF
   END DO
 END IF
-END FUNCTION ELEMIPROC 
+END FUNCTION ELEMIPROC
 #endif /* MPI */
 
 RECURSIVE SUBROUTINE Qsort1Int(A)

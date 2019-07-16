@@ -15,7 +15,7 @@
 MODULE MOD_Jac_Ex
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U 
+! Computes the different DG spatial operators/residuals(Ut) using U
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -56,7 +56,7 @@ CONTAINS
 
 SUBROUTINE InitJac_Ex()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -71,7 +71,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                      :: i,j
 !===================================================================================================================================
 
@@ -85,7 +85,7 @@ DO j=0,PP_N
   LL_minus(i,j) = L_Hatminus(i)*L_minus(j)
   LL_plus(i,j)  = L_Hatplus(i) *L_plus(j)
   END DO
-END DO 
+END DO
 
 Jac_Ex_InitIsDone=.TRUE.
 !SWRITE(UNIT_stdOut,'(A)')' EXACT BLOCK JACOBIAN DONE!'
@@ -94,7 +94,7 @@ END SUBROUTINE InitJac_Ex
 
 SUBROUTINE Jac_Ex(iElem,BJ)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars ,ONLY:nDOFElem
@@ -108,7 +108,7 @@ INTEGER,INTENT(IN) :: iElem
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 ! element local preconditioner
@@ -120,7 +120,7 @@ END SUBROUTINE Jac_Ex
 
 SUBROUTINE Jac_Ex_Neighbor(locSideID,iElem,BJ)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars ,ONLY:nDOFElem
@@ -134,11 +134,11 @@ INTEGER,INTENT(IN) :: iElem,locSideID
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 ! element local preconditioner
-CALL DGJacSurfInt_Neighbor(BJ,locSideID,iElem) 
+CALL DGJacSurfInt_Neighbor(BJ,locSideID,iElem)
 !CALL Apply_sJ(BJ,iElem)
 
 END SUBROUTINE Jac_Ex_Neighbor
@@ -173,7 +173,7 @@ INTEGER,INTENT(IN) :: iElem
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)    :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                                 :: i,mm,nn,oo
 INTEGER                                                 :: s,r1,r2,r3,ll,vn1,vn2
 REAL                                                    :: delta(0:PP_N,0:PP_N)
@@ -209,7 +209,7 @@ LOGICAL                                                 :: isDielectric
 !        ! Attention 1: we store the transformed fluxes in f,g,h again
 !        fJac(:,:,i,j,k) = fJacTilde(:,:)*Metrics_fTilde(1,i,j,k,iElem) + &
 !                          gJacTilde(:,:)*Metrics_fTilde(2,i,j,k,iElem) + &
-!                          hJacTilde(:,:)*Metrics_fTilde(3,i,j,k,iElem) 
+!                          hJacTilde(:,:)*Metrics_fTilde(3,i,j,k,iElem)
 !        gJac(:,:,i,j,k) = fJacTilde(:,:)*Metrics_gTilde(1,i,j,k,iElem) + &
 !                          gJacTilde(:,:)*Metrics_gTilde(2,i,j,k,iElem) + &
 !                          hJacTilde(:,:)*Metrics_gTilde(3,i,j,k,iElem)
@@ -234,11 +234,11 @@ LOGICAL                                                 :: isDielectric
 !              r=r+PP_nVar
 !            END DO !i
 !          END DO !j
-!        END DO !k 
+!        END DO !k
 !        s=s+PP_nVar
 !      END DO !mm
 !    END DO !nn
-!  END DO !oo 
+!  END DO !oo
 
   IF(isDielectric)THEN
     s=0
@@ -246,10 +246,10 @@ LOGICAL                                                 :: isDielectric
       DO nn=0,PP_N
         DO mm=0,PP_N
           !fills fJac,gJac,hJac
-          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(mm,nn,oo,ElemToDielectric(iElem)),fJac,gJac,hJac) 
+          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(mm,nn,oo,ElemToDielectric(iElem)),fJac,gJac,hJac)
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
-                           hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+                           hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem)
           gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
@@ -261,19 +261,19 @@ LOGICAL                                                 :: isDielectric
           r3=mm*PP_nVar+vn1*nn
           DO ll=0,PP_N
                 BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar) = BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar)                &
-                                                                                  + D_hat(ll,mm)*fJacTilde(:,:) 
+                                                                                  + D_hat(ll,mm)*fJacTilde(:,:)
                 BJ(r2+1:r2+PP_nVar,s+1:s+PP_nVar) = BJ(r2+1:r2+PP_nVar,s+1:s+PP_nVar)&
-                                                                                  + D_hat(ll,nn)*gJacTilde(:,:) 
+                                                                                  + D_hat(ll,nn)*gJacTilde(:,:)
                 BJ(r3+1:r3+PP_nVar,s+1:s+PP_nVar) = BJ(r3+1:r3+PP_nVar,s+1:s+PP_nVar)&
-                                                                                  + D_hat(ll,oo)*hJacTilde(:,:) 
+                                                                                  + D_hat(ll,oo)*hJacTilde(:,:)
                 r1=r1+PP_nVar
                 r2=r2+vn1
                 r3=r3+vn2
-          END DO !k 
+          END DO !k
           s=s+PP_nVar
         END DO !mm
       END DO !nn
-    END DO !oo 
+    END DO !oo
   ELSE
     ! column loop mm,nn,oo->s
     s=0
@@ -283,7 +283,7 @@ LOGICAL                                                 :: isDielectric
           ! rows
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
-                           hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+                           hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem)
           gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
                            gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
                            hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
@@ -297,19 +297,19 @@ LOGICAL                                                 :: isDielectric
           r3=mm*PP_nVar+vn1*nn        ! k
           DO ll=0,PP_N
                 BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar) = BJ(r1+1:r1+PP_nVar,s+1:s+PP_nVar)                &
-                                                                                  + D_hat(ll,mm)*fJacTilde(:,:) 
+                                                                                  + D_hat(ll,mm)*fJacTilde(:,:)
                 BJ(r2+1:r2+PP_nVar,s+1:s+PP_nVar) = BJ(r2+1:r2+PP_nVar,s+1:s+PP_nVar)&
-                                                                                  + D_hat(ll,nn)*gJacTilde(:,:) 
+                                                                                  + D_hat(ll,nn)*gJacTilde(:,:)
                 BJ(r3+1:r3+PP_nVar,s+1:s+PP_nVar) = BJ(r3+1:r3+PP_nVar,s+1:s+PP_nVar)&
-                                                                                  + D_hat(ll,oo)*hJacTilde(:,:) 
+                                                                                  + D_hat(ll,oo)*hJacTilde(:,:)
                 r1=r1+PP_nVar
                 r2=r2+vn1
                 r3=r3+vn2
-          END DO !k 
+          END DO !k
           s=s+PP_nVar
         END DO !mm
       END DO !nn
-    END DO !oo 
+    END DO !oo
   END IF
 
 END SUBROUTINE DGVolIntJac
@@ -336,7 +336,7 @@ REAL,INTENT(INOUT) :: dRdXi  (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdEta (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                                 :: oo,nn,mm,l,vni,vnj,vnk,r
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJac,gJac,hJac
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJacTilde,gJacTilde,hJacTilde
@@ -356,10 +356,10 @@ LOGICAL                                                 :: isDielectric
     DO oo=0,PP_N
       DO nn=0,PP_N
         DO mm=0,PP_N
-          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(mm,nn,oo,ElemToDielectric(iElem)),fJac,gJac,hJac) 
+          CALL EvalFluxJacobianDielectric(DielectricConstant_Inv(mm,nn,oo,ElemToDielectric(iElem)),fJac,gJac,hJac)
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
               gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
-              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem)
           gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
               gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
               hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
@@ -371,12 +371,12 @@ LOGICAL                                                 :: isDielectric
           vnk=PP_nVar*oo
           r=0
           DO l=0,PP_N
-            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
-            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
-            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:) 
-            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:) 
-            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:) 
+            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:)
+            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:)
+            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:)
+            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:)
+            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:)
+            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:)
             r=r+PP_nVar
           END DO ! l
         END DO ! mm
@@ -389,7 +389,7 @@ LOGICAL                                                 :: isDielectric
         DO mm=0,PP_N
           fJacTilde(:,:) = fJac(:,:)*Metrics_fTilde(1,mm,nn,oo,iElem) + &
               gJac(:,:)*Metrics_fTilde(2,mm,nn,oo,iElem) + &
-              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem) 
+              hJac(:,:)*Metrics_fTilde(3,mm,nn,oo,iElem)
           gJacTilde(:,:) = fJac(:,:)*Metrics_gTilde(1,mm,nn,oo,iElem) + &
               gJac(:,:)*Metrics_gTilde(2,mm,nn,oo,iElem) + &
               hJac(:,:)*Metrics_gTilde(3,mm,nn,oo,iElem)
@@ -401,12 +401,12 @@ LOGICAL                                                 :: isDielectric
           vnk=PP_nVar*oo
           r=0
           DO l=0,PP_N
-            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:) 
-            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:) 
-            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:) 
-            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:) 
-            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:) 
-            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:) 
+            !dRdXi  (vni+1:vni+PP_nVar,s+1:s+PP_nVar,j,k) = dRdXi  (vni+1:vni+1,s+1:s+PP_nVar,j,k) +D_hat(l,i)*fJacTilde(:,:)
+            !dRdEta (vnj+1:vnj+PP_nVar,s+1:s+PP_nVar,i,k) = dRdEta (vnj+1:vnj+1,s+1:s+PP_nVar,i,k) +D_hat(l,j)*gJacTilde(:,:)
+            !dRdZeta(vnk+1:vnk+PP_nVar,s+1:s+PP_nVar,i,j) = dRdZeta(vnk+1:vnk+1,s+1:s+PP_nVar,i,j) +D_hat(l,k)*hJacTilde(:,:)
+            dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) = dRdXi  (r+1:r+PP_nVar,vni+1:vni+PP_nVar,nn,oo) +D_hat(l,mm)*fJacTilde(:,:)
+            dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) = dRdEta (r+1:r+PP_nVar,vnj+1:vnj+PP_nVar,mm,oo) +D_hat(l,nn)*gJacTilde(:,:)
+            dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) = dRdZeta(r+1:r+PP_nVar,vnk+1:vnk+PP_nVar,mm,nn) +D_hat(l,oo)*hJacTilde(:,:)
             r=r+PP_nVar
           END DO ! l
         END DO ! mm
@@ -433,7 +433,7 @@ INTEGER,INTENT(IN) :: iElem
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT) :: BJ(nDOFelem,nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER :: r,s,i,j,k
 !===================================================================================================================================
 
@@ -470,7 +470,7 @@ REAL,INTENT(INOUT) :: dRdXi  (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdEta (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER :: i,j,k
 INTEGER :: mm,nn,oo,v1,v2!,ll
 !===================================================================================================================================
@@ -480,19 +480,19 @@ DO oo=0,PP_N; DO nn=0,PP_N; DO mm=0,PP_N
   v1=0
   v2=mm*PP_nVar
   DO i=0,PP_N
-    dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)=-dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)*sJ(i,nn,oo,iElem) 
+    dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)=-dRdXi(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,nn,oo)*sJ(i,nn,oo,iElem)
     v1=v1+PP_nVar
   END DO !ll
   v1=0
   v2=nn*PP_nVar
   DO j=0,PP_N
-    dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)=-dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)*sJ(mm,j,oo,iElem) 
+    dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)=-dRdEta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,oo)*sJ(mm,j,oo,iElem)
     v1=v1+PP_nVar
   END DO !ll
   v1=0
   v2=oo*PP_nVar
   DO k=0,PP_N
-    dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)=-dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)*sJ(mm,nn,k,iElem) 
+    dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)=-dRdZeta(v1+1:v1+PP_nVar,v2+1:v2+PP_nVar,mm,nn)*sJ(mm,nn,k,iElem)
     v1=v1+PP_nVar
   END DO !ll
 END DO; END DO; END DO! mm,nn,oo=0,PP_N
@@ -512,7 +512,7 @@ END SUBROUTINE Apply_sJ1D
 
 SUBROUTINE Jac_Ex1D(dRdXi,dRdEta,dRdZeta,iElem)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -529,7 +529,7 @@ REAL,INTENT(INOUT) :: dRdXi  (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdEta (1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 REAL,INTENT(INOUT) :: dRdZeta(1:nDOFLine,1:nDOFLine,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 ! element local preconditioner
@@ -552,7 +552,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 !SDEALLOCATE()
 END SUBROUTINE FinalizeJac_Ex
