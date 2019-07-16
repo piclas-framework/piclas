@@ -74,7 +74,7 @@ INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
 LOGICAL,ALLOCATABLE :: MaskedSide(:)      ! 1:nSides: all sides which are set to zero in matvec
 !mortar variables
-REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:) ! Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(Mortartype))
+REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:) ! Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar sides: 
                                                ! -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
 !===================================================================================================================================

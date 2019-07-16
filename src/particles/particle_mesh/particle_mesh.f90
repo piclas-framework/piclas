@@ -6081,9 +6081,13 @@ IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
   DO iSide=1,nSides
     IF(SidePeriodicType(iSide).NE.0)THEN
       ! abort if particles are traced over mortar sides
-      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) CALL abort(&
-__STAMP__&
-      , ' Periodic tracing over mortar sides is not implemented!')
+      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) THEN
+        WRITE (*,*) "MortarSlave2MasterInfo(iSide) =", MortarSlave2MasterInfo(iSide)
+        WRITE (*,*) "MortarType(1,iSide)           =", MortarType(1,iSide)
+        CALL abort(&
+          __STAMP__&
+          , ' Periodic tracing over mortar sides is not implemented!')
+      END IF
       ! ignore MPI sides, these have NOT to be mirrored
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       IF(ElemID.EQ.-1) THEN
