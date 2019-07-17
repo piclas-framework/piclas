@@ -186,6 +186,9 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
                                            ,' Temperature of collision-specific reference diameter.' , '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Collision[$]-muRef'  &
+                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
+                                           , '1.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Species")
 
@@ -209,12 +212,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-muRef'  &
-                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
-                                           , '1.', numberedmulti=.TRUE.)
-
-CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
-                                           ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
+                                          ! to be solved vssreferencetemp macht keinen sinn speziesabhängig
+!CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
+!                                           ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
 ! CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceDiam' &
 !                                            ,'Reference diameter for variable soft sphere model.', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
@@ -513,7 +513,7 @@ __STAMP__&
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
       SpecDSMC(iSpec)%omegaVHS= GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
-      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muRef','1') 
+      ! to be solved macht hier doch gar keinen Sinn, da es pro coll einen anderen referenzwert geben könnte      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muref','1') 
 
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
@@ -621,16 +621,18 @@ __STAMP__&
 ! reading in VSS variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
   CollInf%collModel      = GETINT('Part-CollisionModel','0') 
-  CollInf%diameterCase = GETINT('Part-CollisionDiameterCase','0')
+  CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
+  ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
+  ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
+  ALLOCATE(CollInf%dref(nSpecies,nSpecies))
+  ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
+  ALLOCATE(CollInf%muref(nSpecies,nSpecies))
   IF(CollInf%collModel.EQ.1) THEN ! VSS
-    ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
-    ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
-    ALLOCATE(CollInf%dref(nSpecies,nSpecies))
-    ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
     CollInf%alphaVSS=1.                                     
     CollInf%omegaVSS=0.                                     
     CollInf%dref=0.                                    
     CollInf%Tref=0.                                     
+    CollInf%muref=1.                                     
     DO iSpec=1,CollInf%NumCase ! alphaVSS and omegaVSS (collision-specific parameters-> Matrix) read-in
       DO jSpec=1,CollInf%NumCase
         iCase=iCase+1
@@ -644,6 +646,10 @@ __STAMP__&
           CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
           CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
           CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
+          IF(CollInf%collModel.EQ.1) THEN ! VSS
+            CollInf%muref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-muref')
+            CollInf%muref(jSpec,iSpec)     = CollInf%muref(jSpec,iSpec)
+          END IF
           IF(CollInf%omegaVSS(iSpec,jSpec).EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
         ELSEIF((CollInf%alphaVSS(iSpec,jSpec).EQ.1)) THEN
           CALL Abort(&

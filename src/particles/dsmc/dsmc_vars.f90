@@ -237,6 +237,7 @@ TYPE tPairData
                                                              !       1: sigma elast
                                                              !       2: sigma ionization
                                                              !       3: sigma excitation
+  REAL                          :: sigma_t                 ! not sure if sigma(0) gets overwritten somewhere
   REAL                          :: Ec                      ! Collision Energy
   LOGICAL                       :: NeedForRec              ! Flag if pair is need for Recombination
 END TYPE tPairData
@@ -256,8 +257,9 @@ TYPE tCollInf                                              ! Collision informati
   REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision, ini_2
   REAL          , ALLOCATABLE   :: omegaVSS(:,:)           ! VSS exponent omega per collision, ini_2
-  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of omegaVSS, ini_2 
   REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter per collision, ini_2 
+  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of omegaVSS, ini_2 
+  REAL          , ALLOCATABLE   :: muref(:,:)              ! Reference viscosity coefficient, ini_2 
 END TYPE
 
 TYPE(tCollInf)                  :: CollInf

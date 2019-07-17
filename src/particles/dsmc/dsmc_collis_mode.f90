@@ -164,7 +164,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: CRelaX, CRelaY, CRelaZ           ! pre-collision relative velocities 
   REAL                          :: RanVec(3)
-  INTEGER                       :: collPart1ID, collPart2ID             ! Colliding particles 1 and 2
+  INTEGER                       :: collPart1ID, collPart2ID         ! Colliding particles 1 and 2
 !===================================================================================================================================
   collPart1ID = Coll_pData(iPair)%iPart_p1
   collPart2ID = Coll_pData(iPair)%iPart_p2
@@ -191,7 +191,8 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
   CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
   ! Calculate random vec
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(collPart1ID,collPart2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(PartSpecies(collPart1ID) &
+             ,PartSpecies(collPart2ID)))
   
  ! deltaV particle 1 
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)

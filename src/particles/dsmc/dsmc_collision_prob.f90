@@ -109,14 +109,15 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(collPart1ID))%omegaVHS) 
         END IF
       ELSE ! VSS
-        Coll_pData(iPair)%sigma(1) = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
+        ALLOCATE(Coll_pData(iPair)%sigma_t)  ! Cross Section of Collision of this pair
+        Coll_pData(iPair)%sigma_t = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
                                                                                         ! depends on the temperature
         ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
         !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
         Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
                                    * Species(PartSpecies(collPart1ID))%MacroParticleFactor              &
                                    * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
-                                   * Coll_pData(iPair)%sigma(1) * Coll_pData(iPair)%CRela2 
+                                   * Coll_pData(iPair)%sigma_t * Coll_pData(iPair)%CRela2 
       END IF
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron

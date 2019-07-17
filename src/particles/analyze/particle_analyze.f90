@@ -428,7 +428,9 @@ END IF
 CalcNumSpec     = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcCollRates   = GETLOGICAL('CalcCollRates','.FALSE.')
 CalcReacRates   = GETLOGICAL('CalcReacRates','.FALSE.')
+!#if ( PP_TimeDiscMethod ==42)
 CalcCrossSection = GETLOGICAL('CalcCrossSection','.FALSE.')
+!#endif
 IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoPartAnalyze = .TRUE. ! to be solved hier irrelevant CalcCrossSection
 ! compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
@@ -559,7 +561,7 @@ INTEGER             :: RECBIM(nSpecies)
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase, iTvib,jSpec
-REAL                :: meanCrossSection
+REAL, ALLOCATABLE   :: meanCrossSection(:) 
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 INTEGER             :: ii, iunit
@@ -578,6 +580,7 @@ INTEGER             :: dir
     IF (CollisMode.NE.0) THEN                                 
       SDEALLOCATE(CRate)
       ALLOCATE(CRate(CollInf%NumCase + 1))
+      ! to be solved muss hier meancrosssection ebenfalls neu allokiert werden?
       IF (CollisMode.EQ.3) THEN ! relaxation, elastic collision and chemical reactions
         SDEALLOCATE(RRate)
         ALLOCATE(RRate(ChemReac%NumOfReact))
@@ -912,14 +915,14 @@ IF (CollisMode.GT.1) THEN ! for relaxation - inner DOF
         END IF
         IF(CalcCrossSection) THEN ! calculates averaged cross-section sigma_t per timestep
           DO iSpec = 1, nSpecies 
-            DO jSpec = iSpec, nSpecies
+            DO jSpec = iSpec, nSpecies ! collision-specific averaged
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,I3.3,A5)',ADVANCE='NO') OutputCounter,'-sigma_t', iSpec, jSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-MeanCrossSection', iSpec, '+', jSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
           END DO
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-TotalCollRate',' '
+          WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-TotalMeanCrossSection',' ' ! over all collisions averaged
           OutputCounter = OutputCounter + 1
         END IF
 #endif
@@ -1367,8 +1370,10 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
     IF(CalcCrossSection) THEN
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCrossSection(iCase)
+      DO iCase=1, CollInf%NumCase +1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCrossSection(iCase)
+      END DO
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' '
@@ -2636,18 +2641,16 @@ IF(PartAnalyzeStep.GT.1)THEN
     END DO ! iReac=1, ChemReac%NumOfReact
   END IF
 END IF
-
-
 END SUBROUTINE ReacRates
 
-SUBROUTINE CrossSection(sigma_t)
+SUBROUTINE CrossSection(meanCrossSection)
 !===================================================================================================================================
 ! Calculation of arithmetric mean cross section. 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: CollInf, Coll_pData
+USE MOD_DSMC_Vars             ,ONLY: CollInf, Coll_pData, DSMC
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, PEM
 ! IMPLICIT VARIABLE HANDLING
@@ -2656,20 +2659,50 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                 :: sigma_t(:) ! averaged total cross section 
+REAL,INTENT(OUT)                 :: meanCrossSection(:) ! averaged total cross section 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPair, iElem ! to sum up all cross sections of all colliding particles in all elements
+INTEGER                         :: nPair, iColl, iElem ,ipair! to sum up all cross sections of all colliding particles in all elements
+INTEGER,ALLOCATABLE             :: counter(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
-sigma_t=0.0 ! reset to zero
+!definition
+
+! NUM CASE - to be solved, das hochzählen ist übrflüssig. 
+ALLOCATE(counter(CollInf%NumCases))
+! reset to zero
+meanCrossSection(:)=0.0 
+counter(CollInf%Coll_Case(Spec1,Spec2))=0
+iColl=0
+Spec1
+Spec2
 ! to be solved- array mit zuordnung wer kollidiert? elems und coll muss auch laufen
-DO iElem = 1,nElems
-!   DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
-  DO iPair = 1,PEM%pNumber(iElem)
-    sigma_t = sigma_t + Coll_pData(iPair)%sigma(1) ! sigma(1)=sigma_t
-  END DO
-END DO
-sigma_t = sigma_t / REAL(SUM(CollInf%Coll_CaseNum(:)))
+DO iElem = 1,nElems ! da nicht mpf muss es über alle elemente gemacht werden to be solved
+  npair=PEM%pNumber(iElem)/2
+                                                !DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
+                                                !  sigma_t(iColl) = Coll_pData(iColl)%sigma(0) 
+                                                
+  ! summing up all sigma(0)=sigma_t over all collisions
+  DO iPair = 1,npair
+    DO Spec1 = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
+      DO Spec2 = Spec1,nSpec 
+        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(Spec1,Spec2)) THEN 
+          meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) = meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) + &
+                                                               Coll_pData(iPair)%sigma_t
+          counter(CollInf%Coll_Case(Spec1,Spec2)) = counter(CollInf%Coll_Case(Spec1,Spec2)) + 1                                                            
+        END IF
+      END DO !Spec2
+    END DO !Spec1
+  END DO ! nPair
+END DO !iElem
+! the arithmetric mean is determined
+DO Spec1 = 1,nSpec       !these two loops are used to get a collision-specific total averaged cross section 
+  DO Spec2 = Spec1,nSpec 
+      meanCrossSection(CollInf%Coll_Case(Spec1,Spec2),1) = meanCrossSection(CollInf%Coll_Case(Spec1,Spec2),1) /  &
+                                                           counter(CollInf%Coll_Case(Spec1,Spec2))
+  END DO !Spec2
+END DO !Spec1
+meanCrossSection(CollInf%NumCase+1) = SUM(meanCrossSection(:))/ REAL(DSMC%NumColl(CollInf%NumCase+1)) ! total sigma_t 
+
 END SUBROUTINE CrossSection
 #endif
 
