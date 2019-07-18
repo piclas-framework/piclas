@@ -1019,9 +1019,10 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
-USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
+USE MOD_HDG_Vars      ,ONLY: nGP_face
+USE MOD_HDG_Vars      ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
+USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
+USE MOD_Mesh_Vars     ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1037,12 +1038,14 @@ REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
 REAL                            :: timestartCG,timeEndCG
-INTEGER                         :: iter
+INTEGER                         :: iteration
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(*,*)'CG solver start'
+IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+  SWRITE(UNIT_StdOut,'(132("-"))')
+  SWRITE(*,*)'CG solver start'
+END IF
 TimeStartCG=PICLASTIME()
 #ifdef MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
@@ -1090,7 +1093,7 @@ CALL VectorDotProduct(VecSize,R(1:VecSize),V(1:VecSize),rz1) !Z=V
 ! Conjugate Gradient
 !IF(MPIroot) print*, '!!!!!!!!!!!!!!!!!!!!!!'
 !IF(MPIroot) print*, iVar
-DO iter=1,MaxIterCG
+DO iteration=1,MaxIterCG
   ! matrix vector
   IF(PRESENT(iVar)) THEN
     CALL MatVec(V,Z, iVar)
@@ -1114,18 +1117,20 @@ DO iter=1,MaxIterCG
 #endif /*MPI*/
   IF(converged) THEN !converged
     TimeEndCG=PICLASTIME()
-    SWRITE(UNIT_StdOut,'(A,X,I16)')   '#iterations        :',iter
-    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime         [s]:',(TimeEndCG-TimeStartCG)
-    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter    [s]:', (TimeEndCG-TimeStartCG)/REAL(iter)
-!    SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iter/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iter*PP_nElems*nGP_vol)
     CALL EvalResidual(RHS,lambda,R)
     CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-    SWRITE(UNIT_StdOut,'(A,X,ES21.14)')'Final Residual     :',SQRT(Norm_R2)
-    SWRITE(UNIT_StdOut,'(132("-"))')
+    IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+      SWRITE(UNIT_StdOut,'(A,X,I16)')      '#iterations          :',iteration
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime           [s]:',(TimeEndCG-TimeStartCG)
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'RunTime/iteration [s]:', (TimeEndCG-TimeStartCG)/REAL(iteration)
+!      SWRITE(UNIT_StdOut,'(A,X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
+      SWRITE(UNIT_StdOut,'(A,X,ES25.14E3)')'Final Residual       :',SQRT(Norm_R2)
+      SWRITE(UNIT_StdOut,'(132("-"))')
+    END IF
     RETURN
   END IF !converged
-  IF (MOD(iter , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
-    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iter, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
+  IF (MOD(iteration , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
+    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
   END IF
 
   IF(PrecondType.NE.0) THEN
@@ -1136,8 +1141,8 @@ DO iter=1,MaxIterCG
   CALL VectorDotProduct(VecSize,R(1:VecSize),Z(1:VecSize),rz2)
   V=Z+(rz2/rz1)*V
   rz1=rz2
-END DO ! iter
-SWRITE(*,*)'CG solver not converged in ',iter, 'iterations!!'
+END DO ! iteration
+SWRITE(*,*)'CG solver not converged in ',iteration, 'iterations!!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE CG_solver
