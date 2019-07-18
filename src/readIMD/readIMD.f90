@@ -66,8 +66,7 @@ subroutine read_IMD_results()
   integer(kind=8)                           :: nAtoms, iAtom, iProc
   integer(kind=8),dimension(0:nProcessors)  :: FileOffsets
   integer(kind=MPI_OFFSET_KIND)             :: myOffset
-  !character(len=1),dimension(:),allocatable :: AtomsBuffer
-  real,dimension(:),allocatable             :: AtomsBuffer
+  character(len=1),dimension(:),allocatable :: AtomsBuffer
   integer(kind=4)                           :: atomBufferSize
   integer                                   :: atomsBufferPos = 0
   integer                                   :: errorLen
@@ -146,10 +145,8 @@ subroutine read_IMD_results()
   myOffset = FileOffsets(myRank)
 
   myFileOffset = disp + myOffset * observables * 8_8
-  !atomBufferSize = 8 * observables * int ( nAtoms, 4 )
-  atomBufferSize = observables * int ( nAtoms, 4 )
-  !allocate(AtomsBuffer(atomBufferSize),STAT=allocstat)
-  allocate(AtomsBuffer(observables * int ( nAtoms, 4 )))
+  atomBufferSize = 8 * observables * int ( nAtoms, 4 )
+  allocate(AtomsBuffer(atomBufferSize),STAT=allocstat)
   if (allocstat.ne.0) then
     CALL abort(&
     __STAMP__&
@@ -172,10 +169,9 @@ subroutine read_IMD_results()
     call MPI_Abort(MPI_COMM_WORLD, mpiFileError, iError)
   end if
 
-  !call MPI_FILE_SET_VIEW(filehandle, myFileOffset, MPI_PACKED, MPI_PACKED, 'native', mpiInfo, iError)
-  call MPI_FILE_SET_VIEW(filehandle, myFileOffset, MPI_DOUBLE_PRECISION, MPI_DOUBLE_PRECISION, 'native', mpiInfo, iError)
+  call MPI_FILE_SET_VIEW(filehandle, myFileOffset, MPI_PACKED, MPI_PACKED, 'native', mpiInfo, iError)
 
-  call MPI_FILE_READ_ALL(filehandle, AtomsBuffer, atomBufferSize, MPI_DOUBLE_PRECISION, ioStatus, iError)
+  call MPI_FILE_READ_ALL(filehandle, AtomsBuffer, atomBufferSize, MPI_PACKED, ioStatus, iError)
 
   call MPI_FILE_CLOSE(filehandle, iError)
 
@@ -183,17 +179,19 @@ subroutine read_IMD_results()
     EndT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
     StartT=MPI_WTIME()
-    !WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Unpacking data into PartState ....'
+    WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Unpacking data into PartState ....'
   end if
 
-  atomsBufferPos = 1
-  do iPart=1,PDM%ParticleVecLength
-    PartState(iPart,1:6) = AtomsBuffer(atomsBufferPos:atomsBufferPos+5)
-    atomsBufferPos = atomsBufferPos + 6
-    PartStateIntEn(iPart,1:2) = AtomsBuffer(atomsBufferPos:atomsBufferPos+1)
-    atomsBufferPos = atomsBufferPos + 2
-  end do
+  ! check if PartStateIntEn is allocated, if not allocate it
+  if(.NOT.allocated(PartStateIntEn)) allocate( PartStateIntEn( ubound(PartState,1), 2 ) )
 
+!  atomsBufferPos = 1
+!  do iPart=1,PDM%ParticleVecLength
+!    PartState(iPart,1:6) = AtomsBuffer(atomsBufferPos:atomsBufferPos+5)
+!    atomsBufferPos = atomsBufferPos + 6
+!    PartStateIntEn(iPart,1:2) = AtomsBuffer(atomsBufferPos:atomsBufferPos+1)
+!    atomsBufferPos = atomsBufferPos + 2
+!  end do
 !  if(myRank==1)then
 !    write(*,*)'Copy atmos to ParticleInside and PartStateIntEn done'
 !
@@ -205,17 +203,17 @@ subroutine read_IMD_results()
 !
 !  end if
 
-!  do iPart=1,PDM%ParticleVecLength
-!    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
-!                    6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
-!    if ( iError .NE. 0 ) &
-!        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
-!
-!    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
-!                    int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
-!    if ( iError .NE. 0 ) &
-!        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
-!  end do
+  do iPart=1,PDM%ParticleVecLength
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartState(iPart,1:6),&
+                    6_4, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+    if ( iError .NE. 0 ) &
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle position to PartState(iPart,1:6) with iPart=',iPart
+
+    call MPI_UNPACK(AtomsBuffer, atomBufferSize, atomsBufferPos, PartStateIntEn(iPart,1:2),&
+                    int( observables-6_8, 4 ), MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, iError)
+    if ( iError .NE. 0 ) &
+        IPWRITE(UNIT_stdOut,'(I0,A,I0)')'Error unpacking particle charge and electron temperature to PartState(iPart,1:2) with iPart=',iPart
+  end do
 
   if( mpiroot )then
     EndT=MPI_WTIME()
@@ -265,9 +263,9 @@ subroutine read_IMD_results()
   do iPart=1,PDM%ParticleVecLength
     PDM%ParticleInside(iPart) = .True.
     CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
-    if( .not. PDM%ParticleInside(iPart) )then
-      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
-    end if
+!    if( .not. PDM%ParticleInside(iPart) )then
+!      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
+!    end if
   end do
   if( mpiroot )then
     EndT=MPI_WTIME()
@@ -275,6 +273,7 @@ subroutine read_IMD_results()
     StartT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Sending particles to host procs ...'
   end if
+
   call IRecvNbofParticles()
   call SendNbOfParticles()
   call MPIParticleSend()
