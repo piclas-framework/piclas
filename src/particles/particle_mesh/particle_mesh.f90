@@ -1427,6 +1427,8 @@ DO iLocSide = 1,6
           InElementCheckMortarNb = .TRUE.
           NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
           IF (NbElemID.LT.1) THEN
+            IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
+            IPWRITE(*,*) 'ElemID:', ElemID
             CALL abort(&
               __STAMP__ &
               ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
