@@ -311,7 +311,7 @@ gnu_convtest_t:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t ; fi
 
 gnu_convtest_poisson:
   <<: *defaults_gnu
@@ -319,7 +319,7 @@ gnu_convtest_poisson:
   tags:
     - withmodules-concurrent
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  module load env/gnu ; cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build_gnu ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
        
 gnu_poisson_RK3:
   <<: *defaults_gnu
