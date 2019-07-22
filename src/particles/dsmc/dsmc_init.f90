@@ -151,20 +151,30 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
                                          ,'Only TD=Reservoir (42). ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
-                                         ,'Use octree method for dynamic grid resolution', '.FALSE.')
+                                         ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
+                                          'and the particle number', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
                                          ,'Resolve grid until the maximum number of particles in a subcell equals'//&
-                                          ' OctreePartNumNode.', '80')
+                                          ' OctreePartNumNode')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
-                                          'OctreePartNumNodeMin.', '50')
+                                          'OctreePartNumNodeMin')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
+                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
+                                          'cell refinement','.TRUE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
+                                         ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
+                                          'same particle pairs in order to reduce the statistical dependence')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
+                                         ,'2D/Axisymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
+                                          'the minimum particle per subcell requirement', '.FALSE.')
 
 CALL prms%SetSection("DSMC Collision")
 
 CALL prms%CreateIntOption(      'Part-CollisionModel'  &
                                            ,'Flags which model is used for collision. Check Bird for more information.\n '//&
-                                            '0 : Variable Hard Sphere (VHS)\n'//&
-                                            '1 : Variable Soft Sphere (VSS)', '0')
+                                            '0 : collision averaged parameters\n'//&
+                                            '1 : collision specific parameters', '0')
 CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
                                            ,'Flags if diameter is calculated with \n'//&
                                             '0 : dref  - reference diameter\n'//&
@@ -178,8 +188,8 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
 CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
                                            ,' Reference value for temperature exponent omega for variable soft sphere model.'//&
                                             ' Values can be found in papers such as krishnan2015, krishnan2016.\n'//&
-                                            ' omegaVSS=Ypsilon_bird=omega_krishnan+0.5=omega_bird+0.5'&
-                                           ,' 0.', numberedmulti=.TRUE.)
+                                            ' omegaVSS=Upsilon_bird=omega_bird+0.5'&
+                                           ,' .74', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,' Collision-specific reference diameter. Values can be found in papers such as '//&
                                             ' krishnan2015(https://doi.org/10.2514/6.2015-3373)\n'                           //&
@@ -208,15 +218,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceTemp'  &
                                            ,'Reference temperature [°C] for variable hard sphere model.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
                                            ,'Reference diameter for variable hard sphere model.', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
+CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
-                                          ! to be solved vssreferencetemp macht keinen sinn speziesabhängig
-!CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceTemp'  &
-!                                           ,'Reference temperature [°C] for variable soft sphere model.', '0.', numberedmulti=.TRUE.)
-! CALL prms%CreateRealOption(     'Part-Species[$]-VSSReferenceDiam' &
-!                                            ,'Reference diameter for variable soft sphere model.', '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
@@ -380,7 +385,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -402,7 +407,7 @@ IMPLICIT NONE
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: BGGasEVib
-  INTEGER               :: currentBC, ElemID, iSide, BCSideID
+  INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -427,6 +432,19 @@ IMPLICIT NONE
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(SelectionProc.NE.1) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
+,IntInfoOpt=SelectionProc)
+    END IF
+  END IF
+
+  DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
+  IF(DSMC%MergeSubcells.AND.(.NOT.Symmetry2D)) THEN
+    CALL abort(__STAMP__&
+,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
+  END IF
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
@@ -456,6 +474,12 @@ __STAMP__&
   DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel          = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(DSMC%DoTEVRRelaxation) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    END IF
+  END IF
   LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -487,10 +511,16 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    ALLOCATE(DSMC%QualityFacSamp(nElems,4))
-    DSMC%QualityFacSamp(1:nElems,1:4) = 0.0
-    ALLOCATE(DSMC%QualityFactors(nElems,3))
-    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+    ! 1: Maximal collision probability per cell/subcells (octree)
+    ! 2: Mean collision probability within cell
+    ! 3: Mean collision separation distance over mean free path
+    ! 4: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
+    VarNum = 4
+    ! VarNum + 1: Number of cloned particles per cell
+    ! VarNum + 2: Number of identical particles (no relative velocity)
+    IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
+    ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
+    DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
   END IF
 
 ! definition of DSMC particle values
@@ -512,9 +542,7 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-      SpecDSMC(iSpec)%omegaVHS= GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS
-      ! to be solved macht hier doch gar keinen Sinn, da es pro coll einen anderen referenzwert geben könnte      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muref','1') 
-
+      SpecDSMC(iSpec)%omega= GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -559,8 +587,9 @@ __STAMP__&
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
-  CollInf%Coll_SpecPartNum = 0
-
+  CollInf%Coll_SpecPartNum = 0.
+  ALLOCATE(CollInf%MeanMPF(nCase))
+  CollInf%MeanMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -577,12 +606,68 @@ __STAMP__&
     END DO
   END DO
 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! reading in collision model variables 
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CollInf%collModel      = GETINT('Part-CollisionModel','0') 
+  CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
+  ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
+  ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
+  ALLOCATE(CollInf%dref(nSpecies,nSpecies))
+  ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
+  ALLOCATE(CollInf%muref(nSpecies,nSpecies))
+  WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
+  WRITE(*,*) "omega VSS",         CollInf%omegaVSS(:,:)
+  WRITE(*,*) "dref VSS",              CollInf%dref(:,:)
+  WRITE(*,*) "Tref VSS",              CollInf%Tref(:,:)
+  WRITE(*,*) "collnumcase ",      CollInf%NumCase
+  DO iSpec=1,nSpecies ! alphaVSS and omegaVSS       
+    DO jSpec=iSpec,nSpecies
+      iCase=CollInf%Coll_Case(iSpec,jSpec)
+      WRITE(UNIT=hilf,FMT='(I0)') iCase
+      WRITE(*,*) "iCase ",      icase
+      CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
+      CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
+      !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega
+      !  write(*,*) "coll-spec "
+      !  CollInf%omegaVSS(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omegaVSS')
+      !  CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)
+      !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega
+        write(*,*) "coll-ave"
+        CollInf%omegaVSS(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
+        CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)  
+        ! to be solved        ! nenne im ganzen Code omega um, dann hast du spec omega und coll omega - viel besser 
+      !END IF
+      CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
+      CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
+      CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
+      CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
+!      WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(iSpec,jSpec)
+!      WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
+!      WRITE(*,*) "dref VSS",         CollInf%dref(iSpec,jSpec)
+!      WRITE(*,*) "Tref VSS",         CollInf%Tref(iSpec,jSpec)
+      IF(CollInf%diameterCase.EQ.1) THEN ! diameter gets calculated with viscosity reference value
+        ! to be solved hier ist aktuell eingebaut, dass man omega bird einliest und es in omega laux umrechnet.
+        ! fürs erste mal nur händisch einlesen
+         !CollInf%muref(iSpec,jSpec) = (30 * SQRT(CollInf%MassRed(iCase) * BoltzmannConst * CollInf%Tref(iSpec,jSpec))) &
+         !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omegaVSS(iSpec,jSpec)) *                        &
+         !                             (6-CollInf%omegaVSS(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
+
+        CollInf%muref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-muref')
+        CollInf%muref(jSpec,iSpec)     = CollInf%muref(jSpec,iSpec)
+      END IF
+    END DO
+  END DO
+WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
+WRITE(*,*) "omega VSS",         CollInf%omegaVSS(:,:)
+WRITE(*,*) "dref VSS",              CollInf%dref(:,:)
+WRITE(*,*) "Tref VSS",              CollInf%Tref(:,:)
+WRITE(*,*) "\n"
 ! Factor calculation for particle collision
   ALLOCATE(CollInf%Cab(nCase))
   ALLOCATE(CollInf%KronDelta(nCase))
   CollInf%Cab = 0
   CollInf%KronDelta = 0
-
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
@@ -593,92 +678,51 @@ __STAMP__&
       END IF
 ! Here, something strange is happening!
 ! Species constants, Laux (2.39)
-!      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omegaVHS) &
-!            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5)
-!      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omegaVHS) &
-!            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5)
+!      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omega) &
+!            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5)
+!      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omega) &
+!            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5)
 ! Species constants from nowhere
-      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
-            /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
-      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
-            /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
+      !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega - i.e. the prefactors are calculated species specific
+        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,iSpec)))
+            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,iSpec)
+            WRITE(*,*) "A1 collspec",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(jSpec,jSpec)))
+            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(jSpec,jSpec)
+            WRITE(*,*) "A2 collspec",A2
+WRITE(*,*) "\n"
+      !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega -i.e. the prefactors also use the averaged omega
+        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,jSpec)))
+            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
+            WRITE(*,*) "A1 collave",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,jSpec)))
+            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
+            WRITE(*,*) "A2 collave",A2
+WRITE(*,*) "\n"
+      !END IF
 ! Pairing characteristic constant Cab, Laux (2.38)
       CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS
+            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**CollInf%omegaVSS(iSpec,jSpec)
+            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
+          WRITE(*,*) "CAB collspec",CollInf%Cab(iCase)
+WRITE(*,*) "\n"
+WRITE(*,*) "\n"
             !the omega should be the same for both in vhs!!!
-            ! ES IST NICHT GEKLÄRT WO DIESE FORMEL HERKOMMT UND WAS DAS GAMMA DA MACHT
-      ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
-      !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
-      ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
-      !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
+      ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+      !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omega))
+      ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+      !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omega))
       ! CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-      !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
+      !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omega 
       !       !the omega should be the same for both in vss!!!
     END DO
   END DO
 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! reading in VSS variables 
-!-----------------------------------------------------------------------------------------------------------------------------------
-  CollInf%collModel      = GETINT('Part-CollisionModel','0') 
-  CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
-  ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
-  ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
-  ALLOCATE(CollInf%dref(nSpecies,nSpecies))
-  ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
-  ALLOCATE(CollInf%muref(nSpecies,nSpecies))
-  IF(CollInf%collModel.EQ.1) THEN ! VSS
-    CollInf%alphaVSS=1.                                     
-    CollInf%omegaVSS=0.                                     
-    CollInf%dref=0.                                    
-    CollInf%Tref=0.                                     
-    CollInf%muref=1.                                     
-    DO iSpec=1,CollInf%NumCase ! alphaVSS and omegaVSS (collision-specific parameters-> Matrix) read-in
-      DO jSpec=1,CollInf%NumCase
-        iCase=iCase+1
-        WRITE(UNIT=hilf,FMT='(I0)') iCase
-        CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
-        CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
-        IF (CollInf%alphaVSS(iSpec,jSpec).NE.1) THEN 
-          CollInf%omegaVSS(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omegaVSS')
-          CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)
-          CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
-          CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
-          CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
-          CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
-          IF(CollInf%collModel.EQ.1) THEN ! VSS
-            CollInf%muref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-muref')
-            CollInf%muref(jSpec,iSpec)     = CollInf%muref(jSpec,iSpec)
-          END IF
-          IF(CollInf%omegaVSS(iSpec,jSpec).EQ.1) CALL Abort(__STAMP__ ,'! omegaVSS,dref,Tref must be set for all collisions !')
-        ELSEIF((CollInf%alphaVSS(iSpec,jSpec).EQ.1)) THEN
-          CALL Abort(&
-            __STAMP__&
-            ,'! alphaVSS has to be defined for all collisions and cannot be 1 for VSS. If you want to use VHS you need to set'//&
-             'Part-CollisionModel=0 !')
-        END IF
-      END DO
-    END DO
-  ELSEIF (CollInf%collModel.EQ.0) THEN ! VHS default 
-    CollInf%alphaVSS=1. !=alphaVHS=1
-    CollInf%omegaVSS=0.
-      DO iSpec=1,nSpecies
-        ! das kann dann geändert werden 
-        ! bleibt man direct bei SpecDSMC
-        ! oder stellt man so um, dass mit collinf omega gerechnet wird - to be solved
-        ! was ist mit den i.NE.j feldern - man könnte nach krishnan collision averaged arbeiten. D.h. dass dannfür die felder der
-        ! mittelwert gebildet wird- dann kann man das aber direkt für alle machen
-        ! oder soll dann einfach weiterhin nur das erste omega berücksichtigt werden?
-        DO jSpec=1,nSpecies
-          CollInf%omegaVSS(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omegaVHS + SpecDSMC(jSpec)%omegaVHS)
-          CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)  
-        END DO
-      END DO
-  ELSE 
-    CALL Abort(&
-      __STAMP__&
-      ,'Collision model error! Choose Part-CollisionModel=0 VHS or =1 VSS ')
-  END IF
+CALL Abort(__STAMP__, "exited vss init")
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
@@ -1194,16 +1238,32 @@ __STAMP__&
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
+  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
+  IF(DSMC%UseOctree) THEN
+    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
+    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Statistical Pairing with Octree not yet supported in 3D!')
+    END IF
+  END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
+  ELSE
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
-  ! 50 / 8 -> ca. 6-7 particles per cell
-  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+  ELSE
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  END IF
   IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
     CALL abort(&
     __STAMP__&
-    ,'Particles-OctreePartNumNodeMin is less than 20')
+    ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
@@ -1211,6 +1271,20 @@ __STAMP__&
 ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
+  IF(Symmetry2D) THEN
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
+    IF (CollInf%ProhibitDoubleColl) THEN
+      IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+      CollInf%OldCollPartner = 0
+    END IF
+  ELSE
+    IF (CollInf%ProhibitDoubleColl) THEN
+      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
+      CALL abort(__STAMP__,&
+                'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
+    END IF
+  END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1253,8 +1327,8 @@ __STAMP__&
         iCase = CollInf%Coll_Case(iSpec,jSpec)
         SpecDSMC(iSpec)%CharaVelo(jSpec) = SQRT(  BoltzmannConst / CollInf%MassRed(iCase) &
                                                 * (2./3.*SpecDSMC(iSpec)%MW_Const(jSpec))**3.)
-        SpecDSMC(iSpec)%CollNumVib = SpecDSMC(iSpec)%CollNumVib * (2.*(2.-SpecDSMC(iSpec)%omegaVHS)*BoltzmannConst &
-                                   * SpecDSMC(iSpec)%TrefVHS / CollInf%MassRed(iCase))**SpecDSMC(iSpec)%omegaVHS
+        SpecDSMC(iSpec)%CollNumVib = SpecDSMC(iSpec)%CollNumVib * (2.*(2.-SpecDSMC(iSpec)%omega)*BoltzmannConst &
+                                   * SpecDSMC(iSpec)%TrefVHS / CollInf%MassRed(iCase))**SpecDSMC(iSpec)%omega
 
       END DO
     END DO
@@ -1607,7 +1681,6 @@ SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
-  SDEALLOCATE(DSMC%QualityFactors)
 END IF
 SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
@@ -1650,6 +1723,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
@@ -1658,6 +1732,9 @@ SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(ElemNodeVol)
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(ClonedParticles)
+SDEALLOCATE(SymmetrySide)
 END SUBROUTINE FinalizeDSMC
 
 

@@ -79,7 +79,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
                  * ( 2.0 * 3.14159265359 * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%TrefVHS &
                  * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
                  / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
-                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - SpecDSMC(iSpec)%omegaVHS)
+                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - SpecDSMC(iSpec)%omega)
     END DO
     CollNum = 18.1 / ( 1.0 + 0.5*3.14159265359**1.5*(91.5/ PartStateBulkValues(iPartIndx,4) )**0.5 &
             + (3.14159265359 + 0.25*3.14159265359**2.0)*91.5 / PartStateBulkValues(iPartIndx,4) )
@@ -325,7 +325,7 @@ ALLOCATE(TempPartVelo(PDM%maxParticleNumber,3))
               * Species(PartSpecies(LD_Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
                       ! weighting Fact, here only one MPF is used!!!
               / CollInf%Coll_CaseNum(LD_Coll_pData(iPair)%PairType)                                      & !sum of coll cases Sab
-              * LD_Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(cSpec1)%omegaVHS) &
+              * LD_Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(cSpec1)%omega) &
                       ! relative velo to the power of (1 -2omega) !! only one omega is used!!
               * dt / GEO%Volume(iElem)
 
@@ -350,7 +350,7 @@ ALLOCATE(TempPartVelo(PDM%maxParticleNumber,3))
       DoVib1  = .FALSE.
       DoVib2  = .FALSE.
 
-      Xi_rel = 2*(2 - SpecDSMC(cSpec1)%omegaVHS)
+      Xi_rel = 2*(2 - SpecDSMC(cSpec1)%omega)
         ! DOF of relative motion in VHS model, only for one omega!!
 
       LD_Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(LD_Coll_pData(iPair)%PairType)*LD_Coll_pData(iPair)%CRela2
@@ -594,7 +594,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
                   * CollInf%Cab(PairType) & ! Cab species comb fac
                   * Species(iSpec)%MacroParticleFactor                  &
                           ! weighting Fact, here only one MPF is used!!!
-                  * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaVHS) &
+                  * CRela2 ** (0.5-SpecDSMC(iSpec)%omega) &
                           ! relative velo to the power of (1 -2omega) !! only one omega is used!!
                   * dt / GEO%Volume(iElem)
     END DO
@@ -732,7 +732,7 @@ END SUBROUTINE CalcInternalTemp_LD_third
 !                 * Species(iSpec)%MacroParticleFactor                  &
 !                         ! weighting Fact, here only one MPF is used!!!
 !                 / (nPart * 0.5) & !sum of coll cases Sab
-!                 * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaVHS) &
+!                 * CRela2 ** (0.5-SpecDSMC(iSpec)%omega) &
 !                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
 !                 * dt / GEO%Volume(iElem)
 !

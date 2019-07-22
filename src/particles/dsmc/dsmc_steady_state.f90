@@ -806,9 +806,9 @@ END SUBROUTINE SteadyStateDetection_main
 SUBROUTINE SteadyStateDetection_Sampling()
 
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartSpecies, PartMPF, PartState
+  USE MOD_Particle_Vars,         ONLY : PEM, PartSpecies, PartState
   USE MOD_DSMC_Vars,             ONLY : Sampler, DSMC, PartStateIntEn, CollisMode, SpecDSMC
-
+  USE MOD_part_tools,            ONLY : GetParticleWeight
 !--------------------------------------------------------------------------------------------------------!
 ! Sampling of macroscopic properties (over nSamplingIters) for reduction of variance and autocorrelation effects
 !--------------------------------------------------------------------------------------------------------!
@@ -824,44 +824,23 @@ SUBROUTINE SteadyStateDetection_Sampling()
     PartIndex = PEM%pStart(iElem)
     DO iParts = 1, nParts
       ! Summation of energy and velocity for each cell and species
-      IF(usevMPF) THEN
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
-                                                            + 0.5 * PartMPF(PartIndex) * PartState(PartIndex,4:6)**2
-        Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
-                                                            + PartMPF(PartIndex) * PartState(PartIndex,4:6)
-        Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
-                                                            + PartMPF(PartIndex)
-        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
-            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                              + PartStateIntEn(PartIndex,1) * PartMPF(PartIndex)
-            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                              + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
-          END IF
+      Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
+                                                          + 0.5 * GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)**2
+      Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
+                                                          + GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)
+      Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
+                                                          + GetParticleWeight(PartIndex)
+      IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+        IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
+          Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
+                                                            + PartStateIntEn(PartIndex,1) * GetParticleWeight(PartIndex)
+          Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
+                                                            + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
         END IF
-        IF(DSMC%ElectronicModel) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
-                                                            + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
-        ENDIF
-      ELSE
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
-                                                            + 0.5 * PartState(PartIndex,4:6)**2
-        Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
-                                                            + PartState(PartIndex,4:6)
-        Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
-                                                            + 1
-        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
-            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                              + PartStateIntEn(PartIndex,1)
-            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                              + PartStateIntEn(PartIndex,2)
-          END IF
-        END IF
-        IF(DSMC%ElectronicModel) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
-                                                            + PartStateIntEn(PartIndex,2)
-        ENDIF
+      END IF
+      IF(DSMC%ElectronicModel) THEN
+        Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
+                                                          + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
       ENDIF
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
@@ -1174,7 +1153,7 @@ END SUBROUTINE SteadyStateDetection_Algorithm
 SUBROUTINE  EntropyCalculation()
 
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartState!, Species, PartSpecies, PartMPF
+  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartState
   USE MOD_DSMC_Vars,             ONLY : HValue
 
 !--------------------------------------------------------------------------------------------------!
@@ -1285,7 +1264,6 @@ SUBROUTINE  EntropyCalculation()
       PartIndex = PEM%pStart(iElem)
       DO iPart = 1, nParts
         IF(usevMPF) THEN
-          !Species(PartSpecies(PartIndex))%MassIC * PartMPF(PartIndex) * PartState(PartIndex,4)
           DO iBin = 1, nBins(1)
             IF((PartState(PartIndex,4).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
             .AND.(PartState(PartIndex,4).LT.(minvel(1)+BinWidth(1)*iBin))) THEN

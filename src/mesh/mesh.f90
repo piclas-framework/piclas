@@ -860,7 +860,10 @@ USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_Interpolation_Vars ,ONLY: wGP
+#ifdef PARTICLES
 USE MOD_Particle_Vars      ,ONLY: usevMPF
+USE MOD_DSMC_Vars          ,ONLY: RadialWeighting
+#endif
 USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -891,8 +894,12 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 
 #ifdef PARTICLES
-usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
-IF(usevMPF) THEN
+IF(RadialWeighting%DoRadialWeighting) THEN
+  usevMPF = .TRUE.
+ELSE
+  usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
+END IF
+IF(usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
   ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -994,7 +1001,6 @@ SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
 SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 ! mortars

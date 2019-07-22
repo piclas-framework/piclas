@@ -81,7 +81,7 @@ USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, VarTimeStep, Symmetry2D
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! IMPLICIT VARIABLE HANDLING
@@ -103,7 +103,7 @@ DO iSpec = 1, nSpecies
   DO iSpec2=1, nSpecies
     SpecFP(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
         * SQRT(2.*PI*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omega +0.5)
   END DO
 END DO
 
@@ -116,7 +116,7 @@ IF(DoBGKCellAdaptation) THEN
     DSMC%UseOctree = .TRUE.
     IF(NGeo.GT.PP_N) CALL abort(&
 __STAMP__&
-,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -130,6 +130,12 @@ FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
+
+IF(VarTimeStep%UseVariableTimeStep.OR.Symmetry2D) THEN
+  CALL abort(&
+__STAMP__&
+,' ERROR FP-Flow Init: Variable time step and 2D/axisymmetric simulation not implemented yet!')
+END IF
 
 FPInitDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'

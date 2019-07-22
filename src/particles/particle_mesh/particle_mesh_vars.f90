@@ -201,6 +201,7 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
   REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
+  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO

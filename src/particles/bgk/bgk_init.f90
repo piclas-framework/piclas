@@ -98,8 +98,8 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc               ,ONLY: PP_N
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -120,7 +120,7 @@ DO iSpec=1, nSpecies
   DO iSpec2=1, nSpecies
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 0.5*(SpecDSMC(iSpec)%DrefVHS + SpecDSMC(iSpec2)%DrefVHS)**2.0 &
         * SQRT(2.*Pi*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
-        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omegaVHS +0.5)
+        /(Species(iSpec)%MassIC * Species(iSpec2)%MassIC))/SpecDSMC(iSpec)%TrefVHS**(-SpecDSMC(iSpec)%omega +0.5)
   END DO
 END DO
 
@@ -143,7 +143,7 @@ END IF
 ! Unified BGK options
 BGKUnifiedCes = GETREAL('Particles-UnifiedBGK-Ces')
 IF (BGKUnifiedCes.EQ.1000.) THEN
-  BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omegaVHS)*(4.- 2.*SpecDSMC(1)%omegaVHS)/30.
+  BGKUnifiedCes = 1. - (6.-2.*SpecDSMC(1)%omega)*(4.- 2.*SpecDSMC(1)%omega)/30.
 ELSE IF((BGKUnifiedCes.LT.-0.5).OR.(BGKUnifiedCes.GE.1.0)) THEN
   CALL abort(&
 __STAMP__&
@@ -160,7 +160,7 @@ IF(DoBGKCellAdaptation) THEN
     DSMC%UseOctree = .TRUE.
     IF(NGeo.GT.PP_N) CALL abort(&
 __STAMP__&
-,' Set PP_N to NGeo, else, the volume is not computed correctly.')
+,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -170,6 +170,11 @@ BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
   BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
   CALL BGK_init_MovingAverage()
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
+  END IF
 END IF
 ! Vibrational modelling
 BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
@@ -178,6 +183,12 @@ BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
 IF(DSMC%CalcQualityFactors) THEN
   ALLOCATE(BGK_QualityFacSamp(1:5,nElems))
   BGK_QualityFacSamp(1:5,1:nElems) = 0.0
+END IF
+
+IF(VarTimeStep%UseVariableTimeStep.AND.VarTimeStep%UseDistribution) THEN
+  CALL abort(&
+__STAMP__&
+,' ERROR BGK Init: Adapting the time step distribution is not implemented in BGK yet!')
 END IF
 
 BGKInitDone = .TRUE.

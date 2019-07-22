@@ -62,6 +62,33 @@ INTEGER                       :: LD_MultiTemperaturMod     ! Modell choice for M
 REAL                          :: CRelaMax                  ! Max relative velocity
 REAL                          :: CRelaAv                   ! Average relative velocity
   
+TYPE tRadialWeighting
+  REAL                        :: PartScaleFactor
+  INTEGER                     :: NextClone
+  INTEGER                     :: CloneDelayDiff
+  LOGICAL                     :: DoRadialWeighting              ! Enables radial weighting in the axisymmetric simulations
+  INTEGER                     :: CloneMode                      ! 1 = Clone Delay
+                                                                 ! 2 = Clone Random Delay
+  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
+  INTEGER                     :: CloneInputDelay
+  LOGICAL                     :: CellLocalWeighting
+END TYPE tRadialWeighting
+
+TYPE(tRadialWeighting)        :: RadialWeighting
+
+TYPE tClonedParticles
+  ! Clone Delay: Clones are inserted at the next time step
+  INTEGER                     :: Species
+  REAL                        :: PartState(1:6)
+  REAL                        :: PartStateIntEn(1:3)
+  INTEGER                     :: Element
+  REAL                        :: LastPartPos(1:3)
+  REAL                        :: WeightingFactor
+  INTEGER, ALLOCATABLE        :: VibQuants(:)
+END TYPE
+
+TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
+
 TYPE tSpecInit
   REAL                        :: TVib                      ! vibrational temperature, ini_1
   REAL                        :: TRot                      ! rotational temperature, ini_1
@@ -87,7 +114,8 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Param
                                                            !     400 : Excited molecular ion
   REAL                        :: TrefVHS                   ! VHS reference temp, ini_2
   REAL                        :: DrefVHS                   ! VHS reference diameter, ini_2
-  REAL                        :: omegaVHS                  ! VHS exponent omega, ini_2
+  REAL                        :: omega                     ! species-specific VHS omega exponent, ini_2 ! to be solved genauere
+                                                            !  beschreibung? vielleicht doch nicht nur species specific?
   REAL                        :: muRef                     ! for VSS calculation viscosity coefficient at a reference temperature                                                            
 
   INTEGER                     :: NumOfPro                  ! Number of Protons, ini_2
@@ -154,7 +182,7 @@ TYPE tDSMC
   INTEGER                       :: NumOutput               ! number of Outputs
   REAL                          :: DeltaTimeOutput         ! Time intervall for Output
   LOGICAL                       :: ReservoirSimu           ! Flag for reservoir simulation
-  LOGICAL                       :: ReservoirSimuRate       ! Does not performe the collision.
+  LOGICAL                       :: ReservoirSimuRate       ! Does not perform the collision.
                                                            ! Switch to enable to create reaction rates curves
   LOGICAL                       :: ReservoirSurfaceRate    ! Switch enabling surface rate output without changing surface coverages                                                          
   LOGICAL                       :: ReservoirRateStatistic  ! if false, calculate the reaction coefficient rate by the probability
@@ -166,53 +194,112 @@ TYPE tDSMC
   INTEGER                       :: PartNumOctreeNode       ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin    ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree               ! Flag for Octree
+  LOGICAL                       :: UseNearestNeighbour     ! Flag for Nearest Neighbour or classic statistical pairing
   LOGICAL                       :: CalcSurfaceVal          ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime         ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime      ! Flag for sampling in time-domain or iterations
   REAL                          :: CollProbMean            ! Summation of collision probability
   REAL                          :: CollProbMax             ! Maximal collision probability per cell
   REAL                          :: MeanFreePath
-  REAL                          :: MCSoverMFP              ! Subcell local mean collision distance over mean free path
-  INTEGER                       :: CollProbMeanCount       ! counter of possible collision pairs
-  INTEGER                       :: CollSepCount            ! counter of actual collision pairs
-  REAL                          :: CollSepDist             ! Summation of mean collision separation distance
-  LOGICAL                       :: CalcQualityFactors      ! Enables/disables the calculation and output of flow-field variables
-  REAL, ALLOCATABLE             :: QualityFactors(:,:)     ! Quality factors for DSMC
-                                                           !     1: Maximal collision prob
-                                                           !     2: Time-averaged mean collision prob
-                                                           !     3: Mean collision separation distance over mean free path
-  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)     ! Sampling of quality factors
-                                                           !     1: Time-averaged mean collision prob
-                                                           !     2: Mean collision separation distance over mean free path
-  LOGICAL                       :: ElectronicModel         ! Flag for Electronic State of atoms and molecules
-  CHARACTER(LEN=64)             :: ElectronicModelDatabase ! Name of Electronic State Database | h5 file
-  INTEGER                       :: NumPolyatomMolecs       ! Number of polyatomic molecules
-  LOGICAL                       :: OutputMeshInit          ! Write Outputmesh (for const. pressure BC) at Init.
-  LOGICAL                       :: OutputMeshSamp          ! Write Outputmesh (for const. pressure BC) 
-                                                           ! with sampling values at t_analyze
-  REAL                          :: RotRelaxProb            ! Model for calculation of rotational relaxation probability, ini_1
-                                                           !    0-1: constant probability  (0: no relaxation)
-                                                           !    2: Boyd's model
-                                                           !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
-  REAL                          :: VibRelaxProb            ! Model for calculation of vibrational relaxation probability, ini_1
-                                                           !    0-1: constant probability (0: no relaxation)
-                                                           !    2: Boyd's model, with correction from Abe
-  REAL                          :: ElecRelaxProb           ! electronic relaxation probability
-  LOGICAL                       :: PolySingleMode          ! Separate relaxation of each vibrational mode of a polyatomic in a
-                                                           ! loop over all vibrational modes (every mode has its own corrected
-                                                           ! relaxation probability, comparison with the same random number
-                                                           ! while the previous probability is added to the next)
-  REAL, ALLOCATABLE             :: InstantTransTemp(:)     ! Instantaneous translational temperature for each cell (nSpecies+1)
-  LOGICAL                       :: BackwardReacRate        ! Enables the automatic calculation of the backward reaction rate
-                                                           ! coefficient with the equilibrium constant by partition functions
-  REAL                          :: PartitionMaxTemp        ! Temperature limit for pre-stored partition function (DEF: 20 000K)
-  REAL                          :: PartitionInterval       ! Temperature interval for pre-stored partition function (DEF: 10K)
-  REAL, ALLOCATABLE             :: veloMinColl(:)          ! min velo-magn. for spec allowed to perform collision (def.: 0.)
+  REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
+  INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
+  INTEGER                       :: CollSepCount             ! counter of actual collision pairs
+  REAL                          :: CollSepDist              ! Summation of mean collision separation distance
+  LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
+  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
+                                                            !     1: Maximal collision prob
+                                                            !     2: Time-averaged mean collision prob
+                                                            !     3: Mean collision separation distance over mean free path
+  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+  CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
+  INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
+  LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
+  LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC)
+                                                            ! with sampling values at t_analyze
+  REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
+                                                            !    0-1: constant probability  (0: no relaxation)
+                                                            !    2: Boyd's model
+                                                            !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
+  REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
+                                                            !    0-1: constant probability (0: no relaxation)
+                                                            !    2: Boyd's model, with correction from Abe
+  REAL                          :: ElecRelaxProb            ! electronic relaxation probability
+  LOGICAL                       :: PolySingleMode           ! Separate relaxation of each vibrational mode of a polyatomic in a
+                                                            ! loop over all vibrational modes (every mode has its own corrected
+                                                            ! relaxation probability, comparison with the same random number
+                                                            ! while the previous probability is added to the next)
+  REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+  LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
+                                                            ! coefficient with the equilibrium constant by partition functions
+  REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
+  REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
+  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
 #if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller     ! Keeps the translational temperature at the fixed value of the init
 #endif
+  LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
+                                                            ! subcell is less than 7
 END TYPE tDSMC
-
+!  INTEGER                       :: NumOutput                ! number of Outputs
+!  REAL                          :: DeltaTimeOutput          ! Time intervall for Output
+!  LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
+!  LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
+!                                                            ! Switch to enable to create reaction rates curves
+!  LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
+!  LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
+!                                                            ! Default Value is false
+!  INTEGER                       :: VibEnergyModel           ! Model for vibration Energy:
+!                                                            !       0: SHO (default value!)
+!                                                            !       1: TSHO
+!  LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
+!  INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
+!  INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
+!  LOGICAL                       :: UseOctree                ! Flag for Octree
+!
+!  LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
+!  LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
+!  REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
+!  REAL                          :: CollProbMean             ! Summation of collision probability
+!  REAL                          :: CollProbMax              ! Maximal collision probability per cell
+!  REAL                          :: MeanFreePath
+!  REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
+!  INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
+!  INTEGER                       :: CollSepCount             ! counter of actual collision pairs
+!  REAL                          :: CollSepDist              ! Summation of mean collision separation distance
+!  LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
+!  REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
+!                                                            !     1: Maximal collision prob
+!                                                            !     2: Time-averaged mean collision prob
+!                                                            !     3: Mean collision separation distance over mean free path
+!  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+!  CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
+!  INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
+!  LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
+!  LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC)
+!                                                            ! with sampling values at t_analyze
+!  REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
+!                                                            !    0-1: constant probability  (0: no relaxation)
+!                                                            !    2: Boyd's model
+!                                                            !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
+!  REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
+!                                                            !    0-1: constant probability (0: no relaxation)
+!                                                            !    2: Boyd's model, with correction from Abe
+!  REAL                          :: ElecRelaxProb            ! electronic relaxation probability
+!  LOGICAL                       :: PolySingleMode           ! Separate relaxation of each vibrational mode of a polyatomic in a
+!                                                            ! loop over all vibrational modes (every mode has its own corrected
+!                                                            ! relaxation probability, comparison with the same random number
+!                                                            ! while the previous probability is added to the next)
+!  REAL, ALLOCATABLE             :: InstantTransTemp(:)      ! Instantaneous translational temprerature for each cell (nSpieces+1)
+!  LOGICAL                       :: BackwardReacRate         ! Enables the automatic calculation of the backward reaction rate
+!                                                            ! coefficient with the equilibrium constant by partition functions
+!  REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
+!  REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
+!  REAL, ALLOCATABLE             :: veloMinColl(:)           ! min velo-magn. for spec allowed to perform collision (def.: 0.)
+!#if (PP_TimeDiscMethod==42)
+!  LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
+!#endif
+!  LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
+                                                            ! subcell is less than 7
 TYPE(tDSMC)                     :: DSMC
 
 TYPE tBGGas
@@ -238,8 +325,10 @@ TYPE tPairData
                                                              !       2: sigma ionization
                                                              !       3: sigma excitation
   REAL                          :: sigma_t                 ! not sure if sigma(0) gets overwritten somewhere
+  REAL                          :: CollProbCount           ! not sure if sigma(0) gets overwritten somewhere
+  REAL                          :: CollCount               ! not sure if sigma(0) gets overwritten somewhere
   REAL                          :: Ec                      ! Collision Energy
-  LOGICAL                       :: NeedForRec              ! Flag if pair is need for Recombination
+  LOGICAL                       :: NeedForRec              ! Flag if pair is needed for Recombination
 END TYPE tPairData
 
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
@@ -254,12 +343,15 @@ TYPE tCollInf                                              ! Collision informati
   REAL          , ALLOCATABLE   :: Cab(:)                  ! species factor for cross section (number of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)            ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)       ! mx/(my+mx) (nSpec, number of cases)
+  REAL          , ALLOCATABLE   :: MeanMPF(:)
   REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
-  REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision, ini_2
+  REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision needed for scattering angle, ini_2
   REAL          , ALLOCATABLE   :: omegaVSS(:,:)           ! VSS exponent omega per collision, ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter per collision, ini_2 
   REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of omegaVSS, ini_2 
-  REAL          , ALLOCATABLE   :: muref(:,:)              ! Reference viscosity coefficient, ini_2 
+  REAL          , ALLOCATABLE   :: muref(:,:)              ! Reference viscosity coefficient needed for diameter calculation, ini_2 
+  LOGICAL                       :: ProhibitDoubleColl = .FALSE.
+  INTEGER       , ALLOCATABLE   :: OldCollPartner(:)        ! index of old coll partner to prohibit double collisions(maxPartNum)
 END TYPE
 
 TYPE(tCollInf)                  :: CollInf
@@ -555,6 +647,8 @@ END TYPE
 TYPE (tAdaptCellVolWRecvPart), ALLOCATABLE :: AdaptCellVolWRecvPart(:)
 #endif
 
+INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
+
 TYPE tHODSMC
   LOGICAL                        :: HODSMCOutput         ! High Order DSMC Output
   INTEGER                        :: nOutputDSMC          ! HO DSMC output order
@@ -574,15 +668,17 @@ TYPE tElemNodeVolumes
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER  :: SubNode1 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode2 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode3 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode4 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode5 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode6 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode7 => null()
-    TYPE (tNodeVolume), POINTER  :: SubNode8 => null()
-    REAL                         :: Volume
+    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    REAL                                    :: Volume
+    REAL                                    :: Area
+    REAL,ALLOCATABLE                        :: PartNum(:,:)
 END TYPE
 
 TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)
