@@ -5499,7 +5499,7 @@ TYPE tNodeToElem
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
 INTEGER                :: TempElemsOnNode(1:nNodes)
-INTEGER                :: Element, iLocSide, k, l
+INTEGER                :: Element, iLocSide, k, l,iMortar
 LOGICAL                :: ElemExists
 INTEGER                :: iElem, jNode
 INTEGER                :: iNode
@@ -5551,21 +5551,23 @@ DO iElem =1, PP_nElems
   ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
   ! is finished
   DO iLocSide = 1, 6
-    ElemExists = .FALSE.
-    Element = PartElemToElemAndSide(1,iLocSide,iElem)
-    IF (Element.GT.0) THEN !side has neighbour element
-      DO l=1, TempHaloNumElems
-        IF(Element.EQ.TempHaloElems(l)) THEN
-          ElemExists=.TRUE.
-          EXIT
+    DO iMortar=1,4
+      ElemExists = .FALSE.
+      Element = PartElemToElemAndSide(iMortar,iLocSide,iElem)
+      IF (Element.GT.0) THEN !side has neighbour element
+        DO l=1, TempHaloNumElems
+          IF(Element.EQ.TempHaloElems(l)) THEN
+            ElemExists=.TRUE.
+            EXIT
+          END IF
+        END DO
+        IF (.NOT.ElemExists) THEN
+         TempHaloNumElems = TempHaloNumElems + 1
+          TempHaloElems(TempHaloNumElems) = Element
         END IF
-      END DO
-      IF (.NOT.ElemExists) THEN
-        TempHaloNumElems = TempHaloNumElems + 1
-        TempHaloElems(TempHaloNumElems) = Element
+        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
       END IF
-      CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
-    END IF
+    END DO
   END DO
   IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
@@ -5706,41 +5708,43 @@ INTEGER,INTENT(INOUT)  :: StartElem,HaloElem,TempHaloElems(1:500), TempHaloNumEl
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                :: iNode, jNode
-INTEGER                :: iLocSide, l
+INTEGER                :: iLocSide, l, iMortar
 INTEGER                :: currentElem
 LOGICAL                :: ElemExists, ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 DO iLocSide = 1,6
-  ElemExists = .FALSE.
-  currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
-  IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
-  !IF (currentElem.GT.PP_nElems) THEN
-    DO l=1, TempHaloNumElems
-      IF(currentElem.EQ.TempHaloElems(l)) THEN
-        ElemExists=.TRUE.
-        EXIT
-      END IF
-    END DO
-    IF (.NOT.ElemExists) THEN
-      ElemDone = .FALSE.
-      DO iNode = 1, 8
-        DO jNode = 1, 8
-          MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
-          ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
-          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-            TempHaloNumElems = TempHaloNumElems + 1
-            TempHaloElems(TempHaloNumElems) = currentElem
-            ElemDone = .TRUE.
-            CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
-          END IF
+  DO iMortar=1,4
+    ElemExists = .FALSE.
+    currentElem = PartElemToElemAndSide(iMortar,iLocSide,HaloElem)
+    IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
+    !IF (currentElem.GT.PP_nElems) THEN
+      DO l=1, TempHaloNumElems
+        IF(currentElem.EQ.TempHaloElems(l)) THEN
+          ElemExists=.TRUE.
+          EXIT
+        END IF
+      END DO
+      IF (.NOT.ElemExists) THEN
+        ElemDone = .FALSE.
+        DO iNode = 1, 8
+          DO jNode = 1, 8
+            MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
+            ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
+            IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+                .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+              TempHaloNumElems = TempHaloNumElems + 1
+              TempHaloElems(TempHaloNumElems) = currentElem
+              ElemDone = .TRUE.
+              CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
+            END IF
+            IF (ElemDone) EXIT
+          END DO
           IF (ElemDone) EXIT
         END DO
-        IF (ElemDone) EXIT
-      END DO
+      END IF
     END IF
-  END IF
+  END DO
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
