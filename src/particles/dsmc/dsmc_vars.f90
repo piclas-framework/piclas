@@ -346,9 +346,10 @@ TYPE tCollInf                                              ! Collision informati
   REAL          , ALLOCATABLE   :: MeanMPF(:)
   REAL          , ALLOCATABLE   :: MassRed(:)              ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: alphaVSS(:,:)           ! VSS exponent alpha per collision needed for scattering angle, ini_2
-  REAL          , ALLOCATABLE   :: omegaVSS(:,:)           ! VSS exponent omega per collision, ini_2
+  REAL          , ALLOCATABLE   :: omega(:,:)              ! VSS exponent omega collision-specific, ini_2
+  REAL          , ALLOCATABLE   :: omegaave(:,:)           ! VSS exponent omega per species / collision-averaged, ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)               ! Reference diameter per collision, ini_2 
-  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of omegaVSS, ini_2 
+  REAL          , ALLOCATABLE   :: Tref(:,:)               ! Reference temperature of CollInf%omega, ini_2 
   REAL          , ALLOCATABLE   :: muref(:,:)              ! Reference viscosity coefficient needed for diameter calculation, ini_2 
   LOGICAL                       :: ProhibitDoubleColl = .FALSE.
   INTEGER       , ALLOCATABLE   :: OldCollPartner(:)        ! index of old coll partner to prohibit double collisions(maxPartNum)

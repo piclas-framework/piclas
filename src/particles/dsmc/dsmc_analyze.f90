@@ -823,7 +823,7 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
           DO jSpec = 1, nSpecies
             IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
               MFP_Tmp = MFP_Tmp + (Pi * DrefMixture ** 2. * SpecPartNum(jSpec) * Species(jSpec)%MacroParticleFactor / Volume &
-                                * (CollInf%Tref(iSpec,jSpec)/Temp) ** (CollInf%omegaVSS(iSpec,jSpec)) & ! erwähnen, to be solved. da 
+                                * (CollInf%Tref(iSpec,jSpec)/Temp) ** (CollInf%omega(iSpec,jSpec)) & ! erwähnen, to be solved. da 
                                 * SQRT(1. + Species(iSpec)%MassIC / Species(jSpec)%MassIC)) ! hier ebenfalls auf ispec,jspec
                               ! geachtet wird, denke ich das ist so richtig. Genauso oben dref für alle kollisionen. Jedoch
                               ! bei allen kollisionen würde dref deutlich größer sein, als wenn ich nur die spezies anschaue. darum

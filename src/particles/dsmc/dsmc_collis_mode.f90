@@ -2990,17 +2990,17 @@ t=6000 ! to be solved
   IF(CollInf%diameterCase.EQ.0) THEN ! via d(dref)
     ! dref-based diameter bird to be solved ansonsten krishnan 
     diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
-                         ** (2 * CollInf%omegaVSS(Spec1ID,Spec2ID)) ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
+                         ** (2 * CollInf%omega(Spec1ID,Spec2ID)) ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
     WRITE(*,*) "diameter_Squared d(ref)", diameter_squared
   ELSE ! via d(muref)
     energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
     ! viscosity-based diameter bird (3.74)
     diameter_squared     = (5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
                          * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5                                     & 
-                         * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omegaVSS(Spec1ID,Spec2ID) - 0.5))      &
-                         / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omegaVSS(Spec1ID,Spec2ID))            &
+                         * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omega(Spec1ID,Spec2ID) - 0.5))      &
+                         / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omega(Spec1ID,Spec2ID))            &
                          * (SpecDSMC(Spec1ID)%muRef+SpecDSMC(Spec2ID)%muRef) / 2                                               &
-                         * (energy_translational) ** (CollInf%omegaVSS(Spec1ID,Spec2ID) - 1.0)) 
+                         * (energy_translational) ** (CollInf%omega(Spec1ID,Spec2ID) - 1.0)) 
   END IF
   DSMC_Cross_Section    = PI*diameter_squared
   !WRITE(*,*) "dsmc_cross_section",DSMC_cross_section

@@ -185,10 +185,10 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                             ' Can be found in tables e.g. in\n'                                              //& 
                                             ' krishnan2015(https://doi.org/10.2514/6.2015-3373),\n'                          //&
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Collision[$]-omegaVSS'  &
+CALL prms%CreateRealOption(     'Part-Collision[$]-omega'  &
                                            ,' Reference value for temperature exponent omega for variable soft sphere model.'//&
                                             ' Values can be found in papers such as krishnan2015, krishnan2016.\n'//&
-                                            ' omegaVSS=Upsilon_bird=omega_bird+0.5'&
+                                            ' omega=Upsilon_bird=omega_bird+0.5'&
                                            ,' .74', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                            ,' Collision-specific reference diameter. Values can be found in papers such as '//&
@@ -542,7 +542,7 @@ __STAMP__&
       SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
-      SpecDSMC(iSpec)%omega= GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
+      SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -612,46 +612,44 @@ __STAMP__&
   CollInf%collModel      = GETINT('Part-CollisionModel','0') 
   CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
-  ALLOCATE(CollInf%omegaVSS(nSpecies,nSpecies))
+  ALLOCATE(CollInf%omega(nSpecies,nSpecies))
+  ALLOCATE(CollInf%omegaave(nSpecies,nSpecies))
   ALLOCATE(CollInf%dref(nSpecies,nSpecies))
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
   ALLOCATE(CollInf%muref(nSpecies,nSpecies))
   WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
-  WRITE(*,*) "omega VSS",         CollInf%omegaVSS(:,:)
+  WRITE(*,*) "omega VSS",         CollInf%omega(:,:)
   WRITE(*,*) "dref VSS",              CollInf%dref(:,:)
   WRITE(*,*) "Tref VSS",              CollInf%Tref(:,:)
   WRITE(*,*) "collnumcase ",      CollInf%NumCase
-  DO iSpec=1,nSpecies ! alphaVSS and omegaVSS       
+  DO iSpec=1,nSpecies ! alphaVSS and omega       
     DO jSpec=iSpec,nSpecies
       iCase=CollInf%Coll_Case(iSpec,jSpec)
       WRITE(UNIT=hilf,FMT='(I0)') iCase
       WRITE(*,*) "iCase ",      icase
       CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
       CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
+      !to be solved - hier anderer flag als unten. hier ist zum einlesen unten wie Input verarbeitet wird.
       !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega
-      !  write(*,*) "coll-spec "
-      !  CollInf%omegaVSS(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omegaVSS')
-      !  CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)
+        write(*,*) "coll-spec "
+        CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
+        CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
       !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega
-        write(*,*) "coll-ave"
-        CollInf%omegaVSS(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
-        CollInf%omegaVSS(jSpec,iSpec) = CollInf%omegaVSS(iSpec,jSpec)  
+        write(*,*) " omega ave"
+        CollInf%omegaave(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
+        CollInf%omegaave(jSpec,iSpec) = CollInf%omegaave(iSpec,jSpec)  
         ! to be solved        ! nenne im ganzen Code omega um, dann hast du spec omega und coll omega - viel besser 
       !END IF
       CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
       CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
       CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
-      CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(jSpec,iSpec)
-!      WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(iSpec,jSpec)
-!      WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
-!      WRITE(*,*) "dref VSS",         CollInf%dref(iSpec,jSpec)
-!      WRITE(*,*) "Tref VSS",         CollInf%Tref(iSpec,jSpec)
+      CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(iSpec,jSpec)
       IF(CollInf%diameterCase.EQ.1) THEN ! diameter gets calculated with viscosity reference value
         ! to be solved hier ist aktuell eingebaut, dass man omega bird einliest und es in omega laux umrechnet.
         ! fürs erste mal nur händisch einlesen
          !CollInf%muref(iSpec,jSpec) = (30 * SQRT(CollInf%MassRed(iCase) * BoltzmannConst * CollInf%Tref(iSpec,jSpec))) &
-         !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omegaVSS(iSpec,jSpec)) *                        &
-         !                             (6-CollInf%omegaVSS(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
+         !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omega(iSpec,jSpec)) *                        &
+         !                             (6-CollInf%omega(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
 
         CollInf%muref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-muref')
         CollInf%muref(jSpec,iSpec)     = CollInf%muref(jSpec,iSpec)
@@ -659,9 +657,10 @@ __STAMP__&
     END DO
   END DO
 WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
-WRITE(*,*) "omega VSS",         CollInf%omegaVSS(:,:)
-WRITE(*,*) "dref VSS",              CollInf%dref(:,:)
-WRITE(*,*) "Tref VSS",              CollInf%Tref(:,:)
+WRITE(*,*) "omega coll",         CollInf%omega(:,:)
+WRITE(*,*) "omega ave",         CollInf%omegaave(:,:)
+WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
+WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
 WRITE(*,*) "\n"
 ! Factor calculation for particle collision
   ALLOCATE(CollInf%Cab(nCase))
@@ -676,49 +675,120 @@ WRITE(*,*) "\n"
       ELSE
         CollInf%KronDelta(iCase) = 0
       END IF
-! Here, something strange is happening!
 ! Species constants, Laux (2.39)
 !      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omega) &
 !            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5)
 !      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omega) &
 !            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5)
 ! Species constants from nowhere
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Fallunterscheidung der omega Verwendung 
+!-----------------------------------------------------------------------------------------------------------------------------------
+SELECT CASE(CollInf%collModel)
+!=====================================================================================================
+    CASE(1) ! averaged omega for A1,A2 and Cab
+!=====================================================================================================
+      WRITE(*,*) "CASE 1 averaged omega for A1,A2 and Cab"
+        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
+            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
+            WRITE(*,*) "A1 ",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
+            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
+            WRITE(*,*) "A2 ",A2
+
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
+            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
+            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+      WRITE(*,*) "iCase ",      icase
+            WRITE(*,*) "\n"
+!=====================================================================================================
+    CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
+!=====================================================================================================
+      WRITE(*,*) "CASE 2 omega spec 1 , omega spec 2 and averaged omega for Cab"
+        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omega))
+            WRITE(*,*) "SpecDSMC(iSpec)%omega  ",         SpecDSMC(iSpec)%omega
+            WRITE(*,*) "A1 ",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omega))
+            WRITE(*,*) "SpecDSMC(jSpec)%omega  ",         SpecDSMC(jSpec)%omega
+            WRITE(*,*) "A2 ",A2
+
+        ! Pairing characteristic constant Cab, Laux (2.38)
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
+            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)  ",         CollInf%omegaave(iSpec,jSpec)
+            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+      WRITE(*,*) "iCase ",      icase
+            WRITE(*,*) "\n"
+!=====================================================================================================
+      WRITE(*,*) "CASE 2- with omegaave statt specdsmc%omega"
+!=====================================================================================================
+        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,iSpec)))
+            WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)  ", CollInf%omegaave(iSpec,iSpec)
+            WRITE(*,*) "A1 ",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
+            WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)  ",       CollInf%omegaave(jSpec,jSpec) 
+            WRITE(*,*) "A2 ",A2
+
+        ! Pairing characteristic constant Cab, Laux (2.38)
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
+            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)  ",         CollInf%omegaave(iSpec,jSpec)
+            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+      WRITE(*,*) "iCase ",      icase
+            WRITE(*,*) "\n"
+!=====================================================================================================
+    CASE(3) ! kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch
+!=====================================================================================================
+      WRITE(*,*) "CASE 3 kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch"
+        A1 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(iSpec,iSpec))) * &
+          0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 -CollInf%omegaave(iSpec,iSpec)))
+            WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)", CollInf%omegaave(iSpec,iSpec)
+            WRITE(*,*) "A1 ",A1
+        A2 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(jSpec,jSpec))) * &
+          0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
+            WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)",       CollInf%omegaave(jSpec,jSpec) 
+            WRITE(*,*) "A2 ",A2
+
+        ! Pairing characteristic constant Cab, Laux (2.38)
+        CollInf%Cab(iCase) = (A1 + A2)**2 
+            WRITE(*,*) "Cab=(a1+a2)**2"
+            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+      WRITE(*,*) "iCase ",      icase
+            WRITE(*,*) "\n"
+!=====================================================================================================
+    CASE(4) ! überall kollisions spezifisch
+!=====================================================================================================
+      WRITE(*,*) "CASE 4 überall kollisions spezifisch"
+       A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,iSpec)))
+            WRITE(*,*) "CollInf%omega(iSpec,iSpec)", CollInf%omega(iSpec,iSpec)
+            WRITE(*,*) "A1 ",A1
+        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
+              /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
+            WRITE(*,*) "CollInf%omega(jSpec,jSpec)",       CollInf%omega(jSpec,jSpec) 
+            WRITE(*,*) "A2 ",A2
+        ! Pairing characteristic constant Cab, Laux (2.38)
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
+            WRITE(*,*) "CollInf%omega(iSpec,jSpec)",         CollInf%omega(iSpec,jSpec)
+            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+      WRITE(*,*) "iCase ",      icase
+            WRITE(*,*) "\n"
+!=====================================================================================================
+    CASE DEFAULT
+!=====================================================================================================
+            CALL Abort(&
+            __STAMP__&
+            ,'Collisionsmodel Error:',CollInf%collModel)
+    END SELECT
       !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega - i.e. the prefactors are calculated species specific
-        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,iSpec)))
-            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,iSpec)
-            WRITE(*,*) "A1 collspec",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(jSpec,jSpec)))
-            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(jSpec,jSpec)
-            WRITE(*,*) "A2 collspec",A2
-WRITE(*,*) "\n"
       !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega -i.e. the prefactors also use the averaged omega
-        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,jSpec)))
-            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
-            WRITE(*,*) "A1 collave",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaVSS(iSpec,jSpec)))
-            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
-            WRITE(*,*) "A2 collave",A2
-WRITE(*,*) "\n"
       !END IF
-! Pairing characteristic constant Cab, Laux (2.38)
-      CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**CollInf%omegaVSS(iSpec,jSpec)
-            WRITE(*,*) "omega VSS",         CollInf%omegaVSS(iSpec,jSpec)
-          WRITE(*,*) "CAB collspec",CollInf%Cab(iCase)
-WRITE(*,*) "\n"
-WRITE(*,*) "\n"
-            !the omega should be the same for both in vhs!!!
-      ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-      !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omega))
-      ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-      !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omega))
-      ! CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-      !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omega 
-      !       !the omega should be the same for both in vss!!!
     END DO
   END DO
 
@@ -1724,6 +1794,12 @@ SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
+SDEALLOCATE(CollInf%alphaVSS) 
+SDEALLOCATE(CollInf%omega)    
+SDEALLOCATE(CollInf%omegaave)
+SDEALLOCATE(CollInf%dref)    
+SDEALLOCATE(CollInf%Tref)    
+SDEALLOCATE(CollInf%muref)   
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
