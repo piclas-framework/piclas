@@ -354,6 +354,7 @@ INTEGER                            :: nSpecies_HDF5, nSurfSample_HDF5, nVarSurf_
 CHARACTER(LEN=255)                 :: NodeType_HDF5
 LOGICAL                            :: SurfCalcDataExists, SurfPartIntExists, SurfPartDataExists, MoveToLastFree, implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
+LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
 #endif /*PARTICLES*/
 #if USE_QDS_DG
 CHARACTER(255)                     :: QDSRestartFile        ! > QDS Data file for restart
@@ -368,7 +369,6 @@ INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElems
 #ifndef PP_HDG
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*not PP_HDG*/
-LOGICAL                            :: WallmodelExists(1:nPartBound), SurfModelTypeExists
 INTEGER,ALLOCATABLE                :: SurfModelType(:)
 !===================================================================================================================================
 IF(DoRestart)THEN
