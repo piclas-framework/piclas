@@ -21,7 +21,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                    :: TTMInitIsDone=.FALSE.                             !> initialization of TTM read-in
 LOGICAL                    :: DoImportTTMFile                                   !> read IMD Two-Temperature Model (TTM) data (FD grid)

@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -35,64 +35,70 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! Performs the vibrational relaxation of diatomic molecules
 !===================================================================================================================================
-! MODULES  
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn, Coll_pData
-  USE MOD_Globals_Vars,           ONLY : BoltzmannConst
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartMPF, usevMPF, PEM
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, RadialWeighting
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartMPF, usevMPF, PEM, VarTimeStep
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iPair
-  REAL(KIND=8), INTENT(IN)      :: FakXi
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: MaxColQua, iRan, Ec, Phi, PartStateIntEnTemp, DeltaPartStateIntEn
-  INTEGER                       :: iQuaMax, iQua, iElem
+REAL                          :: MaxColQua, iRan, Ec, Phi, PartStateIntEnTemp, DeltaPartStateIntEn
+INTEGER                       :: iQuaMax, iQua, iElem
 !===================================================================================================================================
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
   Ec = Coll_pData(iPair)%Ec
-  MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib)  &
-            - DSMC%GammaQuant
-  iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
+END IF
+
+MaxColQua = Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart))%CharaTVib)  &
+          - DSMC%GammaQuant
+iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart))%MaxVibQuant)
+CALL RANDOM_NUMBER(iRan)
+iQua = INT(iRan * iQuaMax)
+CALL RANDOM_NUMBER(iRan)
+DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
+  !laux diss page 31
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax)
   CALL RANDOM_NUMBER(iRan)
-  DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
-   !laux diss page 31
-   CALL RANDOM_NUMBER(iRan)
-   iQua = INT(iRan * iQuaMax)
-   CALL RANDOM_NUMBER(iRan)
-  END DO
-  IF (usevMPF) THEN    
-    IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-      iElem = PEM%Element(iPart)
-      Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-      PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                    * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-      PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
-      ! search for new vib quant
-      iQua = INT(PartStateIntEnTemp/ &
-             (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
-      CALL RANDOM_NUMBER(iRan)
-      IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                 * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
-                 - DBLE(iQua)) THEN
-        iQua = iQua + 1
-      END IF
-      PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                    * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-      DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
-                          * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
-      GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
+END DO
+IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+  IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+    iElem = PEM%Element(iPart)
+    Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+    PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+    PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
+    ! search for new vib quant
+    iQua = INT(PartStateIntEnTemp/ &
+            (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
+    CALL RANDOM_NUMBER(iRan)
+    IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
+                * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
+                - DBLE(iQua)) THEN
+      iQua = iQua + 1
     END IF
-  ELSE
-    PartStateIntEn(iPart,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                * SpecDSMC(PartSpecies(iPart))%CharaTVib
+    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                  * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+    DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
+                        * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
+    GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
   END IF
+ELSE
+  PartStateIntEn(iPart,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+              * SpecDSMC(PartSpecies(iPart))%CharaTVib
+END IF
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
@@ -202,7 +208,7 @@ SUBROUTINE CalcXiVibPart(TVib, iSpec, XiVibPart)
 END SUBROUTINE CalcXiVibPart
 
 
-SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
+SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, Weight1, Weight2, WeightProd, XiVibPart, XiElecPart)
 !===================================================================================================================================
 ! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
 !===================================================================================================================================
@@ -214,7 +220,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)             :: iReac, iPair      ! Reaction Number, Grow a pair number
-  REAL, INTENT(IN)                :: Xi_rel
+  REAL, INTENT(IN)                :: Xi_rel, Weight1, Weight2, WeightProd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
   REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:3)
@@ -224,7 +230,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
   INTEGER                         :: iDOF, iPolyatMole, nProd, iProd, iQua
   INTEGER                         :: ProductReac(1:3)
   REAL                            :: ETotal, EZeroPoint, EGuess, Xi_Total, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp
-  REAL                            :: SumOne, SumTwo
+  REAL                            :: SumOne, SumTwo, Weight(1:3)
   REAL                            :: eps_prec=0.1
 !===================================================================================================================================
 
@@ -238,15 +244,18 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
     nProd = 3
   END IF
 
-  ETotal = Coll_pData(iPair)%Ec               ! Total collision energy
-  EZeroPoint = 0.0
+  Weight(1) = Weight1; Weight(2) = Weight2; Weight(3) = WeightProd
 
+  ! Weighted total collision energy
+  ETotal = Coll_pData(iPair)%Ec
+
+  EZeroPoint = 0.0
   DO iProd = 1, nProd
-    EZeroPoint = EZeroPoint + SpecDSMC(ProductReac(iProd))%EZeroPoint
+    EZeroPoint = EZeroPoint + SpecDSMC(ProductReac(iProd))%EZeroPoint * Weight(iProd)
   END DO
 
   LowerTemp = 1.0
-  UpperTemp = 2.*(ETotal - EZeroPoint) / (Xi_Total * BoltzmannConst)
+  UpperTemp = 2.*(ETotal - EZeroPoint) * nProd / SUM(Weight) / (Xi_Total * BoltzmannConst)
   DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
     MiddleTemp = 0.5*( LowerTemp + UpperTemp)
     Xi_TotalTemp = Xi_Total
@@ -292,7 +301,7 @@ SUBROUTINE CalcXiTotalEqui(iReac, iPair, Xi_rel, XiVibPart, XiElecPart)
         END IF
       END IF
     END DO
-    EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp
+    EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp * SUM(Weight) / nProd
     IF (EGuess .GT. ETotal) THEN
       UpperTemp = MiddleTemp
     ELSE

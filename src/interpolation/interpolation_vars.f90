@@ -20,7 +20,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
 REAL,ALLOCATABLE  :: L_Plus(:), L_Minus(:)       ! L for boundary flux computation at both sides (-1,1)
@@ -34,7 +34,7 @@ REAL,ALLOCATABLE  :: NChooseK(:,:)               ! array n over n
 REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
 CHARACTER(LEN=255),PARAMETER :: NodeTypeG    = 'GAUSS'                    !< Gauss nodes (-1,1)
 CHARACTER(LEN=255),PARAMETER :: NodeTypeGL   = 'GAUSS-LOBATTO'            !< Gauss-Lobatto nodes [-1,1]
-CHARACTER(LEN=255),PARAMETER :: NodeTypeCL   = 'CHEBYSHEV-GAUSS-LOBATTO'  
+CHARACTER(LEN=255),PARAMETER :: NodeTypeCL   = 'CHEBYSHEV-GAUSS-LOBATTO'
 CHARACTER(LEN=255),PARAMETER :: NodeTypeVISU = 'VISU'                     !< equidistant nodes [-1,1]
 #if (PP_NodeType==1)
   CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS'

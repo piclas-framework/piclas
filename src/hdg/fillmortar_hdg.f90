@@ -60,6 +60,7 @@ SUBROUTINE InitMortar_HDG()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
+USE MOD_Globals
 USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 USE MOD_HDG_Vars,    ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,PrecondType,nGP_Face
 USE MOD_Mesh_Vars,   ONLY: nSides,MortarType,MortarInfo
@@ -97,12 +98,14 @@ REAL        :: dkron(0:PP_N,0:PP_N)
       DO iMortar=1,nMortars
         SmallMortarInfo(  MortarInfo(MI_SIDEID,iMortar,iSide) ) = 1  !small sideID
         IF(MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide)).NE.0) THEN
-          WRITE(*,*)SideID,MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide))
-          STOP 'InitMortar_HDG: check failed'
+          IPWRITE(*,*)SideID,MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide))
+          CALL abort(__STAMP__&
+                    ,'InitMortar_HDG: check failed')
         END IF
       END DO
     ELSE
-      STOP 'InitMortar_HDG: this case should not appear!!'
+      CALL abort(__STAMP__&
+                ,'InitMortar_HDG: this case should not appear!!')
     END IF 
     IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=.TRUE.
   END DO !SideID=1,nSides
@@ -269,7 +272,8 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
       CASE(0) ! master side
         lambda_in(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
       CASE(1:4) ! slave side
-        STOP 'BigToSmallMortar_HDG: small sides should not be slave!!!!'
+        CALL abort(__STAMP__&
+                  ,'BigToSmallMortar_HDG: small sides should not be slave!!!!')
 !        DO q=0,PP_N; DO p=0,PP_N
 !          U_in_slave(p,q,SideID)=U_tmp(FS2M(1,p,q,flip), &
 !                                       FS2M(2,p,q,flip),iMortar)
@@ -340,7 +344,8 @@ DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide  !Big SideID
       !!!!! SET small mortar side contribution to zero here!!!
       mv_in(:,:,:,SideID)  = 0.
     CASE(1:4) ! slave sides (should only occur for MPI)
-      STOP 'SmallToBigMortar_HDG small side should not be slave!!!'
+      CALL abort(__STAMP__&
+                ,'SmallToBigMortar_HDG small side should not be slave!!!')
 !      DO q=0,PP_N; DO p=0,PP_N
 !        mv_tmp(FS2M(1,p,q,flip),FS2M(2,p,q,flip),iMortar)=-mv_Slave(p,q,SideID)
 !      END DO; END DO

@@ -21,7 +21,7 @@ MODULE MOD_SparseILU
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ IMPLICIT NONE
 IF(PrecondType.EQ.3)THEN
   ALLOCATE(nUNonZeros(PP_nElems) &
           ,nLNonZeros(PP_nElems) )
-  
+
   ALLOCATE(DE(nDOFElem,PP_nElems)&
           ,IU(PP_nElems)         &
           ,IL(PP_nElems)         )
@@ -175,8 +175,8 @@ END DO ! kk
 !L=0.
 !U=0.
 !DO ii=1,nDOFElem ! column
-!  ! row for lower 
-!  DO kk=ii, nDOFElem  
+!  ! row for lower
+!  DO kk=ii, nDOFElem
 !    IF(ABS(ILU0(kk,ii)).GT.epsZero)THEN
 !      temp=0.d0
 !      DO jj=1,ii-1
@@ -206,7 +206,7 @@ END DO ! kk
 !DO ii=1,nDOFElem
 !  DO kk=ii,nDOFElem
 !    ILU0(kk,ii)=L(kk,ii)
-!  END DO 
+!  END DO
 !  DO kk=ii+1,nDOFElem
 !    ILU0(ii,kk) = U(ii,kk)
 !  END DO
@@ -220,7 +220,7 @@ END DO ! kk
  !       ILU0(ii,jj) = ILU0(ii,jj) - ILU0(ii,kk)*ILU0(kk,jj)
  !     END DO ! jj
  ! END DO ! ii
-!END DO !kk 
+!END DO !kk
 !LU=ILU0
 
 ! nan checker
@@ -292,14 +292,14 @@ nLNonZeros(iElem)=0
 DO ii=1,nDOFElem
   DO kk=1,nDOFElem
     ! upper
-    IF(kk.GT.ii)THEN 
+    IF(kk.GT.ii)THEN
       !IF(ILU0(ii,kk).NE.0.)THEN
       IF(ABS(ILU0(ii,kk)).GT.epsZero)THEN
         nUNonZeros(iElem)=nUNonZeros(iElem)+1
       END IF
     END IF ! upper
     ! lower
-    IF(kk.LT.ii)THEN 
+    IF(kk.LT.ii)THEN
       !IF(ILU0(ii,kk).NE.0.)THEN
       IF(ABS(ILU0(ii,kk)).GT.epsZERO)THEN
         nLNonZeros(iElem)=nLNonZeros(iElem)+1
@@ -317,7 +317,7 @@ Sparsity=Sparsity/REAL(nDOFElem)/REAL(nDOFElem)
 !WRITE(*,'(A,F12.7,A)')  ' Level of Fill             ', sparsity*100.0,'%'
 !print*
 
-! Allocate 
+! Allocate
 !nMTriangle(iElem)=2*(nDOFelem-1)
 ! simple version
 nMTriangle=nDOFelem-1
@@ -334,7 +334,7 @@ ALLOCATE( IU(iElem)%Entry(nUNonZeros(iElem))  &
         , IL(iELEM)%JEntry(nLNonZeros(iElem)) &
         , IL(iELEM)%IEntry(nDOFElem) )
 
-! nullify     
+! nullify
 DE(:,iElem)=0.
 IL(iELem)%Entry=0.
 IU(iELem)%Entry=0.
@@ -391,7 +391,7 @@ END DO ! ii
 !        ELSE
 !          IU(iELEM)%IEntry(ii+1)=jj
 !          last=.FALSE.
-!        END IF  
+!        END IF
 !      END IF
 !    END IF ! upper
 !  END DO ! kk
@@ -462,7 +462,7 @@ IL(iElem)%iEntry(nDOFelem)=IL(iElem)%iEntry(1)+nLNonZeros(iElem)
 !        IF(.NOT.(first))THEN
 !          IL(iElem)%iEntry(ii+1)=jj
 !          last=.FALSE.
-!        END IF  
+!        END IF
 !      END IF
 !    END IF ! upper
 !  END DO ! kk
@@ -512,16 +512,16 @@ END DO
 !vtild=vin
 !
 !DO s = 2, nDOFElem
-!  DO r= 1, s-1 
+!  DO r= 1, s-1
 !    vin(s) = vin(s) - LU(s,r)*vin(r)
-!  END DO ! r 
-!END DO ! s 
+!  END DO ! r
+!END DO ! s
 !DO s=nDOFElem,1,-1
 ! DO r = s+1, nDOFElem
 !   vin(s) = vin(s) - LU(s,r) * vresu2(r)
-! END DO ! r 
+! END DO ! r
 ! vresu2(s) = vin(s) / LU(s,s)
-! END DO ! s 
+! END DO ! s
 !
 !
 !!! Verification LU

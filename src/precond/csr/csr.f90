@@ -15,7 +15,7 @@
 MODULE MOD_CSR
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U 
+! Computes the different DG spatial operators/residuals(Ut) using U
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -86,7 +86,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER  :: locSize
 !INTEGER  :: iElem,r,SideID,ilocSide
 !REAL,DIMENSION(:,:),ALLOCATABLE   :: GlobalJacobian
@@ -199,7 +199,7 @@ ALLOCATE( SparseMatrix(locSideID,ElemID)%Entry(nNonZeros(locSideID,ElemID)) &
         , SparseMatrix(locSideID,ElemID)%JEntry(nNonZeros(locSideID,ElemID))  &
         , SparseMatrix(locSideID,ElemID)%IEntry(nDOFElem+1)                   )
 
-! nullify     
+! nullify
 SparseMatrix(locSideID,ElemID)%Entry =0.
 SparseMatrix(locSideID,ElemID)%JEntry  =0
 SparseMatrix(locSideID,ElemID)%IEntry  =0
@@ -284,14 +284,14 @@ nLNonZeros(iElem)=0
 DO ii=1,nDOFElem
   DO kk=1,nDOFElem
     ! upper
-    IF(kk.GT.ii)THEN 
+    IF(kk.GT.ii)THEN
       !IF(ILU0(ii,kk).NE.0.)THEN
       IF(ABS(ILU0(ii,kk)).GT.epsZero)THEN
         nUNonZeros(iElem)=nUNonZeros(iElem)+1
       END IF
     END IF ! upper
     ! lower
-    IF(kk.LT.ii)THEN 
+    IF(kk.LT.ii)THEN
       !IF(ILU0(ii,kk).NE.0.)THEN
       IF(ABS(ILU0(ii,kk)).GT.epsZERO)THEN
         nLNonZeros(iElem)=nLNonZeros(iElem)+1
@@ -309,7 +309,7 @@ END DO ! ii
 !WRITE(*,'(A,F12.7,A)')  ' Level of Fill             ', sparsity*100.0,'%'
 !print*
 
-! Allocate 
+! Allocate
 !nMTriangle(iElem)=2*(nDOFelem-1)
 ! simple version
 nMTriangle=nDOFelem
@@ -320,7 +320,7 @@ ALLOCATE( IU(iElem)%Entry(nUNonZeros(iElem))  &
         , IL(iELEM)%JEntry(nLNonZeros(iElem)) &
         , IL(iELEM)%IEntry(nDOFElem+1) )
 
-! nullify     
+! nullify
 DE(:,iElem)=0.
 IL(iELem)%Entry=0.
 IU(iELem)%Entry=0.
@@ -444,7 +444,7 @@ END DO ! iElem
 ! Extendet CSR FORMAT
 !----------------------------------------------------------------------------------------------------------------------------------
 
-! Allocate 
+! Allocate
 ALLOCATE( GlobalAA(1:NonZerosGlobal) &
         , GlobalJA(1:NonZerosGlobal) &
         , GlobalIA(1:nDOFGlobal+1)   )
@@ -526,7 +526,7 @@ END DO ! iElem
 ! Extendet CSR FORMAT
 !----------------------------------------------------------------------------------------------------------------------------------
 
-! Allocate 
+! Allocate
 ALLOCATE( GlobalBAA(1:BlockSize,1:BlockSize,1:NonZerosGlobal) &
         , GlobalJA(1:NonZerosGlobal) &
         , GlobalIA(1:nBlockSize+1)   )
@@ -708,7 +708,7 @@ END SUBROUTINE GlobalBCSR
 !END DO ! iElem
 !
 !DO iSide=nBCSides+1,nSides
-!  ElemID(1)     = SideToElem(S2E_ELEM_ID,iSide)  
+!  ElemID(1)     = SideToElem(S2E_ELEM_ID,iSide)
 !  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,iSide)
 !  ! neighbor side
 !  ElemID(2)     = SideToElem(S2E_NB_ELEM_ID,iSide)
@@ -754,7 +754,7 @@ END SUBROUTINE GlobalBCSR
 !!END DO ! iElem
 !!
 !!DO iSide=nBCSides+1,nSides
-!!  ElemID(1)     = SideToElem(S2E_ELEM_ID,iSide)  
+!!  ElemID(1)     = SideToElem(S2E_ELEM_ID,iSide)
 !!  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,iSide)
 !!  ! neighbor side
 !!  ElemID(2)     = SideToElem(S2E_NB_ELEM_ID,iSide)
@@ -923,7 +923,7 @@ END SUBROUTINE GlobalBCSR
 FUNCTION GetNonZeros( n, Mat)
 !===================================================================================================================================
 ! Computes the number of non-zeros of a matrix with size nxn
-!    input: p,q in Slave-RHS, flip;  
+!    input: p,q in Slave-RHS, flip;
 !   output: indices in Master-RHS
 !===================================================================================================================================
 ! MODULES
@@ -956,7 +956,7 @@ END FUNCTION GetNonZeros
 FUNCTION GetBlockNonZeros( b, n, Mat)
 !===================================================================================================================================
 ! Computes the number of non-zeros of a matrix with size nxn
-!    input: p,q in Slave-RHS, flip;  
+!    input: p,q in Slave-RHS, flip;
 !   output: indices in Master-RHS
 !===================================================================================================================================
 ! MODULES
@@ -1003,7 +1003,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 
 SDEALLOCATE( nNonZeros      )
@@ -1044,7 +1044,7 @@ DO ii=1,n
     IF(ABS(Mat(ii,kk)).GT.epsZero)THEN
       WRITE(103,'(I12,2x,I12,2x,E23.16)') ii,kk,Mat(ii,kk)
     END IF
-  END DO 
+  END DO
 END DO
 
 CLOSE(103)

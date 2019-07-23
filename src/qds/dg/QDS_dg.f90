@@ -28,7 +28,7 @@ MODULE MOD_QDS_DG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ INTEGER :: iWeight,i,j,k
 REAL    :: Velo(3), Temp, Dens, Mass
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT QDS-DG...' 
+SWRITE(UNIT_stdOut,'(A)') ' INIT QDS-DG...'
 IF(QDSInitDGIsDone)THEN
   CALL abort(&
       __STAMP__&
@@ -95,7 +95,7 @@ IF(DoQDS)THEN
   QDSnVar_macro=6
   nQDSElems=PP_nElems
 
-  ALLOCATE(UQDS       (1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems))        
+  ALLOCATE(UQDS       (1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems))
   ALLOCATE(UQDSt      (1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQDSElems))
   UQDS=0.
   UQDSt=0.
@@ -105,8 +105,8 @@ IF(DoQDS)THEN
   UQDS_master=0.
   UQDS_slave=0.
 
-  ALLOCATE(FluxQDS_Master(1:QDSnVar,0:PP_N,0:PP_N,1:nSides)) 
-  ALLOCATE(FluxQDS_Slave( 1:QDSnVar,0:PP_N,0:PP_N,1:nSides)) 
+  ALLOCATE(FluxQDS_Master(1:QDSnVar,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(FluxQDS_Slave( 1:QDSnVar,0:PP_N,0:PP_N,1:nSides))
   FluxQDS_Master=0.
   FluxQDS_Slave=0.
 
@@ -318,7 +318,7 @@ END SUBROUTINE FillIniQDS
 
 SUBROUTINE QDSReCalculateDGValues()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,       ONLY:PI
@@ -407,10 +407,10 @@ END SUBROUTINE QDSReCalculateDGValues
 
 SUBROUTINE QDSCalculateMacroValues()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_QDS_DG_Vars 
+USE MOD_QDS_DG_Vars
 USE MOD_Globals_Vars,       ONLY:BoltzmannConst
 !USE MOD_QDS_DG_Vars,           ONLY : QDS_Species
 USE MOD_QDS_DG_Vars,           ONLY : QDSSpeciesMass
@@ -448,7 +448,7 @@ DO iElem = 1, nQDSElems
                                                                                  UQDS(4+L,i,j,k,iElem)**2)&
                                                                                 /UQDS(1+L,i,j,k,iElem)
           END IF
-        END DO        
+        END DO
         IF (QDSMacroValues(1,i,j,k,iElem).GT.0.0) THEN
           QDSMacroValues(6,i,j,k,iElem) =  (2.*QDSMacroValues(5,i,j,k,iElem) &
                                              -(QDSMacroValues(2,i,j,k,iElem)**2+&

@@ -20,7 +20,7 @@ MODULE MOD_Output
 USE ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,PARAMETER :: OUTPUTFORMAT_NONE         = 0
 INTEGER,PARAMETER :: OUTPUTFORMAT_TECPLOT      = 1
@@ -36,7 +36,7 @@ INTEGER,PARAMETER :: ASCIIOUTPUTFORMAT_TECPLOT = 1
 INTERFACE
   FUNCTION get_userblock_size()
       INTEGER :: get_userblock_size
-  END FUNCTION 
+  END FUNCTION
 END INTERFACE
 
 INTERFACE
@@ -72,7 +72,7 @@ PUBLIC::DefineParametersOutput
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersOutput()
 ! MODULES
@@ -96,7 +96,7 @@ CALL prms%CreateIntFromStringOption('ASCIIOutputFormat',"File format for ASCII f
 CALL addStrListEntry('ASCIIOutputFormat','csv',    ASCIIOUTPUTFORMAT_CSV)
 CALL addStrListEntry('ASCIIOutputFormat','tecplot',ASCIIOUTPUTFORMAT_TECPLOT)
 CALL prms%CreateLogicalOption(      'doPrintStatusLine','Print: percentage of time, ...', '.FALSE.')
-CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// & 
+CALL prms%CreateLogicalOption(      'WriteStateFiles','Write HDF5 state files. Disable this only for debugging issues. \n'// &
                                                       'NO SOLUTION WILL BE WRITTEN!', '.TRUE.')
 END SUBROUTINE DefineParametersOutput
 
@@ -109,7 +109,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
 USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
-USE MOD_Output_Vars,ONLY:OutputInitIsDone,OutputFormat 
+USE MOD_Output_Vars,ONLY:OutputInitIsDone,OutputFormat
 USE MOD_Output_Vars,ONLY:userblock_len, userblock_total_len, UserBlockTmpFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -132,7 +132,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'
 
-ProjectName=GETSTR('ProjectName') 
+ProjectName=GETSTR('ProjectName')
 Logging    =GETLOGICAL('Logging','.FALSE.')
 
 WriteErrorFiles=GETLOGICAL('WriteErrorFiles','.FALSE.')
@@ -204,7 +204,7 @@ INTEGER                     :: i
 !===================================================================================================================================
 !equidistant visu points
 DO i=0,NVisu_in
-  XiVisu(i) = 2./REAL(NVisu_in) * REAL(i) - 1. 
+  XiVisu(i) = 2./REAL(NVisu_in) * REAL(i) - 1.
 END DO
 ! Gauss/Gl -> Visu : computation -> visualization
 ALLOCATE(Vdm_GaussN_NVisu(0:NVisu_in,0:N_in))

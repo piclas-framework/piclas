@@ -21,7 +21,7 @@ MODULE MOD_Mortar_Metrics
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ SUBROUTINE Mortar_CalcSurfMetrics(SideID,Nloc,Face_Ja,Face_xGP,Mortar_Ja,Mortar_
 !> 1D interpolation operators M_0_1,M_0_2 are built locally per polynomial degree.
 !>
 !> Already existing surface metrics are overwritten, metrics for small sides are built from
-!> big (master) side, i.e. all small sides belonging to a mortar interface are slave sides 
+!> big (master) side, i.e. all small sides belonging to a mortar interface are slave sides
 !> (with inward pointing normal vector). NOTE THAT THIS IS NOT THE CASE FOR MPI_YOUR MORTAR SIDES!
 !> In an MPI setting if the big sides are not present on a CPU and this CPU has small master sides
 !> they are not rebuilt and fluxes need to be rotated at the big mortar.

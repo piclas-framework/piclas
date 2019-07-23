@@ -21,7 +21,7 @@ MODULE MOD_Equation
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ INTERFACE InitEquation
   MODULE PROCEDURE InitEquation
 END INTERFACE
 INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc 
+  MODULE PROCEDURE ExactFunc
 END INTERFACE
 INTERFACE CalcSource
   MODULE PROCEDURE CalcSource
@@ -109,7 +109,7 @@ END SUBROUTINE DefineParametersEquation
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -122,7 +122,7 @@ USE MOD_Interpolation_Vars, ONLY: xGP
 !#ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 !#endif
-USE MOD_Equation_Vars 
+USE MOD_Equation_Vars
 USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -167,12 +167,12 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
       ,' Speed of light coefficients does not match!')
 END IF
 
-c2     = c*c 
+c2     = c*c
 c_inv  = 1./c
 c2_inv = 1./c2
 
 c_corr2   = c_corr*c_corr
-c_corr_c  = c_corr*c 
+c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
@@ -243,7 +243,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -260,13 +260,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
 INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
-REAL,INTENT(IN)                 :: x(3)              
+REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3),r,r2,zlen
@@ -287,9 +287,9 @@ SELECT CASE (ExactFunction)
 #ifdef PARTICLES
 CASE(0) ! Particles
   Resu=0.
-  !resu(1:3)= x(1:3)!*x(1) 
+  !resu(1:3)= x(1:3)!*x(1)
 #endif
-CASE(1) ! Constant 
+CASE(1) ! Constant
   Resu=1.
   Resu_t=0.
   Resu_tt=0.
@@ -304,18 +304,18 @@ CASE(2) ! Coaxial Waveguide
   resu(1)=( x(1))*sin(omega*(x(3)-c*t))/r2
   resu(2)=( x(2))*sin(omega*(x(3)-c*t))/r2
   resu(4)=(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c) 
+  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
 
   Resu_t=0.
   resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
   resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
   resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
-  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c) 
+  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
   Resu_tt=0.
   resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
   resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
   resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c) 
+  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
 CASE(3) ! Resonator
   !special initial values
   !geometric perameters
@@ -385,16 +385,16 @@ CASE(4) ! Dipole
 
   Er = 2.*cos(theta)*Q*dD/(4.*pi*eps0) * ( 1./r**3*sin(omegaD*t-omegaD*r/c) + (omegaD/(c*r**2)*cos(omegaD*t-omegaD*r/c) ) )
   Etheta = sin(theta)*Q*dD/(4.*pi*eps0) * ( (1./r**3-omegaD**2/(c**2*r))*sin(omegaD*t-omegaD*r/c) &
-          + (omegaD/(c*r**2)*cos(omegaD*t-omegaD* r/c) ) ) 
+          + (omegaD/(c*r**2)*cos(omegaD*t-omegaD* r/c) ) )
   Bphi = 1/(c2*eps0)*omegaD*sin(theta)*Q*dD/(4.*pi) &
        * ( - omegaD/(c*r)*sin(omegaD*t-omegaD*r/c) + 1./r**2*cos(omegaD*t-omegaD*r/c) )
-  IF (ABS(phi).GT.eps) THEN 
-    resu(1)= sin(theta)*cos(phi)*Er + cos(theta)*cos(phi)*Etheta 
+  IF (ABS(phi).GT.eps) THEN
+    resu(1)= sin(theta)*cos(phi)*Er + cos(theta)*cos(phi)*Etheta
     resu(2)= sin(theta)*sin(phi)*Er + cos(theta)*sin(phi)*Etheta
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
     resu(4)=-sin(phi)*Bphi
     resu(5)= cos(phi)*Bphi
-    resu(6)= 0.0 
+    resu(6)= 0.0
   ELSE
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
   END IF
@@ -433,7 +433,7 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
 
 CASE(6)
   resu   = 0.
-  resu(1)= x(1) 
+  resu(1)= x(1)
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
@@ -532,7 +532,7 @@ USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xy
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
 #ifdef LSERK
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage
 USE MOD_DG_Vars,       ONLY : U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
@@ -545,7 +545,7 @@ REAL,INTENT(IN)                 :: coeff
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 REAL                            :: r                                                 ! for Dipole
@@ -555,10 +555,10 @@ eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get PartSource from Particles
       Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * PartSource(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + coeff*eps0inv * PartSource(  4,i,j,k,iElem) * c_corr 
+      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + coeff*eps0inv * PartSource(  4,i,j,k,iElem) * c_corr
     END DO; END DO; END DO
   END DO
 END IF
@@ -571,7 +571,7 @@ CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
         Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * coeff*Q*d*omega * COS(omega*t) * eps0inv
@@ -612,7 +612,7 @@ USE MOD_PICDepo_Vars,  ONLY : PartSource,DoDeposition
 !USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 #ifdef LSERK
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage
 #endif /*LSERK*/
 
 ! IMPLICIT VARIABLE HANDLING
@@ -623,7 +623,7 @@ REAL,INTENT(IN)                 :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 !===================================================================================================================================
@@ -631,7 +631,7 @@ eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get source from Particles
 
       Phit(  2:4,i,j,k,iElem) = Phit(  2:4,i,j,k,iElem) - U(  1:3,i,j,k,iElem)*c_corr
@@ -671,13 +671,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 
   IF(DoParabolicDamping) RETURN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get source from Particles
       U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
     END DO; END DO; END DO
@@ -701,13 +701,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 
   IF(DoParabolicDamping) RETURN
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       !  Get source from Particles
       Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping_pois
     END DO; END DO; END DO
@@ -716,7 +716,7 @@ END SUBROUTINE DivCleaningDamping_Pois
 
 FUNCTION shapefunc(r)
 !===================================================================================================================================
-! Implementation of (possibly several different) shapefunctions 
+! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
   USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
@@ -729,7 +729,7 @@ FUNCTION shapefunc(r)
 ! OUTPUT VARIABLES
     REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
    IF (r.GE.rCutoff) THEN
      shapefunc = 0.0
@@ -738,11 +738,11 @@ FUNCTION shapefunc(r)
    END IF
 END FUNCTION shapefunc
 
-FUNCTION beta(z,w)                                                                                                
+FUNCTION beta(z,w)
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
+   REAL beta, w, z
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
-END FUNCTION beta 
+END FUNCTION beta
 
 SUBROUTINE FinalizeEquation()
 !===================================================================================================================================
@@ -779,7 +779,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 REAL,DIMENSION(0:PP_N,0:PP_N,0:PP_N)            :: gradPhi_xi,gradPhi_eta,gradPhi_zeta
 INTEGER                                :: i,j,k,l,iElem
 !INTEGER,SAVE                           :: N_old=0
@@ -798,29 +798,29 @@ DO iElem = 1, PP_nElems
           gradPhi_xi(i,j,k)  = gradPhi_xi(i,j,k)   + D(i,l) * Phi(1,l,j,k,iElem)
           gradPhi_eta(i,j,k) = gradPhi_eta(i,j,k)  + D(j,l) * Phi(1,i,l,k,iElem)
           gradPhi_zeta(i,j,k)= gradPhi_zeta(i,j,k) + D(k,l) * Phi(1,i,j,l,iElem)
-       END DO ! i 
-     END DO ! j 
-    END DO ! k 
-  END DO ! l 
+       END DO ! i
+     END DO ! j
+    END DO ! k
+  END DO ! l
   ! Transform the gradients from the reference system to the xyz-System. Only exact for cartesian mesh!
   DO k=0,N
     DO j=0,N
       DO i=0,N
-        E(1,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &   
-                          Metrics_fTilde(1,i,j,k,iElem) * gradPhi_xi(i,j,k)   + & 
-                          Metrics_gTilde(1,i,j,k,iElem) * gradPhi_eta(i,j,k)  + & 
-                          Metrics_hTilde(1,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )   
-        E(2,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &   
-                          Metrics_fTilde(2,i,j,k,iElem) * gradPhi_xi(i,j,k)   + & 
-                          Metrics_gTilde(2,i,j,k,iElem) * gradPhi_eta(i,j,k)  + & 
-                          Metrics_hTilde(2,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )   
-        E(3,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &   
-                          Metrics_fTilde(3,i,j,k,iElem) * gradPhi_xi(i,j,k)   + & 
-                          Metrics_gTilde(3,i,j,k,iElem) * gradPhi_eta(i,j,k)  + & 
-                          Metrics_hTilde(3,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )   
-      END DO ! i 
-    END DO ! j 
-  END DO ! k 
+        E(1,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &
+                          Metrics_fTilde(1,i,j,k,iElem) * gradPhi_xi(i,j,k)   + &
+                          Metrics_gTilde(1,i,j,k,iElem) * gradPhi_eta(i,j,k)  + &
+                          Metrics_hTilde(1,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )
+        E(2,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &
+                          Metrics_fTilde(2,i,j,k,iElem) * gradPhi_xi(i,j,k)   + &
+                          Metrics_gTilde(2,i,j,k,iElem) * gradPhi_eta(i,j,k)  + &
+                          Metrics_hTilde(2,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )
+        E(3,i,j,k,iElem) = -1*sJ(i,j,k,iElem) * (                                   &
+                          Metrics_fTilde(3,i,j,k,iElem) * gradPhi_xi(i,j,k)   + &
+                          Metrics_gTilde(3,i,j,k,iElem) * gradPhi_eta(i,j,k)  + &
+                          Metrics_hTilde(3,i,j,k,iElem) * gradPhi_zeta(i,j,k)   )
+      END DO ! i
+    END DO ! j
+  END DO ! k
 END DO
 END SUBROUTINE EvalGradient
 
@@ -903,7 +903,7 @@ USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)   :: Flux(1:4,0:PP_N,0:PP_N,nSides)
@@ -912,14 +912,14 @@ REAL,INTENT(OUT)   :: Flux(1:4,0:PP_N,0:PP_N,nSides)
 INTEGER            :: SideID,p,q,firstSideID,lastSideID
 !===================================================================================================================================
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
-IF(doMPISides)THEN 
+IF(doMPISides)THEN
   ! fill only flux for MINE MPISides
   firstSideID = nBCSides+nInnerSides+1
-  lastSideID  = firstSideID-1+nMPISides_MINE 
+  lastSideID  = firstSideID-1+nMPISides_MINE
 ELSE
   ! fill only InnerSides
   firstSideID = nBCSides+1
-  lastSideID  = firstSideID-1+nInnerSides 
+  lastSideID  = firstSideID-1+nInnerSides
 END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
@@ -951,21 +951,21 @@ USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_Minus(4,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)
 REAL,INTENT(INOUT)              :: Uface_Plus(4,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,l,p,q,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
 REAL                            :: Uface(4,0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
   firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
+  lastSideID  = firstSideID-1+nMPISides_YOUR
   flip(1)      = -1
 ELSE
   ! BCSides, InnerSides and MINE MPISides are filled
@@ -975,7 +975,7 @@ ELSE
 END IF
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
-  ElemID(1)     = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID(1)     = SideToElem(S2E_ELEM_ID,SideID)
   locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
   ElemID(2)     = SideToElem(S2E_NB_ELEM_ID,SideID)
@@ -1102,7 +1102,7 @@ DO SideID=firstSideID,lastSideID
           END DO ! p
         END DO ! q
     END SELECT
-  END DO !i=1,2, masterside & slave side 
+  END DO !i=1,2, masterside & slave side
 END DO !SideID
 END SUBROUTINE ProlongToFace_SideBased
 
@@ -1166,7 +1166,7 @@ USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMP
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE
 REAL,INTENT(IN)    :: Flux(1:4,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1176,13 +1176,13 @@ REAL,INTENT(INOUT)   :: Ut(4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 INTEGER            :: i,ElemID(2),p,q,l,Flip(2),SideID,locSideID(2)
 INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL            ::L_HatMinus0,L_HatPlusN 
+REAL            ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
-IF(doMPISides)THEN 
+IF(doMPISides)THEN
   ! surfInt only for YOUR MPISides
   firstSideID = nBCSides+nInnerSides+nMPISides_MINE +1
-  lastSideID  = firstSideID-1+nMPISides_YOUR 
+  lastSideID  = firstSideID-1+nMPISides_YOUR
 ELSE
   ! fill only InnerSides
   firstSideID = 1
@@ -1196,13 +1196,13 @@ L_HatPlusN  = L_HatPlus(PP_N)
 flip(1)        = 0 !flip=0 for master side
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
-  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
   ! neighbor side
   ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
   locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip(2)      = SideToElem(S2E_FLIP,SideID)
-  
+
   DO i=1,2
   ! update DG time derivative with corresponding SurfInt contribution
 #if (PP_NodeType==1)
@@ -1254,7 +1254,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatMinus(l)
         END DO; END DO; END DO ! p,l,q
       END SELECT
-    
+
     CASE(ZETA_MINUS)
       SELECT CASE(flip(i))
       CASE(0) ! master side
@@ -1278,7 +1278,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus(l)
         END DO; END DO; END DO ! p,q,l
       END SELECT
-      
+
     CASE(XI_PLUS)
       SELECT CASE(flip(i))
       CASE(0) ! master side
@@ -1326,7 +1326,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatPlus(l)
         END DO; END DO; END DO ! p,l,q
       END SELECT
-    
+
     CASE(ZETA_PLUS)
       SELECT CASE(flip(i))
       CASE(0) ! master side
@@ -1377,7 +1377,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus0
         END DO; END DO ! p,q
       END SELECT
-    
+
     ! switch to right hand system for ETA_PLUS direction
     CASE(ETA_MINUS)
       SELECT CASE(flip(i))
@@ -1402,7 +1402,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatMinus0
         END DO; END DO ! p,q
       END SELECT
-    
+
     ! switch to right hand system for ZETA_MINUS direction
     CASE(ZETA_MINUS)
       SELECT CASE(flip(i))
@@ -1427,7 +1427,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus0
         END DO; END DO ! p,q
       END SELECT
-    
+
     CASE(XI_PLUS)
       SELECT CASE(flip(i))
       CASE(0)
@@ -1451,7 +1451,7 @@ DO SideID=firstSideID,lastSideID
           Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatPlusN
         END DO; END DO ! p,q
       END SELECT
-    
+
     ! switch to right hand system for ETA_PLUS direction
     CASE(ETA_PLUS)
       SELECT CASE(flip(i))

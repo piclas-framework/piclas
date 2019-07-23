@@ -23,7 +23,7 @@ USE MOD_io_HDF5
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -134,8 +134,8 @@ IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 ! determine Dielectric elements
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6,'0.0,0.0,0.0,0.0,0.0,0.0')
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax: 
-! 1.) check for xyzPhysicalMinMaxDielectric 
+! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax:
+! 1.) check for xyzPhysicalMinMaxDielectric
 ! 2.) check for xyzDielectricMinMax
 CALL SelectMinMaxRegion('Dielectric',useDielectricMinMax,&
                         'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric,&
@@ -292,10 +292,10 @@ SUBROUTINE SetDielectricFaceProfile()
 !> (maybe slave information is used in the future)
 !>
 !> Note:
-!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+!> for MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
 !> threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !> is not allowed)
-!> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!> re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
 !> information)
 !> This could be overcome by using template subroutines .t90 (see FlexiOS)
 !===================================================================================================================================
@@ -318,12 +318,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE,Dielectric_dummy_Master2S
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master 
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave  
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem   
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave
+REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem
 #ifdef MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2 
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
 #endif /*MPI*/
 INTEGER                                                  :: iElem,I,J,iSide
 !===================================================================================================================================
@@ -331,10 +331,10 @@ INTEGER                                                  :: iElem,I,J,iSide
 ! 1.  Initialize dummy arrays for Elem/Face
 ! 2.  Fill dummy element values for non-Dielectric sides
 ! 3.  Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
-! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
 !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
 !     is not allowed)
-!     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+!     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
 !     information)
 ! 5.  Send/Receive MPI data
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
@@ -363,11 +363,11 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 #ifdef MPI
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-  
-  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI 
+
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
   !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
   !     is not allowed)
-  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the 
+  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
   !     information)
   Dielectric_dummy_Master2 = 0.
   Dielectric_dummy_Slave2  = 0.
@@ -379,17 +379,17 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
       END DO
     END DO
   END DO
-  
+
   ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
   CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
   CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
-  
+
   ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
   CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
-  
+
   CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
-  CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE 
+  CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*MPI*/
 
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
@@ -447,8 +447,8 @@ DO iElem=1,PP_nElems
 
   !compute field on Gauss-Lobatto points (continuous!)
   DO k=0,PP_N ; DO j=0,PP_N ; DO i=0,PP_N
-    !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
-    CALL CalcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR) 
+    !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
+    CALL CalcChiTens(chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
   END DO; END DO; END DO !i,j,k
 
   DO locSideID=1,6
@@ -456,8 +456,8 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
     IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
       DO q=0,PP_N; DO p=0,PP_N
-        !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
-        CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR) 
+        !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
+        CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
       END DO; END DO !p, q
     END IF
   END DO !locSideID
@@ -467,7 +467,7 @@ END SUBROUTINE SetDielectricFaceProfile_HDG
 
 SUBROUTINE CalcChiTens(chitens,chitensInv,DielectricEpsR)
 !===================================================================================================================================
-! calculate diffusion tensor, diffusion coefficient chi1/chi0 along B vector field plus isotropic diffusion 1. 
+! calculate diffusion tensor, diffusion coefficient chi1/chi0 along B vector field plus isotropic diffusion 1.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -482,7 +482,7 @@ REAL,INTENT(IN)                 :: DielectricEpsR
 REAL,INTENT(OUT)                :: chitens(3,3)
 REAL,INTENT(OUT),OPTIONAL       :: chitensInv(3,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !===================================================================================================================================
 ! default
 chitens=0.
@@ -505,7 +505,7 @@ END SUBROUTINE calcChiTens
 
 SUBROUTINE FinalizeDielectric()
 !===================================================================================================================================
-!  
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Dielectric_Vars,            ONLY: DoDielectric,DielectricEps,DielectricMu
