@@ -686,7 +686,7 @@ WRITE(*,*) "\n"
 !-----------------------------------------------------------------------------------------------------------------------------------
 SELECT CASE(CollInf%collModel)
 !=====================================================================================================
-    CASE(1) ! averaged omega for A1,A2 and Cab
+    CASE(1) ! averaged omega for A1,A2 and Cab - vergleichbar mit VHS da überall gemitteltes Omega
 !=====================================================================================================
       WRITE(*,*) "CASE 1 averaged omega for A1,A2 and Cab"
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
@@ -747,20 +747,40 @@ SELECT CASE(CollInf%collModel)
     CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
 !=====================================================================================================
       WRITE(*,*) "CASE 4 überall kollisions spezifisch"
-       A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
-          (CollInf%omega(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,iSpec)))
-            WRITE(*,*) "CollInf%omega(iSpec,iSpec)", CollInf%omega(iSpec,iSpec)
+       A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
+          (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
+            WRITE(*,*) "CollInf%omega(iSpec,jSpec)", CollInf%omega(iSpec,jSpec)
             WRITE(*,*) "A1 ",A1
-        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
-           (CollInf%omega(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
-            WRITE(*,*) "CollInf%omega(jSpec,jSpec)",       CollInf%omega(jSpec,jSpec) 
+        A2 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
+           (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
+            WRITE(*,*) "CollInf%omega(iSpec,jSpec)",       CollInf%omega(iSpec,jSpec) 
             WRITE(*,*) "A2 ",A2
         ! Pairing characteristic constant Cab, Laux (2.38)
         CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
             WRITE(*,*) "CollInf%omega(iSpec,jSpec)",         CollInf%omega(iSpec,jSpec)
             WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase
-            WRITE(*,*) "\n"
+      WRITE(*,*) "iCase ",      icase   
+      WRITE(*,*) "\n"
+!=====================================================================================================
+    CASE(5) ! AKTUELLE VHS Implementierung - dafür müsste in ini ein einzelnes omega gesetzt werden. das wäre in diesem fall überall
+      !coll averaged
+!=====================================================================================================
+     !  WRITE(*,*) "CASE 5"  !omega vhs existiert nicht mehr  
+     ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
+     !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
+     !       WRITE(*,*) "SpecDSMC(iSpec)%omegaVHS",       SpecDSMC(iSpec)%omegaVHS
+     !       WRITE(*,*) "A1 ",A1
+     ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
+     !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
+     !       WRITE(*,*) "SpecDSMC(jSpec)%omegaVHS",       SpecDSMC(jSpec)%omegaVHS 
+     !       WRITE(*,*) "A2 ",A2
+     ! CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
+     !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS
+     !       WRITE(*,*) "!the omega should be the same for both in vhs!!!"
+     !       WRITE(*,*) "SpecDSMC(iSpec)%omegaVHS",       SpecDSMC(iSpec)%omegaVHS
+     !       WRITE(*,*) "CAB ",CollInf%Cab(iCase)
+     ! WRITE(*,*) "iCase ",      icase   
+     ! WRITE(*,*) "\n"
 !=====================================================================================================
     CASE DEFAULT
 !=====================================================================================================
