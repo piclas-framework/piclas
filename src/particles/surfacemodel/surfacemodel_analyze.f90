@@ -204,6 +204,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
 #ifdef MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*MPI*/
@@ -213,7 +214,6 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
 #endif /* DSMC*/
 #if ( PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod==4)
 USE MOD_Particle_Vars             ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
 #endif /* DSMC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
