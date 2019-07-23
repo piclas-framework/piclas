@@ -738,7 +738,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     !-------------------------------------------------------------------------------------------------------------------------------
     ! sort Neighbours to coordinations for search of two random neighbour positions from particle position for dissociation
     !-------------------------------------------------------------------------------------------------------------------------------
-    IF (Adsorption%DissNum.GT.0 .AND. SpecDSMC(SpecID)%InterID.EQ.2) THEN
+    IF (Adsorption%DissNum.GT.0 .OR. Adsorption%RecombNum.GT.0) THEN ! .AND. SpecDSMC(SpecID)%InterID.EQ.2) THEN
       n_Neigh(:) = 0
       n_empty_Neigh(:) = 0
       ALLOCATE(NeighbourID(1:3,1:SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%nNeighbours))
@@ -896,13 +896,22 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
       ReactID = iRecombReact + Adsorption%DissNum
       IF (Adsorption%RecombReact(1,iRecombReact,SpecID).LT.1) CYCLE ! no partner for this associative reaction
       Coord_ReactP(ReactID) = Adsorption%Coordination(PartBoundID,Adsorption%RecombReact(1,iRecombReact,SpecID))
-      CALL RANDOM_NUMBER(RanNum)
-      IF (Coord.EQ.Coord_ReactP(ReactID)) THEN
-        NeighID = 1 + INT((nSites(Coord_ReactP(ReactID))-remainNum(Coord_ReactP(ReactID))-1)*RanNum)
+
+      IF (Adsorption%EnableAdsAttraction) THEN
+        CALL RANDOM_NUMBER(RanNum)
+        NeighID = 1 + INT(REAL(n_Neigh(Coord_ReactP(ReactID)))*RanNum)
+        Pos_ReactP(ReactID) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord)%NeighPos(Surfpos, &
+                                  React_NeighbourID(Coord_ReactP(ReactID),NeighID))
       ELSE
-        NeighID = 1 + INT((nSites(Coord_ReactP(ReactID))-remainNum(Coord_ReactP(ReactID)))*RanNum)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (Coord.EQ.Coord_ReactP(ReactID)) THEN
+          NeighID = 1 + INT((nSites(Coord_ReactP(ReactID))-remainNum(Coord_ReactP(ReactID))-1)*RanNum)
+        ELSE
+          NeighID = 1 + INT((nSites(Coord_ReactP(ReactID))-remainNum(Coord_ReactP(ReactID)))*RanNum)
+        END IF
+        Pos_ReactP(ReactID) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(ReactID))%UsedSiteMap(NeighID)
       END IF
-      Pos_ReactP(ReactID) = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(ReactID))%UsedSiteMap(NeighID)
+
       jSpec = SurfDistInfo(iSubSurf,jSubSurf,iSurf)%AdsMap(Coord_ReactP(ReactID))%Species(Pos_ReactP(ReactID))
 
       IF ( jSpec.EQ.Adsorption%RecombReact(1,iRecombReact,SpecID) .AND. (jSpec.GT.0)) THEN

@@ -114,6 +114,7 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
   ! parameters for UBI-QEP model (surfacemodel=3)
+  LOGICAL                                :: EnableAdsAttraction
   REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:,:)      ! heat of adsorption (K) on clear surfaces
   INTEGER                                :: DissNum                 ! max number of dissociative surface reactions per species
   INTEGER                                :: RecombNum               ! max number of associative surface reactions per species
