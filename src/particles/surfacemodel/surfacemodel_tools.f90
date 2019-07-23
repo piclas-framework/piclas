@@ -272,174 +272,6 @@ LOGICAL, INTENT(IN)            :: IsAdsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: Coordination, i, j, Indx, Indy, PartBoundID
-!REAL , ALLOCATABLE             :: x(:)
-INTEGER , ALLOCATABLE          :: m(:)
-INTEGER                        :: bondorder
-REAL                           :: D_AB, D_AX, D_BX
-REAL                           :: Heat_A, Heat_B
-REAL                           :: A, B, sigma, sigma_m
-!===================================================================================================================================
-!PartBoundID = PartBound%MapToPartBC(BC(SurfMesh%SurfIDToSideID(SurfSideID)))
-!IF (.NOT.PartBound%Reactive(PartboundID)) CALL Abort(&
-!__STAMP__,&
-!'Calc_Adsorb_Heat_ERROR: Given SurfSideID is not reactive',SurfSideID)
-!Coordination = Adsorption%Coordination(PartBoundID,Species)
-!!ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-!!   ALLOCATE( z(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-!ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-!!x(:) = 1. ! averaged bond-index for surface atoms
-!m(:) = 1  ! number of adsorbates belonging to surface atom
-!Calc_Adsorb_Heat = 0.
-!sigma = 0.
-!IF (Surfpos.GT.0) THEN
-  !DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
-    !Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndx(Surfpos,j)
-    !Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%BondAtomIndy(Surfpos,j)
-    !bondorder = 0
-    !DO i = 1,nSpecies
-      !bondorder = bondorder + SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(i,Indx,Indy)
-    !END DO
-    !IF (IsAdsorption) THEN
-      !! calculate bond order for heat of adsorption (in case of adsorption treatment)
-      !m(j) = (bondorder + 1) !adsorbing particle itself has to be added
-    !ELSE
-      !! calculate bond order for heat of adsorption (in case of desorption treatment)
-      !m(j) = bondorder
-    !END IF
-    !IF (m(j).LT.1) THEN !should never occur except calculating desorb heat for empty site (IsAdsorption=FALSE)
-      !CALL Abort(&
-!__STAMP__,&
-!'Calc_Adsorb_Heat_ERROR: Calculating Heat of adsorbtion not possible for surface position',Surfpos)
-    !END IF
-    !!x(j) = 1.
-  !END DO
-!END IF
-
-!#if (PP_TimeDiscMethod==42)
-!IF (Adsorption%LateralInactive) THEN
-  !sigma_m = 1.
-!ELSE
-!#endif
-  !sigma_m = 0.
-  !! calculate local scaling factor for chosen surface site
-  !DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
-  !!     x(j) = x(j) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
-  !!     sigma = sigma + (2.*x(j) - x(j)**2.) * (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2.)
-    !sigma_m = sigma_m + (2.*(1./REAL(m(j))) - (1./REAL(m(j)))**2) &
-                    !/ REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
-  !END DO
-!#if (PP_TimeDiscMethod==42)
-!END IF
-!#endif
-!IF (Coordination.EQ.1) THEN
-  !sigma = (2 - 1. / REAL(Adsorption%CrystalIndx(SurfSideID)) )
-!ELSE
-  !sigma = (2 - 1. / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
-!END IF
-
-!! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
-!! and calculate right heat of adsorption to surface atoms
-!Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-!D_AB = Adsorption%EDissBond(0,Species)
-!IF(SpecDSMC(Species)%InterID.EQ.2) THEN
-  !! Cases for binding type
-  !SELECT CASE(Adsorption%DiCoord(PartBoundID,Species))
-  !CASE(1) ! strong bonding
-    !Calc_Adsorb_Heat = (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) * sigma_m
-  !CASE(2) ! weak bonding
-    !Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) * sigma_m
-  !CASE(3) ! intermediate binding (something between strong and weak)
-    !Calc_Adsorb_Heat = ( (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) + Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) )/2. * sigma_m
-  !CASE(4) ! parallel to surface, each molecule atom is bound to one surface atom (bridge site, acceptor adsorbate)
-    !IF(SpecDSMC(Species)%PolyatomicMol) THEN
-      !! dicoordination e.g. (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
-      !!D_AB = Adsorption%EDissBond(0,Species) ! Bond O-O
-      !D_AX = Adsorption%EDissBondAdsorbPoly(0,Species) ! Bond HC--O
-      !D_BX = Adsorption%EDissBondAdsorbPoly(1,Species) ! Bond O--H
-      !Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !A = Heat_A**2./(D_AX+D_AB+Heat_A)
-      !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !B = Heat_B**2./(D_BX+D_AB+Heat_B)
-      !Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-    !ELSE
-      !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !A = Heat_A**2 * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2
-      !B = Heat_B**2 * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2
-      !Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-    !END IF
-  !CASE(5) ! parallel to surface, each molecule atom is bound to one surface atom (on top site, donor adsorbate)
-    !IF(SpecDSMC(Species)%PolyatomicMol) THEN
-      !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !D_AX = Adsorption%EDissBondAdsorbPoly(0,Species) ! Bond HC--O
-      !D_BX = Adsorption%EDissBondAdsorbPoly(1,Species) ! Bond O--H
-      !Heat_A = Heat_A * 3./4.
-      !Heat_B = Heat_B * 3./4.
-      !A = Heat_A**2./(D_AX+Heat_A)
-      !B = Heat_B**2./(D_BX+Heat_B)
-      !Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-    !ELSE
-      !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !A = Heat_A**2 * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2
-      !B = Heat_B**2 * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2
-      !Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
-    !END IF
-  !CASE(6) ! parallel to surface, each molecule atom is bound to both surface atoms (bridge site, donor adsorbate)
-    !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-    !A = Heat_A *3./4.
-    !B = Heat_B *3./4.
-    !Calc_Adsorb_Heat = 2*( A*B*( A + B ) + 2*D_AB*( A - B )**2 ) / ( A*B + 2*D_AB*( A + B ) ) * sigma_m
-  !CASE(7) ! chelating bridge, e.g. (NO2 --> M--O-N-O--M) no direct bonding between adsorbate ends
-    !IF(SpecDSMC(Species)%PolyatomicMol) THEN
-      !D_AX = Adsorption%EDissBondAdsorbPoly(0,Species) ! Bond O--N
-      !D_BX = Adsorption%EDissBondAdsorbPoly(1,Species) ! Bond N--O
-      !Heat_A = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !Heat_A = Heat_A**2/(D_AX+Heat_A)
-      !Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
-      !Heat_B = Heat_B**2/(D_BX+Heat_B)
-      !A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2.
-      !B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
-      !Calc_Adsorb_Heat = (A + B) * sigma_m
-    !END IF
-  !CASE DEFAULT
-    !CALL abort(&
-!__STAMP__&
-!,"ERROR in Calc_Adsorb_Heat: wrong dicoord for species:",Species)
-  !END SELECT
-!ELSE
-  !Calc_Adsorb_Heat = (Heat_A*sigma) * sigma_m
-!END IF
-!DEALLOCATE(m)
-
-Calc_Adsorb_Heat = Calc_Heat_attraction(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,IsAdsorption)
-
-END FUNCTION Calc_Adsorb_Heat
-
-
-REAL FUNCTION Calc_Heat_attraction(subsurfxi,subsurfeta,SurfSideID,Species,Surfpos,IsAdsorption)
-!===================================================================================================================================
-!> Calculates the Heat of adsorption for given species and given surface position
-!> Uses UBI-QEP model approach with Surface Monte Carlo Reconstruction
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Mesh_Vars              ,ONLY: BC
-USE MOD_Particle_Boundary_vars ,ONLY: PartBound, SurfMesh
-USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
-USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)            :: subsurfxi, subsurfeta, SurfSideID
-INTEGER, INTENT(IN)            :: Species, Surfpos
-LOGICAL, INTENT(IN)            :: IsAdsorption
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: Coordination, i, j, Indx, Indy, PartBoundID
 REAL , ALLOCATABLE             :: x(:)
 INTEGER , ALLOCATABLE          :: m(:)
 INTEGER                        :: bondorder
@@ -450,7 +282,7 @@ REAL                           :: A, B, sigma, sigma_m
 REAL , ALLOCATABLE             :: D_AL(:)
 REAL , ALLOCATABLE             :: attractBondOrder(:,:)
 INTEGER , ALLOCATABLE          :: Neigh_bondorder(:)
-REAL                           :: Heat_D_AL
+REAL                           :: HeatAttraction
 INTEGER                        :: neighSpec, neighSpec2, Coord2, Coord3, iRecombReact, ReactNum, nNeigh_interactions
 INTEGER                        :: l, k, NeighPos
 !===================================================================================================================================
@@ -463,7 +295,7 @@ ALLOCATE( x(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)
 ALLOCATE( m(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) )
 x(:) = 1. ! averaged bond-index of adsorbate with respective surface atom
 m(:) = 1  ! number of adsorbates belonging to the respective surface atom
-Calc_Heat_attraction = 0.
+Calc_Adsorb_Heat = 0.
 sigma = 0.
 IF (Surfpos.GT.0) THEN
   DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
@@ -488,6 +320,7 @@ __STAMP__,&
   END DO
 END IF
 
+! calculate scaling factor for M-A bond weakening due to lateral interactions
 #if (PP_TimeDiscMethod==42)
 IF (Adsorption%LateralInactive) THEN
   sigma_m = 1.
@@ -505,9 +338,9 @@ ELSE
 END IF
 #endif
 
-! calculate additional heat of adsorption for direct interaction (attraction of associating adsorbates)
+! calculate additional heat of adsorption for direct A-A interaction (attraction of associating adsorbates)
 nNeigh_interactions = 0
-Heat_D_AL = 0.
+HeatAttraction = 0.
 IF (Adsorption%EnableAdsAttraction) THEN
   IF ((Adsorption%RecombNum.GT.0) .AND. (Surfpos.GT.0) ) THEN
     ALLOCATE(attractBondOrder(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom, &
@@ -582,7 +415,7 @@ IF (Adsorption%EnableAdsAttraction) THEN
           D_AL(l) = D_AL(l) * ( 2. - 1./REAL(Neigh_bondorder(l)) ) / REAL(Neigh_bondorder(l))
         END IF
         DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
-          Heat_D_AL = Heat_D_AL + 0.5*D_AL(l) * (2*attractbondOrder(i,l) &
+          HeatAttraction = HeatAttraction + 0.5*D_AL(l) * (2*attractbondOrder(i,l) &
             / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom) - (attractBondOrder(i,l) &
             / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom))**2)
         END DO
@@ -596,6 +429,7 @@ IF (Adsorption%EnableAdsAttraction) THEN
   END IF
 END IF
 
+! caluclate bond index for M-A interaction
 DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom
   IF (nNeigh_interactions.GT.0) THEN
     x(i) = (1.-SUM(attractBondOrder(i,:))) / REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coordination)%nInterAtom)
@@ -613,11 +447,11 @@ IF(SpecDSMC(Species)%InterID.EQ.2) THEN
   ! Cases for binding type
   SELECT CASE(Adsorption%DiCoord(PartBoundID,Species))
   CASE(1) ! strong bonding
-    Calc_Heat_attraction = (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) * sigma_m
+    Calc_Adsorb_Heat = (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) * sigma_m
   CASE(2) ! weak bonding
-    Calc_Heat_attraction = Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) * sigma_m
+    Calc_Adsorb_Heat = Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) * sigma_m
   CASE(3) ! intermediate binding (something between strong and weak)
-    Calc_Heat_attraction = ( (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) + Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) )/2. * sigma_m
+    Calc_Adsorb_Heat = ( (Heat_A*sigma)**2/(D_AB+Heat_A*sigma) + Heat_A**2/(D_AB+Heat_A/REAL(1./(2-sigma))) )/2. * sigma_m
   CASE(4) ! parallel to surface, each molecule atom is bound to one surface atom (bridge site, acceptor adsorbate)
     IF(SpecDSMC(Species)%PolyatomicMol) THEN
       ! dicoordination e.g. (HCOOH --> M--(HC)O-O(H)--M) (M--O bond)
@@ -628,12 +462,12 @@ IF(SpecDSMC(Species)%InterID.EQ.2) THEN
       A = Heat_A**2./(D_AX+D_AB+Heat_A)
       Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
       B = Heat_B**2./(D_BX+D_AB+Heat_B)
-      Calc_Heat_attraction = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
+      Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
     ELSE
       Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
       A = Heat_A**2 * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2
       B = Heat_B**2 * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2
-      Calc_Heat_attraction = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
+      Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
     END IF
   CASE(5) ! parallel to surface, each molecule atom is bound to one surface atom (on top site, donor adsorbate)
     IF(SpecDSMC(Species)%PolyatomicMol) THEN
@@ -644,18 +478,18 @@ IF(SpecDSMC(Species)%InterID.EQ.2) THEN
       Heat_B = Heat_B * 3./4.
       A = Heat_A**2./(D_AX+Heat_A)
       B = Heat_B**2./(D_BX+Heat_B)
-      Calc_Heat_attraction = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
+      Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2. ) / ( A*B + D_AB*( A + B ) ) * sigma_m
     ELSE
       Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
       A = Heat_A**2 * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2
       B = Heat_B**2 * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2
-      Calc_Heat_attraction = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
+      Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) ) * sigma_m
     END IF
   CASE(6) ! parallel to surface, each molecule atom is bound to both surface atoms (bridge site, donor adsorbate)
     Heat_B = Adsorption%HeatOfAdsZero(PartBoundID,Species)
     A = Heat_A *3./4.
     B = Heat_B *3./4.
-    Calc_Heat_attraction = 2*( A*B*( A + B ) + 2*D_AB*( A - B )**2 ) / ( A*B + 2*D_AB*( A + B ) ) * sigma_m
+    Calc_Adsorb_Heat = 2*( A*B*( A + B ) + 2*D_AB*( A - B )**2 ) / ( A*B + 2*D_AB*( A + B ) ) * sigma_m
   CASE(7) ! chelating bridge, e.g. (NO2 --> M--O-N-O--M) no direct bonding between adsorbate ends
     IF(SpecDSMC(Species)%PolyatomicMol) THEN
       D_AX = Adsorption%EDissBondAdsorbPoly(0,Species) ! Bond O--N
@@ -666,25 +500,26 @@ IF(SpecDSMC(Species)%InterID.EQ.2) THEN
       Heat_B = Heat_B**2/(D_BX+Heat_B)
       A = Heat_A**2. * ( Heat_A + 2.*Heat_B ) / ( Heat_A + Heat_B )**2.
       B = Heat_B**2. * ( Heat_B + 2.*Heat_A ) / ( Heat_A + Heat_B )**2.
-      Calc_Heat_attraction = (A + B) * sigma_m
+      Calc_Adsorb_Heat = (A + B) * sigma_m
     END IF
   CASE DEFAULT
     CALL abort(&
 __STAMP__&
-,"ERROR in Calc_Heat_attraction: wrong dicoord for species:",Species)
+,"ERROR in Calc_Adsorb_Heat: wrong dicoord for species:",Species)
   END SELECT
 ELSE
-  Calc_Heat_attraction = (Heat_A*sigma) * sigma_m
+  Calc_Adsorb_Heat = (Heat_A*sigma) * sigma_m
 END IF
 
+! calculate total adsorption heat
 IF(nNeigh_interactions.GT.0) THEN
-  Calc_Heat_attraction = Calc_Heat_attraction + Heat_D_AL
+  Calc_Adsorb_Heat = Calc_Adsorb_Heat + HeatAttraction
   DEALLOCATE(attractBondOrder)
 END IF
 
 DEALLOCATE(x,m)
 
-END FUNCTION Calc_Heat_attraction
+END FUNCTION Calc_Adsorb_Heat
 
 
 REAL FUNCTION Calc_E_Act(Heat_Product_A,Heat_Product_B,Heat_Reactant_A,Heat_Reactant_B,&
