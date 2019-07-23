@@ -195,7 +195,7 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                             ' krishnan2015(https://doi.org/10.2514/6.2015-3373)\n'                           //&
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
-                                           ,' Temperature of collision-specific reference diameter.' , '1.', numberedmulti=.TRUE.)
+                                           ,' Temperature of collision-specific reference diameter.' , '273.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-muRef'  &
                                            ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
                                            , '1.', numberedmulti=.TRUE.)
@@ -689,12 +689,12 @@ SELECT CASE(CollInf%collModel)
     CASE(1) ! averaged omega for A1,A2 and Cab
 !=====================================================================================================
       WRITE(*,*) "CASE 1 averaged omega for A1,A2 and Cab"
-        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
+        A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
+           (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
             WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
             WRITE(*,*) "A1 ",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
+        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
+           (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
             WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
             WRITE(*,*) "A2 ",A2
 
@@ -707,30 +707,12 @@ SELECT CASE(CollInf%collModel)
     CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
 !=====================================================================================================
       WRITE(*,*) "CASE 2 omega spec 1 , omega spec 2 and averaged omega for Cab"
-        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omega))
-            WRITE(*,*) "SpecDSMC(iSpec)%omega  ",         SpecDSMC(iSpec)%omega
-            WRITE(*,*) "A1 ",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omega))
-            WRITE(*,*) "SpecDSMC(jSpec)%omega  ",         SpecDSMC(jSpec)%omega
-            WRITE(*,*) "A2 ",A2
-
-        ! Pairing characteristic constant Cab, Laux (2.38)
-        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
-            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)  ",         CollInf%omegaave(iSpec,jSpec)
-            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase
-            WRITE(*,*) "\n"
-!=====================================================================================================
-      WRITE(*,*) "CASE 2- with omegaave statt specdsmc%omega"
-!=====================================================================================================
-        A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,iSpec)))
+        A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
+            (CollInf%omegaave(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,iSpec)))
             WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)  ", CollInf%omegaave(iSpec,iSpec)
             WRITE(*,*) "A1 ",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
+        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
+            (CollInf%omegaave(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
             WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)  ",       CollInf%omegaave(jSpec,jSpec) 
             WRITE(*,*) "A2 ",A2
 
@@ -745,13 +727,13 @@ SELECT CASE(CollInf%collModel)
 !=====================================================================================================
       WRITE(*,*) "CASE 3 kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch"
         A1 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(iSpec,iSpec))) * &
-          0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 -CollInf%omegaave(iSpec,iSpec)))
+            0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
+            (CollInf%omegaave(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 -CollInf%omegaave(iSpec,iSpec)))
             WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)", CollInf%omegaave(iSpec,iSpec)
             WRITE(*,*) "A1 ",A1
         A2 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(jSpec,jSpec))) * &
-          0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
+            0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
+            (CollInf%omegaave(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
             WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)",       CollInf%omegaave(jSpec,jSpec) 
             WRITE(*,*) "A2 ",A2
 
@@ -762,15 +744,15 @@ SELECT CASE(CollInf%collModel)
       WRITE(*,*) "iCase ",      icase
             WRITE(*,*) "\n"
 !=====================================================================================================
-    CASE(4) ! überall kollisions spezifisch
+    CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
 !=====================================================================================================
       WRITE(*,*) "CASE 4 überall kollisions spezifisch"
-       A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,iSpec)))
+       A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
+          (CollInf%omega(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,iSpec)))
             WRITE(*,*) "CollInf%omega(iSpec,iSpec)", CollInf%omega(iSpec,iSpec)
             WRITE(*,*) "A1 ",A1
-        A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omega*0.5) &
-              /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
+        A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
+           (CollInf%omega(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
             WRITE(*,*) "CollInf%omega(jSpec,jSpec)",       CollInf%omega(jSpec,jSpec) 
             WRITE(*,*) "A2 ",A2
         ! Pairing characteristic constant Cab, Laux (2.38)
