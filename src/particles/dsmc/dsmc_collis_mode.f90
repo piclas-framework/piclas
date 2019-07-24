@@ -156,7 +156,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
   USE MOD_part_tools,             ONLY : DiceUnitVector,DiceDeflectedVector
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_part_tools,               ONLY : GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -185,8 +185,8 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
     FracMassCent2 = Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID) / (Species(Spec1ID)%MassIC  &
                   * GetParticleWeight(collPart1ID) + Species(Spec2ID)%MassIC *GetParticleWeight(collPart2ID))
   ELSE
-  FracMassCent1 = CollInf%FracMassCent(PartSpecies(collPart1ID), Coll_pData(iPair)%PairType)
-  FracMassCent2 = CollInf%FracMassCent(PartSpecies(collPart2ID), Coll_pData(iPair)%PairType)
+    FracMassCent1 = CollInf%FracMassCent(PartSpecies(collPart1ID), Coll_pData(iPair)%PairType)
+    FracMassCent2 = CollInf%FracMassCent(PartSpecies(collPart2ID), Coll_pData(iPair)%PairType)
   END IF
   !Calculation of velo from center of mass
   VeloMx = FracMassCent1 * PartState(collPart1ID, 4) + FracMassCent2 * PartState(collPart2ID, 4)
@@ -474,8 +474,8 @@ USE MOD_part_tools                ,ONLY: GetParticleWeight
     ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
   END IF
 
-  Xi_rel = 2*(2. - SpecDSMC(PartSpecies(collPart1ID))%omega)
-    ! DOF of relative motion in VHS model, only for one omega!!
+  Xi_rel = 2*(2. - CollInf%omega(Spec1ID,Spec2ID))
+    ! DOF of relative motion in VHS model
 
   Coll_pData(iPair)%Ec = 0.5 * ReducedMass* Coll_pData(iPair)%CRela2
 
@@ -795,7 +795,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ProbVib2 = 0.
   ProbRot2 = 0.
 
-  Xi_rel = 2.*(2. - SpecDSMC(Spec1ID)%omega) ! DOF of relative motion in VHS model
+  Xi_rel = 2.*(2. - CollInf%omega(Spec1ID,Spec2ID)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType) * Coll_pData(iPair)%CRela2
@@ -1485,7 +1485,7 @@ INTEGER                       :: collPart1ID, collPart2ID                       
                              ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))                                            &
                              , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))                                          &
                              * (Coll_pData(iPair)%Ec - ChemReac%EActiv(iReac2))                                                  &
-                             ! weiß nicht, wie defined react funktioniert to be solved
+                             ! omegahow
                           ** (ChemReac%Arrhenius_Powerfactor(iReac2) - 1.5 + SpecDSMC(ChemReac%DefinedReact(iReac2,1,1))%omega&
                              + ChemReac%ReactInfo(iReac2)%Xi_Total(ChemReac%MeanEVibQua_PerIter(PartSpecies(PartToExecSec))      &
                             , ChemReac%MeanEVibQua_PerIter(PartSpecies(PartReac2Sec)))/2)                                        &
@@ -2856,7 +2856,8 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   ! calculate corrected probability for rotational relaxation
   IF(DSMC%RotRelaxProb.GE.0.0.AND.DSMC%RotRelaxProb.LE.1.0) THEN
     ProbRot = DSMC%RotRelaxProb * CorrFact
-  ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)
+  ELSEIF(DSMC%RotRelaxProb.EQ.2.0) THEN ! P_rot according to Boyd (based on Parker's model)i
+    !omegahow hier betrachtet man doch nur Spec1
     ProbRot = 1/SpecDSMC(Spec1ID)%CollNumRotInf * (1 + lacz_gamma(RotDOF+2.-SpecDSMC(Spec1ID)%omega) &
             / lacz_gamma(RotDOF+1.5-SpecDSMC(Spec1ID)%omega) * (PI**(3./2.)/2.)*(BoltzmannConst*SpecDSMC(Spec1ID)%TempRefRot &
             / (TransEn + RotEn) )**(1./2.) + lacz_gamma(RotDOF+2.-SpecDSMC(Spec1ID)%omega)  &
@@ -2939,13 +2940,14 @@ INTEGER                   :: collPart1ID, collPart2ID                         ! 
       CRelaSub = SQRT(CRelaSub)
     END IF
     ! calculate non-corrected probabilities
-    ProbVib    = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaAv**(3.+2.*SpecDSMC(Spec1ID)%omega) &
+    ProbVib    = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaAv**(3.+2.*CollInf%omega(Spec1ID,Spec2ID)) &
                * EXP(-1*SpecDSMC(Spec1ID)%CharaVelo(Spec2ID)/CRelaAv)
-    ProbVibMax = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaMax**(3.+2.*SpecDSMC(Spec1ID)%omega) &
+    ProbVibMax = 1. /SpecDSMC(Spec1ID)%CollNumVib* CRelaMax**(3.+2.*CollInf%omega(Spec1ID,Spec2ID)) &
                * EXP(-1*SpecDSMC(Spec1ID)%CharaVelo(Spec2ID)/CRelaMax)
     ! calculate high temperature correction
-    TempCorr   = SpecDSMC(Spec1ID)%VibCrossSec / (SQRT(2.)*PI*DrefVHS**2.) * (  CollInf%MassRed(Coll_pData(iPair)%PairType) &
-               *CRelaAv  / (2.*(2.-SpecDSMC(Spec1ID)%omega)*BoltzmannConst*SpecDSMC(Spec1ID)%TrefVHS))**SpecDSMC(Spec1ID)%omega
+    ! to be solved -fyi hier hab ich tref und dref ebenfalls eingebaut
+    TempCorr   = SpecDSMC(Spec1ID)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(Spec1ID,Spec2ID)**2.) * (  CollInf%MassRed(Coll_pData(iPair)%PairType) &
+               *CRelaAv  / (2.*(2.-CollInf%omega(Spec1ID,Spec2ID))*BoltzmannConst*CollInf%Tref(Spec1ID,Spec2ID)))**CollInf%omega(Spec1ID,Spec2ID)
     ! determine corrected probabilities
     ProbVib    = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact
     ProbVibMax = ProbVibMax * TempCorr / (ProbVibMax + TempCorr) * CorrFact

@@ -334,7 +334,8 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                              ! Collision information 
-  INTEGER                       :: collModel               ! Collision model used. 0 - VHS,1 - VSS
+  INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der vier Fälle
+  INTEGER                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
   INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0= d(dref), 1= d(muref)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination
@@ -414,10 +415,11 @@ TYPE tChemReactions
                                                            !    D (molecular dissociation)
                                                            !    E (molecular exchange reaction)
                                                            !    x (simple charge exchange reaction)
-  INTEGER, ALLOCATABLE           :: DefinedReact(:,:,:)    ! Defined Reaction 
-                                                           !(reaction num; 1:reactant, 2:product;
-                                                           !  1-3 spezieses of reactants and products,
-                                                           ! 0: no spezies -> only 2 reactants or products)
+  INTEGER, ALLOCATABLE           :: DefinedReact(:,:,:)    ! Defined Reaction(.;.;.)= 
+                                                           !  (reaction num(.;.;.);
+                                                           !  1:reactant, 2:product;
+                                                           !  1-3 specieses of reactants and products,
+                                                           !  0: no species -> only 2 reactants or products)
   INTEGER, ALLOCATABLE           :: ReactCase(:,:)         ! Case of reaction in combination of (spec1, spec2)
   INTEGER, ALLOCATABLE           :: ReactNum(:,:,:)        ! Number of Reaction of (spec1, spec2, 
                                                            ! Case 1: Recomb: func. of species 3

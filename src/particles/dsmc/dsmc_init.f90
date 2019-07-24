@@ -171,10 +171,14 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
 
 CALL prms%SetSection("DSMC Collision")
 
-CALL prms%CreateIntOption(      'Part-CollisionModel'  &
-                                           ,'Flags which model is used for collision. Check Bird for more information.\n '//&
-                                            '0 : collision averaged parameters\n'//&
-                                            '1 : collision specific parameters', '0')
+CALL prms%CreateIntOption(      'CollisionModel'  &
+                                           ,' Flags which model is used for collision. Check Bird for more information.\n '//&
+                                            ' 0 : collision averaged parameters\n'//&
+                                            ' 1 : collision specific parameters', '0')
+CALL prms%CreateLogicalOption(      'AveOmega'  &
+                                           ,' Flags if collision-specific(F) omega is used i.e. Part-Collision[$]-omega has '//&
+                                            ' to be set\n or collision-averaged(T) omega is calculated' //&
+                                            ' i.e. Part-Species[$]-omega has to be set.', 'F')
 CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
                                            ,'Flags if diameter is calculated with \n'//&
                                             '0 : dref  - reference diameter\n'//&
@@ -609,7 +613,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading in collision model variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CollInf%collModel      = GETINT('Part-CollisionModel','0') 
+  CollInf%collModel      = GETINT('CollisionModel','0') 
   CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
   ALLOCATE(CollInf%omega(nSpecies,nSpecies))
@@ -617,24 +621,18 @@ __STAMP__&
   ALLOCATE(CollInf%dref(nSpecies,nSpecies))
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
   ALLOCATE(CollInf%muref(nSpecies,nSpecies))
-  WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
-  WRITE(*,*) "omega VSS",         CollInf%omega(:,:)
-  WRITE(*,*) "dref VSS",              CollInf%dref(:,:)
-  WRITE(*,*) "Tref VSS",              CollInf%Tref(:,:)
-  WRITE(*,*) "collnumcase ",      CollInf%NumCase
-  DO iSpec=1,nSpecies ! alphaVSS and omega       
+  DO iSpec=1,nSpecies !        
     DO jSpec=iSpec,nSpecies
       iCase=CollInf%Coll_Case(iSpec,jSpec)
       WRITE(UNIT=hilf,FMT='(I0)') iCase
       WRITE(*,*) "iCase ",      icase
       CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
       CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
-      !to be solved - hier anderer flag als unten. hier ist zum einlesen unten wie Input verarbeitet wird.
-      !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega
+      !IF(CollInf%aveOmega.EQ.1) THEN ! collision-specific omega
         write(*,*) "coll-spec "
         CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
-      !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega
+      !ELSEIF (CollInf%aveOmega.EQ.0) THEN !  collision-averaged omega
         write(*,*) " omega ave"
         CollInf%omegaave(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omegaave(jSpec,iSpec) = CollInf%omegaave(iSpec,jSpec)  
@@ -645,8 +643,6 @@ __STAMP__&
       CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
       CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(iSpec,jSpec)
       IF(CollInf%diameterCase.EQ.1) THEN ! diameter gets calculated with viscosity reference value
-        ! to be solved hier ist aktuell eingebaut, dass man omega bird einliest und es in omega laux umrechnet.
-        ! fürs erste mal nur händisch einlesen
          !CollInf%muref(iSpec,jSpec) = (30 * SQRT(CollInf%MassRed(iCase) * BoltzmannConst * CollInf%Tref(iSpec,jSpec))) &
          !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omega(iSpec,jSpec)) *                        &
          !                             (6-CollInf%omega(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
@@ -661,8 +657,11 @@ WRITE(*,*) "omega coll",         CollInf%omega(:,:)
 WRITE(*,*) "omega ave",         CollInf%omegaave(:,:)
 WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
 WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
+WRITE(*,*) "collnumcase ",      CollInf%NumCase
 WRITE(*,*) "\n"
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! Factor calculation for particle collision
+!-----------------------------------------------------------------------------------------------------------------------------------
   ALLOCATE(CollInf%Cab(nCase))
   ALLOCATE(CollInf%KronDelta(nCase))
   CollInf%Cab = 0
@@ -752,7 +751,7 @@ WRITE(*,*) "\n"
 !=====================================================================================================
       WRITE(*,*) "CASE 4 überall kollisions spezifisch"
         ! Pairing characteristic constant Cab, Laux (2.38)
-        CollInf%Cab(iCase) = (0.5 * SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
+        CollInf%Cab(iCase) = (SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
                              (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec))))**2        & 
                              * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
             WRITE(*,*) "CollInf%omega(iSpec,jSpec)",         CollInf%omega(iSpec,jSpec)
