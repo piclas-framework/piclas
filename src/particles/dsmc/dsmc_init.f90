@@ -200,9 +200,7 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-dref'  &
                                             ' krishnan2016(https://doi.org/10.1063/1.4939719)' , '1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Collision[$]-Tref'  &
                                            ,' Temperature of collision-specific reference diameter.' , '273.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Collision[$]-muRef'  &
-                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
-                                           , '1.', numberedmulti=.TRUE.)
+
 
 CALL prms%SetSection("DSMC Species")
 
@@ -226,6 +224,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-omega'  &
                                            ,'Reference value for exponent omega for variable hard sphere model. The Laux omega'//&
                                             'is used, which is defined through omegaLaux=Ypsilon_bird=omegaBird+0.5'//&
                                             'It can be found in tables e.g. Krishnan2015. ', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-muRef'  &
+                                           ,'Viscosity coefficient at a reference temperature Tref. Mandatory for VSS calc.'  &
+                                           , '1.', numberedmulti=.TRUE.) !to be solved. debugging - vllt woanders platzieren
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
@@ -547,6 +548,7 @@ __STAMP__&
       SpecDSMC(iSpec)%TrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceTemp','0')
       SpecDSMC(iSpec)%DrefVHS = GETREAL('Part-Species'//TRIM(hilf)//'-VHSReferenceDiam','0')
       SpecDSMC(iSpec)%omega   = GETREAL('Part-Species'//TRIM(hilf)//'-omega','0') ! default case HS
+      SpecDSMC(iSpec)%muref   = GETREAL('Part-Species'//TRIM(hilf)//'-muref','1')
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
       IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
         DSMC%ElectronSpecies = iSpec
@@ -629,7 +631,7 @@ __STAMP__&
       IF(CollInf%collModel.EQ.4) THEN ! collision-specific omega
         CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
-      ELSE THEN !  collision-averaged omega
+      ELSE                            !  collision-averaged omega
         CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
       END IF
@@ -642,8 +644,8 @@ __STAMP__&
          !                           / (SQRT(PI) * 4 * (4 - 2 * CollInf%omega(iSpec,jSpec)) *                        &
          !                             (6-CollInf%omega(iSpec,jSpec))*CollInf%dref(iSpec,jSpec)**2)
 
-        CollInf%muref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-muref')
-        CollInf%muref(jSpec,iSpec)     = CollInf%muref(jSpec,iSpec)
+        CollInf%muref(iSpec,jSpec)     = 0.5 * (SpecDSMC(iSpec)%muref + SpecDSMC(jSpec)%muref)
+        CollInf%muref(jSpec,iSpec)     = CollInf%muref(iSpec,jSpec)
       END IF
     END DO
   END DO
@@ -651,6 +653,7 @@ __STAMP__&
 ! WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
 ! WRITE(*,*) "omega coll",         CollInf%omega(:,:)
 ! WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
+! WRITE(*,*) "muref VSS",          CollInf%muref(:,:)
 ! WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
 ! WRITE(*,*) "collnumcase ",      CollInf%NumCase
 ! WRITE(*,*) "\n"
@@ -727,7 +730,10 @@ SELECT CASE(CollInf%collModel)
     END SELECT
     END DO
   END DO
-
+! to be solved just debugging            CALL Abort(&
+! to be solved just debugging            __STAMP__&
+! to be solved just debugging            ,'Collisionsmodel Error:',CollInf%collModel)
+! to be solved just debugging 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
