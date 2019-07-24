@@ -683,19 +683,16 @@ WRITE(*,*) "\n"
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Fallunterscheidung der omega Verwendung 
 !-----------------------------------------------------------------------------------------------------------------------------------
-!SELECT CASE(CollInf%collModel)
+SELECT CASE(CollInf%collModel)
 !=====================================================================================================
-!    CASE(1) ! averaged omega for A1,A2 and Cab - vergleichbar mit VHS da überall gemitteltes Omega
+    CASE(1) ! averaged omega for A1,A2 and Cab - vergleichbar mit VHS da überall gemitteltes Omega
 !=====================================================================================================
       WRITE(*,*) "CASE 1 averaged omega for A1,A2 and Cab"
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
            (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
-            WRITE(*,*) "CollInf%dref(iSpec,iSpec)",CollInf%dref(iSpec,iSpec)
-            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
             WRITE(*,*) "A1 ",A1
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
            (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
-            WRITE(*,*) "CollInf%dref(jSpec,jSpec)",CollInf%dref(jSpec,jSpec)
             WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
             WRITE(*,*) "A2 ",A2
 
@@ -705,7 +702,7 @@ WRITE(*,*) "\n"
       WRITE(*,*) "iCase ",      icase
             WRITE(*,*) "\n"
 !=====================================================================================================
-!    CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
+    CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
 !=====================================================================================================
       WRITE(*,*) "CASE 2 omega spec 1 , omega spec 2 and averaged omega for Cab"
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
@@ -725,7 +722,7 @@ WRITE(*,*) "\n"
       WRITE(*,*) "iCase ",      icase
             WRITE(*,*) "\n"
 !=====================================================================================================
-!    CASE(3) ! kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch
+    CASE(3) ! kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch
 !=====================================================================================================
       WRITE(*,*) "CASE 3 kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch"
         A1 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(iSpec,iSpec))) * &
@@ -747,7 +744,7 @@ WRITE(*,*) "\n"
       WRITE(*,*) "iCase ",      icase
             WRITE(*,*) "\n"
 !=====================================================================================================
-!    CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
+    CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
 !=====================================================================================================
       WRITE(*,*) "CASE 4 überall kollisions spezifisch"
         ! Pairing characteristic constant Cab, Laux (2.38)
@@ -759,35 +756,12 @@ WRITE(*,*) "\n"
       WRITE(*,*) "iCase ",      icase   
       WRITE(*,*) "\n"
 !=====================================================================================================
-!    CASE(5) ! AKTUELLE VHS Implementierung - dafür müsste in ini ein einzelnes omega gesetzt werden. das wäre in diesem fall überall
-      !coll averaged
+    CASE DEFAULT
 !=====================================================================================================
-     !  WRITE(*,*) "CASE 5"  !omega vhs existiert nicht mehr  
-     ! A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
-     !       /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
-     !       WRITE(*,*) "SpecDSMC(iSpec)%omegaVHS",       SpecDSMC(iSpec)%omegaVHS
-     !       WRITE(*,*) "A1 ",A1
-     ! A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
-     !       /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
-     !       WRITE(*,*) "SpecDSMC(jSpec)%omegaVHS",       SpecDSMC(jSpec)%omegaVHS 
-     !       WRITE(*,*) "A2 ",A2
-     ! CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-     !       / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS
-     !       WRITE(*,*) "!the omega should be the same for both in vhs!!!"
-     !       WRITE(*,*) "SpecDSMC(iSpec)%omegaVHS",       SpecDSMC(iSpec)%omegaVHS
-     !       WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-     ! WRITE(*,*) "iCase ",      icase   
-     ! WRITE(*,*) "\n"
-!=====================================================================================================
-!    CASE DEFAULT
-!=====================================================================================================
-!            CALL Abort(&
-!            __STAMP__&
-!            ,'Collisionsmodel Error:',CollInf%collModel)
-!    END SELECT
-      !IF(CollInf%collModel.EQ.1) THEN ! collision-specific omega - i.e. the prefactors are calculated species specific
-      !ELSEIF (CollInf%collModel.EQ.0) THEN !  collision-averaged omega -i.e. the prefactors also use the averaged omega
-      !END IF
+            CALL Abort(&
+            __STAMP__&
+            ,'Collisionsmodel Error:',CollInf%collModel)
+    END SELECT
     END DO
   END DO
 
