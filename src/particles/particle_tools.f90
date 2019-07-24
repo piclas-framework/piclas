@@ -145,9 +145,8 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
                                                          ! im Code die alphas hinterlegen #datenbank.
-                                                         ! macht es unterschied ob a b oder b a?
                                                          ! oder readin
-   CRela=SQRT(CRela2)                                    ! read-in CRela is CRela**2 
+   CRela=SQRT(CRela2)                                    
                                                          ! determination of DiceDeflectedVector in independent coordinate system
    CALL RANDOM_NUMBER(iRan)
    IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN        ! VHS
