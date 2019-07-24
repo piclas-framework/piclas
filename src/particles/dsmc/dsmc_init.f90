@@ -617,7 +617,6 @@ __STAMP__&
   CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
   ALLOCATE(CollInf%omega(nSpecies,nSpecies))
-  ALLOCATE(CollInf%omegaave(nSpecies,nSpecies))
   ALLOCATE(CollInf%dref(nSpecies,nSpecies))
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
   ALLOCATE(CollInf%muref(nSpecies,nSpecies))
@@ -625,19 +624,15 @@ __STAMP__&
     DO jSpec=iSpec,nSpecies
       iCase=CollInf%Coll_Case(iSpec,jSpec)
       WRITE(UNIT=hilf,FMT='(I0)') iCase
-      WRITE(*,*) "iCase ",      icase
       CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
       CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
-      !IF(CollInf%aveOmega.EQ.1) THEN ! collision-specific omega
-        write(*,*) "coll-spec "
+      IF(CollInf%collModel.EQ.4) THEN ! collision-specific omega
         CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
-      !ELSEIF (CollInf%aveOmega.EQ.0) THEN !  collision-averaged omega
-        write(*,*) " omega ave"
-        CollInf%omegaave(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
-        CollInf%omegaave(jSpec,iSpec) = CollInf%omegaave(iSpec,jSpec)  
-        ! to be solved        ! nenne im ganzen Code omega um, dann hast du spec omega und coll omega - viel besser 
-      !END IF
+      ELSE THEN !  collision-averaged omega
+        CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
+        CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
+      END IF
       CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
       CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
       CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
@@ -652,13 +647,13 @@ __STAMP__&
       END IF
     END DO
   END DO
-WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
-WRITE(*,*) "omega coll",         CollInf%omega(:,:)
-WRITE(*,*) "omega ave",         CollInf%omegaave(:,:)
-WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
-WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
-WRITE(*,*) "collnumcase ",      CollInf%NumCase
-WRITE(*,*) "\n"
+! to be solved - ist nur für debugging drin
+! WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
+! WRITE(*,*) "omega coll",         CollInf%omega(:,:)
+! WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
+! WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
+! WRITE(*,*) "collnumcase ",      CollInf%NumCase
+! WRITE(*,*) "\n"
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Factor calculation for particle collision
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -687,74 +682,42 @@ SELECT CASE(CollInf%collModel)
 !=====================================================================================================
     CASE(1) ! averaged omega for A1,A2 and Cab - vergleichbar mit VHS da überall gemitteltes Omega
 !=====================================================================================================
-      WRITE(*,*) "CASE 1 averaged omega for A1,A2 and Cab"
+! set AveOmega=1
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
-           (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
-            WRITE(*,*) "A1 ",A1
+           (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
-           (CollInf%omegaave(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,jSpec)))
-            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
-            WRITE(*,*) "A2 ",A2
-
-        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
-            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)   ",         CollInf%omegaave(iSpec,jSpec)
-            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase
-            WRITE(*,*) "\n"
+           (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
 !=====================================================================================================
     CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
 !=====================================================================================================
-      WRITE(*,*) "CASE 2 omega spec 1 , omega spec 2 and averaged omega for Cab"
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
-            (CollInf%omegaave(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(iSpec,iSpec)))
-            WRITE(*,*) "CollInf%dref(iSpec,iSpec)",CollInf%dref(iSpec,iSpec)
-            WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)  ", CollInf%omegaave(iSpec,iSpec)
-            WRITE(*,*) "A1 ",A1
+            (CollInf%omega(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,iSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
-            (CollInf%omegaave(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
-            WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)  ",       CollInf%omegaave(jSpec,jSpec) 
-            WRITE(*,*) "A2 ",A2
-
+            (CollInf%omega(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
         ! Pairing characteristic constant Cab, Laux (2.38)
-        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omegaave(iSpec,jSpec))
-            WRITE(*,*) "CollInf%omegaave(iSpec,jSpec)  ",         CollInf%omegaave(iSpec,jSpec)
-            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase
-            WRITE(*,*) "\n"
+        CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
 !=====================================================================================================
-    CASE(3) ! kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch
+    CASE(3) ! kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch -macht keinen unterschied ob ave omega oder
+      ! nicht 
 !=====================================================================================================
       WRITE(*,*) "CASE 3 kein A! ziehe die reduced ins A rein . nutze überall spezies spezifisch"
-        A1 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(iSpec,iSpec))) * &
+        A1 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omega(iSpec,iSpec))) * &
             0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,iSpec))** &
-            (CollInf%omegaave(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 -CollInf%omegaave(iSpec,iSpec)))
-            WRITE(*,*) "CollInf%dref(iSpec,iSpec)",CollInf%dref(iSpec,iSpec)
-            WRITE(*,*) "CollInf%omegaave(iSpec,iSpec)", CollInf%omegaave(iSpec,iSpec)
-            WRITE(*,*) "A1 ",A1
-        A2 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omegaave(jSpec,jSpec))) * &
+            (CollInf%omega(iSpec,iSpec)*0.5) /SQRT(GAMMA(2.0 -CollInf%omega(iSpec,iSpec)))
+        A2 = SQRT(CollInf%MassRed(iCase)**( - CollInf%omega(jSpec,jSpec))) * &
             0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
-            (CollInf%omegaave(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omegaave(jSpec,jSpec)))
-            WRITE(*,*) "CollInf%omegaave(jSpec,jSpec)",       CollInf%omegaave(jSpec,jSpec) 
-            WRITE(*,*) "A2 ",A2
-
+            (CollInf%omega(jSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(jSpec,jSpec)))
         ! Pairing characteristic constant Cab, Laux (2.38)
         CollInf%Cab(iCase) = (A1 + A2)**2 
-            WRITE(*,*) "Cab=(a1+a2)**2"
-            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase
-            WRITE(*,*) "\n"
 !=====================================================================================================
     CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
 !=====================================================================================================
-      WRITE(*,*) "CASE 4 überall kollisions spezifisch"
-        ! Pairing characteristic constant Cab, Laux (2.38)
+!set collmodel=0
+        ! Pairing characteristic constant Cab, Laux (2.37)
         CollInf%Cab(iCase) = (SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
                              (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec))))**2        & 
                              * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
-            WRITE(*,*) "CollInf%omega(iSpec,jSpec)",         CollInf%omega(iSpec,jSpec)
-            WRITE(*,*) "CAB ",CollInf%Cab(iCase)
-      WRITE(*,*) "iCase ",      icase   
-      WRITE(*,*) "\n"
 !=====================================================================================================
     CASE DEFAULT
 !=====================================================================================================
@@ -764,8 +727,6 @@ SELECT CASE(CollInf%collModel)
     END SELECT
     END DO
   END DO
-
-CALL Abort(__STAMP__, "exited vss init")
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
@@ -1769,7 +1730,6 @@ SDEALLOCATE(CollInf%MassRed)
 SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(CollInf%alphaVSS) 
 SDEALLOCATE(CollInf%omega)    
-SDEALLOCATE(CollInf%omegaave)
 SDEALLOCATE(CollInf%dref)    
 SDEALLOCATE(CollInf%Tref)    
 SDEALLOCATE(CollInf%muref)   
