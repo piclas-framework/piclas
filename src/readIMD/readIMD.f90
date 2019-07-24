@@ -49,6 +49,8 @@ subroutine read_IMD_results()
   use mod_hdf5_output,only:WriteStateToHDF5
   use mod_mesh_vars,only:meshfile
   use mod_part_tools,only:UpdateNextFreePosition
+  use mod_mesh,only:getmeshminmaxboundaries
+  use mod_mesh_vars,only:xyzMinMax
 
   implicit none
   ! --------------------------------------------------------
@@ -80,8 +82,18 @@ subroutine read_IMD_results()
   real                                      :: MinZ,MinZ_glob
   real                                      :: StartT,EndT
   integer                                   :: allocstat
+  integer                                   :: NbrOfLostParticles,NbrOfLostParticlesGlobal
   ! -----------------------------------------------------------------------------
   if( .not. useIMDresults ) return
+
+  ! Determine the maximum and minimum mesh coordinates
+  call getmeshminmaxboundaries()
+  if( mpiroot )then
+    write(*,*) "Global mesh information"
+    write(*,*) "x-min, x-max: ", xyzMinMax(1), xyzMinMax(2)
+    write(*,*) "y-min, y-max: ", xyzMinMax(3), xyzMinMax(4)
+    write(*,*) "z-min, z-max: ", xyzMinMax(5), xyzMinMax(6)
+  end if
 
   SWRITE(UNIT_stdOut,*)'Restarting with IMD data (useIMDresults=T)'
   SWRITE(UNIT_stdOut,*)'Read IMD-results from file: ',trim(filenameIMDresults)
@@ -260,16 +272,20 @@ subroutine read_IMD_results()
   ! Find particles in their host cells before communicating them to their actual host proc
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Re-locating particles to their host cells ...'
   PDM%ParticleInside(:) = .False.
+  NbrOfLostParticles=0
   do iPart=1,PDM%ParticleVecLength
     PDM%ParticleInside(iPart) = .True.
     CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
-!    if( .not. PDM%ParticleInside(iPart) )then
+    if( .not. PDM%ParticleInside(iPart) )then
 !      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(iPart,1),PartState(iPart,2),PartState(iPart,3)
-!    end if
+      NbrOfLostParticles=NbrOfLostParticles+1
+    end if
   end do
+  CALL MPI_REDUCE(NbrOfLostParticles , NbrOfLostParticlesGlobal , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   if( mpiroot )then
     EndT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+    write(*,*) "Total number of lost particles (could not be re-located): ", NbrOfLostParticlesGlobal
     StartT=MPI_WTIME()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Sending particles to host procs ...'
   end if
