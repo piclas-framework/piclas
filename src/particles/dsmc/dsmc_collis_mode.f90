@@ -3003,14 +3003,14 @@ t=6000 ! to be solved
                          * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omega(Spec1ID,Spec2ID) - 0.5))      &
                          / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omega(Spec1ID,Spec2ID))            &
                          * CollInf%muref(Spec1ID,Spec2ID) * (energy_translational) ** (CollInf%omega(Spec1ID,Spec2ID) - 1.0)) 
-!    WRITE(*,*)"CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))",CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))
-!    WRITE(*,*) "energy_translational",energy_translational
-!    WRITE(*,*) "CollInf%muref(Spec1ID,Spec2ID)",CollInf%muref(Spec1ID,Spec2ID)
-!    WRITE(*,*) "CollInf%alphaVSS(Spec1ID,Spec2ID)",CollInf%alphaVSS(Spec1ID,Spec2ID)
-!    WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
-!  !END IF
-!  DSMC_Cross_Section    = PI*diameter_squared
-!  WRITE(*,*) "dsmc_cross_section",DSMC_cross_section
+!DEBUG    WRITE(*,*)"CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))",CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))
+!DEBUG    WRITE(*,*) "energy_translational",energy_translational
+!DEBUG    WRITE(*,*) "CollInf%muref(Spec1ID,Spec2ID)",CollInf%muref(Spec1ID,Spec2ID)
+!DEBUG    WRITE(*,*) "CollInf%alphaVSS(Spec1ID,Spec2ID)",CollInf%alphaVSS(Spec1ID,Spec2ID)
+!DEBUG    WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
+!DEBUG  !END IF
+!DEBUG  DSMC_Cross_Section    = PI*diameter_squared
+!DEBUG  WRITE(*,*) "dsmc_cross_section",DSMC_cross_section
 END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)

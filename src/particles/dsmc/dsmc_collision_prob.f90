@@ -70,7 +70,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
   collPart1ID = Coll_pData(iPair)%iPart_p1                                      ; Spec1ID     = PartSpecies(collPart1ID)
   collPart2ID = Coll_pData(iPair)%iPart_p2                                      ; Spec2ID     = PartSpecies(collPart2ID)
-  collPairID  = collPairID
+  collPairID  = Coll_pData(iPair)%PairType
   iPType      = SpecDSMC(Spec1ID)%InterID + SpecDSMC(Spec2ID)%InterID !collision case definition
 
   IF (PRESENT(NodeVolume)) THEN
@@ -79,8 +79,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     Volume = GEO%Volume(iElem)
   END IF
 
-  SpecNum1 = CollInf%Coll_SpecPartNum(collPart1ID)
-  SpecNum2 = CollInf%Coll_SpecPartNum(collPart2ID)
+  SpecNum1 = CollInf%Coll_SpecPartNum(Spec1ID)
+  SpecNum2 = CollInf%Coll_SpecPartNum(Spec2ID)
 
   Weight1 = GetParticleWeight(collPart1ID)
   Weight2 = GetParticleWeight(collPart2ID)
@@ -118,9 +118,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
     CASE(2,3,4,11,12,21,22,20,30,40,5,6,14,24)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
     ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron 
-      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(Spec1ID),8) ! number of particles of spec 1
-      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(Spec2ID),8) ! number of particles of spec 2
-      IF(CollInf%collModel.EQ.0) THEN
+! to be solved ist hier glaubfalsch  IF(CollInf%collModel.EQ.0) THEN
         IF (BGGas%BGGasSpecies.NE.0) THEN                                     
           ! Collision probability, Laux 1995 (2.44),(2.47),(2.49)        ! to be solved not sure why Na*Nb/Sab=BGColl_SpecPartNum     
           Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum / (1 + CollInf%KronDelta(collPairID))                                & 
@@ -134,23 +132,29 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           ! collision probability, Laux 1995 (2.44), phi_c (2.47), beta_c (2.49)                CaseNum = Sab = sum of all cases
           ! does not calculate the cross-section new in every iteration. Cab is initially determined and works as reference.
           Coll_pData(iPair)%Prob = SpecNum1 * SpecNum2     / (1 + CollInf%KronDelta(collPairID))        &
-                                 * CollInf%Cab(collPairID) / CollInf%Coll_CaseNum(collPairID)           &          
+                                 * CollInf%Cab(collPairID) / CollCaseNum           &          
                                  * Species(Spec1ID)%MacroParticleFactor * dt / Volume  & 
-                                 * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
+                     * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
+! debug WRITE(*,*) "\n   SpecNum1                     ",SpecNum1
+! debug WRITE(*,*) "\n         SpecNum2               ",SpecNum2
+! debug WRITE(*,*) "\n CollInf%Cab(collPairID)        ",CollInf%Cab(collPairID)
+! debug WRITE(*,*) "\n CollCaseNum  ",CollCaseNum
+! debug WRITE(*,*) "\n  Species(Spec1ID)%MacroParticleFactor    ",Species(Spec1ID)%MacroParticleFactor
+! debug WRITE(*,*) "\nColl_pData(iPair)%Prob",Coll_pData(iPair)%Prob
         END IF
-      ELSE ! VSS
-        Coll_pData(iPair)%sigma_t = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
-                                                                                        ! depends on the temperature
-        ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
-        !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
-        Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
-                                   * Species(Spec1ID)%MacroParticleFactor              &
-                                   * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
-                                   * Coll_pData(iPair)%sigma_t * Coll_pData(iPair)%CRela2 
-        ! to be solved nur für debug zwecke          
-       ! WRITE(*,*) "sigma_t",Coll_pData(iPair)%sigma_t 
-       ! WRITE(*,*) "VSS Wkt", Coll_pData(iPair)%Prob
-      END IF
+!      ELSE ! VSS
+! nein, mit Cab        Coll_pData(iPair)%sigma_t = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
+! nein, mit Cab                                                                                        ! depends on the temperature
+! nein, mit Cab        ! collision probability as written in    munz2014              (12)    (https://doi.org/10.1016/j.crme.2014.07.005)
+! nein, mit Cab        !                       (originally from baganoff/mcdonald1990 (20)    (https://doi.org/10.1063/1.857625)) 
+! nein, mit Cab        Coll_pData(iPair)%Prob     = SpecNum1 * SpecNum2 / (1 + CollInf%KronDelta(collPairID))          &
+! nein, mit Cab                                   * Species(Spec1ID)%MacroParticleFactor              &
+! nein, mit Cab                                   * dt / (Volume + CollInf%Coll_CaseNum(collPairID))                   & 
+! nein, mit Cab                                   * Coll_pData(iPair)%sigma_t * Coll_pData(iPair)%CRela2 
+! nein, mit Cab        ! to be solved nur für debug zwecke          
+! nein, mit Cab       ! WRITE(*,*) "sigma_t",Coll_pData(iPair)%sigma_t 
+! nein, mit Cab       ! WRITE(*,*) "VSS Wkt", Coll_pData(iPair)%Prob
+! nein, mit Cab      END IF
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron
 !           ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair
