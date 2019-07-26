@@ -125,7 +125,7 @@ END SUBROUTINE UpdateNextFreePosition
 
 FUNCTION DiceUnitVector()
 !===================================================================================================================================
-!
+! Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -152,7 +152,7 @@ FUNCTION DiceUnitVector()
 END FUNCTION DiceUnitVector
 
 
-FUNCTION VELOFROMDISTRIBUTION(distribution,specID,temp)
+FUNCTION VELOFROMDISTRIBUTION(distribution,specID,Tempergy)
 !===================================================================================================================================
 !> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
 !>  liquid_evap: normal direction to surface with ARM from shifted evaporation rayleigh, tangential from normal distribution
@@ -160,7 +160,7 @@ FUNCTION VELOFROMDISTRIBUTION(distribution,specID,temp)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-USE MOD_Globals                 ,ONLY: Abort
+USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_Boundary_Tools ,ONLY: LIQUIDEVAP,LIQUIDREFL,ALPHALIQUID,BETALIQUID
@@ -169,7 +169,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
 INTEGER,INTENT(IN)          :: specID       !< input species
-REAL,INTENT(IN)             :: temp         !< input temperature [K]
+REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -184,11 +184,31 @@ REAL            :: RandVal(2)
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
+CASE('deltadistribution')
+  !Velosq = 2
+  !DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    !CALL RANDOM_NUMBER(RandVal)
+    !Velo1 = 2.*RandVal(1) - 1.
+    !Velo2 = 2.*RandVal(2) - 1.
+    !Velosq = Velo1**2 + Velo2**2
+  !END DO
+  !veloFromDistribution(1) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+  !veloFromDistribution(2) = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+  !CALL RANDOM_NUMBER(RandVal)
+  !veloFromDistribution(3) = SQRT(-2*LOG(RandVal(1)))
+
+  ! Get random vector
+  veloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  veloFromDistribution(3) = ABS(veloFromDistribution(3))
+  ! Set magnitude
+  veloFromDistribution = Tempergy*veloFromDistribution
+
 CASE('liquid_evap','liquid_refl')
   ! sample normal direction with ARM from given, shifted rayleigh distribution function
-  sigma = SQRT(BoltzmannConst*temp/Species(SpecID)%MassIC)
-  alpha=ALPHALIQUID(specID,temp)
-  beta=BETALIQUID(specID,temp)
+  sigma = SQRT(BoltzmannConst*Tempergy/Species(SpecID)%MassIC)
+  alpha=ALPHALIQUID(specID,Tempergy)
+  beta=BETALIQUID(specID,Tempergy)
   ! define ymax used in ARM
   IF (beta.GE.1 .AND. TRIM(distribution).EQ.'liquid_evap') THEN
     i = xmin
@@ -237,6 +257,7 @@ CASE('liquid_evap','liquid_refl')
   veloFromDistribution(1) = Velo1*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
   veloFromDistribution(2) = Velo2*SQRT(-2.*LOG(Velosq)/Velosq)*sigma
 CASE DEFAULT
+  WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
   CALL abort(&
 __STAMP__&
 ,'wrong velo-distri!')
@@ -299,7 +320,10 @@ INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
 INTEGER :: newParticleID
 !===================================================================================================================================
 
-newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+
+!IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE!'
+
+newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition+1)
 IF (newParticleID .EQ. 0) CALL abort(&
 __STAMP__&
 ,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')

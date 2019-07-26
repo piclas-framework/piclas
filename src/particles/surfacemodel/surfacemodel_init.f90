@@ -151,7 +151,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Intensification-K'&
 CALL prms%SetSection("Surfacemodel2")
 
 CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'&
-                               'Resulting recombination species (one of nSpecies)','-1', numberedmulti=.TRUE.)
+                               ,'Resulting recombination species (one of nSpecies)','-1', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff'&
                                           , 'TODO-DEFINE-PARAMETER','0.', numberedmulti=.TRUE.)
 
@@ -420,6 +420,13 @@ __STAMP__&
 __STAMP__,&
 'Coordination of Species '//TRIM(hilf)//' for catalytic particle boundary '//TRIM(hilf2)//' not defined')
       END IF
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(5,6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+      IF (.NOT.ALLOCATED(Adsorption%ResultSpec)) ALLOCATE( Adsorption%ResultSpec(1:nPartBound,1:nSpecies))
+      Adsorption%ResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(101,102)
 !-----------------------------------------------------------------------------------------------------------------------------------
