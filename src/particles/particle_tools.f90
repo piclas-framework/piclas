@@ -144,7 +144,7 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
  REAL                        :: iRan, eps, cos_chi, sin_chi
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
-  ! determination of DiceDeflectedVector in independent coordinate system
+  ! determination of DiceDeflectedVector in independent coordinate system and scaling
   CRela=SQRT(CRela2)                                    
   CALL RANDOM_NUMBER(iRan)
   cos_chi                  = 2.*iRan**(1./alpha)-1.     ! deflected (anisotrop) scattering angle chi 
@@ -152,7 +152,6 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
   sin_chi                  = SQRT(1. - cos_chi**2.)
   DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
   CALL RANDOM_NUMBER(iRan)
-  ! to be solved check ob die skalierung mit crela hier doppelt zu unten ist 
   eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
   DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
   DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
@@ -175,18 +174,10 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
       trafoMatrix(3,1)=wr/CRela
       trafoMatrix(3,2)=-vr/sqrt(vr**2+wr**2)
       trafoMatrix(3,3)=-ur*vr/(ur*sqrt(vr**2+wr**2))
-      ! Transformation and scaling
+      ! Transformation 
       DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
     END IF
     !WRITE(*,*) "DiceDeflected Vector nach trafo",DiceDeflectedVector
-  ELSE ! VHS
-    !cos_chi         = 2.*iRan-1.                           !!WRITE (*,*) "enters vhs case",cos_chi
-    !sin_chi                  = SQRT(1. - cos_chi**2.)
-    !DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
-    !CALL RANDOM_NUMBER(iRan)
-    !eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
-    !DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
-    !DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
   END IF
 END FUNCTION DiceDeflectedVector
 
