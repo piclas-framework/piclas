@@ -25,12 +25,12 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SEE_PartDesorb
+PUBLIC :: SecondaryElectronEmission
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SEE_PartDesorb(PartSurfaceModel_IN,PartID_IN,Adsorption_prob_OUT,adsorption_case,outSpec)
+SUBROUTINE SecondaryElectronEmission(PartSurfaceModel_IN,PartID_IN,Adsorption_prob_OUT,adsorption_case,outSpec)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -140,7 +140,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 END SELECT
 
-END SUBROUTINE SEE_PartDesorb
+END SUBROUTINE SecondaryElectronEmission
 
 
 END MODULE MOD_SEE

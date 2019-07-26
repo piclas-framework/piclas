@@ -1999,7 +1999,7 @@ USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, ModelERSpecular, SurfModel
 USE MOD_SMCR                   ,ONLY: SMCR_PartAdsorb
-USE MOD_SEE                    ,ONLY: SEE_PartDesorb
+USE MOD_SEE                    ,ONLY: SecondaryElectronEmission
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2018,6 +2018,8 @@ INTEGER,INTENT(IN),OPTIONAL :: TriNum
 LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                          :: ProductSpec(2)   ! 1: additional species added or removed from surface
+                                                     ! 2: product species of incident particle (also used for simple reflection)
 REAL                             :: RanNum
 REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
@@ -2026,7 +2028,6 @@ REAL                             :: Adsorption_prob, Recombination_prob
 INTEGER                          :: interactionCase
 INTEGER                          :: SurfSideID, SpecID
 REAL                             :: Norm_velo!, Norm_Ec
-INTEGER                          :: outSpec(2)
 ! variables for Energy sampling
 REAL                             :: TransArray(1:6),IntArray(1:6), reactionEnthalpie
 REAL                             :: oldVelo(1:3)
@@ -2121,7 +2122,7 @@ CASE (1)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) .AND. &
      (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
-    outSpec(2) = SpecID
+    ProductSpec(2) = SpecID
     interactionCase = 1
   END IF
 CASE (2)
@@ -2139,8 +2140,8 @@ CASE (2)
     CALL RANDOM_NUMBER(RanNum)
     IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
       interactionCase = 1
-      outSpec(1) = 0
-      outSpec(2) = SpecID
+      ProductSpec(1) = 0
+      ProductSpec(2) = SpecID
     ELSE
       interactionCase = 3
       DO iReact = Adsorption%DissNum+1,(Adsorption%ReactNum)
@@ -2149,41 +2150,41 @@ CASE (2)
           EXIT
         END IF
       END DO
-      outSpec(1) = Adsorption%RecombReact(1,RecombReactID,SpecID)
-      outSpec(2) = Adsorption%RecombReact(2,RecombReactID,SpecID)
+      ProductSpec(1) = Adsorption%RecombReact(1,RecombReactID,SpecID)
+      ProductSpec(2) = Adsorption%RecombReact(2,RecombReactID,SpecID)
       reactionEnthalpie = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
     END IF
   END IF
 CASE (3)
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,interactionCase,outSpec,reactionEnthalpie)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,interactionCase,ProductSpec,reactionEnthalpie)
 CASE (4)
   ! TODO
 CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
            ! 5: SEE by Levko2015
            ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! Get electron emission probability
-  CALL SEE_PartDesorb(PartBound%SurfaceModel(locBCID),PartID,Adsorption_prob,interactionCase,outSpec)
+  CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,Adsorption_prob,interactionCase,ProductSpec)
   !Adsorption_prob = 1. !Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   ! CALL RANDOM_NUMBER(RanNum)
   ! IF(Adsorption_prob.GE.RanNum)THEN
   !    !  .AND. &
   !    !(Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
-  !   outSpec(1) = SpecID
-  !   outSpec(2) = 4!SpecID ! electron
+  !   ProductSpec(1) = SpecID
+  !   ProductSpec(2) = 4!SpecID ! electron
   !   interactionCase = -2 ! perfect elastic scattering + particle creation
-  !   WRITE (*,*) "SpecID,outSpec(1),outSpec(2),interactionCase =", SpecID,outSpec(1),outSpec(2),interactionCase
+  !   WRITE (*,*) "SpecID,ProductSpec(1),ProductSpec(2),interactionCase =", SpecID,ProductSpec(1),ProductSpec(2),interactionCase
   ! END IF
 CASE (101) ! constant condensation coefficient
-  outSpec(2) = SpecID
+  ProductSpec(2) = SpecID
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN
     interactionCase = 1
   END IF
 CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
-  outSpec(2) = SpecID
+  ProductSpec(2) = SpecID
   interactionCase = 4
   velocityDistribution='liquid_refl'
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
@@ -2201,12 +2202,12 @@ CASE(-4) ! Remove bombarding particle
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-3) ! Remove bombarding particle + electron creation
 !-----------------------------------------------------------------------------------------------------------------------------------
-  SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) + 1
   adsindex = 1
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-2) ! Perfect elastic scattering + electron creation
 !-----------------------------------------------------------------------------------------------------------------------------------
-  SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
+  SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) + 1
   adsindex = -1
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(-1) ! Perfect elastic scattering
@@ -2215,7 +2216,7 @@ CASE(-1) ! Perfect elastic scattering
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) + 1
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
@@ -2225,8 +2226,8 @@ CASE(1) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) + 1
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(2)) + 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) + 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) + 1
   adsindex = 1
 #if (PP_TimeDiscMethod==42)
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
@@ -2239,7 +2240,7 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
                                            + reactionEnthalpie * Species(SpecID)%MacroParticleFactor
     ! Sample reaction counter
     DO iReact = 1,Adsorption%DissNum
-      IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.outSpec(1) .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+      IF (Adsorption%DissocReact(1,iReact,SpecID).EQ.ProductSpec(1) .AND. Adsorption%DissocReact(2,iReact,SpecID).EQ.ProductSpec(2))THEN
         SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q)=SampWall(SurfSideID)%SurfModelReactCount(iReact,SpecID,p,q) + 1
       END IF
     END DO
@@ -2249,21 +2250,21 @@ CASE(2) ! dissociative adsorption (particle dissociates on adsorption)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at contact and reaction partner removed from surface)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  !SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,outSpec(2)) + 1
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,outSpec(1)) - 1
+  !SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) + 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) - 1
   adsindex = 2
   ! --------
   ! sampling and analyze stuff for heat flux and reaction rates
 #if (PP_TimeDiscMethod==42)
-  SurfModel%Info(outSpec(1))%NumOfDes = SurfModel%Info(outSpec(1))%NumOfDes + 1
-  SurfModel%Info(outSpec(2))%NumOfDes = SurfModel%Info(outSpec(2))%NumOfDes + 1
+  SurfModel%Info(ProductSpec(1))%NumOfDes = SurfModel%Info(ProductSpec(1))%NumOfDes + 1
+  SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
   SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) &
      + reactionEnthalpie/BoltzmannConst
 #endif
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     ! Sample recombination reaction counter
     DO iReact = 1,Adsorption%RecombNum
-      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.outSpec(2))THEN
+      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.ProductSpec(2))THEN
         SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
             SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
       END IF
@@ -2283,7 +2284,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
     ! perfect velocity reflection
     NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
     ! mass changes, therefore velocity is scaled because impuls remains the same
-    NewVelo(1:3) = NewVelo(1:3) * (Species(outSpec(2))%MassIC/Species(SpecID)%MassIC)
+    NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(2))%MassIC/Species(SpecID)%MassIC)
   ELSE
     ! diffuse reflection
     TransACC   = PartBound%TransACC(locBCID)
@@ -2298,7 +2299,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
     VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
     EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
     EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-    Cmr         = SQRT(2.0 * EtraNew / (Species(outSpec(2))%MassIC * Fak_D))
+    Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(2))%MassIC * Fak_D))
     CALL RANDOM_NUMBER(RanNum)
     Phi     = 2.0 * PI * RanNum
     VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
@@ -2322,9 +2323,9 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   ! set new species
-  PartSpecies(PartID) = OutSpec(2)
+  PartSpecies(PartID) = ProductSpec(2)
 
-  CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
+  CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) ! Distribution function reflection  (reflecting particle according to defined distribution function)
@@ -2332,7 +2333,6 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
   adsindex = 2
   ! sampling and analyze stuff for heat flux and reaction rates
 #if (PP_TimeDiscMethod==42)
-  SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
   SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) &
      + reactionEnthalpie/BoltzmannConst
 #endif
@@ -2363,7 +2363,7 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-  CALL SurfaceToPartEnergy(PartID,OutSpec(2),WallTemp,Transarray,IntArray)
+  CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
