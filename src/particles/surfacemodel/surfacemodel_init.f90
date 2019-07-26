@@ -158,6 +158,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff
 
 CALL prms%SetSection("SMCR")
 
+CALL prms%CreateLogicalOption(     'Surface-Adsorption-EnableAttraction'&
+  , 'Activates attracive forces between adsorbates. \n[TRUE] or [FALSE].','.TRUE.')
+CALL prms%CreateLogicalOption(     'Surface-Adsorption-NoDiffusion'&
+  , 'Disables diffusion into equlibrium on the surface. \n[TRUE] or [FALSE].','.FALSE.')
 CALL prms%CreateLogicalOption(     'Particles-Surface-DistNumCase'&
   , 'Sets the surface distribution case. \nSpecific number[TRUE] or weighting[FALSE].','.TRUE.')
 CALL prms%CreateIntOption(     'Particles-Surface-DistSquareNumber'&
@@ -170,8 +174,6 @@ CALL prms%CreateRealOption(     'Particles-Surface-MacroParticleFactor'&
 CALL prms%CreateIntArrayOption( 'Surface-Coordination[$]-BlockingNeigh'&
                               , 'Define which neighbour coordinations can block considered adsorption position' &
                               , '0 , 0 , 0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(     'Surface-EnableAdsAttraction'&
-  , 'Activates attracive forces between adsorbates. \n[TRUE] or [FALSE].','.TRUE.')
 
 CALL prms%CreateIntOption(      'Part-Species[$]-PartBound[$]-Coordination'&
   , 'Coordination at which particle of species [$] is bound on surface of boundary [$].\n'//&
@@ -258,7 +260,8 @@ END IF
 ! initialize variables only for processors that have any surfaces in own domain else they are skipped or not allocated
 !KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 ModelERSpecular = GETLOGICAL('Surface-ModelERSpecular')
-Adsorption%EnableAdsAttraction = GETLOGICAL('Surface-EnableAdsAttraction')
+Adsorption%EnableAdsAttraction = GETLOGICAL('Surface-Adsorption-EnableAttraction')
+Adsorption%NoDiffusion = GETLOGICAL('Surface-Adsorption-NoDiffusion')
 KeepWallParticles = .FALSE.
 IF (KeepWallParticles) THEN
   IF(SurfMesh%SurfOnProc) THEN

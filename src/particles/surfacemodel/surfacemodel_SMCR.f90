@@ -1240,7 +1240,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         CALL RANDOM_NUMBER(RanNum)
         IF ((ProbDes(iReact)/sum_probabilities).GT.RanNum) THEN
           IF (iReact.EQ.0) THEN
-            surf_react_case = 1 !(desorption)
+            surf_react_case = 1 ! desorption
           ELSE IF ( iReact.GT.0 .AND. iReact.LE.Adsorption%DissNum .AND. iReact.LE.Adsorption%ReactNum ) THEN
             surf_react_case = 2 ! dissociation
           ELSE IF ( iReact.GT.0 .AND. iReact.GT.Adsorption%DissNum .AND. iReact.LE.Adsorption%ReactNum ) THEN
@@ -1680,6 +1680,7 @@ INTEGER                          :: n_equal_site_Neigh, Surfpos, newpos
 INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 !----------------------------------------------------------------------------------------------------------------------------------!
 IF (.NOT.SurfMesh%SurfOnProc) RETURN
+IF (Adsorption%NoDiffusion) RETURN
 
 ! diffusion into equilibrium distribution
 DO iSurf=1,SurfMesh%nSides
