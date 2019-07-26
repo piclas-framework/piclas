@@ -335,7 +335,7 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision p
 
 TYPE tCollInf                                              ! Collision information 
   INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der vier Fälle
-  INTEGER                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
+  LOGICAL                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
   INTEGER                       :: diameterCase            ! flags how diameter for sigma_t is calculated:0= d(dref), 1= d(muref)
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination

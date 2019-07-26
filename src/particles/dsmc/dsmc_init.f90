@@ -178,7 +178,7 @@ CALL prms%CreateIntOption(      'CollisionModel'  &
 CALL prms%CreateLogicalOption(      'AveOmega'  &
                                            ,' Flags if collision-specific(F) omega is used i.e. Part-Collision[$]-omega has '//&
                                             ' to be set\n or collision-averaged(T) omega is calculated' //&
-                                            ' i.e. Part-Species[$]-omega has to be set.', 'F')
+                                            ' i.e. Part-Species[$]-omega has to be set.', 'T')
 CALL prms%CreateIntOption(      'Part-CollisionDiameterCase'  &
                                            ,'Flags if diameter is calculated with \n'//&
                                             '0 : dref  - reference diameter\n'//&
@@ -616,6 +616,7 @@ __STAMP__&
 ! reading in collision model variables 
 !-----------------------------------------------------------------------------------------------------------------------------------
   CollInf%collModel      = GETINT('CollisionModel','0') 
+  CollInf%aveOmega       = GETLOGICAL('AveOmega','.TRUE.')
   CollInf%diameterCase   = GETINT('Part-CollisionDiameterCase','0')
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies)) 
   ALLOCATE(CollInf%omega(nSpecies,nSpecies))
@@ -628,7 +629,8 @@ __STAMP__&
       WRITE(UNIT=hilf,FMT='(I0)') iCase
       CollInf%alphaVSS(iSpec,jSpec)   = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS')
       CollInf%alphaVSS(jSpec,iSpec)   = CollInf%alphaVSS(iSpec,jSpec) 
-      IF(CollInf%collModel.EQ.4) THEN ! collision-specific omega
+      !IF(CollInf%collModel.EQ.4) THEN ! collision-specific omega
+      IF(.NOT.CollInf%aveOmega) THEN ! collision-specific omega
         CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
       ELSE                            !  collision-averaged omega
@@ -650,13 +652,13 @@ __STAMP__&
     END DO
   END DO
 ! to be solved - ist nur für debugging drin
-! WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
-! WRITE(*,*) "omega coll",         CollInf%omega(:,:)
-! WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
-! WRITE(*,*) "muref VSS",          CollInf%muref(:,:)
-! WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
-! WRITE(*,*) "collnumcase ",      CollInf%NumCase
-! WRITE(*,*) "\n"
+ WRITE(*,*) "alpha VSS",         CollInf%alphaVSS(:,:)
+ WRITE(*,*) "omega coll",         CollInf%omega(:,:)
+ WRITE(*,*) "dref VSS",          CollInf%dref(:,:)
+ WRITE(*,*) "muref VSS",          CollInf%muref(:,:)
+ WRITE(*,*) "Tref VSS",          CollInf%Tref(:,:)
+ WRITE(*,*) "collnumcase ",      CollInf%NumCase
+ WRITE(*,*) "\n"
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Factor calculation for particle collision
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -685,7 +687,7 @@ SELECT CASE(CollInf%collModel)
 !=====================================================================================================
     CASE(1) ! averaged omega for A1,A2 and Cab - vergleichbar mit VHS da überall gemitteltes Omega
 !=====================================================================================================
-! set AveOmega=1
+! set AveOmega=T
         A1 = 0.5 * SQRT(Pi) * CollInf%dref(iSpec,iSpec)*(2*BoltzmannConst* CollInf%Tref(iSpec,iSpec))** &
            (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
@@ -716,7 +718,7 @@ SELECT CASE(CollInf%collModel)
 !=====================================================================================================
     CASE(4) ! überall kollisions spezifisch -unterschied ist nur Cab Berechnung
 !=====================================================================================================
-!set collmodel=0
+!set aveOmega=F 
         ! Pairing characteristic constant Cab, Laux (2.37)
         CollInf%Cab(iCase) = (SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
                              (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec))))**2        & 
@@ -728,12 +730,11 @@ SELECT CASE(CollInf%collModel)
             __STAMP__&
             ,'Collisionsmodel Error:',CollInf%collModel)
     END SELECT
+WRITE(*,*) "cab VSS",CollInf%Cab(:)
     END DO
   END DO
-! to be solved just debugging            CALL Abort(&
-! to be solved just debugging            __STAMP__&
-! to be solved just debugging            ,'Collisionsmodel Error:',CollInf%collModel)
-! to be solved just debugging 
+
+ 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------

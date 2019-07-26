@@ -709,7 +709,7 @@ END IF
   !Calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
   ! DiceUnitVector if alphaVSS ==1
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(collPart1ID,collPart2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
   ! deltaV particle 1
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
   DSMC_RHS(collPart1ID,2) = VeloMy + FracMassCent2*RanVec(2) - PartState(collPart1ID, 5)
@@ -1085,7 +1085,7 @@ __STAMP__&
   !calculate random vec and new velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/CollInf%MassRed(Coll_pData(iPair)%PairType)
   !swrite(*,*) "alpha= ",SpecDSMC(Spec1ID))%alphaVSS
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(collPart1ID,collPart2ID))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
   !swrite(*,*) "dicedeflectedVector exited"
 
   ! deltaV particle 1
@@ -2946,8 +2946,9 @@ INTEGER                   :: collPart1ID, collPart2ID                         ! 
                * EXP(-1*SpecDSMC(Spec1ID)%CharaVelo(Spec2ID)/CRelaMax)
     ! calculate high temperature correction
     ! to be solved -fyi hier hab ich tref und dref ebenfalls eingebaut
-    TempCorr   = SpecDSMC(Spec1ID)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(Spec1ID,Spec2ID)**2.) * (  CollInf%MassRed(Coll_pData(iPair)%PairType) &
-               *CRelaAv  / (2.*(2.-CollInf%omega(Spec1ID,Spec2ID))*BoltzmannConst*CollInf%Tref(Spec1ID,Spec2ID)))**CollInf%omega(Spec1ID,Spec2ID)
+    TempCorr   = SpecDSMC(Spec1ID)%VibCrossSec / (SQRT(2.)*PI*CollInf%dref(Spec1ID,Spec2ID)**2.) * &
+                 (CollInf%MassRed(Coll_pData(iPair)%PairType) *CRelaAv  / (2.*(2.-CollInf%omega(Spec1ID,Spec2ID)) * &
+                 BoltzmannConst*CollInf%Tref(Spec1ID,Spec2ID)))**CollInf%omega(Spec1ID,Spec2ID)
     ! determine corrected probabilities
     ProbVib    = ProbVib * TempCorr / (ProbVib + TempCorr) * CorrFact
     ProbVibMax = ProbVibMax * TempCorr / (ProbVibMax + TempCorr) * CorrFact

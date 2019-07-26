@@ -135,12 +135,12 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                                  * CollInf%Cab(collPairID) / CollCaseNum           &          
                                  * Species(Spec1ID)%MacroParticleFactor * dt / Volume  & 
                      * Coll_pData(iPair)%CRela2 ** (0.5 - CollInf%omega(Spec1ID,Spec2ID)) 
-! debug WRITE(*,*) "\n   SpecNum1                     ",SpecNum1
-! debug WRITE(*,*) "\n         SpecNum2               ",SpecNum2
-! debug WRITE(*,*) "\n CollInf%Cab(collPairID)        ",CollInf%Cab(collPairID)
-! debug WRITE(*,*) "\n CollCaseNum  ",CollCaseNum
-! debug WRITE(*,*) "\n  Species(Spec1ID)%MacroParticleFactor    ",Species(Spec1ID)%MacroParticleFactor
-! debug WRITE(*,*) "\nColl_pData(iPair)%Prob",Coll_pData(iPair)%Prob
+!WRITE(*,*) "\n   SpecNum1                     ",SpecNum1
+!WRITE(*,*) "\n         SpecNum2               ",SpecNum2
+!WRITE(*,*) "\n CollInf%Cab(collPairID)        ",CollInf%Cab(collPairID)
+!WRITE(*,*) "\n CollCaseNum  ",CollCaseNum
+!WRITE(*,*) "\n  Species(Spec1ID)%MacroParticleFactor    ",Species(Spec1ID)%MacroParticleFactor
+!WRITE(*,*) "\nColl_pData(iPair)%Prob",Coll_pData(iPair)%Prob
         END IF
 !      ELSE ! VSS
 ! nein, mit Cab        Coll_pData(iPair)%sigma_t = DSMC_cross_section(iPair,Coll_pData(iPair)%CRela2) ! calculates total cross section, which
@@ -155,6 +155,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! nein, mit Cab       ! WRITE(*,*) "sigma_t",Coll_pData(iPair)%sigma_t 
 ! nein, mit Cab       ! WRITE(*,*) "VSS Wkt", Coll_pData(iPair)%Prob
 ! nein, mit Cab      END IF
+!CALL Abort(&
+!              __STAMP__&
+!              ,'Error! MWConst is not set or equal to zero! Spec-Pair',1)
 
 !         CASE(5,6) !Atom - Electron ! Molecule - Electron
 !           ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair

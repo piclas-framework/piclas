@@ -144,33 +144,28 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
  REAL                        :: iRan, eps, cos_chi, sin_chi
  REAL,DIMENSION(3,3)         :: trafoMatrix
 !===================================================================================================================================
-                                                         ! im Code die alphas hinterlegen #datenbank.
-                                                         ! oder readin
-   CRela=SQRT(CRela2)                                    
-                                                         ! determination of DiceDeflectedVector in independent coordinate system
-   CALL RANDOM_NUMBER(iRan)
-   IF((.NOT.PRESENT(alpha)).OR.(alpha.EQ.1)) THEN        ! VHS
-      cos_chi         = 2.*iRan-1.                       ! isotropic scattering angle chi between [-1,1]
-   ELSEIF (alpha.GT.1) THEN                              ! VSS
-      cos_chi         = 2.*iRan**(1./alpha)-1.           ! deflected (anisotrop) scattering angle chi 
-   ELSE                                                  ! Error
-   END IF
-   sin_chi                  = SQRT(1. - cos_chi**2.)
-   DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
-   CALL RANDOM_NUMBER(iRan)
-   eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
-   DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
-   DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
-
-
-   IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
-                                                         ! In case the impact plane system points into the same direction as the
-                                                         ! original coordinate system the DiceDeflectedVector needs no change.
-   ELSE                                                ! Initializing rotation matrix
-                                                         ! Transformation to original coordinate system via Bird1994 p.36
-                                                         ! Matrix-wise coordinate transformation A*b=(2.22) since it is faster
-
-
+  ! determination of DiceDeflectedVector in independent coordinate system
+  CRela=SQRT(CRela2)                                    
+  CALL RANDOM_NUMBER(iRan)
+  cos_chi                  = 2.*iRan**(1./alpha)-1.     ! deflected (anisotrop) scattering angle chi 
+                                                        ! if alpha=1 VHS isotropic scattering angle chi between [-1,1]
+  sin_chi                  = SQRT(1. - cos_chi**2.)
+  DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
+  CALL RANDOM_NUMBER(iRan)
+  ! to be solved check ob die skalierung mit crela hier doppelt zu unten ist 
+  eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
+  DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
+  DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
+  IF (alpha.GT.1) THEN ! VSS
+    !WRITE(*,*) "DiceDeflected Vector vor Trafo",DiceDeflectedVector
+    !WRITE (*,*) "enters vss case",cos_chi
+    IF ((vr.EQ.0) .AND. (wr.EQ.0)) THEN
+      ! In case the impact plane system points into the same direction as the
+      ! original coordinate system the DiceDeflectedVector needs no change.
+    ELSE   
+      ! Transformation to original coordinate system via Bird1994 p.36
+      ! Matrix-wise coordinate transformation A*b=(2.22) since it is faster
+      ! Initializing rotation matrix
       trafoMatrix(1,1)=ur/CRela
       trafoMatrix(1,2)=0
       trafoMatrix(1,3)=sqrt(vr**2+wr**2)/CRela
@@ -180,9 +175,19 @@ FUNCTION DiceDeflectedVector(CRela2,ur,vr,wr,alpha)
       trafoMatrix(3,1)=wr/CRela
       trafoMatrix(3,2)=-vr/sqrt(vr**2+wr**2)
       trafoMatrix(3,3)=-ur*vr/(ur*sqrt(vr**2+wr**2))
-                                                        ! Transformation and scaling
+      ! Transformation and scaling
       DiceDeflectedVector(:)=MATMUL(trafoMatrix,DiceDeflectedVector)
-   END IF
+    END IF
+    !WRITE(*,*) "DiceDeflected Vector nach trafo",DiceDeflectedVector
+  ELSE ! VHS
+    !cos_chi         = 2.*iRan-1.                           !!WRITE (*,*) "enters vhs case",cos_chi
+    !sin_chi                  = SQRT(1. - cos_chi**2.)
+    !DiceDeflectedVector(1)   = CRela*cos_chi              ! DiceDeflectedVector(x,y,z) order according to Bird 1994, p.36  
+    !CALL RANDOM_NUMBER(iRan)
+    !eps                      = 2.*PI*iRan                 ! azimuthal impact angle epsilon between [0,2*pi]
+    !DiceDeflectedVector(2)   = CRela*sin_chi*cos(eps)
+    !DiceDeflectedVector(3)   = CRela*sin_chi*sin(eps)
+  END IF
 END FUNCTION DiceDeflectedVector
 
 FUNCTION DiceUnitVector()
