@@ -241,12 +241,12 @@ SUBROUTINE ReactiveSurfaceTreatment(PartTrajectory,LengthPartTrajectory,alpha,xi
 USE MOD_Globals                ,ONLY: CROSSNORM,UNITVECTOR
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
-USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION
+USE MOD_Part_Tools             ,ONLY: VELOFROMDISTRIBUTION, CreateParticle
 USE MOD_DSMC_Analyze           ,ONLY: CalcWallSample
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars          ,ONLY: LastPartPos
+USE MOD_Particle_Vars          ,ONLY: LastPartPos, PEM
 USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools,ONLY: PartEnergyToSurface,SurfaceToPartEnergy
@@ -623,6 +623,55 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
 
   CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(5) ! reflect incident particle according to distribution function (variable "velocityDistribution" has to be defined)
+!-----------------------------------------------------------------------------------------------------------------------------------
+  adsindex = 2
+  ! sampling and analyze stuff for heat flux and reaction rates
+#if (PP_TimeDiscMethod==42)
+  SurfModel%Info(ProductSpec(1))%NumOfDes = SurfModel%Info(ProductSpec(1))%NumOfDes + 1
+  SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) &
+     + reactionEnthalpie/BoltzmannConst
+#endif
+  IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+    SampWall(SurfSideID)%SurfModelState(5,p,q) = SampWall(SurfSideID)%SurfModelState(5,p,q) &
+                                           + ReactionEnthalpie * Species(SpecID)%MacroParticleFactor
+  END IF
+  oldVelo(1:3) = PartState(PartID,4:6)
+  CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
+
+  ! sample new velocity
+  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
+  ! important: n_loc points outwards
+  PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+
+  ! intersection point with surface
+  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+  TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
+  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+  ! travel rest of particle vector
+  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+
+  ! recompute trajectory etc
+  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+  ! set new species
+  PartSpecies(PartID) = ProductSpec(2)
+
+  CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
+  CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+
+  ! create new particle and assign correct energies
+  ! sample new velocity
+  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
+  ! important: n_loc points outwards
+  NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+  CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
 !-----------------------------------------------------------------------------------------------------------------------------------
