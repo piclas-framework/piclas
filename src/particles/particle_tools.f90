@@ -275,7 +275,7 @@ END IF
 
 END FUNCTION GetParticleWeight
 
-SUBROUTINE CreateParticle(NewParticleID,Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy)
+SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
@@ -286,16 +286,17 @@ USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , R
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
-INTEGER, INTENT(OUT) :: NewParticleID
-INTEGER, INTENT(IN)  :: Species
-REAL, INTENT(IN)     :: Pos(1:3)
-INTEGER, INTENT(IN)  :: ElemID
-REAL, INTENT(IN)     :: Velocity(1:3)
-REAL, INTENT(IN)     :: RotEnergy
-REAL, INTENT(IN)     :: VibEnergy
-REAL, INTENT(IN)     :: ElecEnergy
+INTEGER, INTENT(IN)           :: Species
+REAL, INTENT(IN)              :: Pos(1:3)
+INTEGER, INTENT(IN)           :: ElemID
+REAL, INTENT(IN)              :: Velocity(1:3)
+REAL, INTENT(IN)              :: RotEnergy
+REAL, INTENT(IN)              :: VibEnergy
+REAL, INTENT(IN)              :: ElecEnergy
+INTEGER, INTENT(OUT),OPTIONAL :: NewPartID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+INTEGER :: newParticleID
 !===================================================================================================================================
 
 newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
@@ -331,6 +332,7 @@ PEM%lastElement(newParticleID) = ElemID
 ! IF (RadialWeighting%DoRadialWeighting) THEN
 !   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(newParticleID,2), 1,newParticleID)
 ! END IF
+IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
 
