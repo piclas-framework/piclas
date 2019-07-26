@@ -29,12 +29,16 @@ INTERFACE VELOFROMDISTRIBUTION
   MODULE PROCEDURE VELOFROMDISTRIBUTION
 END INTERFACE
 
+INTERFACE CreateParticle
+  MODULE PROCEDURE CreateParticle
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight, CreateParticle
 !===================================================================================================================================
 
 CONTAINS
@@ -270,5 +274,64 @@ ELSE
 END IF
 
 END FUNCTION GetParticleWeight
+
+SUBROUTINE CreateParticle(Species,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy)
+!===================================================================================================================================
+!> creates a single particle at correct array position and assign properties
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn     ! , RadialWeighting
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER, INTENT(IN) :: Species
+REAL, INTENT(IN)    :: Pos(1:3)
+INTEGER, INTENT(IN) :: ElemID
+REAL, INTENT(IN)    :: Velocity(1:3)
+REAL, INTENT(IN)    :: RotEnergy
+REAL, INTENT(IN)    :: VibEnergy
+REAL, INTENT(IN)    :: ElecEnergy
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER :: newParticleID
+!===================================================================================================================================
+
+newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+IF (newParticleID .EQ. 0) CALL abort(&
+__STAMP__&
+,'ERROR in CreateParticle: newParticleID.EQ.0 - maximum nbr of particles reached?')
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+
+PartSpecies(newParticleID) = Species
+LastPartPos(newParticleID,1:3)=Pos(1:3)
+PartState(newParticleID,1:3) = Pos(1:3)
+PartState(newParticleID,4:6) = Velocity(1:3)
+
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+  PartStateIntEn(newParticleID, 1) = VibEnergy
+  PartStateIntEn(newParticleID, 2) = RotEnergy
+  IF (DSMC%ElectronicModel) THEN
+    PartStateIntEn(newParticleID, 3) = ElecEnergy
+  ENDIF
+END IF
+
+PDM%ParticleInside(newParticleID) = .TRUE.
+PDM%dtFracPush(newParticleID) = .FALSE.
+PDM%IsNewPart(newParticleID) = .FALSE.   ! ??????? correct ????
+PEM%Element(newParticleID) = ElemID
+PEM%lastElement(newParticleID) = ElemID
+
+! ?????? necessary?
+! IF (VarTimeStep%UseVariableTimeStep) THEN
+!   VarTimeStep%ParticleTimeStep(newParticleID) &
+!     = CalcVarTimeStep(PartState(newParticleID,1),PartState(newParticleID,2),PEM%Element(newParticleID))
+! END IF
+! IF (RadialWeighting%DoRadialWeighting) THEN
+!   PartMPF(newParticleID) = CalcRadWeightMPF(PartState(newParticleID,2), 1,newParticleID)
+! END IF
+
+END SUBROUTINE CreateParticle
 
 END MODULE MOD_part_tools
