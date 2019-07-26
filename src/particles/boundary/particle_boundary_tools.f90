@@ -25,6 +25,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE AddPartInfoToSample
+  MODULE PROCEDURE AddPartInfoToSample
+END INTERFACE
+
 INTERFACE PartEnergyToSurface
   MODULE PROCEDURE PartEnergyToSurface
 END INTERFACE
@@ -53,6 +57,7 @@ INTERFACE TSURUTACONDENSCOEFF
   MODULE PROCEDURE TSURUTACONDENSCOEFF
 END INTERFACE
 
+PUBLIC :: AddPartInfoToSample
 PUBLIC :: PartEnergyToSurface
 PUBLIC :: SurfaceToPartEnergy
 PUBLIC :: LIQUIDEVAP
@@ -63,6 +68,52 @@ PUBLIC :: TSURUTACONDENSCOEFF
 !===================================================================================================================================
 
 CONTAINS
+
+
+SUBROUTINE AddPartInfoToSample(PartID,Transarray,IntArray)
+!===================================================================================================================================
+!> Adds the particle velocities and particle energy to transarray and intarray
+!===================================================================================================================================
+USE MOD_Particle_Vars ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars ,ONLY: PartState, Species, PartSpecies
+USE MOD_DSMC_Vars     ,ONLY: CollisMode, useDSMC
+USE MOD_DSMC_Vars     ,ONLY: PartStateIntEn, DSMC
+USE MOD_TimeDisc_Vars ,ONLY: TEnd, time
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: PartID
+REAL,INTENT(OUT)   :: TransArray(1:6),IntArray(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: oldVelo(1:3)
+REAL    :: VeloReal
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  TransArray(1) = 0. ! EtraOld
+  TransArray(2) = 0. ! EtraWall
+  VeloReal = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))
+  TransArray(3) = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2 ! EtraNew
+  ! must be old_velocity-new_velocity
+  TransArray(4:6) = -PartState(PartID,4:6)
+  ! set internal energies of new particle
+  IF (useDSMC .AND. CollisMode.GT.1) THEN
+    !---- Rotational energy
+    IntArray(1) = 0.0
+    IntArray(2) = 0.0
+    IntArray(3) = PartStateIntEn(PartID,2)
+    !---- Vibrational energy
+    IntArray(4) = 0.0
+    IntArray(5) = 0.0
+    IntArray(6) = PartStateIntEn(PartID,1)
+  ELSE
+    IntArray(1:6)=0.0
+  END IF
+END IF
+END SUBROUTINE AddPartInfoToSample
 
 
 SUBROUTINE PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)

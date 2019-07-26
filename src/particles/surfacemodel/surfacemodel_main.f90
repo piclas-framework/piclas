@@ -250,7 +250,7 @@ USE MOD_Particle_Vars          ,ONLY: LastPartPos, PEM
 USE MOD_Mesh_Vars              ,ONLY: BC,NGeo
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Tools,ONLY: PartEnergyToSurface,SurfaceToPartEnergy
-USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF, AddPartInfoToSample
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh, dXiEQ_SurfSample, Partbound, SampWall
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time, dt, RKdtFrac
 USE MOD_Particle_Surfaces_vars ,ONLY: SideNormVec,SideType,BezierControlPoints3D
@@ -278,6 +278,7 @@ LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 ! LOCAL VARIABLES
 INTEGER                          :: ProductSpec(2)   ! 1: additional species added or removed from surface
                                                      ! 2: product species of incident particle (also used for simple reflection)
+INTEGER                          :: NewPartID
 REAL                             :: RanNum
 REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
@@ -672,9 +673,11 @@ CASE(5) ! reflect incident particle according to distribution function (variable
   NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
   ! important: n_loc points outwards
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.)
+  CALL CreateParticle(NewPartID,ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.)
+  CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
+  CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(6) ! incident particle reflects and changes species at contact, reaction partner removed from surface and emitted
+CASE(6) ! incident particle reflects and changes species at contact, additional particle removed from surface and emitted
 !-----------------------------------------------------------------------------------------------------------------------------------
   adsindex = 2
   ! --------
@@ -756,7 +759,9 @@ CASE(6) ! incident particle reflects and changes species at contact, reaction pa
   NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution,SpecID,WallTemp)
   ! important: n_loc points outwards
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.)
+  CALL CreateParticle(NewPartID,ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.)
+  CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
+  CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
 !-----------------------------------------------------------------------------------------------------------------------------------
