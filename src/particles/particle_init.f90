@@ -1528,6 +1528,11 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
+  IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+         ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
+  END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
   MacroRestartFileUsed(:)=.FALSE.
   ALLOCATE(MacroRestartData_tmp(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles))
