@@ -25,6 +25,8 @@ SAVE
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
+LOGICAL               :: Symmetry2D                                          ! Enables 2D simulation: symmetry in xy-Plane
+LOGICAL               :: Symmetry2DAxisymmetric                              ! Enables axisymmetric simulation around z-axis
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
 !                                                                            ! * Ammosov-Delone-Krainov (ADK) model
@@ -453,6 +455,31 @@ TYPE tCollectCharges
   REAL                                 :: ChargeDist
 END TYPE
 TYPE(tCollectCharges), ALLOCATABLE     :: CollectCharges(:)
+
+TYPE tVariableTimeStep
+  LOGICAL                              :: UseVariableTimeStep
+  LOGICAL                              :: UseLinearScaling
+  LOGICAL                              :: UseDistribution
+  REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
+  REAL, ALLOCATABLE                    :: ElemFac(:)
+  REAL, ALLOCATABLE                    :: ElemWeight(:)
+  REAL                                 :: StartPoint(3)
+  REAL                                 :: EndPoint(3)
+  REAL                                 :: Direction(3)
+  REAL                                 :: ScaleFac
+  LOGICAL                              :: Use2DTimeFunc
+  REAL                                 :: StagnationPoint
+  REAL                                 :: TimeScaleFac2DFront
+  REAL                                 :: TimeScaleFac2DBack
+  REAL                                 :: DistributionMaxTimeFactor
+  REAL                                 :: DistributionMinTimeFactor
+  INTEGER                              :: DistributionMinPartNum
+  LOGICAL                              :: AdaptDistribution
+  REAL                                 :: TargetMCSoverMFP
+  REAL                                 :: TargetMaxCollProb
+END TYPE
+TYPE(tVariableTimeStep)                :: VarTimeStep
+
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

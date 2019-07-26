@@ -151,13 +151,23 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
                                          ,'Only TD=Reservoir (42). ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
-                                         ,'Use octree method for dynamic grid resolution', '.FALSE.')
+                                         ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
+                                          'and the particle number', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
                                          ,'Resolve grid until the maximum number of particles in a subcell equals'//&
-                                          ' OctreePartNumNode.', '80')
+                                          ' OctreePartNumNode')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
-                                          'OctreePartNumNodeMin.', '50')
+                                          'OctreePartNumNodeMin')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
+                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
+                                          'cell refinement','.TRUE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
+                                         ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
+                                          'same particle pairs in order to reduce the statistical dependence')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
+                                         ,'2D/Axisymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
+                                          'the minimum particle per subcell requirement', '.FALSE.')
 
 
 CALL prms%SetSection("DSMC Species")
@@ -344,7 +354,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
@@ -365,7 +375,7 @@ IMPLICIT NONE
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: BGGasEVib
-  INTEGER               :: currentBC, ElemID, iSide, BCSideID
+  INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
 #ifdef CODE_ANALYZE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
@@ -390,6 +400,19 @@ IMPLICIT NONE
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(SelectionProc.NE.1) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
+,IntInfoOpt=SelectionProc)
+    END IF
+  END IF
+
+  DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
+  IF(DSMC%MergeSubcells.AND.(.NOT.Symmetry2D)) THEN
+    CALL abort(__STAMP__&
+,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
+  END IF
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
@@ -419,6 +442,12 @@ __STAMP__&
   DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel          = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(DSMC%DoTEVRRelaxation) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    END IF
+  END IF
   LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -450,10 +479,16 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    ALLOCATE(DSMC%QualityFacSamp(nElems,4))
-    DSMC%QualityFacSamp(1:nElems,1:4) = 0.0
-    ALLOCATE(DSMC%QualityFactors(nElems,3))
-    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+    ! 1: Maximal collision probability per cell/subcells (octree)
+    ! 2: Mean collision probability within cell
+    ! 3: Mean collision separation distance over mean free path
+    ! 4: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
+    VarNum = 4
+    ! VarNum + 1: Number of cloned particles per cell
+    ! VarNum + 2: Number of identical particles (no relative velocity)
+    IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
+    ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
+    DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
   END IF
 
 ! definition of DSMC particle values
@@ -521,8 +556,9 @@ __STAMP__&
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
-  CollInf%Coll_SpecPartNum = 0
-
+  CollInf%Coll_SpecPartNum = 0.
+  ALLOCATE(CollInf%MeanMPF(nCase))
+  CollInf%MeanMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -1083,16 +1119,32 @@ __STAMP__&
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
+  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
+  IF(DSMC%UseOctree) THEN
+    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
+    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Statistical Pairing with Octree not yet supported in 3D!')
+    END IF
+  END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
+  ELSE
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
-  ! 50 / 8 -> ca. 6-7 particles per cell
-  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+  ELSE
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  END IF
   IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
     CALL abort(&
     __STAMP__&
-    ,'Particles-OctreePartNumNodeMin is less than 20')
+    ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
@@ -1100,6 +1152,20 @@ __STAMP__&
 ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
+  IF(Symmetry2D) THEN
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
+    IF (CollInf%ProhibitDoubleColl) THEN
+      IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+      CollInf%OldCollPartner = 0
+    END IF
+  ELSE
+    IF (CollInf%ProhibitDoubleColl) THEN
+      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
+      CALL abort(__STAMP__,&
+                'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
+    END IF
+  END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1496,7 +1562,6 @@ SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
-  SDEALLOCATE(DSMC%QualityFactors)
 END IF
 SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
@@ -1539,6 +1604,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
@@ -1547,6 +1613,9 @@ SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(ElemNodeVol)
 SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(ClonedParticles)
+SDEALLOCATE(SymmetrySide)
 END SUBROUTINE FinalizeDSMC
 
 

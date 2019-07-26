@@ -822,6 +822,7 @@ REAL                          :: UQDSt_temp(1:QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:nQD
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
+INTEGER                       :: iPart
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -829,7 +830,6 @@ REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-INTEGER                       :: iPart
 !===================================================================================================================================
 
 ! RK coefficients
@@ -1377,8 +1377,8 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues &
-                               , WriteMacroSurfaceValues
+USE MOD_Particle_Vars,    ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, &
+                                WriteMacroSurfaceValues, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1401,9 +1401,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: timeEnd, timeStart
+REAL                  :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
 INTEGER :: iPart
-REAL    :: RandVal, dtFrac
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -1421,44 +1420,61 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
     CALL ParticleSurfaceflux()
+  END IF
 
 #if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        IF (.NOT.PDM%dtFracPush(iPart)) THEN
-          LastPartPos(iPart,1)=PartState(iPart,1)
-          LastPartPos(iPart,2)=PartState(iPart,2)
-          LastPartPos(iPart,3)=PartState(iPart,3)
-          PEM%lastElement(iPart)=PEM%Element(iPart)
-          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
-          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
-          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-        ELSE !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
-          CALL RANDOM_NUMBER(RandVal)
-          dtFrac = dt * RandVal
-          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
-          PDM%dtFracPush(iPart) = .FALSE.
-        END IF
+  DO iPart=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(iPart)) THEN
+    ! Variable time step: getting the right time step for the particle (can be constant across an element)
+    IF (VarTimeStep%UseVariableTimeStep) THEN
+      dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+    ELSE
+      dtVar = dt
+    END IF
+    IF (PDM%dtFracPush(iPart)) THEN
+      ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
+      !                            LastPartPos and LastElem already set!
+      CALL RANDOM_NUMBER(RandVal)
+      dtVar = dtVar * RandVal
+      PDM%dtFracPush(iPart) = .FALSE.
+    ELSE
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
+    END IF
+    PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
+    PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtVar
+    PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtVar
+    ! Axisymmetric treatment of particles: rotation of the position and velocity vector
+    IF(Symmetry2DAxisymmetric) THEN
+      IF (PartState(iPart,2).LT.0.0) THEN
+        NewYPart = -SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+      ELSE
+        NewYPart = SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
       END IF
-    END DO
+      ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+      !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+      ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+      ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+      NewYVelo = (PartState(iPart,5)*(PartState(iPart,2))+PartState(iPart,6)*PartState(iPart,3))/NewYPart
+      PartState(iPart,6) = (-PartState(iPart,5)*PartState(iPart,3)+PartState(iPart,6)*(PartState(iPart,2)))/NewYPart
+      PartState(iPart,2) = NewYPart
+      PartState(iPart,3) = 0.0
+      PartState(iPart,5) = NewYVelo
+      END IF
+    END IF
+  END DO
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PUSH,tLBStart)
+  CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  ELSE
-    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
-    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
-    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PUSH,tLBStart)
-#endif /*USE_LOADBALANCE*/
+
+  ! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+  IF(Symmetry2D) THEN
+    LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+    PartState(1:PDM%ParticleVecLength,3) = 0.0
   END IF
 
 #ifdef MPI
@@ -4238,9 +4254,9 @@ SUBROUTINE TimeStep_FPFlow()
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars             ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Filter                    ,ONLY: Filter
-#ifdef PARTICLES
 USE MOD_Globals                   ,ONLY: abort
-USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, LiquidSimFlag
+USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
 USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
 USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
@@ -4249,11 +4265,10 @@ USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,Par
 #ifdef MPI
 USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
-USE MOD_FPFlow,                   ONLY: FPFlow_main, FP_DSMC_main
-USE MOD_FPFlow_Vars,              ONLY: CoupledFPDSMC
-USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars,   ONLY: nPorousBC
-#endif /*PARTICLES*/
+USE MOD_FPFlow                    ,ONLY: FPFlow_main, FP_DSMC_main
+USE MOD_FPFlow_Vars               ,ONLY: CoupledFPDSMC
+USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4262,39 +4277,59 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtFrac
+REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
-  ! Calculate desobing particles for Surfaceflux
   CALL ParticleSurfaceflux()
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      IF (.NOT.PDM%dtFracPush(iPart)) THEN
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-      ELSE
-        CALL RANDOM_NUMBER(RandVal)
-        dtFrac = dt * RandVal
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
-        PDM%dtFracPush(iPart) = .FALSE.
-      END IF
+END IF
+
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+  ! Variable time step: getting the right time step for the particle (can be constant across an element)
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    dtVar = dt
+  END IF
+  IF (PDM%dtFracPush(iPart)) THEN
+    ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
+    !                            LastPartPos and LastElem already set!
+    CALL RANDOM_NUMBER(RandVal)
+    dtVar = dtVar * RandVal
+    PDM%dtFracPush(iPart) = .FALSE.
+  ELSE
+    LastPartPos(iPart,1)=PartState(iPart,1)
+    LastPartPos(iPart,2)=PartState(iPart,2)
+    LastPartPos(iPart,3)=PartState(iPart,3)
+    PEM%lastElement(iPart)=PEM%Element(iPart)
+  END IF
+  PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
+  PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtVar
+  PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtVar
+  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
+  IF(Symmetry2DAxisymmetric) THEN
+    IF (PartState(iPart,2).LT.0.0) THEN
+      NewYPart = -SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+    ELSE
+      NewYPart = SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
     END IF
-  END DO
-ELSE
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
-  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
-  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    NewYVelo = (PartState(iPart,5)*(PartState(iPart,2))+PartState(iPart,6)*PartState(iPart,3))/NewYPart
+    PartState(iPart,6) = (-PartState(iPart,5)*PartState(iPart,3)+PartState(iPart,6)*(PartState(iPart,2)))/NewYPart
+    PartState(iPart,2) = NewYPart
+    PartState(iPart,3) = 0.0
+    PartState(iPart,5) = NewYVelo
+    END IF
+  END IF
+END DO
+
+! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+IF(Symmetry2D) THEN
+  LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+  PartState(1:PDM%ParticleVecLength,3) = 0.0
 END IF
 
 #ifdef MPI
@@ -4365,24 +4400,23 @@ SUBROUTINE TimeStep_BGK()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Filter                 ,ONLY: Filter
-#ifdef PARTICLES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, LiquidSimFlag
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-USE MOD_part_emission          ,ONLY: ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
-USE MOD_Particle_Tracking      ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
+USE MOD_TimeDisc_Vars             ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
+USE MOD_Filter                    ,ONLY: Filter
+USE MOD_Globals                   ,ONLY: abort
+USE MOD_Particle_Vars             ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars             ,ONLY: VarTimeStep, Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_DSMC_Vars                 ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_part_tools                ,ONLY: UpdateNextFreePosition
+USE MOD_part_emission             ,ONLY: ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars    ,ONLY: tTracking,DoRefMapping,MeasureTrackTime,TriaTracking
+USE MOD_Particle_Tracking         ,ONLY: ParticleTracing,ParticleRefTracking,ParticleTriaTracking
 #ifdef MPI
-USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI              ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
-USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
-USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC
-USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
-#endif /*PARTICLES*/
+USE MOD_BGK                       ,ONLY: BGK_main, BGK_DSMC_main
+USE MOD_BGK_Vars                  ,ONLY: CoupledBGKDSMC
+USE MOD_Particle_Boundary_Porous  ,ONLY: PorousBoundaryRemovalProb_Pressure
+USE MOD_Particle_Boundary_Vars    ,ONLY: nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4391,39 +4425,59 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtFrac
+REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
-  ! Calculate desobing particles for Surfaceflux
   CALL ParticleSurfaceflux()
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      IF (.NOT.PDM%dtFracPush(iPart)) THEN
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-      ELSE
-        CALL RANDOM_NUMBER(RandVal)
-        dtFrac = dt * RandVal
-        PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
-        PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
-        PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
-        PDM%dtFracPush(iPart) = .FALSE.
-      END IF
+END IF
+
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+  ! Variable time step: getting the right time step for the particle (can be constant across an element)
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    dtVar = dt
+  END IF
+  IF (PDM%dtFracPush(iPart)) THEN
+    ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
+    !                            LastPartPos and LastElem already set!
+    CALL RANDOM_NUMBER(RandVal)
+    dtVar = dtVar * RandVal
+    PDM%dtFracPush(iPart) = .FALSE.
+  ELSE
+    LastPartPos(iPart,1)=PartState(iPart,1)
+    LastPartPos(iPart,2)=PartState(iPart,2)
+    LastPartPos(iPart,3)=PartState(iPart,3)
+    PEM%lastElement(iPart)=PEM%Element(iPart)
+  END IF
+  PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtVar
+  PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtVar
+  PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtVar
+  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
+  IF(Symmetry2DAxisymmetric) THEN
+    IF (PartState(iPart,2).LT.0.0) THEN
+      NewYPart = -SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
+    ELSE
+      NewYPart = SQRT(PartState(iPart,2)**2 + (PartState(iPart,3))**2)
     END IF
-  END DO
-ELSE
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
-  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
-  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    NewYVelo = (PartState(iPart,5)*(PartState(iPart,2))+PartState(iPart,6)*PartState(iPart,3))/NewYPart
+    PartState(iPart,6) = (-PartState(iPart,5)*PartState(iPart,3)+PartState(iPart,6)*(PartState(iPart,2)))/NewYPart
+    PartState(iPart,2) = NewYPart
+    PartState(iPart,3) = 0.0
+    PartState(iPart,5) = NewYVelo
+    END IF
+  END IF
+END DO
+
+! Resetting the particle positions in the third dimension for the 2D/axisymmetric case
+IF(Symmetry2D) THEN
+  LastPartPos(1:PDM%ParticleVecLength,3) = 0.0
+  PartState(1:PDM%ParticleVecLength,3) = 0.0
 END IF
 
 #ifdef MPI

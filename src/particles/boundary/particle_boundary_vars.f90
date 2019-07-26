@@ -136,7 +136,7 @@ TYPE tPorousBC
   REAL                                  :: rmin                   ! min radius of to-be inserted particles
   INTEGER                               :: SideNumber             ! Number of BC sides for the BC
   INTEGER, ALLOCATABLE                  :: SideList(:)            ! Mapping from porous BC side list to the BC side list
-  INTEGER, ALLOCATABLE                  :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
+  REAL, ALLOCATABLE                     :: Sample(:,:)            ! Allocated with SideNumber and nPorousBCVars
   INTEGER, ALLOCATABLE                  :: RegionSideType(:)      ! 0: side is completely inside porous region
                                                                   ! 1: side is completely outside porous region
                                                                   ! 2: side is partially inside porous region

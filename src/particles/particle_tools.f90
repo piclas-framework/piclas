@@ -17,7 +17,6 @@ MODULE MOD_part_tools
 ! Contains tools for particles
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars, ONLY : useDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -35,7 +34,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION
+PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VELOFROMDISTRIBUTION, GetParticleWeight
 !===================================================================================================================================
 
 CONTAINS
@@ -46,8 +45,10 @@ SUBROUTINE UpdateNextFreePosition()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Particle_Vars, ONLY : PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
-  USE MOD_Particle_Vars, ONLY : KeepWallParticles
+  USE MOD_Particle_Vars,          ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
+  USE MOD_Particle_Vars,          ONLY: KeepWallParticles, PartState, VarTimeStep
+  USE MOD_DSMC_Vars,              ONLY: useDSMC, CollInf
+  USE MOD_Particle_VarTimeStep,   ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -58,7 +59,6 @@ SUBROUTINE UpdateNextFreePosition()
 ! LOCAL VARIABLES
   INTEGER                          :: counter1,i,n
 !===================================================================================================================================
-
   IF(PDM%maxParticleNumber.EQ.0) RETURN
   counter1 = 1
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
@@ -72,6 +72,7 @@ SUBROUTINE UpdateNextFreePosition()
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
    DO i=1,n
      IF (.NOT.PDM%ParticleInside(i)) THEN
+       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
        PDM%nextFreePosition(counter1) = i
        counter1 = counter1 + 1
      ELSE
@@ -83,6 +84,9 @@ SUBROUTINE UpdateNextFreePosition()
        PEM%pEnd(PEM%Element(i)) = i
        PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
        PEM%pNumber(PEM%Element(i)) + 1
+       IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(i,1),PartState(i,2),PEM%Element(i))
+       END IF
        IF (KeepWallParticles) THEN
          IF (PDM%ParticleAtWall(i)) THEN
            PEM%wNumber(PEM%Element(i)) = PEM%wNumber(PEM%Element(i)) + 1
@@ -105,6 +109,7 @@ SUBROUTINE UpdateNextFreePosition()
   PDM%insideParticleNumber = PDM%ParticleVecLength - counter1+1
   PDM%CurrentNextFreePosition = 0
   DO i = n+1,PDM%maxParticleNumber
+   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
    PDM%nextFreePosition(counter1) = i
    counter1 = counter1 + 1
   END DO
@@ -173,7 +178,6 @@ REAL            :: sigma, val(1:2)
 REAL            :: Velo1, Velo2, Velosq
 REAL            :: RandVal(2)
 !===================================================================================================================================
-
 !-- set velocities
 SELECT CASE(TRIM(distribution))
 CASE('liquid_evap','liquid_refl')
@@ -235,5 +239,36 @@ __STAMP__&
 END SELECT
 
 END FUNCTION VELOFROMDISTRIBUTION
+
+
+PURE REAL FUNCTION GetParticleWeight(iPart)
+!===================================================================================================================================
+!> Determines the appropriate particle weighting for the axisymmetric case with radial weighting and the variable time step. For
+!> radial weighting, the radial factor is multiplied by the regular weighting factor. If only a variable time step is used, at the
+!> moment, the regular weighting factor is not included.
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Particle_Vars           ,ONLY: usevMPF, VarTimeStep, PartMPF
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iPart
+!===================================================================================================================================
+
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    GetParticleWeight = PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart)
+  ELSE
+    GetParticleWeight = PartMPF(iPart)
+  END IF
+ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+  GetParticleWeight = VarTimeStep%ParticleTimeStep(iPart)
+ELSE
+  GetParticleWeight = 1.
+END IF
+
+END FUNCTION GetParticleWeight
 
 END MODULE MOD_part_tools

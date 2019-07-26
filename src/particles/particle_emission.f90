@@ -65,7 +65,7 @@ END INTERFACE
 
 PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF &
-                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn
+                , AdaptiveBCAnalyze, CalcVelocity_maxwell_lpn, MacroRestart_InsertParticles
 !===================================================================================================================================
 PUBLIC::DefineParametersParticleEmission
 CONTAINS
@@ -180,10 +180,11 @@ USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars      ,ONLY: DoRestart
-USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset
+USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
+USE MOD_Particle_Mesh_Vars,ONLY: GEO
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars         ,ONLY: useDSMC, DSMC
+USE MOD_DSMC_Vars         ,ONLY: useDSMC, DSMC, RadialWeighting
 USE MOD_part_pressure     ,ONLY: ParticleInsideCheck
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
@@ -223,12 +224,22 @@ IF (.NOT.EmType6) DSMC%OutputMeshSamp=.false.
 !    Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * Time)
 !  END DO
 !ELSE
-! Do insanity check of max. particle number compared to the number that is to be inserted for certain insertion types
+! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
 insertParticles = 0
 DO i=1,nSpecies
   IF (DoRestart .AND. .NOT.SpecReset(i)) CYCLE
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
+      IF(Symmetry2D) THEN
+        ! The correct 2D/axisymmetric LocalVolume could only be calculated after the symmetry axis was defined (through the boundary
+        ! conditions). However, the initialParticleNumber was already determined before the 2D volume calculation was performed.
+        ! This can lead to initialParticleNumbers of 0, thus skipping the insertion entirely.
+        Species(i)%Init(iInit)%initialParticleNumber &
+                  = NINT(Species(i)%Init(iInit)%PartDensity / Species(i)%MacroParticleFactor * GEO%LocalVolume)
+        ! The radial scaling of the weighting factor has to be considered
+        IF(RadialWeighting%DoRadialWeighting) Species(i)%Init(iInit)%initialParticleNumber = &
+                                    INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+      END IF
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
 #ifdef MPI
         insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
@@ -249,13 +260,8 @@ DO i=1,nSpecies
   END DO
 END DO
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-#ifdef MPI
-  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' Maximum particle number : ',PDM%maxParticleNumber
-  WRITE(UNIT_stdOut,'(I0,A40,I0)')PartMPI%MyRank,' To be inserted particles: ',insertParticles
-#else
-  WRITE(UNIT_stdOut,'(A40,I0)')' Maximum particle number : ',PDM%maxParticleNumber
-  WRITE(UNIT_stdOut,'(A40,I0)')' To be inserted particles: ',insertParticles
-#endif
+  IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
+  IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
   CALL abort(&
 __STAMP__&
 ,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
@@ -283,7 +289,7 @@ __STAMP__&
         CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
       END IF
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+        IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
       IF (useDSMC) THEN
         IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
           NbrOfParticle = PDM%maxParticleNumber
@@ -316,7 +322,7 @@ __STAMP__&
       CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
       IF (useDSMC) THEN
         IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
           NbrOfParticle = PDM%maxParticleNumber
@@ -350,7 +356,7 @@ __STAMP__&
 #endif
           CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
           CALL SetParticleChargeAndMass(i,NbrOfParticle)
-          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+            IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
           !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
           PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
           CALL UpdateNextFreePosition()
@@ -399,7 +405,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, RadialWeighting
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
@@ -577,7 +583,7 @@ __STAMP__&
 #endif
        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
-       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+       IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
        ! define molecule stuff
        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
          iPart = 1
@@ -627,7 +633,7 @@ __STAMP__&
         CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
       END IF
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+      IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(i,NbrOfParticle)
       ! define molecule stuff
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         iPart = 1
@@ -705,6 +711,7 @@ END DO
 
 END SUBROUTINE ParticleInserting
 
+
 #ifdef MPI
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle,mode)
 #else
@@ -722,7 +729,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,OutputVpiWarnings, Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: PI, TwoepsMach
 USE MOD_Timedisc_Vars          ,ONLY: dt
@@ -739,6 +746,10 @@ USE MOD_LD                     ,ONLY: LD_SetParticlePosition
 USE MOD_Timedisc_Vars          ,ONLY: DoDisplayIter, iter, IterDisplayStep
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
+! USE MOD_Particle_Vars           ,ONLY: PEM, VarTimeStep, PartMPF
+! USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+! USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+! USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'
@@ -808,7 +819,14 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   ! nbrOfParticles is set for initial inserting if initialPartNum or partdensity is set in ini
   ! ParticleEmission and Partdensity not working together
   IF (NbrofParticle.EQ.0.AND.(Species(FractNbr)%Init(iInit)%ParticleEmission.EQ.0)) RETURN
-  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) DoExactPartNumInsert = .TRUE.
+  IF ((NbrofParticle.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.LE.0.)) THEN
+    DoExactPartNumInsert = .TRUE.
+    IF(Symmetry2DAxisymmetric) THEN
+      CALL abort(&
+__STAMP__&
+,'Axisymmetric: Particle insertion only possible with PartDensity!')
+    END IF
+  END IF
   !IF ((Species(FractNbr)%Init(iInit)%ParticleEmission.GT.0).AND.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) CALL abort(&
 !__STAMP__&
 !,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
@@ -2109,6 +2127,13 @@ __STAMP__,&
        END IF
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
+          ! IF (VarTimeStep%UseVariableTimeStep) THEN
+          !   VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+          !     CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
+          ! END IF
+          ! IF(RadialWeighting%DoRadialWeighting) THEN
+          !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),FractNbr,ParticleIndexNbr)
+          ! END IF
 #ifdef MPI
           IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
@@ -3349,6 +3374,148 @@ END IF
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
 
 
+REAL FUNCTION CalcERot_particle(iSpec,TempRot)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iSpec
+REAL, INTENT(IN)          :: TempRot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                      :: PartStateTempVar, NormProb, iRan2
+!===================================================================================================================================
+
+IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  CalcERot_particle = -BoltzmannConst*TempRot*LOG(iRan2)
+ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  PartStateTempVar = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+  NormProb = SQRT(PartStateTempVar)*EXP(-PartStateTempVar)/(SQRT(0.5)*EXP(-0.5))
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE (iRan2.GE.NormProb)
+    CALL RANDOM_NUMBER(iRan2)
+    PartStateTempVar = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+    NormProb = SQRT(PartStateTempVar)*EXP(-PartStateTempVar)/(SQRT(0.5)*EXP(-0.5))
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+  CalcERot_particle = PartStateTempVar*BoltzmannConst*TempRot
+END IF
+
+RETURN
+
+END FUNCTION CalcERot_particle
+
+
+REAL FUNCTION CalcEVib_particle(iSpec,iPart,TempVib)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iSpec, iPart
+REAL, INTENT(IN)          :: TempVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                      :: iRan
+INTEGER                   :: iQuant, iDOF, iPolyatMole
+!===================================================================================================================================
+
+IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  ! set vibrational energy
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  CalcEVib_particle = 0.0
+  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(-LOG(iRan)*TempVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+    DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*TempVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+    END DO
+    CalcEVib_particle = CalcEVib_particle &
+                                + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+    VibQuantsPar(iPart)%Quants(iDOF)=iQuant
+  END DO
+ELSE
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+  DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+  END DO
+  CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+END IF
+
+RETURN
+
+END FUNCTION CalcEVib_particle
+
+
+REAL FUNCTION CalcEElec_particle(iSpec,TempElec)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iSpec
+REAL, INTENT(IN)          :: TempElec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iQua
+REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp
+!===================================================================================================================================
+
+ElectronicPartition  = 0.
+ElectronicPartitionTemp = 0.
+IF(TempElec.GT.0.0) THEN
+  ! calculate sum over all energy levels == partition function for temperature Telec
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+      ElectronicPartition = ElectronicPartitionTemp
+    END IF
+  END DO
+  ElectronicPartitionTemp = 0.
+  ! select level
+  CALL RANDOM_NUMBER(iRan)
+  DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
+    CALL RANDOM_NUMBER(iRan)
+    iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+ELSE
+  iQua = 0
+END IF
+CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+
+RETURN
+
+END FUNCTION CalcEElec_particle
+
+
 SUBROUTINE CalcVelocity_taylorgreenvortex(FractNbr, Vec3D, iInit, Element)
 !===================================================================================================================================
 ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
@@ -3359,10 +3526,6 @@ USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars      ,ONLY: Species
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
 INTEGER,INTENT(IN)               :: FractNbr
 INTEGER,INTENT(IN), OPTIONAL     :: iInit
 INTEGER                          :: Element
@@ -3425,6 +3588,37 @@ Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*T/Species(FractNbr)%MassIC*LOG(Velosq)/V
 Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_taylorgreenvortex
+
+
+FUNCTION CalcVelocity_maxwell_particle(iSpec,Temp)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species
+USE Ziggurat,                   ONLY : rnor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec
+REAL, INTENT(IN)                :: Temp(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                            :: CalcVelocity_maxwell_particle(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcVelocity_maxwell_particle(1:3) = 0.0
+
+IF(Temp(1).GT.0.0) CalcVelocity_maxwell_particle(1) = rnor()*SQRT(BoltzmannConst*Temp(1)/Species(iSpec)%MassIC)
+IF(Temp(2).GT.0.0) CalcVelocity_maxwell_particle(2) = rnor()*SQRT(BoltzmannConst*Temp(2)/Species(iSpec)%MassIC)
+IF(Temp(3).GT.0.0) CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst*Temp(3)/Species(iSpec)%MassIC)
+
+END FUNCTION CalcVelocity_maxwell_particle
 
 
 SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit, Element, Temperature)
@@ -3715,7 +3909,7 @@ USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound, nAdaptiveBC, nPorousBC
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, nDataBC_CollectCharges, DoTimeDepInflow, &
-                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac
+                                     Adaptive_MacroVal, MacroRestartData_tmp, AdaptiveWeightFac, VarTimeStep
 USE MOD_PARTICLE_Vars,         ONLY: nMacroRestartFiles, UseAdaptive, UseCircularInflow
 USE MOD_Particle_Vars,         ONLY: DoForceFreeSurfaceFlux
 USE MOD_DSMC_Vars,             ONLY: useDSMC, BGGas
@@ -3723,11 +3917,15 @@ USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo, nElems, off
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars,ONLY: SurfFluxSideSize, TriaSurfaceFlux, WriteTriaSurfaceFluxDebugMesh, SideType
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas, GetSideBoundingBox, CalcNormAndTangTriangle
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide !,GEO
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide, GEO
 USE MOD_Particle_Tracking_Vars, ONLY:TriaTracking, DoRefMapping
 USE MOD_IO_HDF5
 USE MOD_HDF5_INPUT             ,ONLY: DatasetExists,ReadAttribute,ReadArray,GetDataSize
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartFile
+USE MOD_Particle_Vars           ,ONLY: Symmetry2D, Symmetry2DAxisymmetric
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D         ,ONLY: DSMC_2D_CalcSymmetryArea
+USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3780,6 +3978,7 @@ INTEGER               :: iProc
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalAreaSF_global
 #endif
+REAL                  :: ymin, ymax, VFR_total
 !===================================================================================================================================
 
 #ifdef MPI
@@ -4099,6 +4298,10 @@ __STAMP__&
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with DoRefMapping!')
       END IF
+      IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+        CALL abort(__STAMP__&
+            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
+      END IF
       ! Total area of surface flux
       IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Pi*(Species(iSpec)%Surfaceflux(iSF)%rmax &
@@ -4202,6 +4405,9 @@ DO iBC=1,nDataBC
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(1:TmpSideNumber(iBC)))
   END IF
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
+  END IF
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs+nAdaptiveBC
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
@@ -4226,7 +4432,34 @@ DO iBC=1,nDataBC
         iLocSide = SideToElem(3,BCSideID)
       END IF
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-
+      !----- symmetry specific area calculation start
+      IF(Symmetry2D) THEN
+        IF(Symmetry2DAxisymmetric) THEN
+          ! Calculate the correct area for the axisymmetric (ring area) and 2D (length) and get ymin and ymax for element
+          SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID, ymin, ymax)
+          SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
+          ! Determination of the mean radial weighting factor for calculation of the number of particles to be inserted
+          IF (RadialWeighting%DoRadialWeighting) THEN
+            IF((ymax - ymin).GT.0.0) THEN
+              ! Surfaces that are NOT parallel to the YZ-plane
+              IF(RadialWeighting%CellLocalWeighting) THEN
+                ! Cell local weighting
+                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + GEO%ElemMidPoint(2,ElemID)&
+                                                                        / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
+              ELSE
+                BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.          &
+                  + (ymax**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
+                  -  ymin**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(ymax - ymin)
+              END IF
+            ELSE ! surfaces parallel to the x-axis (ymax = ymin)
+              BCdata_auxSF(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
+            END IF
+          END IF
+        ELSE
+          SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,ElemID) / 2.
+        END IF
+      END IF
+      !----- symmetry specific area calculation end
       IF (.NOT.TriaTracking) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
         IF (SideType(SideID).NE.PLANAR_RECT .AND. SideType(SideID).NE.PLANAR_NONRECT) CALL abort(&
 __STAMP__&
@@ -4518,6 +4751,7 @@ __STAMP__&
                 nVFR = 0.
               END IF
             END IF
+            IF(RadialWeighting%DoRadialWeighting) nVFR = nVFR / BCdata_auxSF(currentBC)%WeightingFactor(iSide)
             Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
             !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
             Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
@@ -4704,6 +4938,24 @@ IF (WriteTriaSurfaceFluxDebugMesh) THEN
   CLOSE(103)
 END IF !TriaSurfaceFlux
 
+! Setting variables required after a restart
+IF(DoRestart) THEN
+  DO iSpec=1,nSpecies
+    DO iSF = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+      Species(iSpec)%Init(iSF)%InsertedParticle = INT(Species(iSpec)%Init(iSF)%ParticleEmission * RestartTime,8)
+    END DO
+    DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+      IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
+        VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal !proc global total (for non-root: dummy!!!)
+      ELSE
+        VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
+      END IF
+      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
+        / Species(iSpec)%MacroParticleFactor * VFR_total,8)
+    END DO
+  END DO
+END IF
+
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
 #endif  /*MPI*/
@@ -4737,11 +4989,13 @@ USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_SurfaceModel_Vars      ,ONLY : SurfModel
 USE MOD_DSMC_Analyze           ,ONLY : CalcWallSample
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_Symmetry2D,        ONLY : CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep,   ONLY : CalcVarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY : SurfMesh, PartBound, nAdaptiveBC, nSurfSample
 USE MOD_TimeDisc_Vars          ,ONLY : TEnd, time
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
@@ -4752,10 +5006,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-#endif /*CODE_ANALYZE*/
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide, GEO
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, SurfMeshSubSideData!, SideType
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
@@ -4796,7 +5047,8 @@ INTEGER                     :: NbrOfParticle, ExtraParts
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSF, PartInsSubSide, iPart, iPartTotal, IntSample
 INTEGER                     :: ParticleIndexNbr, allocStat
 REAL                        :: PartIns,VFR_total
-REAL                        :: Particle_pos(3), RandVal1, RandVal2(2), xNod,yNod,zNod
+REAL                        :: Particle_pos(3), RandVal1, RandVal2(2), xNod,yNod,zNod, Vector2D(2), RVec(2), minPos(2)
+INTEGER                     :: minVec
 REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
 INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
@@ -4904,8 +5156,6 @@ DO iSpec=1,nSpecies
         CALL MPI_SCATTER(PartInsProc(0:nProcessors-1),1,MPI_INTEGER,PartInsSF,1,MPI_INTEGER,0,PartMPI%COMM,IERROR)
       END IF !ReduceNoise
 #endif  /*MPI*/
-!IPWRITE(*,*) 'B: ',iSpec,iSF,PartInsSF !!!!!!!!!!
-
       !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
       SDEALLOCATE(PartInsSubSides)
       ALLOCATE(PartInsSubSides(SurfFluxSideSize(1),SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber))
@@ -4987,12 +5237,10 @@ __STAMP__&
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
-        IF (noAdaptive) THEN
+        IF (noAdaptive.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
           IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
             IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
               PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
-  !IPWRITE(*,*) PartInsSubSide
-  !read*
             ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
               PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
                       * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
@@ -5102,7 +5350,7 @@ __STAMP__&
               PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
             END IF
           END IF ! Adaptive SurfaceFlux
-        ELSE !Adaptive
+        ELSE IF(.NOT.noAdaptive) THEN !Adaptive
           SELECT CASE(PartBound%AdaptiveType(currentBC))
           CASE(1) ! Pressure inlet (pressure, temperature const)
             ElemPartDensity = Species(iSpec)%Surfaceflux(iSF)%PartDensity
@@ -5153,7 +5401,38 @@ __STAMP__&
 
           CALL RANDOM_NUMBER(RandVal1)
           PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * nVFR+RandVal1)
+        ELSE IF(RadialWeighting%DoRadialWeighting) THEN
+          CALL RANDOM_NUMBER(RandVal1)
+          PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+            * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
+        END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
+        ! REQUIRED LATER FOR THE POSITION START
+        IF(Symmetry2DAxisymmetric) THEN
+          !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
+          Node1 = 2     ! normal = cross product of 1-2 and 1-3 for first triangle
+          Node2 = 4     !          and 1-3 and 1-4 for second triangle
+          Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - xNod
+          Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - yNod
+          Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - zNod
+          Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - xNod
+          Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - yNod
+          Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
+          IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
+            Vector2D(1:2) = Vector2(1:2)
+          ELSE
+            Vector2D(1:2) = Vector1(1:2)
+          END IF
+          minVec = MINLOC((/ynod, ynod+Vector2D(2)/),1)
+          SELECT CASE(minVec)
+          CASE(1)
+            minPos(1:2) = (/xnod, ynod/)
+            RVec(1:2) =  Vector2D(1:2)
+          CASE(2)
+            minPos(1:2) = (/xnod,ynod/) + Vector2D(1:2)
+            RVec(1:2) = - Vector2D(1:2)
+          END SELECT
         END IF
+        ! REQUIRED LATER FOR THE POSITION END
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
           CALL abort(&
@@ -5184,21 +5463,40 @@ __STAMP__&
         allowedRejections=0
         DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
           IF (TriaSurfaceFlux) THEN
-            CALL RANDOM_NUMBER(RandVal2)
-            IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
-              RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2) !shift randVal off from 0 and 1
-              DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
-                CALL RANDOM_NUMBER(RandVal2)
-                RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2)
-              END DO
-            END IF
-            Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1)
-            Particle_pos =       Particle_pos + Vector2 * RandVal2(2)
-            PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
-                         + ndist(2)*(Particle_pos(2)-midpoint(2)) &
-                         + ndist(3)*(Particle_pos(3)-midpoint(3))
-            IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
-              Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
+            IF(Symmetry2DAxisymmetric) THEN
+              CALL RANDOM_NUMBER(RandVal1)
+              IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+                Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
+                ! x-position depending on the y-location
+                Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+              ELSE
+                IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+                  ! y_min = y_max, faces parallel to x-direction, constant distribution
+                  Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
+                ELSE
+                ! No RadialWeighting, regular linear distribution of particle positions
+                  Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
+                      * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
+                END IF
+              END IF
+              Particle_pos(3) = 0.
+            ELSE ! Regular 3D simulation
+              CALL RANDOM_NUMBER(RandVal2)
+              IF (.NOT.TriaTracking) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
+                RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2) !shift randVal off from 0 and 1
+                DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
+                  CALL RANDOM_NUMBER(RandVal2)
+                  RandVal2 = RandVal2 + eps_nontria*(1 - 2.*RandVal2)
+                END DO
+              END IF
+              Particle_pos = (/xNod,yNod,zNod/) + Vector1 * RandVal2(1)
+              Particle_pos =       Particle_pos + Vector2 * RandVal2(2)
+              PartDistance = ndist(1)*(Particle_pos(1)-midpoint(1)) & !Distance from v1-v2
+                          + ndist(2)*(Particle_pos(2)-midpoint(2)) &
+                          + ndist(3)*(Particle_pos(3)-midpoint(3))
+              IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
+                Particle_pos(1:3) = 2*midpoint(1:3)-Particle_pos(1:3)
+              END IF
             END IF
           ELSE !.NOT.TriaSurfaceFlux
             iLoop=0
@@ -5300,8 +5598,6 @@ __STAMP__&
         END DO !put particles in subside: WHILE(iPart+allowedRejections .LE. PartInsSubSide)
         PartInsSubSide = PartInsSubSide - allowedRejections
         NbrOfParticle = NbrOfParticle - allowedRejections
-!print*,'accept-part=',REAL(PartInsSubSide)/REAL(PartInsSubSide+nReject)
-
         ParticleIndexNbr = 1
         DO iPart=1,PartInsSubSide
           IF ((iPart.EQ.1).OR.PDM%ParticleInside(ParticleIndexNbr)) THEN
@@ -5479,6 +5775,13 @@ __STAMP__&
             PEM%Element(ParticleIndexNbr) = ElemID
             PEM%lastElement(ParticleIndexNbr) = ElemID !needed when ParticlePush is not executed, e.g. "delay"
             iPartTotal = iPartTotal + 1
+            IF (VarTimeStep%UseVariableTimeStep) THEN
+              VarTimeStep%ParticleTimeStep(ParticleIndexNbr) &
+                = CalcVarTimeStep(PartState(ParticleIndexNbr,1),PartState(ParticleIndexNbr,2),PEM%Element(ParticleIndexNbr))
+            END IF
+            IF (RadialWeighting%DoRadialWeighting) THEN
+              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2), 1,ParticleIndexNbr)
+            END IF
           ELSE
             CALL abort(&
 __STAMP__&
@@ -5519,7 +5822,7 @@ __STAMP__&
       CALL SetParticleVelocity(iSpec,iSF,NbrOfParticle,2)
     END IF
     CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
-    IF (usevMPF) CALL SetParticleMPF(iSpec,NbrOfParticle)
+    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       iPart = 1
@@ -6231,12 +6534,15 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM
+USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
 USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
 USE MOD_Mesh_Vars,             ONLY : nElems
 USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -6256,11 +6562,12 @@ INTEGER                          :: iPart,  nPart
 REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag
-REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
+REAL                             :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> minCoords, Bounds(2,1:3) --> maxCoords
 REAL                             :: Det(6,2)
 REAL                             :: RefPos(1:3)
 INTEGER                          :: CellChunkSize(1:nElems)
 INTEGER                          :: chunkSize_tmp, ParticleIndexNbr
+REAL                             :: adaptTimestep
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
@@ -6276,11 +6583,12 @@ __STAMP__,&
     END IF
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
+    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
     chunkSize_tmp = INT(PartDens * GEO%LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(&
 __STAMP__,&
-'ERROR in SetCellLocalParticlePosition: Maximum particle number during insanity check! max. particles needed: ',chunkSize_tmp)
+'ERROR in SetCellLocalParticlePosition: Maximum particle number during sanity check! max. particles needed: ',chunkSize_tmp)
     END IF
   END IF
 
@@ -6291,8 +6599,16 @@ __STAMP__,&
     IF (UseExactPartNum) THEN
       nPart = CellChunkSize(iElem)
     ELSE
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(GEO%ElemMidPoint(2,iElem), iSpec)
+      END IF
       CALL RANDOM_NUMBER(iRan)
-      nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        adaptTimestep = CalcVarTimeStep(GEO%ElemMidPoint(1,iElem), GEO%ElemMidPoint(2,iElem), iElem)
+        nPart = INT(PartDens / adaptTimestep * GEO%Volume(iElem) + iRan)
+      ELSE
+        nPart = INT(PartDens * GEO%Volume(iElem) + iRan)
+      END IF
     END IF
     DO iPart = 1, nPart
       ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
@@ -6300,7 +6616,14 @@ __STAMP__,&
         InsideFlag=.FALSE.
         DO WHILE(.NOT.InsideFlag)
           CALL RANDOM_NUMBER(RandomPos)
-          RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          IF(Symmetry2DAxisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            ! Treatment of axisymmetry without weighting
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+          ELSE
+            RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          END IF
+          IF(Symmetry2D) RandomPos(3) = 0.
           IF (DoRefMapping) THEN
             CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
             IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
@@ -6318,6 +6641,13 @@ __STAMP__,&
         PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
         PEM%Element(ParticleIndexNbr) = iElem
         ichunkSize = ichunkSize + 1
+        IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(ParticleIndexNbr) = &
+            CalcVarTimeStep(PartState(ParticleIndexNbr,1), PartState(ParticleIndexNbr,2),iElem)
+        END IF
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),1,ParticleIndexNbr)
+        END IF
       ELSE
         CALL abort(&
 __STAMP__&
@@ -6547,14 +6877,15 @@ SUBROUTINE AdaptiveBCAnalyze(initSampling_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:BoltzmannConst
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC
-USE MOD_DSMC_Vars,              ONLY:useDSMC
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMC, CollisMode, SpecDSMC, useDSMC, RadialWeighting
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM, Adaptive_MacroVal, AdaptiveWeightFac
+USE MOD_Particle_Vars,          ONLY:usevMPF
 USE MOD_Particle_Boundary_Vars, ONLY:PorousBCSampIter, PorousBCMacroVal
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,IsTracingBCElem
 USE MOD_DSMC_Analyze,           ONLY:CalcTVib,CalcTVibPoly,CalcTelec
 USE MOD_Timedisc_Vars,          ONLY:iter
+USE MOD_part_tools              ,ONLY: GetParticleWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,      ONLY:LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars,       ONLY:nPartsPerBCElem
@@ -6590,20 +6921,20 @@ DO i=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
     !ElemID = BC2AdaptiveElemMap(ElemID)
     iSpec = PartSpecies(i)
-    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6)
-    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(i,4:6)**2
-    Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  !density
+    Source(1:3,ElemID, iSpec) = Source(1:3,ElemID,iSpec) + PartState(i,4:6) * GetParticleWeight(i)
+    Source(4:6,ElemID, iSpec) = Source(4:6,ElemID,iSpec) + PartState(i,4:6)**2 * GetParticleWeight(i)
+    Source(7,ElemID, iSpec) = Source(7,ElemID, iSpec) + 1.0  ! simulation particle number
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
         IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2)
+          Source(8:9,ElemID, iSpec) = Source(8:9,ElemID, iSpec) + PartStateIntEn(i,1:2) * GetParticleWeight(i)
         END IF
       END IF
       IF (DSMC%ElectronicModel) THEN
-        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(i,3)
+        Source(10,ElemID, iSpec) = Source(10,ElemID, iSpec) + PartStateIntEn(i,3) * GetParticleWeight(i)
       END IF
     END IF
-    Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + 1.0
+    Source(11,ElemID, iSpec) = Source(11,ElemID, iSpec) + GetParticleWeight(i)
   END IF
 END DO
 #if USE_LOADBALANCE
@@ -6634,17 +6965,17 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 DO iSpec = 1,nSpecies
   ! write timesample particle values of bc elements in global macrovalues of bc elements
-  IF (Source(11,AdaptiveElemID,iSpec).GT.0.0) THEN
+  IF (Source(7,AdaptiveElemID,iSpec).GT.0.0) THEN
     IF(.NOT.initSampling) THEN
       ! compute flow velocity (during computation, not for the initial distribution, where the velocity from the ini is used)
       Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(1:3,AdaptiveElemID,iSpec) &
           + RelaxationFactor*Source(1:3,AdaptiveElemID, iSpec) / Source(11,AdaptiveElemID,iSpec)
     END IF
     ! compute flow Temperature
-    IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
+    IF (Source(7,AdaptiveElemID,iSpec).GT.1.0) THEN
       Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(4:6,AdaptiveElemID,iSpec) &
         + RelaxationFactor &
-          * (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
+          * (Source(7,AdaptiveElemID,iSpec)/(Source(7,AdaptiveElemID,iSpec)-1.0)) &
           * Species(iSpec)%MassIC/ BoltzmannConst &
           * ( Source(4:6,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec) &
           - (Source(1:3,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2)
@@ -6655,30 +6986,38 @@ DO iSpec = 1,nSpecies
     IF(PorousBCSampIter.GT.0) THEN
       ! Sampling the number density and pressure every given number of iterations and RESETTING it after calculation
       PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) + Source(1:6,AdaptiveElemID, iSpec)
+      ! Sampling the particle weights
       PorousBCMacroVal(7,AdaptiveElemID,iSpec) = PorousBCMacroVal(7,AdaptiveElemID,iSpec) + Source(11,AdaptiveElemID,iSpec)
+      ! Sampling the number of simulation particles
+      PorousBCMacroVal(8,AdaptiveElemID,iSpec) = PorousBCMacroVal(8,AdaptiveElemID,iSpec) + Source(7,AdaptiveElemID,iSpec)
       IF(MOD(iter,SamplingIteration).EQ.0) THEN
-        IF(PorousBCMacroVal(7,AdaptiveElemID,iSpec).GT.1) THEN
+        IF(PorousBCMacroVal(8,AdaptiveElemID,iSpec).GT.1) THEN
           ! number density
-          Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
+          IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+            Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
+                                                      /GEO%Volume(AdaptiveElemID)
+          ELSE
+            Adaptive_MacroVal(7,AdaptiveElemID,iSpec)=PorousBCMacroVal(7,AdaptiveElemID,iSpec)/SamplingIteration   &
                                                       /GEO%Volume(AdaptiveElemID) * Species(iSpec)%MacroParticleFactor
+          END IF
           ! instantaneous temperature WITHOUT 1/BoltzmannConst
           PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) = PorousBCMacroVal(1:6,AdaptiveElemID,iSpec) &
                                                         / PorousBCMacroVal(7,AdaptiveElemID,iSpec)
-          TTrans_TempFac = (PorousBCMacroVal(7,AdaptiveElemID,iSpec)/(PorousBCMacroVal(7,AdaptiveElemID,iSpec)-1.0)) &
+          TTrans_TempFac = (PorousBCMacroVal(8,AdaptiveElemID,iSpec)/(PorousBCMacroVal(8,AdaptiveElemID,iSpec)-1.0)) &
               *Species(iSpec)%MassIC*(PorousBCMacroVal(4,AdaptiveElemID,iSpec) - PorousBCMacroVal(1,AdaptiveElemID,iSpec)**2   &
                                     + PorousBCMacroVal(5,AdaptiveElemID,iSpec) - PorousBCMacroVal(2,AdaptiveElemID,iSpec)**2   &
                                     + PorousBCMacroVal(6,AdaptiveElemID,iSpec) - PorousBCMacroVal(3,AdaptiveElemID,iSpec)**2) / 3.
           ! pressure (BoltzmannConstant canceled out in temperature calculation)
           Adaptive_MacroVal(12,AdaptiveElemID,iSpec)=Adaptive_MacroVal(7,AdaptiveElemID,iSpec)*TTrans_TempFac
           ! Resetting the sampling values
-          PorousBCMacroVal(1:7,AdaptiveElemID,iSpec) = 0.0
+          PorousBCMacroVal(1:8,AdaptiveElemID,iSpec) = 0.0
         END IF
       END IF
     ELSE
       ! Calculation of the number density and pressure with the relaxation factor
       ! compute instantaneous temperature WITHOUT 1/BoltzmannConst
-      IF (Source(11,AdaptiveElemID,iSpec).GT.1.0) THEN
-        TTrans_TempFac = (Source(11,AdaptiveElemID,iSpec)/(Source(11,AdaptiveElemID,iSpec)-1.0)) &
+      IF (Source(7,AdaptiveElemID,iSpec).GT.1.0) THEN
+        TTrans_TempFac = (Source(7,AdaptiveElemID,iSpec)/(Source(7,AdaptiveElemID,iSpec)-1.0)) &
                         * Species(iSpec)%MassIC * (Source(4,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)       &
                         - (Source(1,AdaptiveElemID,iSpec)/Source(11,AdaptiveElemID,iSpec))**2   &
                         + Source(5,AdaptiveElemID,iSpec) / Source(11,AdaptiveElemID,iSpec)      &
@@ -6688,12 +7027,22 @@ DO iSpec = 1,nSpecies
       ELSE
         TTrans_TempFac = 0.0
       END IF
-      ! compute density
-      Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
-        + RelaxationFactor*Source(7,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
-      ! Pressure with relaxation factor
-      Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
-      +RelaxationFactor*Source(7,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        ! compute density
+        Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec) /GEO%Volume(AdaptiveElemID)
+        ! Pressure with relaxation factor
+        Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
+        +RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*TTrans_TempFac
+      ELSE
+        ! compute density
+        Adaptive_MacroVal(7,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(7,AdaptiveElemID,iSpec) &
+          + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)/GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor
+        ! Pressure with relaxation factor
+        Adaptive_MacroVal(12,AdaptiveElemID,iSpec) = (1-RelaxationFactor)*Adaptive_MacroVal(12,AdaptiveElemID,iSpec) &
+                                                    + RelaxationFactor*Source(11,AdaptiveElemID,iSpec)  &
+                                                    / GEO%Volume(AdaptiveElemID)*Species(iSpec)%MacroParticleFactor*TTrans_TempFac
+      END IF
     END IF
     ! !==================================================================================================
     IF(useDSMC)THEN
@@ -6785,7 +7134,7 @@ END FUNCTION CalcVectorAdditionCoeffs
 
 SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !===================================================================================================================================
-!
+!> Routine calculates the weights of the triangles for AdaptiveType=4 to scale up the number of particles to be inserted
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -6935,11 +7284,7 @@ END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 
 SUBROUTINE CircularInflow_Area(iSpec,iSF,iSide,BCSideID)
 !===================================================================================================================================
-! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
-! structure is similar to particle communication
-! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
-! the receiving process adds the new data to his own sides
+!> Routine calculates the partial area of the circular infow per triangle for AdaptiveType=4 (Monte Carlo integration)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -7013,5 +7358,252 @@ END DO; END DO
 
 END SUBROUTINE CircularInflow_Area
 
+
+SUBROUTINE MacroRestart_InsertParticles()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: Pi
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry2DAxisymmetric, Symmetry2D, VarTimeStep
+USE MOD_Mesh_Vars               ,ONLY: nElems
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck, BoundsOfElement
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                             :: iElem, iSpec, iPart, nPart, locnPart, iHeight, yPartitions
+REAL                                :: iRan, RandomPos(3), PartDens, TempMPF, MaxPosTemp, MinPosTemp
+REAL                                :: TempVol, Volume, Det(6,2), RefPos(1:3), Bounds(1:2,1:3)
+LOGICAL                             :: InsideFlag
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
+
+locnPart = 1
+
+DO iElem = 1, nElems
+  CALL BoundsOfElement(iElem,Bounds(1:2,1:3))     ! 1: Min value, 2: Max value; 1-3: x,y,z
+! #################### 2D ##########################################################################################################
+  IF (Symmetry2DAxisymmetric) THEN
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      DO iSpec = 1, nSpecies
+        yPartitions = 6
+        PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS)
+        ! Particle weighting
+        DO iHeight = 1, yPartitions
+          MinPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *(iHeight-1.)
+          MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
+          TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
+          TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
+          IF(VarTimeStep%UseVariableTimeStep) THEN
+            TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
+          END IF
+          CALL RANDOM_NUMBER(iRan)
+          nPart = INT(PartDens / TempMPF  * TempVol + iRan)
+          DO iPart = 1, nPart
+            InsideFlag=.FALSE.
+            CALL RANDOM_NUMBER(RandomPos)
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+            RandomPos(2) = MinPosTemp + RandomPos(2)*(MaxPosTemp-MinPosTemp)
+            RandomPos(3) = 0.0
+            IF (DoRefMapping) THEN
+              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            ELSE
+              IF (TriaTracking) THEN
+                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+              ELSE
+                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+              END IF
+            END IF
+            IF (InsideFlag) THEN
+              PartState(locnPart,1:3) = RandomPos(1:3)
+              CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+              locnPart = locnPart + 1
+            END IF
+          END DO ! nPart
+        END DO ! yPartitions
+      END DO ! nSpecies
+    ELSE ! No RadialWeighting
+      DO iSpec = 1, nSpecies
+        CALL RANDOM_NUMBER(iRan)
+        TempMPF = Species(iSpec)%MacroParticleFactor
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+        END IF
+        nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * GEO%Volume(iElem) + iRan)
+        DO iPart = 1, nPart
+          InsideFlag=.FALSE.
+          DO WHILE (.NOT.InsideFlag)
+            CALL RANDOM_NUMBER(RandomPos)
+            RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+            RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+            RandomPos(3) = 0.0
+            IF (DoRefMapping) THEN
+              CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+              IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+            ELSE
+              IF (TriaTracking) THEN
+                CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+              ELSE
+                CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+              END IF
+            END IF
+          END DO
+          PartState(locnPart,1:3) = RandomPos(1:3)
+          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+          locnPart = locnPart + 1
+        END DO ! nPart
+      END DO ! nSpecies
+    END IF ! RadialWeighting: YES/NO
+  ELSE IF(Symmetry2D) THEN
+    Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
+    DO iSpec = 1, nSpecies
+      CALL RANDOM_NUMBER(iRan)
+      TempMPF = Species(iSpec)%MacroParticleFactor
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+      END IF
+      nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
+      DO iPart = 1, nPart
+        InsideFlag=.FALSE.
+        CALL RANDOM_NUMBER(RandomPos)
+        RandomPos(1:2) = Bounds(1,1:2) + RandomPos(1:2)*(Bounds(2,1:2)-Bounds(1,1:2))
+        RandomPos(3) = 0.0
+        IF (DoRefMapping) THEN
+          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+        ELSE
+          IF (TriaTracking) THEN
+            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+          ELSE
+            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+          END IF
+        END IF
+        IF (InsideFlag) THEN
+          PartState(locnPart,1:3) = RandomPos(1:3)
+          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+          locnPart = locnPart + 1
+        END IF
+      END DO ! nPart
+    END DO ! nSpecies
+  ELSE
+! #################### 3D ##########################################################################################################
+    Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
+    DO iSpec = 1, nSpecies
+      CALL RANDOM_NUMBER(iRan)
+      TempMPF = Species(iSpec)%MacroParticleFactor
+      IF(VarTimeStep%UseVariableTimeStep) THEN
+        TempMPF = TempMPF * CalcVarTimeStep(iElem=iElem)
+      END IF
+      nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
+      DO iPart = 1, nPart
+        InsideFlag=.FALSE.
+        CALL RANDOM_NUMBER(RandomPos)
+        RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
+        IF (DoRefMapping) THEN
+          CALL GetPositionInRefElem(RandomPos,RefPos,iElem)
+          IF (MAXVAL(ABS(RefPos)).GT.epsOneCell(iElem)) InsideFlag=.TRUE.
+        ELSE
+          IF (TriaTracking) THEN
+            CALL ParticleInsideQuad3D(RandomPos,iElem,InsideFlag,Det)
+          ELSE
+            CALL PartInElemCheck(RandomPos,iPart,iElem,InsideFlag)
+          END IF
+        END IF
+        IF (InsideFlag) THEN
+          PartState(locnPart,1:3) = RandomPos(1:3)
+          CALL MacroRestart_InitializeParticle_Maxwell(locnPart,iSpec,iElem)
+          locnPart = locnPart + 1
+        END IF
+      END DO ! nPart
+    END DO ! nSpecies
+  END IF ! Symmetry2D/Axisymmetric/3D
+END DO ! nElems
+
+IF(locnPart.GE.PDM%maxParticleNumber) THEN
+  CALL abort(__STAMP__,&
+    'ERROR in MacroRestart: Increase maxParticleNumber!', locnPart)
+END IF
+
+PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
+
+END SUBROUTINE MacroRestart_InsertParticles
+
+SUBROUTINE MacroRestart_InitializeParticle_Maxwell(iPart,iSpec,iElem)
+!===================================================================================================================================
+!> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting
+USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
+PartState(iPart,4:6) = CalcVelocity_maxwell_particle(iSpec,MacroRestartValues(iElem,iSpec,4:6)) &
+                          + MacroRestartValues(iElem,iSpec,1:3)
+
+! 2) Set internal energies (rotational, vibrational, electronic)
+IF(CollisMode.GT.1) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    PartStateIntEn(iPart,1) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
+    PartStateIntEn(iPart,2) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
+  ELSE
+    PartStateIntEn(iPart,1:2) = 0.0
+  END IF
+  IF(DSMC%ElectronicModel) THEN
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      PartStateIntEn(iPart,3) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC))
+    ELSE
+      PartStateIntEn(iPart,3) = 0.0
+    END IF
+  END IF
+END IF
+
+! 3) Set the species and element number
+PartSpecies(iPart) = iSpec
+PEM%Element(iPart) = iElem
+PEM%lastElement(iPart) = iElem
+PDM%ParticleInside(iPart) = .TRUE.
+
+! 4) Set particle weights (if required)
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(iPart,1),PartState(iPart,2),iElem)
+END IF
+IF (RadialWeighting%DoRadialWeighting) THEN
+  PartMPF(iPart) = CalcRadWeightMPF(PartState(iPart,2),iSpec,iPart)
+END IF
+
+END SUBROUTINE MacroRestart_InitializeParticle_Maxwell
 
 END MODULE MOD_part_emission

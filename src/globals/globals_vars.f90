@@ -21,6 +21,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+CHARACTER(LEN=6),PARAMETER   :: ProgramName    = 'PICLas'             !> name of this program
+REAL,PARAMETER               :: FileVersion    = 1.3                  !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL                         :: WallTime                              !> Wall time needed by a simulation (is not reset by
                                                                       !> performing a load balance step, only by user restart)
 REAL                         :: InitializationWallTime                !> Wall time needed to initialize a simulation (or
@@ -38,8 +40,6 @@ REAL,PARAMETER               :: PlanckConst    = 6.62606957E-34       !> Planck 
 REAL,PARAMETER               :: ElementaryCharge = 1.602176634e-19    !> redefinition of SI base units in 2018-2019,
                                                                       !> => negative charge of an electron, joule to eV, ...
 REAL,PARAMETER               :: ElectronMass   = 9.1093826E-31        !> mass of an electron
-REAL,PARAMETER               :: FileVersion    = 0.11                 !> FileVersion number saved in each hdf5 file with hdf5 header
-CHARACTER(LEN=6),PARAMETER   :: ProgramName    = 'PICLas'             !> name of this program
 CHARACTER(LEN=255)           :: ProjectName                           !> TODO-DEFINE-PARAMETER
 CHARACTER(LEN=255)           :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)           :: ParameterDSMCFile                     !> filename of the parameterDSMC file

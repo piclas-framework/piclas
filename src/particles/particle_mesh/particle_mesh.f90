@@ -427,7 +427,8 @@ NodeMap(:,6)=(/5,6,7,8/)
 ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),       &
          GEO%ElemSideNodeID(1:4,1:6,1:nElems), &
          GEO%NodeCoords(1:3,1:nNodes),         &
-         GEO%ConcaveElemSide(1:6,1:nElems), STAT=ALLOCSTAT)
+         GEO%ConcaveElemSide(1:6,1:nElems), &
+         GEO%ElemMidPoint(1:3,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
  CALL abort(__STAMP__&
  ,'ERROR in InitParticleGeometry: Cannot allocate GEO%... stuff!')
@@ -497,6 +498,14 @@ IF (WriteTriaDebugMesh) THEN
   CALL WriteTriaDataToVTK(nSides,nElems,Coords(1:3,1:4,1:6,1:nElems),FileString)
   SDEALLOCATE(Coords)
 END IF !WriteTriaDebugMesh
+
+DO iElem =1, nElems
+  GEO%ElemMidPoint(:,iElem) = 0.0
+  DO iNode = 1,8
+    GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) + GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+  END DO
+  GEO%ElemMidPoint(1:3,iElem) = GEO%ElemMidPoint(1:3,iElem) / 8.
+END DO
 
 !--- check for elements with intersecting sides (e.g. very flat elements)
 CALL WeirdElementCheck()
@@ -731,6 +740,8 @@ IF (ALLOCATED(GEO%NodeToNeighNode)) THEN
   END DO
 END IF
 SDEALLOCATE(GEO%NodeToNeighNode)
+SDEALLOCATE(GEO%ConcaveElemSide)
+SDEALLOCATE(GEO%ElemMidPoint)
 
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
@@ -5457,7 +5468,7 @@ SUBROUTINE NodeNeighbourhood()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nNodes !,nElems
+USE MOD_Mesh_Vars          ,ONLY: nNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
 #ifdef MPI
