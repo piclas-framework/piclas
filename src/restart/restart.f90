@@ -1614,7 +1614,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 
-ALLOCATE(MacroRestartValues(nElems,nSpecies+1,nVar_HDF5))
+ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
 MacroRestartValues = 0.
 
 ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
@@ -1629,9 +1629,9 @@ END ASSOCIATE
 iVar = 1
 DO iSpec = 1, nSpecies
   DO iElem = 1, nElems
-    MacroRestartValues(iElem,iSpec,:) = ElemData_HDF5(iVar:iVar-1+nVar_HDF5,iElem)
+    MacroRestartValues(iElem,iSpec,:) = ElemData_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
   END DO
-  iVar = iVar + nVar_HDF5
+  iVar = iVar + DSMC_NVARS
 END DO
 
 CALL MacroRestart_InsertParticles()
