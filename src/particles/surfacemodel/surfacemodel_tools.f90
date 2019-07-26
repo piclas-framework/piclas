@@ -25,6 +25,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE CalcEvappartNum
+  MODULE PROCEDURE CalcEvappartNum
+END INTERFACE
+
 INTERFACE CalcAdsorbProb
   MODULE PROCEDURE CalcAdsorbProb
 END INTERFACE
@@ -69,6 +73,7 @@ INTERFACE SMCR_AdjustMapNum
   MODULE PROCEDURE SMCR_AdjustMapNum
 END INTERFACE
 
+PUBLIC :: CalcEvapPartNum
 PUBLIC :: CalcAdsorbProb
 PUBLIC :: CalcDesorbProb
 PUBLIC :: Calc_Adsorb_Heat
@@ -83,6 +88,131 @@ PUBLIC :: SMCR_AdjustMapNum
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE CalcEvapPartNum()
+!===================================================================================================================================
+!> calculation of number of evaporating/desorbing particles when mean surface densities are used (mean probabilities)
+!===================================================================================================================================
+USE MOD_Globals_Vars           ,ONLY: PI, BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
+USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, surfmodel, SpecSurf
+USE MOD_Particle_Boundary_Tools,ONLY: TSURUTACONDENSCOEFF
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
+USE MOD_Mesh_Vars              ,ONLY: BC
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+#if USE_LOADBALANCE
+USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
+USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
+#endif /*USE_LOADBALANCE*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER                          :: iSurfSide, iSpec, p, q, NPois, PartEvapInfo
+REAL                             :: WallPartNum, PartEvap, RanNum, Tpois, LiquidSurfTemp
+REAL                             :: A, B, C, pressureVapor
+INTEGER                          :: iPart, PartEvap_temp
+REAl                             :: veloPart, sigma
+#if USE_LOADBALANCE
+INTEGER                          :: ElemID
+#endif /*USE_LOADBALANCE*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IF (.NOT.SurfMesh%SurfOnProc) RETURN
+
+DO iSpec = 1,nSpecies
+  DO iSurfSide = 1,SurfMesh%nSides
+#if USE_LOADBALANCE
+    IF(PerformLBSample) THEN
+      ElemID = PartSideToElem(S2E_ELEM_ID,SurfMesh%SurfIDToSideID(iSurfSide))
+      nSurfacePartsPerElem(ElemID) = nSurfacePartsPerElem(ElemID) + 1
+    END IF
+#endif /*USE_LOADBALANCE*/
+    DO q = 1,nSurfSample
+      DO p = 1,nSurfSample
+        SELECT CASE (SurfaceHasModelNum(iSurfSide))
+        CASE(1)
+          IF (Adsorption%Coverage(p,q,iSurfSide,iSpec).GT.0) THEN
+            WallPartNum = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
+                      * SurfMesh%SurfaceArea(p,q,iSurfSide) &
+                      / Species(iSpec)%MacroParticleFactor
+            PartEvap = WallPartNum * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+          ELSE
+            PartEvap = 0.
+          END IF
+        CASE(101,102)
+          IF (Adsorption%SurfaceSpec(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )),iSpec)) THEN
+            LiquidSurfTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC( SurfMesh%SurfIDToSideID(iSurfSide) )))
+            ! Antoine parameters defined in ini file are chosen so pressure given is in bar
+            A = SpecSurf(iSpec)%ParamAntoine(1)
+            B = SpecSurf(iSpec)%ParamAntoine(2)
+            C = SpecSurf(iSpec)%ParamAntoine(3)
+            ! Use Antoine Eq. to calculate pressure vapor
+            pressureVapor = 10 ** (A- B/(C+LiquidSurfTemp)) * 1e5 !transformation bar -> Pa
+            ! Use Hertz-Knudsen equation to calculate number of evaporating liquid particles from surface
+            PartEvap = pressureVapor / ( 2*PI*Species(iSpec)%MassIC*BoltzmannConst*LiquidSurfTemp)**0.5 &
+                     * SurfMesh%SurfaceArea(p,q,iSurfSide) / Species(iSpec)%MacroParticleFactor * dt &
+                     * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+            IF (SurfaceHasModelNum(iSurfSide).EQ.102) THEN
+              sigma=SQRT(BoltzmannConst*LiquidSurfTemp/Species(iSpec)%MassIC)
+              PartEvap_temp = PartEvap
+              PartEvap = 0
+              DO iPart = 1,PartEvap_temp
+                CALL RANDOM_NUMBER(RanNum)
+                veloPart = SQRT(-2*LOG(RanNum))*sigma
+                CALL RANDOM_NUMBER(RanNum)
+                IF ( (TSURUTACONDENSCOEFF(iSpec,veloPart,LiquidSurfTemp).GE.RanNum) ) PartEvap=PartEvap+1
+              END DO
+            END IF
+            WallPartNum = PartEvap
+          ELSE
+            WallPartNum = 0
+          END IF
+        CASE DEFAULT
+          WallPartNum = 0
+        END SELECT
+
+        IF (WallPartNum.GT.0) THEN
+          IF (PartEvap.GT.WallPartNum .OR. PartEvap.LT.0.) THEN
+            PartEvapInfo = INT(WallPartNum)
+          ELSE
+            CALL RANDOM_NUMBER(RanNum)
+            IF (EXP(-PartEvap).LE.TINY(PartEvap) &
+#if (PP_TimeDiscMethod==42)
+                .OR. Adsorption%TPD &
+#endif
+                ) THEN
+              PartEvapInfo = INT(PartEvap + RanNum)
+            ELSE !poisson-sampling instead of random rounding (reduces numeric non-equlibrium effects [Tysanner and Garcia 2004]
+              Npois=0
+              Tpois=1.0
+              DO
+                Tpois=RanNum*Tpois
+                IF (Tpois.LT.TINY(Tpois)) THEN
+                  PartEvapInfo = INT(PartEvap + RanNum)
+                  EXIT
+                END IF
+                IF (Tpois.GT.EXP(-PartEvap)) THEN
+                  Npois=Npois+1
+                  CALL RANDOM_NUMBER(RanNum)
+                ELSE
+                  PartEvapInfo = Npois
+                  EXIT
+                END IF
+              END DO
+            END IF
+          END IF !PartEvap.GT.WallPartNum
+          SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) = SurfModel%SumEvapPart(p,q,iSurfSide,iSpec) + INT(PartEvapInfo)
+#if (PP_TimeDiscMethod==42)
+          SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes + INT(PartEvapInfo)
+#endif
+        END IF !WallPartNum.GT.0
+      END DO
+    END DO
+  END DO
+END DO
+
+END SUBROUTINE CalcEvapPartNum
 
 SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
