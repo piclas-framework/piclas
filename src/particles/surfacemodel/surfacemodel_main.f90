@@ -301,8 +301,8 @@ REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3)
 CHARACTER(30)                    :: velocityDistribution(2)          ! specifying keyword for velocity distribution
+REAL                             :: TempErgy(2)                      ! temperature or energy used for velofromdistribution
 INTEGER                          :: ProductSpecNbr ! number of particles for ProductSpec(1)
-REAL                             :: v_new ! velocity magnitude of newly created particle
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
 
@@ -428,7 +428,8 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
            ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,interactionCase,ProductSpec,&
-  ProductSpecNbr,v_new,velocityDistribution)
+  ProductSpecNbr,TempErgy(1),velocityDistribution)
+  TempErgy(2) = WallTemp
   !Adsorption_prob = 1. !Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   ! CALL RANDOM_NUMBER(RanNum)
   ! IF(Adsorption_prob.GE.RanNum)THEN
@@ -450,6 +451,7 @@ CASE (102) ! calculate condensation probability by tsuruta2005 and reflection di
   ProductSpec(2) = SpecID
   interactionCase = 4
   velocityDistribution(2)='liquid_refl'
+  TempErgy(2)=WallTemp
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   CALL RANDOM_NUMBER(RanNum)
   IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
@@ -608,7 +610,7 @@ CASE(4) ! Distribution function reflection  (reflecting particle according to de
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   ! sample new velocity
-  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,WallTemp)
+  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
   ! important: n_loc points outwards
   PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -655,7 +657,7 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
   SELECT CASE(interactionCase)
   CASE(5) ! reflected particle velocity vector from a defined velocity distribution function
     ! sample new velocity for reflected particle
-    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,WallTemp)
+    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
     ! important: n_loc points outwards
     PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   CASE(6) ! perfect or diffuse velocity reflection
@@ -707,7 +709,7 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
 
   ! Sampling the energy that is transferred from the surface onto the particle
   CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
-  
+
   ! Sample momentum, heatflux and collision counter on surface
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 
@@ -716,7 +718,7 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
     !IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE! iNewPart =',iNewPart
     ! create new particle and assign correct energies
     ! sample newly created velocity
-    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,WallTemp)
+    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
     ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
     CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
