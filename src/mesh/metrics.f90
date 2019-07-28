@@ -110,7 +110,7 @@ USE MOD_Mesh_Vars,               ONLY:SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
-#ifndef MPI
+#if !(USE_MPI)
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
 #endif /*not MPI*/
 #endif /*PARTICLES*/

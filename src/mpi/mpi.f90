@@ -109,13 +109,13 @@ IF(iError .NE. 0) &
   __STAMP__&
   ,'Could not get rank and number of processors',iError)
 MPIRoot=(myRank .EQ. 0)
-#else  /*MPI*/
+#else  /*USE_MPI*/
 myRank      = 0
 myLocalRank = 0
 nProcessors = 1
 MPIRoot     =.TRUE.
 MPILocalRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 
 ! At this point the initialization is not completed. We first have to create a new MPI communicator. MPIInitIsDone will be set
 END SUBROUTINE InitMPI

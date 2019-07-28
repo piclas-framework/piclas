@@ -115,9 +115,9 @@ maxRP=nGlobalRP
 IF(RP_onProc)THEN
   RP_maxMemory=GETREAL('RP_MaxMemory','100.')         ! Max buffer (100MB)
   maxRP=nGlobalRP
-# ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(nRP,maxRP,1,MPI_INTEGER,MPI_MAX,RP_COMM,iError)
-# endif /*MPI*/
+#endif /*USE_MPI*/
   RP_MaxBufferSize = CEILING(RP_MaxMemory)*131072/(maxRP*(PP_nVar+1)) != size in bytes/(real*maxRP*nVar)
   SDEALLOCATE(lastSample)
   ALLOCATE(lastSample(0:PP_nVar,nRP))

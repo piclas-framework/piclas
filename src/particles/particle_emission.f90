@@ -177,7 +177,7 @@ SUBROUTINE InitializeParticleEmission()
 ! MODULES
 #if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars      ,ONLY: DoRestart
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
@@ -398,7 +398,7 @@ SUBROUTINE ParticleInserting()
 ! Modules
 #if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
@@ -716,7 +716,7 @@ END SUBROUTINE ParticleInserting
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle,mode)
 #else
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
-#endif /* MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -724,7 +724,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
@@ -3903,7 +3903,7 @@ SUBROUTINE InitializeParticleSurfaceflux()
 ! Modules
 #if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
@@ -4847,10 +4847,10 @@ __STAMP__&
             + Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(iProc)
         END DO
       END IF
-#else  /*MPI*/
+#else  /*USE_MPI*/
       Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs=Species(iSpec)%Surfaceflux(iSF)%VFR_total
       Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal=Species(iSpec)%Surfaceflux(iSF)%VFR_total
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
     END IF !ReduceNoise
 #if USE_MPI
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
@@ -4954,7 +4954,7 @@ END IF
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
@@ -4975,7 +4975,7 @@ SUBROUTINE ParticleSurfaceflux()
 ! Modules
 #if USE_MPI
 USE MOD_Particle_MPI_Vars,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
 !commented out in code
@@ -5142,16 +5142,16 @@ DO iSpec=1,nSpecies
 #if USE_MPI
           CALL IntegerDivide(PartInsSF,nProcessors,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(0:nProcessors-1) &
             ,PartInsProc(0:nProcessors-1))
-#else  /*MPI*/
+#else  /*USE_MPI*/
           PartInsProc=PartInsSF
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
         END IF !ReduceNoise
       END IF !ReduceNoise, MPIroot
 #if USE_MPI
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN !scatter PartInsProc into PartInsSF of procs
         CALL MPI_SCATTER(PartInsProc(0:nProcessors-1),1,MPI_INTEGER,PartInsSF,1,MPI_INTEGER,0,PartMPI%COMM,IERROR)
       END IF !ReduceNoise
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
       !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
       SDEALLOCATE(PartInsSubSides)
       ALLOCATE(PartInsSubSides(SurfFluxSideSize(1),SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber))

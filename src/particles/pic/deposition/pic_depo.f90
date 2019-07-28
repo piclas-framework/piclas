@@ -1352,7 +1352,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,Ext
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -3244,7 +3244,7 @@ END DO !k
 END SUBROUTINE DepoSFParticleLocally
 
 
-#ifndef MPI
+#if !(USE_MPI)
 SUBROUTINE PeriodicSourceExchange()
 !============================================================================================================================
 ! Exchange sources in periodic case
@@ -3285,7 +3285,7 @@ DO i = 1,GEO%nPeriodicVectors
 END DO
 
 END SUBROUTINE PeriodicSourceExchange
-#else /*MPI*/
+#else /*USE_MPI*/
 SUBROUTINE MPISourceExchangeBGM()
 !=================================================================================================================================
 ! Exchange sources in periodic case for MPI
@@ -4298,7 +4298,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
 #if USE_MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4409,7 +4409,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
 #if USE_MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

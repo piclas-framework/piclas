@@ -971,7 +971,7 @@ REAL,ALLOCATABLE                        :: Vdm_ElemxgpN_DSMCNOut(:,:)
 REAL,ALLOCATABLE                        :: xGP_tmp(:)
 REAL, ALLOCATABLE                       :: DetJacGauss_N(:,:,:,:), DetLocal(:,:,:,:)!, Volumes(:,:,:)
 LOGICAL, ALLOCATABLE                    :: VolumeDone(:,:,:)
-#ifndef MPI
+#if !(USE_MPI)
 INTEGER       :: k2,m2,l2
 #endif /*NOT MPI*/
 !===================================================================================================================================
@@ -2317,7 +2317,7 @@ CALL CloseDataFile()
 END SUBROUTINE GenerateDSMCHOFileSkeleton
 
 
-#ifndef MPI
+#if !(USE_MPI)
 SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case
@@ -2364,7 +2364,7 @@ DO i = 1,GEO%nPeriodicVectors
 END DO
 RETURN
 END SUBROUTINE PeriodicSourceExchangeDSMCHO
-#else /*MPI*/
+#else /*USE_MPI*/
 SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
 !===================================================================================================================================
 !> Exchange sources in periodic case for MPI

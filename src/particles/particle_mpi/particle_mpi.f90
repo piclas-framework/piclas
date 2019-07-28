@@ -136,7 +136,7 @@ iMessage=0
 PartMPI%myRank = 0
 PartMPI%nProcs = 1
 PartMPI%MPIRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !! determine datatype length for variables to be sent
 !myRealKind = KIND(myRealTestValue)
 !IF (myRealKind.EQ.4) THEN
