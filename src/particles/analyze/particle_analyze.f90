@@ -81,7 +81,7 @@ PUBLIC::DefineParametersParticleAnalyze
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for analyze if particles (.csv output)
+!> Define parameters for particle analysis
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticleAnalyze()
 ! MODULES
@@ -188,6 +188,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+USE MOD_Mesh_Tools            ,ONLY: BoundsOfElement
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
@@ -202,6 +203,8 @@ IMPLICIT NONE
 INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
+REAL          :: Bounds(1:2,1:3)
+INTEGER       :: ALLOCSTAT
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -243,9 +246,39 @@ END IF
 ! L_cell:   Characteristic ceill length -> V_cell^(1/3)
 CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
 IF(CalcPointsPerDebyeLength)THEN
+  ! value in 3D estimated with the characteristic length of the cell
   ALLOCATE( PPDCell(1:PP_nElems) )
   PPDCell=0.0
   CALL AddToElemData(ElementOut,'PPDCell',RealArray=PPDCell(1:PP_nElems))
+  ! x
+  ALLOCATE( PPDCellX(1:PP_nElems) )
+  PPDCellX=0.0
+  CALL AddToElemData(ElementOut,'PPDCellX',RealArray=PPDCellX(1:PP_nElems))
+  ! y
+  ALLOCATE( PPDCellY(1:PP_nElems) )
+  PPDCellY=0.0
+  CALL AddToElemData(ElementOut,'PPDCellY',RealArray=PPDCellY(1:PP_nElems))
+  ! z
+  ALLOCATE( PPDCellZ(1:PP_nElems) )
+  PPDCellZ=0.0
+  CALL AddToElemData(ElementOut,'PPDCellZ',RealArray=PPDCellZ(1:PP_nElems))
+
+  ! Determine the average distances in x, y and z
+  ! Move the determination of these variables as soon as they are required for other functions!
+  ! The calculation of the bounds via "CALL BoundsOfElement(iElem,Bounds)" is also called in other routines, which could be
+  ! generalized in order to reduce the computational demand
+  ALLOCATE(GEO%CharLengthX(nElems),GEO%CharLengthY(nElems),GEO%CharLengthZ(nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in Particle Analyze: Cannot allocate GEO%CharLength in X, Y or Z!')
+  END IF
+  DO iElem = 1, nElems
+    CALL BoundsOfElement(iElem,Bounds)
+    GEO%CharLengthX(iElem) = ABS(Bounds(2,1)-Bounds(1,1)) ! ABS(max - min)
+    GEO%CharLengthY(iElem) = ABS(Bounds(2,2)-Bounds(1,2)) ! ABS(max - min)
+    GEO%CharLengthZ(iElem) = ABS(Bounds(2,3)-Bounds(1,3)) ! ABS(max - min)
+  END DO ! iElem = 1, nElems
 END IF
 
 ! Plasma parameter
@@ -3559,7 +3592,7 @@ SUBROUTINE CalculatePPDCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc                ,ONLY:PP_nElems,PP_N
-USE MOD_Particle_Analyze_Vars  ,ONLY:DebyeLengthCell,PPDCell
+USE MOD_Particle_Analyze_Vars  ,ONLY:DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
 USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -3574,6 +3607,9 @@ INTEGER              :: iElem
 ! loop over all elements
 DO iElem=1,PP_nElems
   PPDCell(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLength(iElem)
+  PPDCellX(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthX(iElem)
+  PPDCellY(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthY(iElem)
+  PPDCellZ(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthZ(iElem)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePPDCell

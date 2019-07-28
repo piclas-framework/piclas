@@ -82,6 +82,9 @@ REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum 
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellX(:)                         !< Points per Debye length in X (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellY(:)                         !< Points per Debye length in Y (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellZ(:)                         !< Points per Debye length in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
