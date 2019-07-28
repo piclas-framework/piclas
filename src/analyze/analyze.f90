@@ -1210,7 +1210,7 @@ IF (DoPartAnalyze)  THEN
     ELSE ! no Root
       CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
     END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
   END IF
 END IF
@@ -1336,7 +1336,7 @@ IF (DoPartAnalyze) THEN
     CALL MPI_REDUCE(rPerformBezierClip,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
     CALL MPI_REDUCE(rPerformBezierNewton,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 #if USE_MPI
    IF(MPIROOT)THEN

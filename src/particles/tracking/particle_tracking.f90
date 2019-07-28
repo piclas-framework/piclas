@@ -2677,7 +2677,7 @@ IF (nCollectChargesBCs .GT. 0) THEN
 #if USE_MPI
     ALLOCATE( NewRealChargesGlob(1:nCollectChargesBCs) )
     NewRealChargesGlob=0.
-#endif /* MPI */
+#endif /*USE_MPI*/
     DO iCC=1,nCollectChargesBCs
       NewRealChargesLoc(iCC)=CollectCharges(iCC)%NumOfNewRealCharges
       !--adding BR-electrons if corresponding regions exist: go through sides/trias if present in proc
@@ -2731,7 +2731,7 @@ __STAMP__&
     DO iCC=1,nCollectChargesBCs
       CollectCharges(iCC)%NumOfNewRealCharges=NewRealChargesLoc(iCC)
     END DO
-#endif /* MPI */
+#endif /*USE_MPI*/
     DEALLOCATE(NewRealChargesLoc)
     DO iCC=1,nCollectChargesBCs
       CollectCharges(iCC)%NumOfRealCharges=CollectCharges(iCC)%NumOfRealCharges+CollectCharges(iCC)%NumOfNewRealCharges

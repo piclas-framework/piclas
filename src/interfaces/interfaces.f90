@@ -669,7 +669,7 @@ IF(PRESENT(DisplayInfo))THEN
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&
     ,nGlobalElems,'] elems in complete domain [',REAL(nGlobalSpecialElems)/REAL(nGlobalElems)*100.,' %]'

@@ -1399,7 +1399,7 @@ END DO
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
 IF(mpiroot)THEN
@@ -1424,7 +1424,7 @@ END DO
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
-#endif /* MPI */
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
 
 

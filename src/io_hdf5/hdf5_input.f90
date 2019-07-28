@@ -163,7 +163,7 @@ CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #if USE_MPI
 ! Setup file access property list with parallel I/O access (MPI)
 CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! Check if file exists
 IF(.NOT.FILEEXISTS(MeshFileName)) THEN
@@ -637,7 +637,7 @@ IF(.NOT.single)THEN
   ! Set property list to MPI IO
   CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
 END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 ! Open file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID_loc, iError,access_prp = Plist_ID)
 ReadError=iError

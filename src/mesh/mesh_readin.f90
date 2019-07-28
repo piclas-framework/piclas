@@ -460,7 +460,7 @@ nSurfacePartsPerElem=0
 #else /* MPI */
 nElems=nGlobalElems   ! Local number of Elements
 offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              VARIABLE TIME STEP
@@ -526,7 +526,7 @@ END DO
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
-#endif /* MPI */
+#endif /*USE_MPI*/
 offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
 nSideIDs=ElemInfo(ELEM_LastSideInd,LastElemInd)-ElemInfo(ELEM_FirstSideInd,FirstElemInd)
 !read local SideInfo from data file
@@ -1085,7 +1085,7 @@ ELSE
   END DO
 END IF
 END FUNCTION ELEMIPROC
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 RECURSIVE SUBROUTINE Qsort1Int(A)
 !===================================================================================================================================

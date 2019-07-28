@@ -281,7 +281,7 @@ USE MOD_QDS_DG_Vars            ,ONLY: DoQDS
 USE MOD_PICDepo                ,ONLY: Deposition
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-#endif /* MPI */
+#endif /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime,DoImportIMDFile
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter, UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime

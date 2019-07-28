@@ -2014,7 +2014,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &

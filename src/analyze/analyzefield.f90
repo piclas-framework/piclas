@@ -352,7 +352,7 @@ END DO ! iElems
 #if USE_MPI
   CALL MPI_REDUCE   (PoyntingIntegral(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
   PoyntingIntegral(:) = sumSabs(:)
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcPoyntingIntegral
 #endif
@@ -611,7 +611,7 @@ sumAllFaces=0
 #else
 sumFaces=nFaces
 sumAllFaces=nPoyntingIntSides
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 DO iPlane= 1, nPoyntingIntPlanes
   SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'

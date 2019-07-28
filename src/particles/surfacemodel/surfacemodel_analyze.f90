@@ -193,7 +193,7 @@ REAL                :: WallCoverage(nSpecies)
   unit_index = 636
 #if USE_MPI
   IF (PartMPI%MPIRoot) THEN
-#endif /* MPI */
+#endif /*USE_MPI*/
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
@@ -340,7 +340,7 @@ REAL                :: WallCoverage(nSpecies)
     END IF
 #if USE_MPI
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 !===================================================================================================================================
 ! Analyze Routines
@@ -424,7 +424,7 @@ IF (PartMPI%MPIROOT) THEN
     WRITE(unit_index,'(A1)') ' '
 #if USE_MPI
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE AnalyzeSurface
 
