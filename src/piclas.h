@@ -45,9 +45,6 @@
 ! Check for charged particles: x = iPart
 #define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
-<<<<<<< Updated upstream
-#ifdef MPI
-=======
 ! Check for particles to be interpolated or deposited: x = iPart
 #if (PP_TimeDiscMethod==300) /*FP-Flow*/ 
 #define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
@@ -64,8 +61,7 @@
 #endif
 
 
-#if USE_MPI
->>>>>>> Stashed changes
+#ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #else
