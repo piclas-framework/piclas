@@ -65,6 +65,9 @@ LOGICAL                       :: CalcPlasmaParameter                 !< Compute 
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
+LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
+!                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell

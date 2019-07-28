@@ -99,6 +99,9 @@ CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionizat
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the points per shape function in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement', 'Compute the maximum displacement of the fastest particle in terms of'//&
+                                                           ' cell lengths in X, Y and Z for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
@@ -188,7 +191,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-USE MOD_Mesh_Tools            ,ONLY: BoundsOfElement
+USE MOD_Particle_Mesh_Tools   ,ONLY: BoundsOfElement
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Particle_Vars         ,ONLY: ManualTimeStep
@@ -249,20 +252,23 @@ IF(CalcPointsPerDebyeLength)THEN
   ! value in 3D estimated with the characteristic length of the cell
   ALLOCATE( PPDCell(1:PP_nElems) )
   PPDCell=0.0
-  CALL AddToElemData(ElementOut,'PPDCell',RealArray=PPDCell(1:PP_nElems))
+  CALL AddToElemData(ElementOut,'PPDCell3D',RealArray=PPDCell(1:PP_nElems))
   ! x
   ALLOCATE( PPDCellX(1:PP_nElems) )
   PPDCellX=0.0
-  CALL AddToElemData(ElementOut,'PPDCellX',RealArray=PPDCellX(1:PP_nElems))
+  CALL AddToElemData(ElementOut,'PPDCellDirX',RealArray=PPDCellX(1:PP_nElems))
   ! y
   ALLOCATE( PPDCellY(1:PP_nElems) )
   PPDCellY=0.0
-  CALL AddToElemData(ElementOut,'PPDCellY',RealArray=PPDCellY(1:PP_nElems))
+  CALL AddToElemData(ElementOut,'PPDCellDirY',RealArray=PPDCellY(1:PP_nElems))
   ! z
   ALLOCATE( PPDCellZ(1:PP_nElems) )
   PPDCellZ=0.0
-  CALL AddToElemData(ElementOut,'PPDCellZ',RealArray=PPDCellZ(1:PP_nElems))
+  CALL AddToElemData(ElementOut,'PPDCellDirZ',RealArray=PPDCellZ(1:PP_nElems))
+END IF
 
+
+IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
   ! Determine the average distances in x, y and z
   ! Move the determination of these variables as soon as they are required for other functions!
   ! The calculation of the bounds via "CALL BoundsOfElement(iElem,Bounds)" is also called in other routines, which could be
@@ -3588,6 +3594,8 @@ SUBROUTINE CalculatePPDCell()
 !===================================================================================================================================
 ! Calculate the points per Debye length for each cell
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
+! where L_cell=V^(1/3) is the characteristic cell length determined from the cell volume
+! PPDCellX, PPDCellY and PPDCellZ are determined by the average distance in X, Y and Z of each cell
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3606,10 +3614,10 @@ INTEGER              :: iElem
 !===================================================================================================================================
 ! loop over all elements
 DO iElem=1,PP_nElems
-  PPDCell(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLength(iElem)
-  PPDCellX(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthX(iElem)
-  PPDCellY(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthY(iElem)
-  PPDCellZ(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthZ(iElem)
+  PPDCell(iElem)  = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLength(iElem) ! determined with characteristic cell length
+  PPDCellX(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthX(iElem) ! determined from average distance in X
+  PPDCellY(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthY(iElem) ! determined from average distance in Y
+  PPDCellZ(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthZ(iElem) ! determined from average distance in Z
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePPDCell

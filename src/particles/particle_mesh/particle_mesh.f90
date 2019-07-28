@@ -6695,7 +6695,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHasAuxBCs
 USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone
-USE MOD_Mesh_Tools             ,ONLY: BoundsOfElement
+USE MOD_Particle_Mesh_Tools    ,ONLY: BoundsOfElement
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

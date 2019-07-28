@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Mesh_Tools
+MODULE MOD_Particle_Mesh_Tools
 !===================================================================================================================================
 ! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
@@ -123,4 +123,4 @@ Bounds(:,3)=(/zmin,zmax/)
 END SUBROUTINE BoundsOfElement
 
 
-END MODULE MOD_Mesh_Tools
+END MODULE MOD_Particle_Mesh_Tools
