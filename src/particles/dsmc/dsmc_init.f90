@@ -198,13 +198,21 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziati
 CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
                                            ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
                                            , numberedmulti=.TRUE.)
+! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumRotInf'  &
-                                           ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2', '0.', numberedmulti=.TRUE.)
+                                           ,'Collision number for rotational relaxation according to Parker or'//&
+                                            'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRefRot'  &
-                                           ,'Referece temperature for rotational relaxation according to Parker or'//&
-                                            'Zhang, ini_2 -> model dependent!', '0.', numberedmulti=.TRUE.)
+                                           ,'Referece temperature for rotational relaxation according to Parker or '//&
+                                            'Zhang, ini_2 -> model dependent!', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-MWConst-[$]-[$]'  &
+                                           ,'Millikan-White constant for variable vibrational relaxation probability, ini_2' &
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CollNumVib'  &
-                                           ,'Vibrational collision number according to Boyd, ini_2', '0.', numberedmulti=.TRUE.)
+                                           ,'Vibrational collision number according to Boyd, ini_2', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-VibCrossSection'  &
+                                           ,'Vibrational collision cross-section to Boyd, ini_2', numberedmulti=.TRUE.)
+! ----------------------------------------------------------------------------------------------------------------------------------
 CALL prms%CreateRealOption(     'Part-Species[$]-TempVib'  &
                                            ,'Vibrational temperature.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-TempRot'  &
@@ -669,12 +677,12 @@ __STAMP__&
         SpecDSMC(iSpec)%VFD_Phi3_Factor = GETREAL('Part-Species'//TRIM(hilf)//'-VFDPhi3','0.')
         ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
         IF(DSMC%RotRelaxProb.GT.1.0) THEN
-          SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf','0.')
-          SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot','0.')
+          SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
+          SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
           IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
             CALL Abort(&
             __STAMP__&
-            ,'Error! CollNumRotRef or TempRefRot is not set or equal to zero!')
+            ,'Error! CollNumRotRef or TempRefRot is equal to zero for species:', iSpec)
           END IF
         END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
@@ -683,19 +691,14 @@ __STAMP__&
           DO jSpec = 1, nSpecies
             WRITE(UNIT=hilf2,FMT='(I0)') jSpec
             hilf2=TRIM(hilf)//'-'//TRIM(hilf2)
-            SpecDSMC(iSpec)%MW_Const(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConst-'//TRIM(hilf2),'0.')
-            IF(SpecDSMC(iSpec)%MW_Const(jSpec).EQ.0) THEN
-              CALL Abort(&
-              __STAMP__&
-              ,'Error! MWConst is not set or equal to zero! Spec-Pair', iSpec)
-            END IF
+            SpecDSMC(iSpec)%MW_Const(jSpec)     = GETREAL('Part-Species'//TRIM(hilf)//'-MWConst-'//TRIM(hilf2))
           END DO
-          SpecDSMC(iSpec)%CollNumVib     = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumVib','0.')
-          SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection','10E-20')
+          SpecDSMC(iSpec)%CollNumVib     = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumVib')
+          SpecDSMC(iSpec)%VibCrossSec    = GETREAL('Part-Species'//TRIM(hilf)//'-VibCrossSection')
           IF(SpecDSMC(iSpec)%CollNumVib.EQ.0) THEN
             CALL Abort(&
             __STAMP__&
-            ,'Error! CollNumVib not set or equal to zero for Species!', iSpec)
+            ,'Error! CollNumVib is equal to zero for species:', iSpec)
           END IF
         END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value

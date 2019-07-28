@@ -137,7 +137,7 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL                        :: VFD_Phi3_Factor            ! Factor of Phi3 in VFD Method: Phi3 = 0 => VFD -> TCE, ini_2
   REAL                        :: CollNumRotInf              ! Collision number for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
-  REAL                        :: TempRefRot                 ! referece temperature for rotational relaxation according to Parker or
+  REAL                        :: TempRefRot                 ! Referece temperature for rotational relaxation according to Parker or
                                                             ! Zhang, ini_2 -> model dependent!
   REAL, ALLOCATABLE           :: MW_Const(:)                ! Model Constant 'A' of Milikan-White Model for vibrational relax, ini_2
   REAL                        :: CollNumVib                 ! vibrational collision number according to Boyd, ini_2
