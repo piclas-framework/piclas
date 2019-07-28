@@ -63,7 +63,7 @@ LOGICAL                         :: SymmetryBCExists
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
-SymmetrySide = -1.
+SymmetrySide = -1
 
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
@@ -87,7 +87,7 @@ DO SideID=1,nBCSides
     IF(MAXVAL(GEO%NodeCoords(2,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.0.0) THEN
       ! The z-plane with the positive z component is chosen
       IF(MINVAL(GEO%NodeCoords(3,GEO%ElemSideNodeID(:,iLocSide,ElemID))).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(ElemID,1).GT.0.0) THEN
+        IF(SymmetrySide(ElemID,1).GT.0) THEN
           CALL abort(__STAMP__&
             ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
             ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
