@@ -241,6 +241,31 @@ END IF
 
 !--------------------------------------------------------------------------------------------------------------------
 ! get derived particle properties
+!--------------------------------------------------------------------------------------------------------------------
+CalcPICCFLCondition       = GETLOGICAL('CalcPICCFLCondition','.FALSE.')
+IF(CalcPICCFLCondition)THEN
+  ! value in 3D estimated with the characteristic length of the cell
+  ALLOCATE( PICCFLCell(1:PP_nElems) )
+  PICCFLCell=0.0
+  CALL AddToElemData(ElementOut,'PICCFL3D',RealArray=PICCFLCell(1:PP_nElems))
+  ! x
+  ALLOCATE( PICCFLCellX(1:PP_nElems) )
+  PICCFLCellX=0.0
+  CALL AddToElemData(ElementOut,'PICCFLDirX',RealArray=PICCFLCellX(1:PP_nElems))
+  ! y
+  ALLOCATE( PICCFLCellY(1:PP_nElems) )
+  PICCFLCellY=0.0
+  CALL AddToElemData(ElementOut,'PICCFLDirY',RealArray=PICCFLCellY(1:PP_nElems))
+  ! z
+  ALLOCATE( PICCFLCellZ(1:PP_nElems) )
+  PICCFLCellZ=0.0
+  CALL AddToElemData(ElementOut,'PICCFLDirZ',RealArray=PICCFLCellZ(1:PP_nElems))
+END IF ! CalcPICCFLCondition
+
+
+
+!--------------------------------------------------------------------------------------------------------------------
+! get more derived particle properties
 ! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
 !--------------------------------------------------------------------------------------------------------------------
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
@@ -359,7 +384,7 @@ END IF
 
 ! Electron Temperature
 CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
-IF(CalcDebyeLength.OR.CalcPlasmaFrequency) CalcElectronTemperature=.TRUE.
+IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
 IF(CalcElectronTemperature)THEN
   !ElectronTemperatureIsMaxwell=GETLOGICAL('ElectronTemperatureIsMaxwell','.TRUE.')
   ALLOCATE( ElectronTemperatureCell(1:PP_nElems) )
@@ -3599,9 +3624,9 @@ SUBROUTINE CalculatePPDCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems,PP_N
-USE MOD_Particle_Analyze_Vars  ,ONLY:DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
-USE MOD_Particle_Mesh_Vars     ,ONLY:GEO
+USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,PPDCell,PPDCellX,PPDCellY,PPDCellZ
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3614,13 +3639,53 @@ INTEGER              :: iElem
 !===================================================================================================================================
 ! loop over all elements
 DO iElem=1,PP_nElems
-  PPDCell(iElem)  = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLength(iElem) ! determined with characteristic cell length
-  PPDCellX(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthX(iElem) ! determined from average distance in X
-  PPDCellY(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthY(iElem) ! determined from average distance in Y
-  PPDCellZ(iElem) = (REAL(PP_N)+1.0)*DebyeLengthCell(iElem)/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+  ASSOCIATE( a => (REAL(PP_N)+1.0)*DebyeLengthCell(iElem) )
+    PPDCell(iElem)  = a/GEO%CharLength(iElem) ! determined with characteristic cell length
+    PPDCellX(iElem) = a/GEO%CharLengthX(iElem) ! determined from average distance in X
+    PPDCellY(iElem) = a/GEO%CharLengthY(iElem) ! determined from average distance in Y
+    PPDCellZ(iElem) = a/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+  END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePPDCell
+
+
+SUBROUTINE CalculatePICCFL()
+!===================================================================================================================================
+! Calculate the particle displacement CFL condition for PIC schemes
+! PICCFL Condition: PICCFLCell = (p+1)*dt/L_cell * SQRT( kB*Te/me ) / 0.4  <  1.0
+! where L_cell=V^(1/3) is the characteristic cell length determined from the cell volume
+! PICCFLCellX, PICCFLCellY, PICCFLCellZ are determined by the average distance in X, Y and Z of each cell
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,PICCFLCell,PICCFLCellX,PICCFLCellY,PICCFLCellZ
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem
+!===================================================================================================================================
+! loop over all elements
+DO iElem=1,PP_nElems
+  ! Divide the parameter by 0.4 -> the resulting value must always be below 1.0
+  ASSOCIATE( a => (REAL(PP_N)+1.0) * 2.5 * dt * SQRT( BoltzmannConst * ElectronTemperatureCell(iElem) / ElectronMass ) )
+    PICCFLCell(iElem)  = a/GEO%CharLength(iElem) ! determined with characteristic cell length
+    PICCFLCellX(iElem) = a/GEO%CharLengthX(iElem) ! determined from average distance in X
+    PICCFLCellY(iElem) = a/GEO%CharLengthY(iElem) ! determined from average distance in Y
+    PICCFLCellZ(iElem) = a/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+  END ASSOCIATE
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePICCFL
 
 
 SUBROUTINE CalculateIonizationCell()
@@ -3729,7 +3794,7 @@ SUBROUTINE CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
 USE MOD_Particle_Analyze_Vars  ,ONLY:CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter,CalcPICCFLCondition
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3764,6 +3829,9 @@ IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
 
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
 IF(CalcPointsPerDebyeLength) CALL CalculatePPDCell()
+
+! PICCFL Condition: PICCFL = dt/L_cell * SQRT( kB*Te/me )
+IF(CalcPICCFLCondition) CALL CalculatePICCFL()
 
 END SUBROUTINE CalculatePartElemData
 

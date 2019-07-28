@@ -808,14 +808,28 @@ The calculation is activated by
 **Points per Debye Length**
 The spatial resolution in terms of grid points per Debye length can be estimated via
 
-$$\mathrm{PPD}=\frac{(p+1)\lambda_{D}}{L}$$
+$$\mathrm{PPD}=\frac{\lambda_{D}}{\Delta x}=\frac{(p+1)\lambda_{D}}{L}\sim 1$$
 
-where $p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
+where $\Delta x$ is the grid spacing (average spacing between grid points), 
+$p$ is the polynomial degree of the solution, $\lambda_{D}$ is the Debye length and $L=V^{1/3}$ 
 is the characteristic cell length, which is determined from the volume $V$ of the grid cell.
 Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
 $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
 each cell. These values are especially useful when dealing with Cartesian grids.
-
 The calculation is activated by
 
     CalcPointsPerDebyeLength = T
+
+**PIC CFL Condition**
+The plasma frequency time step restriction and the spatial Debye length restriction can be merged
+into a single parameter
+
+$$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
+
+where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ and $m_{e}$ are the electron temperature and
+mass, respectively. Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcPICCFLCondition = T

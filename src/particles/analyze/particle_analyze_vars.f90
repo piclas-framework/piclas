@@ -88,6 +88,10 @@ REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points p
 REAL,ALLOCATABLE              :: PPDCellX(:)                         !< Points per Debye length in X (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellY(:)                         !< Points per Debye length in Y (cell mean value)
 REAL,ALLOCATABLE              :: PPDCellZ(:)                         !< Points per Debye length in Z (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCell(:)                       !< PIC CFL Condition (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellX(:)                      !< PIC CFL Condition in X (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellY(:)                      !< PIC CFL Condition in Y (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellZ(:)                      !< PIC CFL Condition in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
