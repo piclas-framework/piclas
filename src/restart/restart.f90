@@ -70,6 +70,11 @@ CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance', &
 CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
                                "Set the DG solution to zero (ignore the DG solution in the state file)",&
                                '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
+                              "TO-DO",&
+                              '.FALSE.')
+CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
+                              'TO-DO')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -80,7 +85,7 @@ SUBROUTINE InitRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETSTR
 #if USE_LOADBALANCE
 USE MOD_ReadInTools        ,ONLY: GETINT
 USE MOD_LoadBalance_Vars   ,ONLY: LoadBalanceSample
@@ -102,7 +107,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
+#endif /*USE_LOADBALANCE*/
 #ifdef PP_HDG
 LOGICAL                     :: DG_SolutionUExists
 #endif /* PP_HDG */
@@ -119,6 +126,10 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
+
+! Macroscopic restart
+DoMacroscopicRestart = GETLOGICAL('Particles-MacroscopicRestart')
+IF(DoMacroscopicRestart) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
@@ -163,7 +174,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  CALL CloseDataFile() 
+  CALL CloseDataFile()
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
@@ -265,10 +276,11 @@ USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Equation_Vars,           ONLY:Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
-USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
+USE MOD_Restart_Vars,            ONLY:DoMacroscopicRestart
+USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset
 USE MOD_Particle_Vars,           ONLY:PartSurfaceModel
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
-USE MOD_DSMC_Vars,               ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC, VibQuantsPar, PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars,               ONLY:UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_LD_Vars,                 ONLY:UseLD, PartStateBulkValues
 USE MOD_Eval_XYZ,                ONLY:GetPositionInRefElem
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap,ParticleInsideQuad3D
@@ -282,6 +294,7 @@ USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBo
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif /*MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
+USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
 #ifdef PP_HDG
 USE MOD_HDG_Vars,                ONLY:lambda, nGP_face
@@ -317,7 +330,7 @@ REAL                               :: StartT,EndT
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
-INTEGER                            :: FirstElemInd,LastelemInd,iInit
+INTEGER                            :: FirstElemInd,LastelemInd,j,k
 INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
@@ -326,11 +339,13 @@ INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
-LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars
+LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
 REAL                               :: det(6,2)
 INTEGER                            :: COUNTER, COUNTER2, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar
+! 2D Symmetry RadialWeighting
+LOGICAL                            :: CloneExists
 #ifdef MPI
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -338,11 +353,11 @@ INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCo
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
 #endif /*MPI*/
-REAL                               :: VFR_total
 INTEGER                            :: locnSurfPart,offsetnSurfPart
 INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
 REAL,ALLOCATABLE                   :: SurfCalcData(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 INTEGER                            :: Coordinations, SurfPartIntSize, SurfPartDataSize
 INTEGER                            :: UsedSiteMapPos, nVar, nfreeArrayindeces, lastfreeIndx, current
 INTEGER                            :: xpos, ypos, firstpart, lastpart, PartBoundID, SideID
@@ -370,7 +385,7 @@ IF(DoRestart)THEN
   StartT=MPI_WTIME()
 #endif
 
-              
+
   ! Temp. vars for integer KIND=8 possibility
   PP_NTmp       = INT(PP_N,IK)
   OffsetElemTmp = INT(OffsetElem,IK)
@@ -414,7 +429,7 @@ IF(DoRestart)THEN
             QDSMacroValues(2:4,i,j,k,iElem) = QDSMacroValues(2:4,i,j,k,iElem) * QDSMacroValues(1,i,j,k,iElem)
           END DO; END DO; END DO
         END DO
-        CALL CloseDataFile() 
+        CALL CloseDataFile()
       ELSE! We need to interpolate the solution to the new computational grid
         ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,nQDSElems))
         CALL ReadArray('DG_Solution',5,(/6_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
@@ -432,6 +447,34 @@ IF(DoRestart)THEN
 #endif /*USE_QDS_DG*/
 
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#ifdef PARTICLES
+    !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
+    IF (DoDeposition .AND. RelaxDeposition) THEN
+      CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
+      IF(DGSourceExists)THEN
+        IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+          ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+          CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
+          DO iElem =1, PP_nElems
+            DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if (defined (PP_HDG) && (PP_nVar==1))
+              PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+              PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+              PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+              PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+            END DO; END DO; END DO
+          END DO
+          DEALLOCATE(PartSource_HDF5)
+        ELSE! We need to interpolate the solution to the new computational grid
+          CALL abort(&
+            __STAMP__&
+            ,' Restart with changed polynomial degree not implemented for DG_Source!')
+        END IF
+      END IF
+    END IF
+#endif /*PARTICLES*/
     ! Read in time from restart file
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
@@ -518,7 +561,7 @@ IF(DoRestart)THEN
       !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       !    END DO
       !    DEALLOCATE(U_local)
-      !CALL RestartHDG(U)     
+      !CALL RestartHDG(U)
 #else
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
@@ -551,6 +594,7 @@ IF(DoRestart)THEN
   ! 2.) Read the particle solution
   ! ===========================================================================
   implemented=.FALSE.
+IF(.NOT.DoMacroscopicRestart) THEN
   IF(useDSMC.AND.(.NOT.(useLD)))THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       PartDataSize=11
@@ -676,7 +720,7 @@ IF(DoRestart)THEN
     END DO
   END IF
 
-  SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...' 
+  SWRITE(UNIT_stdOut,*)'Reading Particles from Restartfile...'
   !read local ElemInfo from HDF5
   FirstElemInd=offsetElem+1
   LastElemInd=offsetElem+PP_nElems
@@ -883,21 +927,8 @@ __STAMP__&
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
-    SWRITE(UNIT_stdOut,*)' DONE!' 
-    DO i=1,nSpecies
-      DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-        Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
-      END DO
-      DO iInit = 1, Species(i)%nSurfacefluxBCs
-        IF (Species(i)%Surfaceflux(iInit)%ReduceNoise) THEN
-          VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total_allProcsTotal !proc global total (for non-root: dummy!!!)
-        ELSE
-          VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total               !proc local total
-        END IF
-        Species(i)%Surfaceflux(iInit)%InsertedParticle = INT(Species(i)%Surfaceflux(iInit)%PartDensity * RestartTime &
-          / Species(i)%MacroParticleFactor * VFR_total,8)
-      END DO
-    END DO
+    SWRITE(UNIT_stdOut,*)' DONE!'
+
     ! if ParticleVecLength GT maxParticleNumber: Stop
     IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
       SWRITE (UNIT_stdOut,*) "PDM%ParticleVecLength =", PDM%ParticleVecLength
@@ -1177,10 +1208,31 @@ __STAMP__&
     IF (COUNTER.NE.0) WRITE(*,*) COUNTER,'Particles are in different element after restart!'
     IF (COUNTER2.NE.0) WRITE(*,*) COUNTER2,'of which could not be found and are removed!'
 #endif
+
     CALL UpdateNextFreePosition()
+
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      CALL DatasetExists(File_ID,'CloneData',CloneExists)
+      IF(CloneExists) THEN
+        CALL RestartClones()
+      ELSE
+        SWRITE(*,*) 'No clone data found! Restart without cloning.'
+        IF(RadialWeighting%CloneMode.EQ.1) THEN
+          RadialWeighting%CloneDelayDiff = 1
+        ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
+          RadialWeighting%CloneDelayDiff = 0
+        END IF
+      END IF
+    END IF
   ELSE
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
   END IF ! PartIntExists
+ELSE      ! DoMacroscopicRestart
+  CALL CloseDataFile()
+  CALL MacroscopicRestart()
+  CALL UpdateNextFreePosition()
+END IF
+
   IF (PartSurfaceModel.GT.0) THEN
     WallmodelExists=.FALSE.
     CALL DatasetExists(File_ID,'WallModel',WallmodelExists,attrib=.TRUE.)
@@ -1189,7 +1241,7 @@ __STAMP__&
       IF (WallModel_HDF5.NE.PartSurfaceModel) WallmodelExists=.FALSE.
     END IF
     IF (WallModelExists) THEN
-      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...' 
+      SWRITE(UNIT_stdOut,*)'Reading surface calculation infos from Restartfile...'
       ! do sanity checks of data in h5 file before proceeding
       CALL GetDataSize(File_ID,'Surface_BCs',nDims,HSize,attrib=.TRUE.)
       nSurfBC_HDF5 = INT(HSize(1),4)
@@ -1279,7 +1331,7 @@ __STAMP__&
               END IF
               ALLOCATE(SurfPartData(offsetnSurfPart+1:offsetnSurfPart+locnSurfPart,SurfPartDataSize))
               ! read local Surface Particle Data from HDF5
-              
+
               ! Associate construct for integer KIND=8 possibility
               ASSOCIATE (&
                     locnSurfPart      => INT(locnSurfPart,IK)      ,&
@@ -1357,7 +1409,7 @@ __STAMP__&
   END IF
 #endif /*PARTICLES*/
 
-  CALL CloseDataFile() 
+  CALL CloseDataFile()
 
 #ifdef PARTICLES
   ! include initially collected particles for first call of field-solver (e.g. in RecomputeLambda)
@@ -1365,7 +1417,7 @@ __STAMP__&
 #endif /*PARTICLES*/
 #ifdef PP_HDG
   iter=0
-  ! INSTEAD OF ALL THIS **** DO
+  ! INSTEAD OF ALL THIS STUFF DO
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve
@@ -1378,9 +1430,9 @@ __STAMP__&
 #ifdef MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #else
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 #endif
 ELSE ! no restart
 #ifdef PARTICLES
@@ -1391,6 +1443,205 @@ ELSE ! no restart
   IF(DoWriteStateToHDF5) CALL FlushHDF5()
 END IF !IF(DoRestart)
 END SUBROUTINE Restart
+
+#ifdef PARTICLES
+SUBROUTINE RestartClones()
+!===================================================================================================================================
+! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_HDF5_input
+USE MOD_io_hdf5
+USE MOD_Mesh_Vars,                ONLY : offsetElem, nElems
+USE MOD_DSMC_Vars,                ONLY : UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars,                ONLY : RadialWeighting, ClonedParticles
+USE MOD_Particle_Vars,            ONLY : nSpecies, usevMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                           :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay
+  INTEGER(HSIZE_T), POINTER         :: SizeClone(:)
+  REAL,ALLOCATABLE                  :: CloneData(:,:)
+  INTEGER                           :: iPolyatmole, MaxQuantNum, iSpec, compareDelay
+  INTEGER,ALLOCATABLE               :: pcount(:), VibQuantData(:,:)
+!===================================================================================================================================
+
+  CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
+
+  CloneDataSize = INT(SizeClone(2),4)
+  ClonePartNum = INT(SizeClone(1),4)
+  DEALLOCATE(SizeClone)
+
+  IF(ClonePartNum.GT.0) THEN
+    ALLOCATE(CloneData(1:ClonePartNum,1:CloneDataSize))
+    ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),CloneDataSize => INT(CloneDataSize,IK))
+      CALL ReadArray('CloneData',2,(/ClonePartNum,CloneDataSize/),0_IK,1,RealArray=CloneData)
+    END ASSOCIATE
+    SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
+    ! Determing the old clone delay
+    maxDelay = INT(MAXVAL(CloneData(:,9)))
+    IF(RadialWeighting%CloneMode.EQ.1) THEN
+      ! Array is allocated from 0 to maxDelay
+      compareDelay = maxDelay + 1
+    ELSE
+      compareDelay = maxDelay
+    END IF
+    IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
+      SWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
+      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+    ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
+      SWRITE(*,*) 'The clone delay has not been changed.'
+      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+    ELSE
+      SWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
+      RadialWeighting%CloneDelayDiff = compareDelay + 1
+    END IF
+    IF(RadialWeighting%CloneMode.EQ.1) THEN
+      tempDelay = RadialWeighting%CloneInputDelay - 1
+    ELSE
+      tempDelay = RadialWeighting%CloneInputDelay
+    END IF
+    ALLOCATE(pcount(0:tempDelay))
+    pcount(0:tempDelay) = 0
+    ! Polyatomic clones: determining the size of the VibQuant array
+    IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+      MaxQuantNum = 0
+      DO iSpec = 1, nSpecies
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        END IF
+      END DO
+      ALLOCATE(VibQuantData(1:ClonePartNum,1:MaxQuantNum))
+      ASSOCIATE(ClonePartNum => INT(ClonePartNum,IK),MaxQuantNum => INT(MaxQuantNum,IK))
+        CALL ReadArray('CloneVibQuantData',2,(/ClonePartNum,MaxQuantNum/),0_IK,1,IntegerArray_i4=VibQuantData)
+      END ASSOCIATE
+    END IF
+    ! Copying particles into ClonedParticles array
+    DO iPart = 1, ClonePartNum
+      iDelay = INT(CloneData(iPart,9))
+      iElem = INT(CloneData(iPart,8)) - offsetElem
+      IF((iElem.LE.nElems).AND.(iElem.GT.0)) THEN
+        IF(iDelay.LE.tempDelay) THEN
+          pcount(iDelay) = pcount(iDelay) + 1
+          RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(iPart,1)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(iPart,2)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(iPart,3)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(4) = CloneData(iPart,4)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(5) = CloneData(iPart,5)
+          ClonedParticles(pcount(iDelay),iDelay)%PartState(6) = CloneData(iPart,6)
+          ClonedParticles(pcount(iDelay),iDelay)%Species = INT(CloneData(iPart,7))
+          ClonedParticles(pcount(iDelay),iDelay)%Element = iElem
+          ClonedParticles(pcount(iDelay),iDelay)%lastPartPos(1:3) = CloneData(iPart,1:3)
+          IF (UseDSMC) THEN
+            IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(iPart,12)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(iPart,13)
+            ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor   = CloneData(iPart,12)
+            ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3) = CloneData(iPart,12)
+            ELSE IF (CollisMode.GT.1) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1) = CloneData(iPart,10)
+              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(2) = CloneData(iPart,11)
+            ELSE IF (usevMPF) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(iPart,10)
+            END IF
+          ELSE IF (usevMPF) THEN
+              ClonedParticles(pcount(iDelay),iDelay)%WeightingFactor = CloneData(iPart,10)
+          END IF
+          IF (UseDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+            IF (SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%PolyatomicMol) THEN
+              iPolyatMole = SpecDSMC(ClonedParticles(pcount(iDelay),iDelay)%Species)%SpecToPolyArray
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+              ClonedParticles(pcount(iDelay),iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+                = VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+            ELSE
+               VibQuantData(iPart,:) = 0
+            END IF
+          END IF
+        END IF
+      END IF
+    END DO
+  ELSE
+    SWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
+  END IF
+
+END SUBROUTINE RestartClones
+
+
+SUBROUTINE MacroscopicRestart()
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_hdf5
+USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
+USE MOD_Restart_Vars              ,ONLY: MacroRestartFileName, MacroRestartValues
+USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_part_emission             ,ONLY: MacroRestart_InsertParticles
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem
+REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'Using macroscopic values from file: ',TRIM(MacroRestartFileName)
+
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
+
+ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
+MacroRestartValues = 0.
+
+ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+  offsetElem => INT(offsetElem,IK),&
+  nElems     => INT(nElems,IK)    )
+  CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
+END ASSOCIATE
+
+iVar = 1
+DO iSpec = 1, nSpecies
+  DO iElem = 1, nElems
+    MacroRestartValues(iElem,iSpec,:) = ElemData_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
+  END DO
+  iVar = iVar + DSMC_NVARS
+END DO
+
+CALL MacroRestart_InsertParticles()
+
+DEALLOCATE(MacroRestartValues)
+DEALLOCATE(ElemData_HDF5)
+
+END SUBROUTINE MacroscopicRestart
+#endif /*PARTICLES*/
+
 
 #ifdef PP_HDG
 SUBROUTINE RecomputeLambda(t)
@@ -1431,14 +1682,14 @@ END IF
 #endif
 
 ! Deposition of particles
-CALL Deposition(doInnerParts=.TRUE.) 
+CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
 ! here: finish deposition with delta kernal
 !       maps source terms in physical space
 ! ALWAYS require
 PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
-CALL Deposition(doInnerParts=.FALSE.) 
+CALL Deposition(doInnerParts=.FALSE.)
 #endif /*PARTICLES*/
 
 ! recompute fields
@@ -1453,7 +1704,7 @@ SUBROUTINE FinalizeRestart()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone
+USE MOD_Restart_Vars,ONLY:Vdm_GaussNRestart_GaussN,RestartInitIsDone,DoMacroscopicRestart
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1463,6 +1714,8 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussNRestart_GaussN)
 RestartInitIsDone = .FALSE.
+! Avoid performing a macroscopic restart during an automatic load balance restart
+DoMacroscopicRestart = .FALSE.
 END SUBROUTINE FinalizeRestart
 
 END MODULE MOD_Restart

@@ -20,14 +20,16 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
-LOGICAL           :: CalcPoyntingInt             !< calulate pointing vector integral | only perp to z axis
+LOGICAL           :: CalcPoyntingInt             !< calculate pointing vector integral | only perp to z axis
+LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
+LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData
 REAL              :: PoyntingIntCoordErr         !< tolerance in plane searching
 REAL              :: PoyntingIntPlaneFactor      !< factor for poyntingintplanes
 INTEGER           :: nPoyntingIntPlanes          !< number of planes

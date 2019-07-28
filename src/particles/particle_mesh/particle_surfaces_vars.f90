@@ -58,7 +58,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: FacNchooseK                  ! array 
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: SideType                     ! integer array with side type - planar - bilinear - curved
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty           ! logical if Side bounding box is empty
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
-REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin 
+REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
 REAL                                    :: BezierEpsilonBilinear        ! bi-linear tolerance for the bi-linear - planar decision
 REAL                                    :: BezierHitEpsBi               ! epsilon tolerance for bi-linear faces
@@ -80,7 +80,7 @@ REAL                                    :: BezierNewtonHit              ! value 
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections
-INTEGER                                 :: BezierClipLineVectorMethod   ! recompute method for Lu,Lv 
+INTEGER                                 :: BezierClipLineVectorMethod   ! recompute method for Lu,Lv
                                                                         ! 0 - once
                                                                         ! 1 - after each clip
                                                                         ! 2 - after each xi,eta pair
@@ -128,6 +128,7 @@ TYPE tBCdata_auxSF
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
   TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)             ! data for tria-swapping in surfflux (:,:,1:SideNumber)
   TYPE(tTriaSideGeo)     , ALLOCATABLE   :: TriaSideGeo(:)                 ! data for trias in surfflux (1:SideNumber)
+  REAL                   , ALLOCATABLE   :: WeightingFactor(:)
 END TYPE tBCdata_auxSF
 TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)
 

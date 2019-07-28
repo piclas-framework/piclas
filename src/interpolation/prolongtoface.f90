@@ -21,7 +21,7 @@ MODULE MOD_ProlongToFace
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -73,14 +73,14 @@ USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
 REAL                            :: Uface(PP_nVar,0:PP_N,0:PP_N)
 !===================================================================================================================================
@@ -233,7 +233,7 @@ ELSE
    lastSideID =  lastMPISide_MINE
 END IF
 DO SideID=firstSideID,lastSideID
-  ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(locSideID)
@@ -351,13 +351,13 @@ REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_BC(PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: l,p,q,ElemID,SideID,LocSideID
 !===================================================================================================================================
 ! ONLY BCSides
 DO SideID=1,nBCSides
   ! master side, flip=0
-  ElemID       = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID       = SideToElem(S2E_ELEM_ID,SideID)
   locSideID    = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(locSideID)
@@ -478,7 +478,7 @@ REAL,INTENT(IN)                 :: Uvol(1:nVar,0:PP_N,0:PP_N,0:PP_N)
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Uface(1:nVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: i,j,k
 INTEGER                         :: pq(1:3)
 !===================================================================================================================================
@@ -530,14 +530,14 @@ USE MOD_QDS_Equation_vars,  ONLY: QDSnVar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(QDSnVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(QDSnVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
 REAL                            :: Uface(QDSnVar,0:PP_N,0:PP_N)
 !===================================================================================================================================
@@ -690,7 +690,7 @@ ELSE
    lastSideID =  lastMPISide_MINE
 END IF
 DO SideID=firstSideID,lastSideID
-  ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(locSideID)
@@ -809,13 +809,13 @@ REAL,INTENT(IN)                 :: Uvol(QDSnVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_BC(QDSnVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                         :: l,p,q,ElemID,SideID,LocSideID
 !===================================================================================================================================
 ! ONLY BCSides
 DO SideID=1,nBCSides
   ! master side, flip=0
-  ElemID       = SideToElem(S2E_ELEM_ID,SideID)  
+  ElemID       = SideToElem(S2E_ELEM_ID,SideID)
   locSideID    = SideToElem(S2E_LOC_SIDE_ID,SideID)
 #if (PP_NodeType==1) /* for Gauss-points*/
   SELECT CASE(locSideID)

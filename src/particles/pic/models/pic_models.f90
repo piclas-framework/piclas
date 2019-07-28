@@ -21,7 +21,7 @@ MODULE MOD_PICModels
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ SumOfFormedParticles = 0
 
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
-    ASSOCIATE (& 
+    ASSOCIATE (&
           oldSpec => PartSpecies(iPart) ,&
           newSpec => SpecDSMC(PartSpecies(iPart))%NextIonizationSpecies )
       IF(newSpec.EQ.0) CYCLE ! skip species that cannot be ionized (e.g. electrons or fully ionized species)
@@ -113,10 +113,10 @@ DO iPart = 1, PDM%ParticleVecLength
             CriticalValue_GV = (SQRT(2.) - 1.) * (IonizationEnergy_eV / 27.2)**(1.5) * 5.14E+2
             IF(E_GV.GT.CriticalValue_GV) THEN
               WRITE(UNIT_stdOut,'(A,ES25.14E3)') "IonizationEnergy_eV =", IonizationEnergy_eV
-              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "CriticalValue_GV    =", CriticalValue_GV   
-              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "E_GV    =", E_GV   
+              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "CriticalValue_GV    =", CriticalValue_GV
+              WRITE(UNIT_stdOut,'(A,ES25.14E3)') "E_GV    =", E_GV
 #ifdef CODE_ANALYZE
-              WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!" 
+              WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!"
 #else
               CALL abort(&
                   __STAMP__&
@@ -190,10 +190,9 @@ USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iPart, MaxElecQua, ChargedNum, SumOfFormedParticles, ElectronIndex
-REAL                :: IonizationEnergy_eV, iRan, QuantumTunnelProb, EffQuantNum
+INTEGER             :: iPart, MaxElecQua, SumOfFormedParticles, ElectronIndex
+REAL                :: IonizationEnergy_eV, iRan, QuantumTunnelProb
 REAL                :: n
-REAL                :: CriticalValue
 #ifdef CODE_ANALYZE
 INTEGER             :: ii,jj
 INTEGER,PARAMETER   :: NN=16
@@ -285,7 +284,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!                                                                    ! ----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                  :: E ! Electric Field Strength [V/m]
 REAL,INTENT(IN)                  :: W ! Ionization Rate [1/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -299,8 +298,8 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'W[1/s]'      &
     /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=1000)                      :: tmpStr2 
-CHARACTER(LEN=1),PARAMETER               :: delimiter="," 
+CHARACTER(LEN=1000)                      :: tmpStr2
+CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 LOGICAL                                  :: FileExist,CreateFile
 !===================================================================================================================================
 ! only the root shall write this file
@@ -320,7 +319,7 @@ INQUIRE(FILE = outfile, EXIST=FileExist)
 IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
 
 ! create file with header
-IF(CreateFile) THEN 
+IF(CreateFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
@@ -340,7 +339,7 @@ IF(CreateFile) THEN
   tmpStr2(1:1) = " "                           ! remove possible relimiter at the beginning (e.g. a comma)
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
 
-  CLOSE(ioUnit) 
+  CLOSE(ioUnit)
   iter=iter+1
 END IF
 
@@ -352,7 +351,7 @@ IF(FILEEXISTS(outfile))THEN
       " ",E, &           ! Electric field strength
       delimiter,W        ! Ionization rate
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-  CLOSE(ioUnit) 
+  CLOSE(ioUnit)
 ELSE
   SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write particle tracking info!"
 END IF

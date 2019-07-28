@@ -20,22 +20,26 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
+LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
 LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
 LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
+LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
+REAL                          :: PCoupl                              !< Power that is coupled into plasma
+REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average)
 LOGICAL                       :: CalcPartBalance                     !< Particle Power Balance - input and outflow energy of all
                                                                      !< particles
 LOGICAL                       :: CalcVelos                           !< Computes the drift and thermal velocity of each species
 LOGICAL                       :: VeloDirs(4)                         !< Select the direction for velocity computation
 LOGICAL                       :: TrackParticlePosition               !< Track the particle movement
-                                                                     !< Stored in .csv format, debug only, no MPI 
+                                                                     !< Stored in .csv format, debug only, no MPI
 INTEGER                       :: nSpecAnalyze                        !< Number of analyzed species 1 or nSpecies+1
 LOGICAL                       :: IsRestart                           !< Check if restart, add data to Database
 LOGICAL                       :: ChargeCalcDone                      !< Check flag
@@ -58,7 +62,7 @@ LOGICAL                       :: CalcPICTimeStep                     !< Compute 
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
-!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons 
+!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
@@ -67,7 +71,7 @@ LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute 
 
 LOGICAL                       :: CalcIonizationDegree                !< Compute the ionization degree and quasi neutrality
 !                                                                    !< in each cell
-LOGICAL                       :: CalcLaserInteraction                !<Compute laser-plasma interaction properties such as maximum
+LOGICAL                       :: CalcLaserInteraction                !< Compute laser-plasma interaction properties such as maximum
 REAL                          :: LaserInteractionEkinMaxRadius       !< maximum radius (x- and y-dir) of particle to be considered
 !                                                                    !< for Ekin maximum calculation (default is HUGE)
 !                                                                    !< OR LaserInteractionEkinMaxZPosMin
@@ -81,7 +85,7 @@ REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points p
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):
-                                                                     !<   assume Cartesian grid and calculate to total number 
+                                                                     !<   assume Cartesian grid and calculate to total number
                                                                      !<   including neighbor DOFs
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)

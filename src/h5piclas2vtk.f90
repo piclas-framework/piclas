@@ -14,7 +14,7 @@
 
 !==================================================================================================================================
 !> The PICLAS2VTK tool takes state files written during runtime by PICLAS in the .h5 format and converts them to .vtu files,
-!> readable by ParaView. Supports parallel readin. 
+!> readable by ParaView. Supports parallel readin.
 !> The state files can come from different calculations with different mesh files, equation systems, polynomial degrees and so on.
 !> Two modes of usage: command line mode and parameter file mode.
 !> In parameter file mode the usage is: h5piclas2vtk parameter.ini State1.h5 State2.h5 State3.h5 ...
@@ -40,6 +40,9 @@ USE MOD_HDF5_Input,          ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadA
 USE MOD_HDF5_Input,          ONLY: ISVALIDHDF5FILE,ISVALIDMESHFILE
 USE MOD_Mesh_ReadIn,         ONLY: readMesh
 USE MOD_Mesh,                ONLY: FinalizeMesh
+#ifdef PARTICLES
+USE MOD_Particle_Mesh       ,ONLY: FinalizeParticleMesh
+#endif
 USE MOD_Mesh_Vars,           ONLY: useCurveds,NGeo,nElems,NodeCoords,offsetElem
 USE MOD_Interpolation_Vars,  ONLY: NodeTypeCL,NodeTypeVisu
 USE MOD_Interpolation,       ONLY: GetVandermonde
@@ -57,10 +60,10 @@ USE MOD_Metrics,             ONLY: CalcMetricsErrorDiff
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: Time                              ! Used to track computation time  
+REAL                           :: Time                              ! Used to track computation time
 CHARACTER(LEN=255)             :: NodeTypeVisuOut                   ! Stores user selected type of visualization nodes
 INTEGER                        :: NVisu                             ! Polynomial degree of visualization
-INTEGER                        :: iArgs,iElem                       ! Loop counters 
+INTEGER                        :: iArgs,iElem                       ! Loop counters
 INTEGER                        :: iExt                              ! Stores position where the filename extension begins
 CHARACTER(LEN=255)             :: InputStateFile,MeshFile
 INTEGER                        :: nVar_State,N_State,nElems_State   ! Properties read from state file
@@ -71,7 +74,7 @@ REAL,ALLOCATABLE               :: U_average(:,:,:,:,:)              ! Solution f
 INTEGER                        :: N_average
 REAL,ALLOCATABLE,TARGET        :: U_Visu(:,:,:,:,:)                 ! Solution on visualiation nodes
 REAL,POINTER                   :: U_Visu_p(:,:,:,:,:)               ! Solution on visualiation nodes
-REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes 
+REAL,ALLOCATABLE               :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualisation nodes
 REAL,ALLOCATABLE,TARGET        :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                   :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE               :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistand mesh to visualisation nodes
@@ -90,7 +93,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
-LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error 
+LOGICAL                        :: CalcDiffError                     ! Use first state file as reference state for L2 error
                                                                     ! calculation with the following state files
 LOGICAL                        :: AllowChangedMesh
 LOGICAL                        :: CalcDiffSigma                     ! Use last state file as state for L2 sigma calculation
@@ -108,7 +111,7 @@ CALL ParseCommandlineArguments()
 !CALL DefineParametersIO_HDF5()
 ! Define parameters for H5PICLAS2VTK
 CALL prms%SetSection("H5PICLAS2VTK")
-CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//& 
+CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('useCurveds',  "Controls usage of high-order information in mesh. Turn off to discard "//&
@@ -122,6 +125,7 @@ CALL prms%CreateLogicalOption('VisuSource',     "use DG_Source instead of DG_Sol
 CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
                                                    'Default: 2*N. (needed for CalcDiffError)')
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
+CALL prms%CreateLogicalOption('writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
 CALL DefineParametersIO()
 
 NVisuDefault = .FALSE.
@@ -187,7 +191,7 @@ SWRITE(UNIT_stdOut,'(A)') &
 "                                |__|/ \\|__|                                                        "
 SWRITE(UNIT_stdOut,'(A)')
 SWRITE(UNIT_stdOut,'(132("="))')
-                                                                                                  
+
 ! Set and read in parameters differently depending if H5PICLAS2VTK is invoked with a parameter file or not
 IF(NVisuDefault.OR.CmdLineMode) THEN
   IF(NVisuDefault) THEN
@@ -272,7 +276,7 @@ DO iArgs = iArgsStart,nArgs
     CALL CollectiveStop(__STAMP__,&
       'ERROR - Please supply only .h5 files after parameter file.')
   END IF
-  
+
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
@@ -344,7 +348,7 @@ DO iArgs = iArgsStart,nArgs
       CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
       CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
       CALL CloseDataFile()
-    
+
       ! Read the mesh itself
       CALL readMesh(MeshFile)
       ReadMeshFinished = .TRUE.
@@ -403,9 +407,9 @@ DO iArgs = iArgsStart,nArgs
 
     IF(CalcDiffError)THEN
       IF(iArgs .EQ. 2)THEN
-        ! Set the default analyze polynomial degree NAnalyze to 2*(N+1) 
+        ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
         WRITE(DefStr,'(i4)') 2*(N_State+1)
-        NAnalyze=GETINT('NAnalyze',DefStr) 
+        NAnalyze=GETINT('NAnalyze',DefStr)
         !CALL InitAnalyzeBasis(N_State,NAnalyze,xGP,wBary)
         ! Copy state to 'first'
         ALLOCATE(U_first(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
@@ -425,7 +429,7 @@ DO iArgs = iArgsStart,nArgs
         IF(NAnalyze.LT.2*(N_State+1))CALL abort(__STAMP__,&
       'CalcDiffError: NAnalyze.LT.2*(N_State+1)! The polynomial degree is too small!',iError)
         CALL CalcErrorStateFiles(nVar_State,N_State_first,N_State,U_first,U)
-      END IF 
+      END IF
     END IF
     IF(CalcAverage)THEN
       IF(iArgs .EQ. 2)THEN
@@ -489,7 +493,6 @@ DO iArgs = iArgsStart,nArgs
     nElems_old         = nElems
     NodeType_State_old = NodeType_State
   END IF
-  
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     CALL ConvertElemData(InputStateFile,ReadMeshFinished,MeshInitFinished)
@@ -516,7 +519,9 @@ SDEALLOCATE(Coords_NVisu)
 SDEALLOCATE(NodeCoords)
 ! visuSurf
 CALL FinalizeMesh()
-
+#ifdef PARTICLES
+CALL FinalizeParticleMesh()
+#endif
 ! Measure processing duration
 Time=PICLASTIME()
 #ifdef MPI
@@ -545,17 +550,18 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
 REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
 CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector 
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nNodes)      ! Statevector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iVal,iElem,Offset,nBytes,nVTKElems,nVTKCells,ivtk=44,iVar,iNode, int_size, ElemType
-INTEGER                       :: Vertex(data_size,nElems)
+INTEGER                       :: Vertex(data_size,nElems), iLen, str_len
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
-CHARACTER(LEN=200)            :: Buffer
-CHARACTER(LEN=1)              :: lf
+CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
+CHARACTER(LEN=1)              :: lf, components_string
 REAL(KIND=4)                  :: float
+INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 !===================================================================================================================================
 
 nVTKElems=nNodes
@@ -566,6 +572,34 @@ IF(nElems.LT.1)THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
   RETURN
 END IF
+
+! Prepare output of vector variables as a vector variable suitable for VisIt and Paraview
+IF(.NOT.ALLOCATED(VarNameCombine))    ALLOCATE(VarNameCombine   (nVar))
+IF(.NOT.ALLOCATED(VarNameCombineLen)) ALLOCATE(VarNameCombineLen(nVar))
+VarNameCombine = 0
+DO iVar=2,nVar
+  ! Get the length of the variable name
+  iLen = LEN(TRIM(VarNameVisu(iVar)))
+  ! Save the strings in temporary variables
+  tmp = VarNameVisu(iVar)
+  tmp2 = VarNameVisu(iVar-1)
+  ! Compare the strings, while omitting the last character to find identify VeloX/Y/Z as a vector
+  IF (TRIM(tmp(:iLen-1)) .EQ. TRIM(tmp2(:iLen-1))) THEN
+    ! Although the translational temperature is given in X/Y/Z its not a vector (VisIt/Paraview would produce a magnitude variable)
+    IF(INDEX(tmp(:iLen-1),'TempTrans').EQ.0) THEN
+      ! If it is the first occurence, start counting
+      IF (VarNameCombine(iVar-1) .EQ. 0) VarNameCombine(iVar-1) = 1
+      VarNameCombine(iVar) = VarNameCombine(iVar-1) + 1
+    END IF
+  END IF
+END DO
+VarNameCombineLen = 0
+VarNameCombineLen(nVar) = VarNameCombine(nVar)
+DO iVar=nVar-1,1,-1
+  IF (VarNameCombine(iVar).GT.0) THEN
+    VarNameCombineLen(iVar) = MAX(VarNameCombine(iVar), VarNameCombineLen(iVar+1))
+  END IF
+END DO
 
 ! Line feed character
 lf = char(10)
@@ -589,10 +623,21 @@ Offset=0
 WRITE(StrOffset,'(I16)')Offset
 IF (nVar .GT.0)THEN
   DO iVar=1,nVar
+    IF(VarNameCombine(iVar).EQ.0) THEN
       Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameVisu(iVar))//&
       '" NumberOfComponents="1" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
       Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(float),4)
       WRITE(StrOffset,'(I16)')Offset
+    ELSE IF (VarNameCombine(iVar).EQ.1) THEN
+      str_len = LEN_TRIM(VarNameVisu(iVar))
+      WRITE(components_string,'(I1)') VarNameCombineLen(iVar)
+      VarNameString = VarNameVisu(iVar)(1:str_len-1)
+      Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNameString)//&
+      '" NumberOfComponents="'//components_string//'" format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf
+      WRITE(ivtk) TRIM(Buffer)
+      Offset=Offset+INT(SIZEOF(int_size),4)+nVTKCells*INT(SIZEOF(float),4)*VarNameCombineLen(iVar)
+      WRITE(StrOffset,'(I16)')Offset
+    END IF
   END DO
 END IF
 Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -630,7 +675,11 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 ! cell data
 nBytes = nVTKCells*INT(SIZEOF(FLOAT),4)
 DO iVal=1,nVar
-  WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
+  IF (VarNameCombine(iVal).EQ.0) THEN
+    WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
+  ELSEIF(VarNameCombine(iVal).EQ.1) THEN
+    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Value(iVal:iVal+VarNameCombineLen(iVal)-1,1:nVTKCells),4)
+  ENDIF
 END DO
 ! Points
 nBytes = 3*nVTKElems*INT(SIZEOF(FLOAT),4)
@@ -668,145 +717,88 @@ Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+
+SDEALLOCATE(VarNameCombine)
+SDEALLOCATE(VarNameCombineLen)
+
 END SUBROUTINE WriteDataToVTK_PICLas
 
 
 SUBROUTINE InitMesh_Connected()
 !===================================================================================================================================
-! Allocate and generate surface mesh on CL_NGeo points
+!> Reusing the routines from Prepare_Mesh and Particle_Mesh to build-up the mesh and its connectivity (for conforming meshes)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_PreProc
+USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
+#ifdef MPI
+USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
+#endif
+#ifdef PARTICLES
+USE MOD_Particle_Mesh           ,ONLY: InitParticleGeometry
+#endif
 !--------------------------------------------------------------------------------------------------!
 ! perform Mapping for Surface Output
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+   IMPLICIT NONE
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iLocSide, iSide, iNode, iBCSide, iInnerSide, nStart, jNode
-INTEGER                 :: NodeMap(4,6)
-! LOCAL VARIABLES
-TYPE(tElem),POINTER     :: aElem
-TYPE(tSide),POINTER     :: aSide
-INTEGER                 :: LocSideID,nSides_flip(0:4)
 !===================================================================================================================================
+PP_nElems=nElems
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
+CALL setLocalSideIDs()
 
-! set side ID, so that BC Sides come first, then InnerSides
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO iLocSide=1,6
-    aElem%Side(iLocSide)%sp%sideID=-1
-  END DO
-END DO
-iSide=0
-iBCSide=0
-iInnerSide=nBCSides
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO iLocSide=1,6
-    aSide=>aElem%Side(iLocSide)%sp
-    IF(aSide%nMortars.GT.0) CALL abort(__STAMP__,&
-      'Surface results with connectivity on meshes with mortars are not supported!') 
-    IF(aSide%sideID.EQ.-1)THEN
-      IF(aSide%NbProc.EQ.-1)THEN ! no MPI Sides
-        IF(ASSOCIATED(aSide%connection))THEN
-          iInnerSide=iInnerSide+1
-          iSide=iSide+1
-          aSide%SideID=iInnerSide
-          aSide%connection%SideID=iInnerSide
-        ELSE
-          iBCSide=iBCSide+1
-          iSide=iSide+1
-          aSide%SideID=iBCSide
-        END IF !associated connection
-      END IF ! .NOT. MPISide
-    END IF !sideID NE -1
-  END DO ! iLocSide=1,6
-END DO !iElem
-IF(iSide.NE.(nInnerSides+nBCSides)) CALL abort(__STAMP__,'not all SideIDs are set!')
+#ifdef MPI
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
+CALL exchangeFlip()
+#endif
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
+firstMPISide_MINE    = firstInnerSide      +nInnerSides
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
 
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+SDEALLOCATE(AnalyzeSide)
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
 ALLOCATE(BC(1:nSides))
+ALLOCATE(AnalyzeSide(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 BC          = 0
-! ELement to Side mapping
-nSides_flip=0
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    ElemToSide(E2S_SIDE_ID,LocSideID,iElem)=aSide%SideID
-    ElemToSide(E2S_FLIP,LocSideID,iElem)   =aSide%Flip
-    nSides_flip(aSide%flip)=nSides_flip(aSide%flip)+1
-  END DO ! LocSideID
-END DO ! iElem
+AnalyzeSide = 0
 
-! Side to Element mapping, sorted by SideID
-DO iElem=1,nElems
-  aElem=>Elems(iElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    IF(aSide%Flip.EQ.0)THEN !root side
-      SideToElem(S2E_ELEM_ID,aSide%SideID)         = iElem !root Element
-      SideToElem(S2E_LOC_SIDE_ID,aSide%SideID)     = LocSideID
-    ELSE
-      SideToElem(S2E_NB_ELEM_ID,aSide%SideID)      = iElem ! element with flipped side
-      SideToElem(S2E_NB_LOC_SIDE_ID,aSide%SideID)  = LocSideID
-      SideToElem(S2E_FLIP,aSide%SideID)            = aSide%Flip
-    END IF
-    BC(aSide%sideID)=aSide%BCIndex
-  END DO ! LocSideID
-END DO ! iElem
+SDEALLOCATE(MortarType)
+SDEALLOCATE(MortarInfo)
+SDEALLOCATE(MortarSlave2MasterInfo)
+ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
+ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+ALLOCATE(MortarSlave2MasterInfo(1:nSides))
+MortarType=-1
+MortarInfo=-1
 
-! Building element to node id and node coords arrays (copied from the first part of the InitParticleGeometry)
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+CALL fillMeshInfo()
 
-NodeMap(:,1)=(/1,4,3,2/)
-NodeMap(:,2)=(/1,2,6,5/)
-NodeMap(:,3)=(/2,3,7,6/)
-NodeMap(:,4)=(/3,4,8,7/)
-NodeMap(:,5)=(/1,5,8,4/)
-NodeMap(:,6)=(/5,6,7,8/)
-SDEALLOCATE(GEO%ElemToNodeID)
-SDEALLOCATE(GEO%ElemSideNodeID)
-SDEALLOCATE(GEO%NodeCoords)
-ALLOCATE(GEO%ElemToNodeID(1:8,1:nElems),GEO%ElemSideNodeID(1:4,1:6,1:nElems),GEO%NodeCoords(1:3,1:nNodes))
-GEO%ElemToNodeID(:,:)=0
-GEO%ElemSideNodeID(:,:,:)=0
-GEO%NodeCoords(:,:)=0.
-iNode=0
-DO iElem=1,nElems
-  DO jNode=1,8
-    Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=0
-  END DO
-END DO
-DO iElem=1,nElems
-  !--- Save corners of sides
-  DO jNode=1,8
-    IF (Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID.EQ.0) THEN
-      iNode=iNode+1
-      Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID=iNode
-      GEO%NodeCoords(1:3,iNode)=Elems(iElem+offsetElem)%ep%node(jNode)%np%x(1:3)
-    END IF
-    GEO%ElemToNodeID(jNode,iElem)=Elems(iElem+offsetElem)%ep%node(jNode)%np%NodeID
-    !GEO%ElemToNodeIDGlobal(jNode,iElem) = Elems(iElem+offsetElem)%ep%node(jNode)%np%ind
-  END DO
-END DO
-
-DO iElem=1,nElems
-  DO iLocSide=1,6
-    nStart=MAX(0,ElemToSide(E2S_FLIP,iLocSide,iElem)-1)
-    GEO%ElemSideNodeID(1:4,iLocSide,iElem)=(/Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart  ,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+1,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+2,4)+1,iLocSide))%np%NodeID,&
-                                             Elems(iElem+offsetElem)%ep%node(NodeMap(MOD(nStart+3,4)+1,iLocSide))%np%NodeID/)
-  END DO
-END DO
+#ifdef PARTICLES
+CALL InitParticleGeometry()
+#else
+CALL abort(__STAMP__,&
+      'ERROR: Post-processing tool h5piclas2vtk was compiled with PARTICLES=OFF! No DSMC/ElemData output supported!')
+#endif
 
 END SUBROUTINE InitMesh_Connected
 
@@ -856,7 +848,7 @@ IF(nParts.GT.0) THEN
   tmpPartData = 0.
   SDEALLOCATE(ConnectInfo)
   ALLOCATE(ConnectInfo(1,1:nParts))
-  ConnectInfo = 0.
+  ConnectInfo = 0
 END IF
 
 ASSOCIATE(nParts    => INT(nParts,IK),  &
@@ -937,16 +929,16 @@ CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
 nVarAdd=INT(HSize(1),4)
 
 IF (nVarAdd.GT.0) THEN
-  ALLOCATE(VarNamesAdd(nVarAdd))
-  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd)
-  ALLOCATE(ElemData(1:nVarAdd, nElems))
+  ALLOCATE(VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  ALLOCATE(ElemData(1:nVarAdd,1:nElems))
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         nVarAdd => INT(nVarAdd,IK) ,&
         offsetElem => INT(offsetElem,IK),&
         nElems     => INT(nElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData)
+    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   SELECT CASE(TRIM(File_Type))
     CASE('State')
@@ -966,7 +958,7 @@ END SUBROUTINE ConvertElemData
 
 SUBROUTINE ConvertSurfaceData(InputStateFile,ReadMeshFinished,MeshInitFinished)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1041,7 +1033,7 @@ IF(nSurfSample.EQ.1) THEN
   END DO
 
   FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,Coords(1:3,:),& 
+  CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,Coords(1:3,:),&
       SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
 ELSE IF(nSurfSample.GT.1) THEN
   CALL abort(__STAMP__,&
@@ -1061,7 +1053,7 @@ END SUBROUTINE ConvertSurfaceData
 
 SUBROUTINE BuildSurfMeshConnectivity()
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

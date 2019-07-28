@@ -37,8 +37,8 @@ INTERFACE WriteHDF5Header
   MODULE PROCEDURE WriteHDF5Header
 END INTERFACE
 
-INTERFACE GenerateFileSkeleton 
-  MODULE PROCEDURE GenerateFileSkeleton 
+INTERFACE GenerateFileSkeleton
+  MODULE PROCEDURE GenerateFileSkeleton
 END INTERFACE
 
 INTERFACE GenerateNextFileInfo
@@ -112,7 +112,10 @@ USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
 USE MOD_Equation_Vars ,ONLY: StrVarNames
 USE MOD_Restart_Vars  ,ONLY: RestartFile
 #ifdef PARTICLES
+USE MOD_DSMC_Vars     ,ONLY:RadialWeighting
 USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
+USE MOD_Particle_Vars          ,ONLY: UseAdaptive
+USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars ,ONLY: E,Phi
@@ -129,8 +132,6 @@ USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
-USE MOD_Particle_Vars          ,ONLY: UseAdaptive
-USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -369,6 +370,7 @@ END ASSOCIATE
 CALL WriteParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
+IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*MPI*/
@@ -393,7 +395,7 @@ SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
 !> to functions to generate the data, along with the respective varnames.
 !>
 !> Two options are available:
-!>    1. WriteAdditionalElemData: 
+!>    1. WriteAdditionalElemData:
 !>       Element-wise scalar data, e.g. the timestep or indicators.
 !>       The data is collected in a single array and written out in one step.
 !>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
@@ -581,7 +583,7 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems, offsetElem
-USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies
+USE MOD_Particle_Vars     ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell, nSpecies, VarTimeStep
 USE MOD_part_tools        ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars         ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
@@ -629,7 +631,7 @@ MaxQuantNum=-1
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
 !CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
- 
+
 !!added for Evib, Erot writeout
 withDSMC=useDSMC
 IF (withDSMC.AND.(.NOT.(useLD))) THEN
@@ -663,7 +665,7 @@ ELSE IF (usevMPF) THEN
   PartDataSize=8 !vmpf +1
 ELSE
   PartDataSize=7
-END IF  
+END IF
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   MaxQuantNum = 0
@@ -680,7 +682,7 @@ DO pcount = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(pcount)) THEN
     locnPart = locnPart + 1_IK
   END IF
-END DO         
+END DO
 
 #ifdef MPI
 sendbuf(1)=locnPart
@@ -693,7 +695,7 @@ CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iE
 nPart_glob=sendbuf(1)
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 !IF (myRank.EQ.0) THEN
-!  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION' 
+!  WRITE(*,*) 'PARTICLE-ELEMENT DISTRIBUTION'
 !  WRITE(*,*) 'iProc, firstelemInd,   nElems,  locnPart,  totalnPart'
 !  DO pcount=0,nProcessors-1
 !    WRITE(*,'(I5,4I12)')pcount,offsetElemMPI(pcount),offsetElemMPI(pcount+1)-offsetElemMPI(pcount),&
@@ -764,12 +766,12 @@ DO iElem_loc=1,PP_nElems
       !IF (withDSMC) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
-          PartData(iPart,10)=PartStateIntEn(pcount,3)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateIntEn(pcount,3)
           PartData(iPart,11)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
         ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
@@ -777,26 +779,26 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,10)=PartStateIntEn(pcount,3)
         ELSE IF (CollisMode.GT.1) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2) 
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
         ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)    
+          PartData(iPart,8)=PartMPF(pcount)
         END IF
       ELSE IF (useLD) THEN
         IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateIntEn(pcount,3)  
-          PartData(iPart,12)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateIntEn(pcount,3)
+          PartData(iPart,12)=PartStateBulkValues(pcount,1)
           PartData(iPart,13)=PartStateBulkValues(pcount,2)
           PartData(iPart,14)=PartStateBulkValues(pcount,3)
           PartData(iPart,15)=PartStateBulkValues(pcount,4)
           PartData(iPart,16)=PartStateBulkValues(pcount,5)
         ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartMPF(pcount)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
           PartData(iPart,13)=PartStateBulkValues(pcount,3)
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
@@ -805,28 +807,28 @@ DO iElem_loc=1,PP_nElems
           PartData(iPart,8)=PartStateIntEn(pcount,1)
           PartData(iPart,9)=PartStateIntEn(pcount,2)
           PartData(iPart,10)=PartStateIntEn(pcount,3)
-          PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,11)=PartStateBulkValues(pcount,1)
           PartData(iPart,12)=PartStateBulkValues(pcount,2)
           PartData(iPart,13)=PartStateBulkValues(pcount,3)
           PartData(iPart,14)=PartStateBulkValues(pcount,4)
           PartData(iPart,15)=PartStateBulkValues(pcount,5)
         ELSE IF (CollisMode.GT.1) THEN
           PartData(iPart,8)=PartStateIntEn(pcount,1)
-          PartData(iPart,9)=PartStateIntEn(pcount,2) 
-          PartData(iPart,10)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,9)=PartStateIntEn(pcount,2)
+          PartData(iPart,10)=PartStateBulkValues(pcount,1)
           PartData(iPart,11)=PartStateBulkValues(pcount,2)
           PartData(iPart,12)=PartStateBulkValues(pcount,3)
           PartData(iPart,13)=PartStateBulkValues(pcount,4)
           PartData(iPart,14)=PartStateBulkValues(pcount,5)
         ELSE IF (usevMPF) THEN
-          PartData(iPart,8)=PartMPF(pcount)    
-          PartData(iPart,9)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,8)=PartMPF(pcount)
+          PartData(iPart,9)=PartStateBulkValues(pcount,1)
           PartData(iPart,10)=PartStateBulkValues(pcount,2)
           PartData(iPart,11)=PartStateBulkValues(pcount,3)
           PartData(iPart,12)=PartStateBulkValues(pcount,4)
           PartData(iPart,13)=PartStateBulkValues(pcount,5)
         ELSE
-          PartData(iPart,8)=PartStateBulkValues(pcount,1)    
+          PartData(iPart,8)=PartStateBulkValues(pcount,1)
           PartData(iPart,9)=PartStateBulkValues(pcount,2)
           PartData(iPart,10)=PartStateBulkValues(pcount,3)
           PartData(iPart,11)=PartStateBulkValues(pcount,4)
@@ -857,7 +859,7 @@ DO iElem_loc=1,PP_nElems
     , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
   END IF
   PartInt(iElem_glob,2)=iPart
-END DO 
+END DO
 
 nVar=2
 ALLOCATE(StrVarNames(nVar))
@@ -1015,13 +1017,23 @@ ASSOCIATE (&
                              communicator = PartMPI%COMM  , RealArray = PartData)
   IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     CALL DistributedWriteArray(FileName , &
-                               DataSetName ='VibQuantData', rank=2            , &
-                               nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
-                               nVal        =(/locnPart    , MaxQuantNum  /)   , &
-                               offset      =(/offsetnPart , 0_IK  /)          , &
-                               collective  =.FALSE.       , offSetDim=1       , &
-                               communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
+                              DataSetName ='VibQuantData', rank=2            , &
+                              nValGlobal  =(/nPart_glob  , MaxQuantNum/)     , &
+                              nVal        =(/locnPart    , MaxQuantNum  /)   , &
+                              offset      =(/offsetnPart , 0_IK  /)          , &
+                              collective  =.FALSE.       , offSetDim=1       , &
+                              communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
     DEALLOCATE(VibQuantData)
+  END IF
+  ! Output of the element-wise time step as a separate container in state file
+  IF(VarTimeStep%UseDistribution) THEN
+    CALL DistributedWriteArray(FileName , &
+                              DataSetName = 'PartTimeStep'  , rank=2      , &
+                              nValGlobal  = (/nGlobalElems  , 1_IK/)      , &
+                              nVal        = (/PP_nElems     , 1_IK/)      , &
+                              offset      = (/offsetElem    , 0_IK/)      , &
+                              collective  =.FALSE.          , offSetDim=1 , &
+                              communicator=PartMPI%COMM     , RealArray=VarTimeStep%ElemFac)
   END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1038,8 +1050,16 @@ ASSOCIATE (&
                           collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
   END IF
+    ! Output of the element-wise time step as a separate container in state file
+  IF(VarTimeStep%UseDistribution) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2, &
+                          nValGlobal  = (/nGlobalElems  , 1_IK/), &
+                          nVal        = (/PP_nElems     , 1_IK/)   ,&
+                          offset      = (/offsetElem    , 0_IK/)  ,&
+                          collective  = .FALSE.         , RealArray=VarTimeStep%ElemFac)
+  END IF
   CALL CloseDataFile()
-#endif /*MPI*/                          
+#endif /*MPI*/
 
 END ASSOCIATE
 ! reswitch
@@ -1049,7 +1069,7 @@ IF(reSwitch) gatheredWrite=.TRUE.
 !CALL CloseDataFile()
 
 !  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
-!                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
+!                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben
                                                         ! problematisch werden
 
 DEALLOCATE(StrVarNames)
@@ -1211,7 +1231,7 @@ ASSOCIATE (&
                         collective =.TRUE.   , RealArray=SurfCalcData)
 END ASSOCIATE
 CALL CloseDataFile()
-!#endif /*MPI*/                          
+!#endif /*MPI*/
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
@@ -1225,7 +1245,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   nSurfPart_glob = 0
   offsetnSurfPart = 0
 
-  ! calculate number of adsorbates on each coordination (already on surface) and all sites 
+  ! calculate number of adsorbates on each coordination (already on surface) and all sites
   DO iSurfSide = 1,SurfMesh%nSides
     SideID = Adsorption%SurfSideToGlobSideMap(iSurfSide)
     PartboundID = PartBound%MapToPartBC(BC(SideID))
@@ -1362,7 +1382,7 @@ IF (PartSurfaceModel.EQ.3) THEN
                           collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
   END ASSOCIATE
   CALL CloseDataFile()
-!#endif /*MPI*/                          
+!#endif /*MPI*/
   SDEALLOCATE(StrVarNames)
   SDEALLOCATE(StrVarNamesData)
   SDEALLOCATE(SurfPartInt)
@@ -1462,6 +1482,226 @@ SDEALLOCATE(StrVarNames)
 SDEALLOCATE(AdaptiveData)
 
 END SUBROUTINE WriteAdaptiveInfoToHDF5
+
+
+SUBROUTINE WriteClonesToHDF5(FileName)
+!===================================================================================================================================
+! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars,          ONLY: offsetElem
+USE MOD_DSMC_Vars,          ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars,          ONLY: RadialWeighting, ClonedParticles
+USE MOD_PARTICLE_Vars,      ONLY: nSpecies, usevMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+!INTEGER(HID_T)                 :: Dset_ID
+!INTEGER                        :: nVal
+#ifdef MPI
+INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
+#endif
+INTEGER                        :: pcount, iDelay, iElem_glob
+LOGICAL                        :: withDSMC=.FALSE.
+INTEGER(KIND=IK)               :: locnPart,offsetnPart
+INTEGER(KIND=IK)               :: iPart,nPart_glob
+REAL,ALLOCATABLE               :: PartData(:,:)
+INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
+INTEGER                        :: PartDataSize       !number of entries in each line of PartData
+INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, tempDelay
+!-----------------------------------------------------------------------------------------------------------------------------------
+!!added for Evib, Erot writeout
+withDSMC=useDSMC
+IF (withDSMC) THEN
+  IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
+    PartDataSize=13
+  ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
+                                                                            ! or int energ +3 but no vmpf +1
+    PartDataSize=12
+  ELSE IF (CollisMode.GT.1) THEN
+    PartDataSize=11 !int ener + 2
+  ELSE IF (usevMPF) THEN
+    PartDataSize=10 !+ 1 vmpf
+  ELSE
+    PartDataSize=9 !+ 0
+  END IF
+ELSE IF (usevMPF) THEN
+  PartDataSize=10 !vmpf +1
+ELSE
+  PartDataSize=9
+END IF
+
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  MaxQuantNum = 0
+  DO iSpec = 1, nSpecies
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
+    END IF
+  END DO
+END IF
+
+locnPart =   0
+
+SELECT CASE(RadialWeighting%CloneMode)
+CASE(1)
+  tempDelay = RadialWeighting%CloneInputDelay - 1
+CASE(2)
+  tempDelay = RadialWeighting%CloneInputDelay
+CASE DEFAULT
+  CALL abort(__STAMP__,&
+              'RadialWeighting: CloneMode is not supported!')
+END SELECT
+
+DO pcount = 0,tempDelay
+    locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
+END DO
+
+#ifdef MPI
+sendbuf(1)=locnPart
+recvbuf=0
+CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
+offsetnPart=recvbuf(1)
+sendbuf(1)=recvbuf(1)+locnPart
+CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iError) !last proc knows global number
+!global numbers
+nPart_glob=sendbuf(1)
+#else
+offsetnPart=0
+nPart_glob=locnPart
+#endif
+ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
+
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  ALLOCATE(VibQuantData(offsetnPart+1:offsetnPart+locnPart,MaxQuantNum))
+  !+1 is real number of necessary vib quants for the particle
+END IF
+iPart=offsetnPart
+DO iDelay=0,tempDelay
+  DO pcount = 1, RadialWeighting%ClonePartNum(iDelay)
+    iElem_glob = ClonedParticles(pcount,iDelay)%Element + offsetElem
+    iPart = iPart + 1
+    PartData(iPart,1)=ClonedParticles(pcount,iDelay)%PartState(1)
+    PartData(iPart,2)=ClonedParticles(pcount,iDelay)%PartState(2)
+    PartData(iPart,3)=ClonedParticles(pcount,iDelay)%PartState(3)
+    PartData(iPart,4)=ClonedParticles(pcount,iDelay)%PartState(4)
+    PartData(iPart,5)=ClonedParticles(pcount,iDelay)%PartState(5)
+    PartData(iPart,6)=ClonedParticles(pcount,iDelay)%PartState(6)
+    PartData(iPart,7)=REAL(ClonedParticles(pcount,iDelay)%Species)
+    PartData(iPart,8)=REAL(iElem_glob)
+    PartData(iPart,9)=REAL(iDelay)
+    IF (withDSMC) THEN
+      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
+        PartData(iPart,11)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
+        PartData(iPart,12)=ClonedParticles(pcount,iDelay)%PartStateIntEn(3)
+        PartData(iPart,13)=ClonedParticles(pcount,iDelay)%WeightingFactor
+      ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
+        PartData(iPart,11)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
+        PartData(iPart,12)=ClonedParticles(pcount,iDelay)%WeightingFactor
+      ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
+        PartData(iPart,11)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
+        PartData(iPart,12)=ClonedParticles(pcount,iDelay)%PartStateIntEn(3)
+      ELSE IF (CollisMode.GT.1) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%PartStateIntEn(1)
+        PartData(iPart,11)=ClonedParticles(pcount,iDelay)%PartStateIntEn(2)
+      ELSE IF (usevMPF) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%WeightingFactor
+      END IF
+    ELSE IF (usevMPF) THEN
+        PartData(iPart,10)=ClonedParticles(pcount,iDelay)%WeightingFactor
+    END IF
+    IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+      IF (SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(ClonedParticles(pcount,iDelay)%Species)%SpecToPolyArray
+        VibQuantData(iPart,1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = &
+          ClonedParticles(pcount,iDelay)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+      ELSE
+          VibQuantData(iPart,:) = 0
+      END IF
+    END IF
+  END DO
+END DO
+
+ALLOCATE(StrVarNames(PartDataSize))
+StrVarNames(1)='ParticlePositionX'
+StrVarNames(2)='ParticlePositionY'
+StrVarNames(3)='ParticlePositionZ'
+StrVarNames(4)='VelocityX'
+StrVarNames(5)='VelocityY'
+StrVarNames(6)='VelocityZ'
+StrVarNames(7)='Species'
+StrVarNames(8)='Element'
+StrVarNames(9)='CloneDelay'
+
+IF(withDSMC)THEN
+  IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
+    StrVarNames(10)='Vibrational'
+    StrVarNames(11)='Rotational'
+    StrVarNames(12)='Electronic'
+    StrVarNames(13)='MPF'
+  ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+    StrVarNames(10)='Vibrational'
+    StrVarNames(11)='Rotational'
+    StrVarNames(12)='MPF'
+  ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
+    StrVarNames(10)='Vibrational'
+    StrVarNames(11)='Rotational'
+    StrVarNames(12)='Electronic'
+  ELSE IF (CollisMode.GT.1) THEN
+    StrVarNames(10)='Vibrational'
+    StrVarNames(11)='Rotational'
+  ELSE IF (usevMPF) THEN
+    StrVarNames(10)='MPF'
+  END IF
+END IF
+
+#ifdef MPI
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSize,StrArray=StrVarNames)
+
+ASSOCIATE (&
+      nPart_glob    => INT(nPart_glob,IK)    ,&
+      offsetnPart      => INT(offsetnPart,IK)      ,&
+      MaxQuantNum     => INT(MaxQuantNum,IK)     ,&
+      PartDataSize    => INT(PartDataSize,IK)    )
+CALL WriteArrayToHDF5(DataSetName='CloneData', rank=2,&
+                      nValGlobal=(/nPart_glob,PartDataSize/),&
+                      nVal=      (/locnPart,PartDataSize  /),&
+                      offset=    (/offsetnPart , 0_IK  /),&
+                      collective=.FALSE., RealArray=PartData)
+IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+  CALL WriteArrayToHDF5(DataSetName='CloneVibQuantData', rank=2,&
+                        nValGlobal=(/nPart_glob,MaxQuantNum/),&
+                        nVal=      (/locnPart,MaxQuantNum  /),&
+                        offset=    (/offsetnPart , 0_IK  /),&
+                        collective=.FALSE., IntegerArray_i4=VibQuantData)
+  DEALLOCATE(VibQuantData)
+END IF
+END ASSOCIATE
+
+
+CALL CloseDataFile()
+
+
+DEALLOCATE(StrVarNames)
+DEALLOCATE(PartData)
+
+END SUBROUTINE WriteClonesToHDF5
 #endif /*PARTICLES*/
 
 
@@ -1583,7 +1823,7 @@ USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Output_Vars  ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars, ONLY:NodeType
-#ifdef INTEL 
+#ifdef INTEL
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1654,7 +1894,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Interpolation_Vars, ONLY:NodeType
-#ifdef INTEL 
+#ifdef INTEL
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1698,7 +1938,7 @@ USE MOD_QDS_DG_Vars,       ONLY:DoQDS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES  
+! INPUT VARIABLES
 REAL,INTENT(IN),OPTIONAL :: FlushTime_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1849,7 +2089,7 @@ TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
-! specify chunk size if desired 
+! specify chunk size if desired
 nValMax=nValGlobal
 chunky=.FALSE.
 CALL H5PCREATE_F(H5P_DATASET_CREATE_F,dsetparams,iError)
@@ -2100,11 +2340,11 @@ IF(gatheredWrite)THEN
     CALL abort(&
     __STAMP__&
     ,'Offset only allowed in last dimension for gathered IO.')
-  
+
   ! Get last dim of each array on IO nodes
   nDOFLocal=PRODUCT(nVal)
   CALL MPI_GATHER(nDOFLocal,1,MPI_INTEGER_INT_KIND,nDOFPerNode,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_NODE,iError)
-  
+
   ! Allocate big array and compute offsets of small arrs inside big
   offsetNode=0_IK
   IF(MPILocalRoot)THEN
@@ -2121,7 +2361,7 @@ IF(gatheredWrite)THEN
     IF(PRESENT(IntegerArray))  ALLOCATE(UInt( 1))
     IF(PRESENT(StrArray))      ALLOCATE(UStr( 1))
   ENDIF
-  
+
   ! Associate construct for integer settings
   ASSOCIATE (&
         nDOFLocal    => INT(nDOFLocal)   ,&
@@ -2151,7 +2391,7 @@ IF(gatheredWrite)THEN
     !                                             offset,collective=collective,StrArr =UStr)
     CALL CloseDataFile()
   END IF
-  
+
   SDEALLOCATE(UReal)
   SDEALLOCATE(UInt)
   SDEALLOCATE(UStr)
@@ -2230,7 +2470,7 @@ IF(.NOT.DoNotSplit)THEN
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank               , nValGlobal          , nVal , &
                                                    offset      , collective=.FALSE. , StrArray =StrArray)
       CALL CloseDataFile()
-    ELSE 
+    ELSE
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal           , nVal , &
                                                    offset      , collective , RealArray=RealArray)
@@ -2288,7 +2528,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES      
+! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255) :: tempStr
@@ -2667,7 +2907,7 @@ DO iElem =1, nQDSElems
         print*,"Press ENTER to continue"
         read*
       END IF
-      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem) 
+      Utemp(2:4,l,k,j,iElem) = QDSMacroValues(2:4,l,k,j,iElem)/QDSMacroValues(1,l,k,j,iElem)
       Utemp(5:6,l,k,j,iElem) = QDSMacroValues(5:6,l,k,j,iElem)
     ELSE
       Utemp(:,l,k,j,iElem) = 0.0

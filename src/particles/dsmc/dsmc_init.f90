@@ -34,7 +34,7 @@ INTERFACE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ CALL prms%SetSection("DSMC")
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshInit'      &
                                         ,  'not working currently | Writeoutput mesh for constant pressure BC at initialization.'&
                                         , '.FALSE.')
-                                  
+
 CALL prms%CreateLogicalOption(  'Particles-DSMC-OutputMeshSamp'      &
                                         , 'not working currently | Write output mesh for constant pressure BC with sampling'//&
                                           'values at t_analyze.' , '.FALSE.')
@@ -151,13 +151,23 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-PolyRelaxSingleMode'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CompareLandauTeller'&
                                          ,'Only TD=Reservoir (42). ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Particles-DSMC-UseOctree'&
-                                         ,'Use octree method for dynamic grid resolution', '.FALSE.')
+                                         ,'Use octree method for dynamic grid resolution based on the current mean free path '//&
+                                          'and the particle number', '.FALSE.')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNode'&
                                          ,'Resolve grid until the maximum number of particles in a subcell equals'//&
-                                          ' OctreePartNumNode.', '80')
+                                          ' OctreePartNumNode')
 CALL prms%CreateIntOption(      'Particles-OctreePartNumNodeMin'&
                                          ,'Allow grid division until the minimum number of particles in a subcell is above '//&
-                                          'OctreePartNumNodeMin.', '50')
+                                          'OctreePartNumNodeMin')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-UseNearestNeighbour'&
+                                         ,'Allows to enable/disable the nearest neighbour search algorithm within the ocrtree '//&
+                                          'cell refinement','.TRUE.')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-ProhibitDoubleCollisions'&
+                                         ,'2D/Axisymmetric only: Prohibit the occurrence of repeated collisions between the '//&
+                                          'same particle pairs in order to reduce the statistical dependence')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
+                                         ,'2D/Axisymmetric only: Merge subcells divided by the quadtree algorithm to satisfy '//&
+                                          'the minimum particle per subcell requirement', '.FALSE.')
 
 
 CALL prms%SetSection("DSMC Species")
@@ -181,12 +191,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-VHSReferenceDiam' &
 CALL prms%CreateRealOption(     'Part-Species[$]-omegaVHS'  &
                                            ,'Reference value for exponent omega for variable hard sphere model.', '0.'&
                                            , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib'  &
-                                           ,'Characteristic vibrational temperature.', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib','Characteristic vibrational temperature.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot'  &
                                            ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV'  &
-                                           ,'Energy of Dissoziation in [eV].', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Ediss_eV','Energy of Dissoziation in [eV].', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-VFDPhi3'  &
                                            ,'Factor of Phi3 in VFD Method: Phi3 = 0 => VFD', '0.'&
                                            , numberedmulti=.TRUE.)
@@ -251,15 +259,19 @@ CALL prms%CreateIntOption(      'Part-Species[$]-NumOfProtons'  &
 
 CALL prms%SetSection("DSMC Species Polyatomic")
 CALL prms%CreateLogicalOption(  'Part-Species[$]-PolyatomicMol'  &
-                                           ,'Allow usage of polyatomic moleculs?', '.FALSE.', numberedmulti=.TRUE.)
+                                           ,'Allows the usage of polyatomic molecules (3 or more atoms).', '.FALSE.' &
+                                           , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-LinearMolec'  &
-                                           ,'Flag if it is a linear molecule', '.FALSE.', numberedmulti=.TRUE.)
+                                           ,'Flag if the polyatomic molecule is a linear molecule (e.g. CO2 is linear, while '//&
+                                            'H2O is not.)', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-NumOfAtoms'  &
-                                           ,'Number of Atoms in Molecule', '0', numberedmulti=.TRUE.)
+                                           ,'Number of atoms in the molecule (e.g. CH4 -> 5 atoms).', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
-                                           ,'Characteristic vibrational temperature.', '0.', numberedmulti=.TRUE.)
+                                           ,'Characteristic vibrational temperature [K], given per mode. Degenerate modes should '//&
+                                            'simply be given repeatedly, corresponding to the degeneracy.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
-                                           ,'Characteristic rotational temperature', '0.', numberedmulti=.TRUE.)
+                                           ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
+                                            'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Chemistry")
 CALL prms%CreateIntOption(      'DSMC-NumOfReactions'  &
@@ -342,13 +354,12 @@ USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo, SideToElem
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Adaptive_MacroVal, Symmetry2D, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: LiquidSimFlag, PartSurfaceModel
 USE MOD_DSMC_Analyze           ,ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState       ,ONLY: DSMC_SteadyStateInit
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_ChemReact         ,ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, PartBound
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
@@ -362,15 +373,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
-  INTEGER               :: iInter
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-  REAL                  :: Temp
-  REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
-  INTEGER               :: currentBC, ElemID, iSide, BCSideID
+  REAL                  :: BGGasEVib
+  INTEGER               :: currentBC, ElemID, iSide, BCSideID, VarNum
 #if ( PP_TimeDiscMethod ==42 )
+#ifdef CODE_ANALYZE
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii
+#endif
 #endif
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -378,7 +389,7 @@ IMPLICIT NONE
 
   ! Initialize counter (Count the number of ReactionProb>1)
   ReactionProbGTUnityCounter = 0
-  
+
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
   DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
@@ -390,7 +401,20 @@ IMPLICIT NONE
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
-  DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')  
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(SelectionProc.NE.1) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
+,IntInfoOpt=SelectionProc)
+    END IF
+  END IF
+
+  DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells','.FALSE.')
+  IF(DSMC%MergeSubcells.AND.(.NOT.Symmetry2D)) THEN
+    CALL abort(__STAMP__&
+,'ERROR: Merging of subcells only supported within a 2D/axisymmetric simulation!')
+  END IF
+  DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb','0.2')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb','0.02')
   DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb','0.01')
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
@@ -401,9 +425,9 @@ IMPLICIT NONE
   END DO
 !-----------------------------------------------------------------------------------
 ! Flag for the automatic calculation of the backward reaction rate with the partition functions and equilibrium constant.
-! Partition functions are calculated for each species during initialization and stored for values starting with the
-! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values
   DSMC%BackwardReacRate  = GETLOGICAL('Particles-DSMC-BackwardReacRate','.FALSE.')
+! Partition functions are calculated for each species during initialization and stored for values starting with the
+! DSMC%PartitionInterval up to DSMC%PartitionMaxTemp, interpolation between the stored values (also used for analytic QK reactions)
   DSMC%PartitionMaxTemp  = GETREAL('Particles-DSMC-PartitionMaxTemp','20000')
   DSMC%PartitionInterval = GETREAL('Particles-DSMC-PartitionInterval','10')
 !-----------------------------------------------------------------------------------
@@ -412,13 +436,19 @@ IMPLICIT NONE
   IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
     CALL abort(&
 __STAMP__&
-,'do not use DSMC%CalcQualityFactors for collismode<1')
+,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
   END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
   DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate','.FALSE.')
   DSMC%ReservoirSurfaceRate    = GETLOGICAL('Particles-DSMCReservoirSurfaceRate','.FALSE.')
   DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel          = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
+  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(DSMC%DoTEVRRelaxation) THEN
+      CALL abort(__STAMP__&
+,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    END IF
+  END IF
   LD_MultiTemperaturMod        = GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicModel         = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
   DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -450,17 +480,23 @@ __STAMP__&
   HValue(1:nElems) = 0.0
 
   IF(DSMC%CalcQualityFactors) THEN
-    ALLOCATE(DSMC%QualityFacSamp(nElems,3))
-    DSMC%QualityFacSamp(1:nElems,1:3) = 0.0
-    ALLOCATE(DSMC%QualityFactors(nElems,3))
-    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+    ! 1: Maximal collision probability per cell/subcells (octree)
+    ! 2: Mean collision probability within cell
+    ! 3: Mean collision separation distance over mean free path
+    ! 4: Counter (is not simply the number of iterations in case of a coupled BGK/FP-DSMC simulation)
+    VarNum = 4
+    ! VarNum + 1: Number of cloned particles per cell
+    ! VarNum + 2: Number of identical particles (no relative velocity)
+    IF(RadialWeighting%DoRadialWeighting) VarNum = VarNum + 2
+    ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
+    DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
   END IF
 
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
   DSMC_RHS = 0
 
-  IF (nSpecies.LE.0) THEN 
+  IF (nSpecies.LE.0) THEN
     CALL Abort(&
     __STAMP__&
     ,"ERROR: nSpecies .LE. 0:", nSpecies)
@@ -515,14 +551,15 @@ __STAMP__&
     END DO
   END DO
   nCase = iCase
-  CollInf%NumCase = nCase 
+  CollInf%NumCase = nCase
   ALLOCATE(DSMC%NumColl(nCase +1))
   DSMC%NumColl = 0
   ALLOCATE(CollInf%Coll_CaseNum(nCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
-  CollInf%Coll_SpecPartNum = 0
-
+  CollInf%Coll_SpecPartNum = 0.
+  ALLOCATE(CollInf%MeanMPF(nCase))
+  CollInf%MeanMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -545,7 +582,7 @@ __STAMP__&
   ALLOCATE(CollInf%KronDelta(nCase))
   CollInf%Cab = 0
   CollInf%KronDelta = 0
-  
+
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
       iCase = CollInf%Coll_Case(iSpec,jSpec)
@@ -564,7 +601,7 @@ __STAMP__&
       A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
             /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
       CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
-            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
+            / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS
             !the omega should be the same for both in vhs!!!
     END DO
   END DO
@@ -615,23 +652,19 @@ __STAMP__&
           SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
         ELSEIF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           SpecDSMC(iSpec)%Xi_Rot     = 2
-          SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')
+          SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
           SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
-          SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
-          IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib.EQ.0) THEN
-            CALL Abort(&
-            __STAMP__&
-            ,'Error! Ediss_eV or CharaTVib is not set or equal to zero!')
+          SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
+          IF (DSMC%VibEnergyModel.EQ.0) THEN
+            SpecDSMC(iSpec)%MaxVibQuant = 200
           ELSE
-            IF (DSMC%VibEnergyModel.EQ.0) THEN
-              SpecDSMC(iSpec)%MaxVibQuant = 200
-            ELSE
-              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
-                  (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
-            END IF
-            ! Calculation of the zero-point energy
-            SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+            SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/&
+                (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
           END IF
+          ! Calculation of the zero-point energy
+          SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+          ! Calculation of the dissociation quantum number (used for QK chemistry)
+          SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
         END IF
         SpecDSMC(iSpec)%VFD_Phi3_Factor = GETREAL('Part-Species'//TRIM(hilf)//'-VFDPhi3','0.')
         ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
@@ -643,7 +676,7 @@ __STAMP__&
             __STAMP__&
             ,'Error! CollNumRotRef or TempRefRot is not set or equal to zero!')
           END IF
-        END IF 
+        END IF
         ! Read in species values for vibrational relaxation models of Milikan-White if necessary
         IF(DSMC%VibRelaxProb.GT.1.0) THEN
           ALLOCATE(SpecDSMC(iSpec)%MW_Const(1:nSpecies))
@@ -664,7 +697,7 @@ __STAMP__&
             __STAMP__&
             ,'Error! CollNumVib not set or equal to zero for Species!', iSpec)
           END IF
-        END IF 
+        END IF
         ! Setting the values of Rot-/Vib-RelaxProb to a fix value
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
         SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb    !0.02
@@ -850,7 +883,7 @@ __STAMP__&
 !          ALLOCATE( &
 !              PolyatomMolDSMC(iPolyatMole)%LastVibQuantNums(1:PolyatomMolDSMC(iPolyatMole)%VibDOF, &
 !                                                             0:Species(iSpec)%NumberOfInits+Species(iSpec)%nSurfacefluxBCs))
-!          DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits 
+!          DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
 !            CALL DSMC_FindFirstVibPick(iInit, iSpec, 1)
 !          END DO
 !          DO iInit = 1,Species(iSpec)%nSurfacefluxBCs
@@ -880,6 +913,7 @@ __STAMP__&
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         IF ( (SpecDSMC(iSpec)%InterID .eq. 4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
@@ -896,6 +930,7 @@ __STAMP__&
         END IF
       END DO
     END IF
+#endif
 #endif
     ! Setting the internal energy value of every particle
     DO iPart = 1, PDM%ParticleVecLength
@@ -916,8 +951,9 @@ __STAMP__&
         END IF
       END IF
     END DO
-    
-#if ( PP_TimeDiscMethod ==42 )
+
+#if (PP_TimeDiscMethod==42)
+#ifdef CODE_ANALYZE
     ! Debug Output for initialized electronic state
     IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
@@ -937,6 +973,7 @@ __STAMP__&
       END DO
     END IF
 #endif
+#endif
 
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001) && (PP_TimeDiscMethod!=300)
     DEALLOCATE(PDM%PartInit)
@@ -946,15 +983,6 @@ __STAMP__&
 ! Define chemical reactions (including ionization and backward reaction rate)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
-    IF(DSMC%BackwardReacRate) THEN
-      IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
-        PartitionArraySize = INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
-      ELSE
-        CALL abort(&
-__STAMP__&
-,'ERROR: Partition temperature limit must be multiple of partition interval!')
-      END IF
-    END IF
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
@@ -1018,7 +1046,7 @@ __STAMP__&
 ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
               END IF
             END IF
-          ELSE            
+          ELSE
             IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
               CALL abort(&
 __STAMP__&
@@ -1033,20 +1061,14 @@ __STAMP__&
               ,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
           END IF
         END IF
-        ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
-        DO iInter = 1, PartitionArraySize
-          Temp = iInter * DSMC%PartitionInterval
-          CALL CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
-          SpecDSMC(iSpec)%PartitionFunction(iInter) = Qtra * Qrot * Qvib * Qelec
-        END DO
       END IF
       !-----------------------------------------------------------------------------------------------------------------------------
-      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')    
+      SpecDSMC(iSpec)%Eion_eV               = GETREAL('Part-Species'//TRIM(hilf)//'-IonizationEn_eV','0')
       SpecDSMC(iSpec)%RelPolarizability     = GETREAL('Part-Species'//TRIM(hilf)//'-RelPolarizability','0')
       SpecDSMC(iSpec)%NumEquivElecOutShell  = GETINT('Part-Species'//TRIM(hilf)//'-NumEquivElecOutShell','0')
       SpecDSMC(iSpec)%NumOfPro              = GETINT('Part-Species'//TRIM(hilf)//'-NumOfProtons','0')
       IF((SpecDSMC(iSpec)%Eion_eV*SpecDSMC(iSpec)%RelPolarizability*SpecDSMC(iSpec)%NumEquivElecOutShell &
-              *SpecDSMC(iSpec)%NumOfPro).eq.0) THEN    
+              *SpecDSMC(iSpec)%NumOfPro).eq.0) THEN
         SWRITE(*,*) "Ionization parameters are not defined for species:", iSpec
       END IF
     END DO
@@ -1081,7 +1103,7 @@ __STAMP__&
 ,'ERROR: Char. rotational temperature or symmetry factor not defined properly for Adsorptionmodel!', iSpec)
             END IF
           END IF
-        ELSE            
+        ELSE
           IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
             CALL abort(&
 __STAMP__&
@@ -1098,16 +1120,32 @@ __STAMP__&
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
+  DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree')
+  IF(DSMC%UseOctree) THEN
+    DSMC%UseNearestNeighbour = GETLOGICAL('Particles-DSMC-UseNearestNeighbour')
+    IF((.NOT.Symmetry2D).AND.(.NOT.DSMC%UseNearestNeighbour)) THEN
+      CALL abort(&
+      __STAMP__&
+      ,'Statistical Pairing with Octree not yet supported in 3D!')
+    END IF
+  END IF
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','40')
+  ELSE
+    DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
+  END IF
   ! If number of particles is less than OctreePartNumNodeMin, cell is NOT going to be split even if mean free path is not resolved
-  ! 50 / 8 -> ca. 6-7 particles per cell
-  DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  ! 3D: 50/8; 2D: 28/4 -> ca. 6-7 particles per cell
+  IF(Symmetry2D) THEN
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','28')
+  ELSE
+    DSMC%PartNumOctreeNodeMin = GETINT('Particles-OctreePartNumNodeMin','50')
+  END IF
   IF (DSMC%PartNumOctreeNodeMin.LT.20) THEN
     CALL abort(&
     __STAMP__&
-    ,'Particles-OctreePartNumNodeMin is less than 20')
+    ,'ERROR: Given Particles-OctreePartNumNodeMin is less than 20!')
   END IF
   IF(DSMC%UseOctree) THEN
     IF(NGeo.GT.PP_N) CALL abort(&
@@ -1115,6 +1153,20 @@ __STAMP__&
 ,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
+  IF(Symmetry2D) THEN
+    CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
+    IF (CollInf%ProhibitDoubleColl) THEN
+      IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
+      CollInf%OldCollPartner = 0
+    END IF
+  ELSE
+    IF (CollInf%ProhibitDoubleColl) THEN
+      CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.FALSE.')
+      CALL abort(__STAMP__,&
+                'ERROR: Prohibiting double collisions is only supported within a 2D/axisymmetric simulation!')
+    END IF
+  END IF
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1133,7 +1185,7 @@ __STAMP__&
         __STAMP__&
         ,'ERROR: Polyatomic species as background gas are not yet available!')
       ELSE
-        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib & 
+        BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib &
                   + BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib  &
                   /  (EXP(SpecDSMC(BGGas%BGGasSpecies)%CharaTVib / SpecDSMC(BGGas%BGGasSpecies)%Init(0)%TVib) - 1) &
                   - BoltzmannConst * SpecDSMC(BGGas%BGGasSpecies)%CharaTVib * SpecDSMC(BGGas%BGGasSpecies)%MaxVibQuant &
@@ -1203,15 +1255,15 @@ END SUBROUTINE InitDSMC
 
 SUBROUTINE SetElectronicModel(iSpec)
 !===================================================================================================================================
-! 
+!
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals              ,ONLY: abort
-USE MOD_DSMC_Vars            ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars            ,ONLY: SpecDSMC
 USE MOD_DSMC_ElectronicModel ,ONLY: ReadSpeciesLevel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -1227,20 +1279,23 @@ END IF
 END SUBROUTINE SetElectronicModel
 
 
-SUBROUTINE CalcHeatOfFormation() 
+SUBROUTINE CalcHeatOfFormation()
 !===================================================================================================================================
 ! Calculating the heat of formation for ionized species (including higher ionization levels)
 ! Requires the completed read-in of species data
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: abort,mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf2
@@ -1286,19 +1341,22 @@ END DO
 END SUBROUTINE CalcHeatOfFormation
 
 
-SUBROUTINE SetNextIonizationSpecies() 
+SUBROUTINE SetNextIonizationSpecies()
 !===================================================================================================================================
 ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
 ! NextIonizationSpecies => SpeciesID of the next higher ionization level
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: mpiroot,UNIT_stdOut
+USE MOD_Globals       ,ONLY: UNIT_stdOut
+#ifdef MPI
+USE MOD_Globals       ,ONLY: mpiroot
+#endif
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 USE MOD_ReadInTools   ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf2
@@ -1344,7 +1402,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1467,7 +1525,7 @@ __STAMP__&
 END SUBROUTINE DSMC_SetInternalEnr_LauxVFD
 
 
-SUBROUTINE FinalizeDSMC() 
+SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize dsmc variables
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1478,7 +1536,7 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_Vars, ONLY:PDM
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1505,18 +1563,19 @@ SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
-  SDEALLOCATE(DSMC%QualityFactors)
 END IF
 SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
-SDEALLOCATE(QKBackWard)
+SDEALLOCATE(QKAnalytic)
 SDEALLOCATE(ChemReac%QKProcedure)
 SDEALLOCATE(ChemReac%QKMethod)
 SDEALLOCATE(ChemReac%QKCoeff)
 SDEALLOCATE(ChemReac%NumReac)
 SDEALLOCATE(ChemReac%ReacCount)
+SDEALLOCATE(ChemReac%ReacCollMean)
+SDEALLOCATE(ChemReac%ReacCollMeanCount)
 SDEALLOCATE(ChemReac%NumReac)
 SDEALLOCATE(ChemReac%ReactType)
 SDEALLOCATE(ChemReac%DefinedReact)
@@ -1546,6 +1605,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(CollInf%MeanMPF)
 SDEALLOCATE(HValue)
 !SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
@@ -1553,6 +1613,10 @@ SDEALLOCATE(MacroSurfaceVal)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_HOSolution)
 SDEALLOCATE(ElemNodeVol)
+SDEALLOCATE(BGGas%PairingPartner)
+SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(ClonedParticles)
+SDEALLOCATE(SymmetrySide)
 END SUBROUTINE FinalizeDSMC
 
 

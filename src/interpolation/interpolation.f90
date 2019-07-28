@@ -85,7 +85,7 @@ CONTAINS
 
 
 !==================================================================================================================================
-!> Define parameters 
+!> Define parameters
 !==================================================================================================================================
 SUBROUTINE DefineParametersInterpolation()
 ! MODULES
@@ -96,7 +96,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 !==================================================================================================================================
 CALL prms%SetSection("Interpolation")
 CALL prms%CreateIntOption('N'    , "Polynomial degree of computation to represent to solution")
@@ -105,9 +105,9 @@ END SUBROUTINE DefineParametersInterpolation
 
 SUBROUTINE InitInterpolation()
 !============================================================================================================================
-! Initialize basis for Gauss-points of order N. 
+! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
-! Gaussnodes xGP and weights wGP, wBary 
+! Gaussnodes xGP and weights wGP, wBary
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -130,7 +130,7 @@ IF (InterpolationInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
- 
+
 ! Access ini-file
 #if PP_N == N
 PP_N=GETINT('N','2')   ! N could be set by readin_HDF5 routine -> postproctool
@@ -147,10 +147,10 @@ END SUBROUTINE InitInterpolation
 
 SUBROUTINE InitInterpolationBasis(N_in, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus,swGP, wGPSurf, Vdm_Leg ,sVdm_Leg)
 !============================================================================================================================
-! Initialize basis for Gauss-points of order N. 
+! Initialize basis for Gauss-points of order N.
 ! Calculate positions of Gauss-points, integration weights and barycentric weights. Prepare basis evaluation at -1 and +1.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
-! Gaussnodes xGP and weights wGP, wBary 
+! Gaussnodes xGP and weights wGP, wBary
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -166,15 +166,15 @@ REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT)         :: wGP                !< Int
 REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT)         :: wBary              !< Barycentric weights
 REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT)         :: L_Minus            !< Lagrange polynomials at -1
 REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT)         :: L_Plus             !< Lagrange polynomials at +1
-REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)         :: L_PlusMinus        !< Vandermonde Nodal->Modal 
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)         :: L_PlusMinus        !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT),OPTIONAL:: swGP                !< Integration weights
-REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: wGPSurf            !< Vandermonde Nodal->Modal 
-REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: Vdm_Leg            !< Vandermonde Nodal->Modal 
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: wGPSurf            !< Vandermonde Nodal->Modal
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: Vdm_Leg            !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: sVdm_Leg           !< Vandermonde Modal->Nodal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
+! LOCAL VARIABLES
 INTEGER                                     :: i,j
 !============================================================================================================================
 ! Allocate global variables, needs to go somewhere else later
@@ -300,7 +300,7 @@ INTEGER,INTENT(IN)                 :: N_in                       !> Input polyno
 INTEGER,INTENT(IN)                 :: N_out                      !> Output polynomial degree
 CHARACTER(LEN=255),INTENT(IN)      :: NodeType_in                !> Type of 1D input points
 CHARACTER(LEN=255),INTENT(IN)      :: NodeType_out               !> Type of 1D output points
-LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build 
+LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build
 REAL,INTENT(OUT)                   :: Vdm_In_out(0:N_out,0:N_in) !> Vandermonde In->Out
 REAL,INTENT(OUT),OPTIONAL          :: Vdm_Out_In(0:N_in,0:N_out) !> Vandermonde Out->in
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -361,7 +361,7 @@ END SUBROUTINE GetVandermonde
 
 SUBROUTINE GetDerivativeMatrix(N_in,NodeType_in,D)
 !==================================================================================================================================
-!> Compute polynomial derivative matrix. D(i,j) = Derivative of basis function j evaluated at node point i. 
+!> Compute polynomial derivative matrix. D(i,j) = Derivative of basis function j evaluated at node point i.
 !==================================================================================================================================
 ! MODULES
 USE MOD_Basis,             ONLY:PolynomialDerivativeMatrix
@@ -403,7 +403,7 @@ IF(toPhysical)THEN
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
           U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
-      END DO; END DO; END DO; END DO 
+      END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems
@@ -455,7 +455,7 @@ IF(toPhysical)THEN
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,QDSnVar
           U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
-      END DO; END DO; END DO; END DO 
+      END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems

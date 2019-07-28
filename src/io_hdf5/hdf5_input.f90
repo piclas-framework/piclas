@@ -117,7 +117,7 @@ IF(iError.EQ.0) THEN
   IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
   IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
   IF(.NOT.help) isValidHDF5File=.FALSE.
- 
+
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
   CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersion)
@@ -197,24 +197,21 @@ END IF
 END FUNCTION ISVALIDMESHFILE
 
 !==================================================================================================================================
-!> Subroutine to determine HDF5 datasize
+!> Subroutine to determine HDF5 data size
 !==================================================================================================================================
 SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize,attrib)
-!===================================================================================================================================
-! Subroutine to determine HDF5 datasize
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                     :: DSetName  !< name if dataset to be checked
-INTEGER(HID_T),INTENT(IN)            :: Loc_ID    !< ID of datase
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib    !< logical wether atrtibute or dataset
+CHARACTER(LEN=*)                     :: DSetName   !< name if dataset to be checked
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID     !< ID of datase
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib     !< logical wether atrtibute or dataset
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)                  :: nDims     !< found data size dimensions
-INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:)   !< found data size
+INTEGER,INTENT(OUT)                  :: nDims      !< found data size dimensions
+INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: IntSize(:) !< found data size
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: DSet_ID,FileSpace
@@ -251,14 +248,15 @@ ELSE
   CALL H5SCLOSE_F(FileSpace, iError)
   CALL H5DCLOSE_F(DSet_ID, iError)
 END IF
+DEALLOCATE(SizeMax)
 END SUBROUTINE GetDataSize
 
 
 !==================================================================================================================================
-!> @brief Subroutine to check wheter a dataset in the hdf5 file exists
+!> @brief Subroutine to check whether a dataset in the HDF5 file exists
 !>
 !> We have no "h5dexists_f", so we use the error given by h5dopen_f.
-!> this produces hdf5 error messages even if everything is ok, so we turn the error msgs off
+!> this produces HDF5 error messages even if everything is okay, so we turn the error msgs off
 !> during this operation.
 !> auto error messages off
 !==================================================================================================================================
@@ -269,7 +267,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*)                     :: DSetName !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
-LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute 
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib   !< check dataset or attribute
 LOGICAL,INTENT(OUT)                  :: Exists   !< result: dataset exists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -438,7 +436,7 @@ REAL,&
 INTEGER(KIND=IK),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray !< only if integer array shall be read of KIND=IK
 INTEGER,&
-    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be 
+    DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: IntegerArray_i4 !< only if integer array shall be
 !                                                                            !< read of KIND=4
 CHARACTER(LEN=255),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: StrArray        !< only if string shall be read

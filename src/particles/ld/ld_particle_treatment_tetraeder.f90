@@ -20,7 +20,7 @@ MODULE MOD_LD_part_treat
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -65,35 +65,35 @@ USE MOD_Basis,                 ONLY : GetInverse
   DO iNode = 1, 8
     ! ----which three Sides belongs to Node (cgns stards)
     IF(iNode.eq.1) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 2
       iLocSide3 = 5
     ELSE IF(iNode.eq.2) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 2
       iLocSide3 = 3
     ELSE IF(iNode.eq.3) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 3
       iLocSide3 = 4
     ELSE IF(iNode.eq.4) THEN
-      iLocSide1 = 1 
+      iLocSide1 = 1
       iLocSide2 = 4
       iLocSide3 = 5
     ELSE IF(iNode.eq.5) THEN
-      iLocSide1 = 2 
+      iLocSide1 = 2
       iLocSide2 = 5
       iLocSide3 = 6
     ELSE IF(iNode.eq.6) THEN
-      iLocSide1 = 2 
+      iLocSide1 = 2
       iLocSide2 = 3
       iLocSide3 = 6
     ELSE IF(iNode.eq.7) THEN
-      iLocSide1 = 3 
+      iLocSide1 = 3
       iLocSide2 = 4
       iLocSide3 = 6
-    ELSE 
-      iLocSide1 = 4 
+    ELSE
+      iLocSide1 = 4
       iLocSide2 = 5
       iLocSide3 = 6
     END IF
@@ -119,13 +119,13 @@ USE MOD_Basis,                 ONLY : GetInverse
     Matrix(3,3) = NVec3(3)
 ! ----
     Vector(1,1) = ChosenMeanBaseD1 &
-                + vLAG1 * dt 
+                + vLAG1 * dt
 
     Vector(2,1) = ChosenMeanBaseD2 &
-                + vLAG2 * dt 
+                + vLAG2 * dt
 
     Vector(3,1) = ChosenMeanBaseD3 &
-                + vLAG3 * dt 
+                + vLAG3 * dt
     MatrixInv=getInverse(3,Matrix)
     Vector(:,1)=MATMUL(MatrixInv,Vector(:,1))
     !CALL gaussj(Matrix,Vector)
@@ -234,7 +234,7 @@ USE MOD_Basis,                 ONLY : GetInverse
   END DO ! END iLocSide
 
   DEALLOCATE(PartFound)
- 
+
 END SUBROUTINE LDPartTreament
 !    !--------------------------------------------------------------------------------------------------!
 !    !--------------------------------------------------------------------------------------------------!
@@ -248,7 +248,7 @@ END SUBROUTINE LDPartTreament
 !      REAL, INTENT(IN)                   :: OldHexCentroid(3),PointCoords(3)
 !      INTEGER, INTENT(IN)                :: TetraPoint(3)
 !      REAL, INTENT(OUT)                  :: DistOpposite
-!    
+!
 !      REAL                                :: Fak_a, Fak_b, Fak_c
 !    !--------------------------------------------------------------------------------------------------!
 !    !  IF (TetraVertex .EQ. 1) THEN
@@ -270,7 +270,7 @@ END SUBROUTINE LDPartTreament
 !    !    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
 !    !    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
 !    !
-!    !    BaseVec(1:3) = OldHexCentroid(1:3) 
+!    !    BaseVec(1:3) = OldHexCentroid(1:3)
 !    !  ELSE IF (TetraVertex .EQ. 3) THEN
 !    !    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(1))
 !    !    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(1))
@@ -288,11 +288,11 @@ END SUBROUTINE LDPartTreament
 !    !
 !    !    Vec2(1) = - GEO%NodeCoords(1,TetraPoint(1)) + GEO%NodeCoords(1,TetraPoint(3))
 !    !    Vec2(2) = - GEO%NodeCoords(2,TetraPoint(1)) + GEO%NodeCoords(2,TetraPoint(3))
-!    !    Vec2(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(3)) 
+!    !    Vec2(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(3))
 !    !
 !    !    BaseVec(1:3) = GEO%NodeCoords(1:3,TetraPoint(1))
 !    !  END IF
-!    
+!
 !      ! -> Koordinatenform
 !    !  Fak_a = Vec1(2)*Vec2(3) - Vec2(2)*Vec1(3)
 !    !  Fak_b = Vec1(3)*Vec2(1) - Vec2(3)*Vec1(1)
@@ -301,7 +301,7 @@ END SUBROUTINE LDPartTreament
 !    !             + Fak_b*(PointCoords(2)-BaseVec(2))  &
 !    !             + Fak_c*(PointCoords(3)-BaseVec(3))) &
 !    !             / SQRT(Fak_a*Fak_a + Fak_b*Fak_b + Fak_c*Fak_c))
-!    
+!
 !    END SUBROUTINE CalcDistOpposite
 
 !--------------------------------------------------------------------------------------------------!

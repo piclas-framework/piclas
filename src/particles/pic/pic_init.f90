@@ -21,7 +21,7 @@ MODULE MOD_PICInit
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -99,10 +99,11 @@ CALL prms%CreateRealOption(     'PIC-CollectCharges[$]-ChargeDist'  , 'TODO-DEFI
 
 CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Normal vector for pushTimeStep', '1. , 0. , 0.')
-CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Flag ', '1')
-CALL prms%CreateIntOption(      'PIC-DeltaType-N'    , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Polynomial degree of delta distribution', '1')
+CALL prms%CreateIntOption(      'PIC-DeltaType'      , 'Basis function type.\n'//&
+                                                       '1: Lagrange-Polynomial\n'//&
+                                                       '2: Bernstein-Polynomial\n'//&
+                                                       '3: Uniform B-Spline', '1')
+CALL prms%CreateIntOption(      'PIC-DeltaType-N'    , 'Polynomial degree of the delta distribution basis function', '1')
 CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                        'Dimensions of PIC background mesh', '0. , 0. , 0.')
 CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
@@ -111,42 +112,65 @@ CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'TODO-DEFINE-PARAMETER\n'
                                                        'Writes the source to hdf5', '.FALSE.')
 
 CALL prms%SetSection("PIC Deposition")
-
-CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Switch deposition on/off', '.TRUE.')
-CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                             '(HALOWIKI:)\n'//&
-                                                                    'If Deposition-Type=shape_function\n'//&
-                                                             'Define:\n'//&
-                                                             'PIC-shapefunction-radius\n'//&
-                                                             'PIC-shapefunction-alpha.\n'//&
-                                                                    'If Deposition-Type =(cartmesh_volumeweighting/ cartmesh_splines)\n'//&
-                                                             'Define:\n'//&
-                                                             'PIC-BGMdeltas\n'//&
-                                                             'PIC-FactorBGM', 'nearest-blurrycenter')
+CALL prms%CreateLogicalOption(  'PIC-DoDeposition'         , 'Switch deposition of charge (and current density) on/off', '.TRUE.')
+CALL prms%CreateStringOption(   'PIC-Deposition-Type'      , '1.1)  shape_function\n'                   //&
+                                                             '1.2)  shape_function_1d\n'                //&
+                                                             '1.3)  shape_function_2d\n'                //&
+                                                             '1.4)  shape_function_cylindrical\n'       //&
+                                                             '1.5)  shape_function_spherical\n'         //&
+                                                             '1.6)  shape_function_simple\n'            //&
+                                                             '      1.1) to 1.6) require\n'            //&
+                                                             '        PIC-shapefunction-radius\n'//&
+                                                             '        PIC-shapefunction-alpha\n' //&
+                                                             '      1.2) and 1.3) require\n'            //&
+                                                             '        PIC-shapefunction1d-direction\n'  //&
+                                                             '      1.4) and 1.5) require\n'            //&
+                                                             '        PIC-shapefunction-radius0\n'      //&
+                                                             '        PIC-shapefunction-scale\n'        //&
+                                                             '2.)   cell_volweight\n'                   //&
+                                                             '3.)   epanechnikov\n'                     //&
+                                                             '4.)   nearest_gausspoint\n'               //&
+                                                             '5.)   delta_distri\n'                     //&
+                                                             '      requires PIC-DeltaType\n'           //&
+                                                             '               PIC-DeltaType-N\n'         //&
+                                                             '6.1)  cartmesh_volumeweighting\n'         //&
+                                                             '6.2)  cartmesh_splines\n'                 //&
+                                                             '      requires PIC-BGMdeltas\n'           //&
+                                                             '               PIC-FactorBGM\n'           //&
+                                                             '7.)   nearest-blurrycenter\n'             //&
+                                                             '8.)   cell_volweight_mean'                &
+                                                           , 'nearest-blurrycenter') ! Default
 CALL prms%CreateStringOption(   'PIC-TimeAverageFile'      , 'TODO-DEFINE-PARAMETER', 'none')
+CALL prms%CreateLogicalOption(  'PIC-RelaxDeposition'      , 'Relaxation of current PartSource with RelaxFac\n'//&
+                                                             'into PartSourceOld', '.FALSE.')
+CALL prms%CreateRealOption(     'PIC-RelaxFac'             , 'Relaxation factor of current PartSource with RelaxFac\n'//&
+                                                             'into PartSourceOld', '0.001')
 
 CALL prms%CreateRealOption(     'PIC-epanechnikov-radius'  , 'TODO-DEFINE-PARAMETER', '1.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Radius of shape function', '1.')
-CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Exponent of shape function', '2')
-CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Use equidistant points for shapefunction'&
-                                                           , '.FALSE.')
-CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Direction of 1D shape function', '1')
-CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Minimal shape function radius', '1.')
-CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Scaling factor of shape function radius', '0.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius' , 'Radius of shape function', '1.')
+CALL prms%CreateIntOption(      'PIC-shapefunction-alpha'  , 'Exponent of shape function', '2')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-equi'   , 'Use equidistant points for shapefunction deposition' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-local-depo-BC', 'Do not use shape function deposition in elements where a '//&
+                                                                   'boundary would truncate the shape function. Use a local '//&
+                                                                   'deposition in these elements instead of the shape function.'&
+                                                                 , '.FALSE.')
+CALL prms%CreateIntOption(      'PIC-shapefunction1d-direction' ,'1D shape function: Deposition direction\n'//&
+                                                                 '2D shape function: Perpendicular deposition')
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-3D-deposition' ,'Deposite the charge over volume (3D)\n'//&
+                                                                   ' or over a line (1D)/area(2D)\n'//&
+                                                                   '1D shape function: volume or line\n'//&
+                                                                   '2D shape function: volume or area', '.TRUE.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-radius0', 'Minimum shape function radius (for cylindrical and spherical)', '1.')
+CALL prms%CreateRealOption(     'PIC-shapefunction-scale'  , 'Scaling factor of shape function radius '//&
+                                                             '(for cylindrical and spherical)', '0.')
+! Shape Function Deposition Fixes
 CALL prms%CreateIntOption(      'PIC-NbrOfSFdepoFixes'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Number of fixes for shape func depo at'//&
+                                                             'Number of fixes for shape func depo at'//&
                                                              ' planar BCs', '0')
 CALL prms%CreateLogicalOption(  'PrintSFDepoWarnings'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Print the shapefunction warnings', '.FALSE.')
+                                                             'Print the shapefunction warnings', '.FALSE.')
 CALL prms%CreateRealOption(     'PIC-SFdepoFixesEps'       , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                    'Epsilon for defined planes', '0.')
+                                                             'Epsilon for defined planes', '0.')
 CALL prms%CreateRealArrayOption('PIC-SFdepoFixes[$]-Basepoint'  , 'TODO-DEFINE-PARAMETER\n', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PIC-SFdepoFixes[$]-Normal','TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PIC-SFdepoFixes[$]-ChargeMult'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -208,7 +232,7 @@ CALL prms%CreateLogicalOption(  'PIC-SFResampleAnalyzeSurfCollis'  , 'TODO-DEFIN
 CALL prms%CreateIntArrayOption( 'PIC-SFResampleSurfCollisBC',        'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'BCs to be analyzed (def.: 0 = all)')
 CALL prms%CreateLogicalOption(  'PIC-SFResampleReducePartNumber'   , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                                 'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
+                                                                     'Reduce PartNumberSamp to PartNumberReduced', '.FALSE.')
 CALL prms%CreateIntOption(      'PIC-PartNumThreshold'      ,              'TODO-DEFINE-PARAMETER\n'//&
                                                                                  'Threshold for checking inserted '//&
                                                                            'parts per deposition (otherwise abort)', '0')
@@ -245,6 +269,8 @@ SUBROUTINE InitPIC()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars,  ONLY: externalField
+USE MOD_PICInterpolation       ,ONLY: InitializeParticleInterpolation
+USE MOD_PICDepo                ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -261,6 +287,9 @@ IF(PICInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
+
+CALL InitializeParticleInterpolation()
+CALL InitializeDeposition()
 
 ! So far, nothing to do here...
 IF (externalField(6).NE.0) PIC%GyroVecDirSIGN = -externalField(6)/(ABS(externalField(6)))

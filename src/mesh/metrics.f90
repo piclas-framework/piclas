@@ -20,13 +20,13 @@ MODULE MOD_Metrics
 !>     Metrics_fTilde(n=1:3,i,j,k,iElem)=Ja_n^1
 !>     Metrics_gTilde(n=1:3,i,j,k,iElem)=Ja_n^2
 !>     Metrics_hTilde(n=1:3,i,j,k,iElem)=Ja_n^3
-!> 
+!>
 !>   Per Element we do:
 !>   1.) a.) Preparation: the geometry (equidistant nodal basis, NGeo+1 points/dir) is interpolated to a high precision
 !>           mapping X_n(xi_i) using a Chebyshev-Lobatto basis and stored in XCL_NGeo(1:3,i,j,k,iElem) i,j,k=[0:NGeo]
 !>       b.) Computing the gradients: compute the derivative of the mapping XCL_NGeo in \f$ (xi_1,xi_2,xi_3) \f$ direction,
 !>           using a polynomial derivative Matrix at degree NGeo.
-!>       c.) Computing the Jacobian: compute Jacobian JRef at a degree of NGeoRef=3*NGeo (exact). 
+!>       c.) Computing the Jacobian: compute Jacobian JRef at a degree of NGeoRef=3*NGeo (exact).
 !>                                   For this gradients have to be interpolated to NGeoRef first.
 !>                                   Then project JRef down to degree N. Finally check for negative Jacobians.
 !>       d.) For computing Ja the gradients at degree N are required: if N>=NGeo directly interpolate dXCL_NGeo to dXCL_N,
@@ -42,7 +42,7 @@ MODULE MOD_Metrics
 !>       e.) store Ja_n in the Metrics arrays
 !>
 !>   3.) Compute the surface metrics (normal/tangential vectors, surface area) from volume metrics for each side.
-!> 
+!>
 !>  Special case if non-conforming meshes with octree mappings are used. Then compute ALL volume quantities on tree (macro element)
 !>  level and interpolate down to small actual elements. This will ensure watertight meshes and free-stream preservation.
 !===================================================================================================================================
@@ -51,7 +51,7 @@ MODULE MOD_Metrics
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ BezierTime=0.
 Metrics_fTilde=0.
 Metrics_gTilde=0.
 Metrics_hTilde=0.
-! 
+!
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -241,10 +241,10 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
   DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
-    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) & 
+    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) &
       + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
       + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
-      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))  
+      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
   IF(interpolateFromTree)THEN
@@ -309,15 +309,15 @@ DO iElem=1,nElems
       ! Ja(:)^nn = ( d/dxi_(nn+1) XCL_N(:) ) x (d/xi_(nn+2) XCL_N(:))
       !
       ! JaCL_N(dd,nn) = dXCL_N(dd+1,nn+1)*dXCL_N(dd+2,nn+2) -dXCL_N(dd+1,nn+2)*dXCL_N(dd+2,nn+1)
-      JaCL_N(1,1,i,j,k)=dXCL(2,2)*dXCL(3,3) - dXCL(2,3)*dXCL(3,2)  
-      JaCL_N(2,1,i,j,k)=dXCL(3,2)*dXCL(1,3) - dXCL(3,3)*dXCL(1,2)  
-      JaCL_N(3,1,i,j,k)=dXCL(1,2)*dXCL(2,3) - dXCL(1,3)*dXCL(2,2)  
-      JaCL_N(1,2,i,j,k)=dXCL(2,3)*dXCL(3,1) - dXCL(2,1)*dXCL(3,3)  
-      JaCL_N(2,2,i,j,k)=dXCL(3,3)*dXCL(1,1) - dXCL(3,1)*dXCL(1,3)  
-      JaCL_N(3,2,i,j,k)=dXCL(1,3)*dXCL(2,1) - dXCL(1,1)*dXCL(2,3)  
-      JaCL_N(1,3,i,j,k)=dXCL(2,1)*dXCL(3,2) - dXCL(2,2)*dXCL(3,1)  
-      JaCL_N(2,3,i,j,k)=dXCL(3,1)*dXCL(1,2) - dXCL(3,2)*dXCL(1,1)  
-      JaCL_N(3,3,i,j,k)=dXCL(1,1)*dXCL(2,2) - dXCL(1,2)*dXCL(2,1)  
+      JaCL_N(1,1,i,j,k)=dXCL(2,2)*dXCL(3,3) - dXCL(2,3)*dXCL(3,2)
+      JaCL_N(2,1,i,j,k)=dXCL(3,2)*dXCL(1,3) - dXCL(3,3)*dXCL(1,2)
+      JaCL_N(3,1,i,j,k)=dXCL(1,2)*dXCL(2,3) - dXCL(1,3)*dXCL(2,2)
+      JaCL_N(1,2,i,j,k)=dXCL(2,3)*dXCL(3,1) - dXCL(2,1)*dXCL(3,3)
+      JaCL_N(2,2,i,j,k)=dXCL(3,3)*dXCL(1,1) - dXCL(3,1)*dXCL(1,3)
+      JaCL_N(3,2,i,j,k)=dXCL(1,3)*dXCL(2,1) - dXCL(1,1)*dXCL(2,3)
+      JaCL_N(1,3,i,j,k)=dXCL(2,1)*dXCL(3,2) - dXCL(2,2)*dXCL(3,1)
+      JaCL_N(2,3,i,j,k)=dXCL(3,1)*dXCL(1,2) - dXCL(3,2)*dXCL(1,1)
+      JaCL_N(3,3,i,j,k)=dXCL(1,1)*dXCL(2,2) - dXCL(1,2)*dXCL(2,1)
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   ELSE ! curl metrics
@@ -328,12 +328,12 @@ DO iElem=1,nElems
       ASSOCIATE(dXCL => dXCL_N(:,:,i,j,k,iElem))
       R_CL_N(:,1,i,j,k)=0.5*(XCL_N(3,i,j,k)*dXCL(:,2) - XCL_N(2,i,j,k)*dXCL(:,3) )
       R_CL_N(:,2,i,j,k)=0.5*(XCL_N(1,i,j,k)*dXCL(:,3) - XCL_N(3,i,j,k)*dXCL(:,1) )
-      R_CL_N(:,3,i,j,k)=0.5*(XCL_N(2,i,j,k)*dXCL(:,1) - XCL_N(1,i,j,k)*dXCL(:,2) ) 
+      R_CL_N(:,3,i,j,k)=0.5*(XCL_N(2,i,j,k)*dXCL(:,1) - XCL_N(1,i,j,k)*dXCL(:,2) )
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
     ! Metrics are the curl of R:  Ja(:)^nn = -(curl R_CL(:,nn))
     ! JaCL_N(dd,nn)= -[d/dxi_(dd+1) RCL(dd+2,nn) - d/dxi_(dd+2) RCL(dd+1,nn) ]
-    !              =   d/dxi_(dd+2) RCL(dd+1,nn) - d/dxi_(dd+1) RCL(dd+2,nn) 
+    !              =   d/dxi_(dd+2) RCL(dd+1,nn) - d/dxi_(dd+1) RCL(dd+2,nn)
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       ASSOCIATE(JaCL => JaCL_N(:,:,i,j,k))
       DO q=0,PP_N
@@ -342,9 +342,9 @@ DO iElem=1,nElems
         JaCL(3,:)=JaCL(3,:) - DCL_N(i,q)*R_CL_N(2,:,q,j,k)
       END DO!q=0,PP_N
       DO q=0,PP_N
-        JaCL(1,:)=JaCL(1,:) + DCL_N(k,q)*R_CL_N(2,:,i,j,q) 
-        JaCL(2,:)=JaCL(2,:) + DCL_N(i,q)*R_CL_N(3,:,q,j,k) 
-        JaCL(3,:)=JaCL(3,:) + DCL_N(j,q)*R_CL_N(1,:,i,q,k) 
+        JaCL(1,:)=JaCL(1,:) + DCL_N(k,q)*R_CL_N(2,:,i,j,q)
+        JaCL(2,:)=JaCL(2,:) + DCL_N(i,q)*R_CL_N(3,:,q,j,k)
+        JaCL(3,:)=JaCL(3,:) + DCL_N(j,q)*R_CL_N(1,:,i,q,k)
       END DO!q=0,PP_N
       END ASSOCIATE
 ! same with only one loop, gives different roundoff ...
@@ -467,7 +467,7 @@ lowerLimit=nSides ! all incl. my mortar sides
 lowerLimit=nBCSides+nMortarInnerSides+nInnerSides
 #endif /*MPI*/
 
-! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for 
+! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for
 ! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
 ! this requires check for flip and MortarSlave2Master
 DO iSide=1,lowerLimit
@@ -498,7 +498,7 @@ DO iSide=1,lowerLimit
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Elem and NBElemID:', ElemID,SideToElem(S2E_NB_ELEM_ID,iSide)
     IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
   END IF
-END DO 
+END DO
 
 endT=PICLASTIME()
 BezierTime=BezierTime+endT-StartT2
@@ -512,7 +512,7 @@ endt=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 #endif /*PARTICLES*/
 
-END SUBROUTINE CalcMetrics 
+END SUBROUTINE CalcMetrics
 
 SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 !===================================================================================================================================
@@ -672,7 +672,7 @@ END SUBROUTINE SurfMetricsFromJa
 #if defined(ROS) || defined(IMPA)
 SUBROUTINE CalcElemLocalSurfMetrics(Nloc,JaCL_N,Vdm_CLN_N,iElem)
 !===================================================================================================================================
-! Compute the element-local normal vectors and SurfElem from element metrics. Input is JaCL_N, the 3D element metrics on 
+! Compute the element-local normal vectors and SurfElem from element metrics. Input is JaCL_N, the 3D element metrics on
 ! Cebychev-Lobatto points. The orientation of the element-local vectors correspond to the volume-DOFs ijk
 !===================================================================================================================================
 ! MODULES
@@ -706,7 +706,7 @@ REAL               :: tmp2(        3,0:Nloc,0:Nloc)
 !==================================================================================================================================
 
 DO iLocSide=1,6
- ! compute the local normVec and SurfElem form each element 
+ ! compute the local normVec and SurfElem form each element
  ! this is currently only required for the Maxwell case (HDG should be handled similar)
  ! this allows to build the preconditioner with the correct normVecs and SurfElems
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
@@ -765,7 +765,7 @@ USE MOD_Mesh_Vars,               ONLY:NodeCoords
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -776,23 +776,15 @@ IMPLICIT NONE
 !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,q,iElem
+INTEGER :: i,j,k,iElem
 INTEGER :: ll
 ! Jacobian on CL N and NGeoRef
 REAL    :: DetJac_N( 1,0:PP_N,   0:PP_N,   0:PP_N)
-REAL    :: tmp(      1,0:NgeoRef,0:NgeoRef,0:NgeoRef)
-!REAL    :: tmp2(     1,0:Ngeo,0:Ngeo,0:Ngeo)
 ! interpolation points and derivatives on CL N
 REAL    :: XCL_N(      3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
 REAL    :: XCL_Ngeo(   3,  0:Ngeo,0:Ngeo,0:Ngeo)          ! mapping X(xi) P\in Ngeo
-REAL    :: XCL_N_quad( 3,  0:PP_N,0:PP_N,0:PP_N)          ! mapping X(xi) P\in N
 REAL    :: dXCL_Ngeo(  3,3,0:Ngeo,0:Ngeo,0:Ngeo)          ! jacobi matrix on CL Ngeo
 REAL    :: dX_NgeoRef( 3,3,0:NgeoRef,0:NgeoRef,0:NgeoRef) ! jacobi matrix on SOL NgeoRef
-
-REAL    :: R_CL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric terms, uses XCL_N,dXCL_N
-REAL    :: JaCL_N(     3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
-REAL    :: JaCL_N_quad(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
-REAL    :: scaledJac(2)
 
 ! Polynomial derivativion matrices
 REAL    :: DCL_NGeo(0:Ngeo,0:Ngeo)
@@ -806,13 +798,9 @@ REAL    :: Vdm_CLNGeo_CLN(    0:PP_N   ,0:Ngeo)
 REAL    :: Vdm_CLN_N(         0:PP_N   ,0:PP_N)
 
 ! 3D Vandermonde matrices and lengths,nodes,weights
-REAL,DIMENSION(0:NgeoRef,0:NgeoRef) :: Vdm_xi_Ref,Vdm_eta_Ref,Vdm_zeta_Ref
-REAL,DIMENSION(0:PP_N   ,0:PP_N)    :: Vdm_xi_N  ,Vdm_eta_N  ,Vdm_zeta_N
-REAL,DIMENSION(0:NGeo   ,0:NGeo)    :: Vdm_xi_NGeo  ,Vdm_eta_NGeo  ,Vdm_zeta_NGeo
 REAL    :: xiRef( 0:NgeoRef),wBaryRef( 0:NgeoRef)
 REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xiCL_NGeo(0:NGeo)   ,wBaryCL_NGeo(0:NGeo)
-REAL    :: xi0(3),dxi(3),length(3)
 
 REAL    :: DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !===================================================================================================================================
@@ -868,10 +856,10 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,2,:,:,:),dX_NgeoRef(:,2,:,:,:))
   CALL ChangeBasis3D(3,Ngeo,NgeoRef,Vdm_CLNGeo_NgeoRef,dXCL_NGeo(:,3,:,:,:),dX_NgeoRef(:,3,:,:,:))
   DO k=0,NgeoRef; DO j=0,NgeoRef; DO i=0,NgeoRef
-    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) & 
+    detJac_Ref(1,i,j,k,iElem)=detJac_Ref(1,i,j,k,iElem) &
       + dX_NgeoRef(1,1,i,j,k)*(dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(3,3,i,j,k) - dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(2,3,i,j,k))  &
       + dX_NgeoRef(2,1,i,j,k)*(dX_NgeoRef(3,2,i,j,k)*dX_NgeoRef(1,3,i,j,k) - dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(3,3,i,j,k))  &
-      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))  
+      + dX_NgeoRef(3,1,i,j,k)*(dX_NgeoRef(1,2,i,j,k)*dX_NgeoRef(2,3,i,j,k) - dX_NgeoRef(2,2,i,j,k)*dX_NgeoRef(1,3,i,j,k))
   END DO; END DO; END DO !i,j,k=0,NgeoRef
 
   ! interpolate detJac_ref to the solution points

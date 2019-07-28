@@ -40,12 +40,12 @@ REAL             :: DeltaXi_NGeo
 ! check if these arrays are still used
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
-REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)  
-REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)  
-REAL,ALLOCATABLE :: DCL_NGeo(:,:)  
-REAL,ALLOCATABLE :: DCL_N(:,:)  
+REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
+REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
+REAL,ALLOCATABLE :: DCL_NGeo(:,:)
+REAL,ALLOCATABLE :: DCL_N(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! will be used in the future
 REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
@@ -68,7 +68,7 @@ INTEGER          :: nGlobalTrees               !< Global number of trees in mesh
 INTEGER          :: offsetTree                 !< Tree offset (for MPI)
 INTEGER,ALLOCATABLE :: ElemToTree(:)           !< Index of the tree corresponding to an element
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Metrics on GaussPoints 
+! Metrics on GaussPoints
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
 REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
@@ -90,7 +90,7 @@ REAL,ALLOCATABLE    :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in
 REAL,ALLOCATABLE    :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCATABLE    :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
-! surface vectors 
+! surface vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: NormVec(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
 REAL,ALLOCATABLE :: TangVec1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
@@ -169,13 +169,13 @@ INTEGER          :: nUserBCs=0              !< number of BC in inifile
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)
-INTEGER             :: firstMortarInnerSide    !< First SideID of Mortars (in general nBCs+1)
+INTEGER             :: firstMortarInnerSide    !< First SideID of Mortars (in general nBCSides+1)
 INTEGER             :: firstInnerSide          !< First SideID of inner sides
 INTEGER             :: firstMPISide_MINE       !< First SideID of MINE MPI sides (on local processor)
 INTEGER             :: firstMPISide_YOUR       !< First SideID of YOUR MPI sides (on neighbour processor)
 INTEGER             :: firstMortarMPISide      !< First SideID of Mortar MPI sides
-INTEGER             :: lastBCSide              !< Last  SideID of BCs (in general nBCs)
-INTEGER             :: lastMortarInnerSide     !< Last  SideID of Mortars (in general nBCs+nMortars)
+INTEGER             :: lastBCSide              !< Last  SideID of BCs (in general nBCSides)
+INTEGER             :: lastMortarInnerSide     !< Last  SideID of Mortars (in general nBCSides+nMortars)
 INTEGER             :: lastInnerSide           !< Last  SideID of inner sides
 INTEGER             :: lastMPISide_MINE        !< Last  SideID of MINE MPI sides (on local processor)
 INTEGER             :: lastMPISide_YOUR        !< Last  SideID of YOUR MPI sides (on neighbour processor)
@@ -208,18 +208,18 @@ LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  !< number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) !< plane number used for calculation of Poynting vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
-! USER DEFINED TYPES 
+! USER DEFINED TYPES
 
 TYPE tNodePtr
   TYPE(tNode),POINTER          :: np                     !< node pointer
 END TYPE tNodePtr
 
 TYPE tSidePtr
-  TYPE(tSide),POINTER          :: sp                     !< side pointer
+  TYPE(tSide),POINTER          :: sp              !< side pointer
 END TYPE tSidePtr
 
 TYPE tElemPtr
-  TYPE(tElem),POINTER          :: ep                     !< Local element pointer
+  TYPE(tElem),POINTER          :: ep              !< Local element pointer
 END TYPE tElemPtr
 
 TYPE tElem
@@ -231,12 +231,12 @@ TYPE tElem
 END TYPE tElem
 
 TYPE tSide
-  INTEGER                      :: ind             !< global side ID 
-  INTEGER                      :: sideID          !< local side ID on Proc 
-  INTEGER                      :: tmp 
-  INTEGER                      :: NbProc 
-  INTEGER                      :: BCindex         !< index in BoundaryType array! 
-  INTEGER                      :: flip 
+  INTEGER                      :: ind             !< global side ID
+  INTEGER                      :: sideID          !< local side ID on Proc
+  INTEGER                      :: tmp
+  INTEGER                      :: NbProc
+  INTEGER                      :: BCindex         !< index in BoundaryType array!
+  INTEGER                      :: flip
 #ifdef PARTICLES
   INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
@@ -276,7 +276,7 @@ CONTAINS
 
 FUNCTION GETNEWSIDE()
 !===================================================================================================================================
-!<  
+!<
 !===================================================================================================================================
 !< MODULES
 !< IMPLICIT VARIABLE HANDLING
@@ -310,7 +310,7 @@ END FUNCTION GETNEWSIDE
 
 FUNCTION GETNEWELEM()
 !===================================================================================================================================
-!< 
+!<
 !===================================================================================================================================
 !< MODULES
 !< IMPLICIT VARIABLE HANDLING
@@ -359,27 +359,27 @@ Elem%Side(1)%sp%Node(1)%np=>Elem%Node(1)%np
 Elem%Side(1)%sp%Node(2)%np=>Elem%Node(4)%np
 Elem%Side(1)%sp%Node(3)%np=>Elem%Node(3)%np
 Elem%Side(1)%sp%Node(4)%np=>Elem%Node(2)%np
-!side 2                                    
+!side 2
 Elem%Side(2)%sp%Node(1)%np=>Elem%Node(1)%np
 Elem%Side(2)%sp%Node(2)%np=>Elem%Node(2)%np
 Elem%Side(2)%sp%Node(3)%np=>Elem%Node(6)%np
 Elem%Side(2)%sp%Node(4)%np=>Elem%Node(5)%np
-!side 3                                    
+!side 3
 Elem%Side(3)%sp%Node(1)%np=>Elem%Node(2)%np
 Elem%Side(3)%sp%Node(2)%np=>Elem%Node(3)%np
 Elem%Side(3)%sp%Node(3)%np=>Elem%Node(7)%np
 Elem%Side(3)%sp%Node(4)%np=>Elem%Node(6)%np
-!side 4                                    
+!side 4
 Elem%Side(4)%sp%Node(1)%np=>Elem%Node(3)%np
 Elem%Side(4)%sp%Node(2)%np=>Elem%Node(4)%np
 Elem%Side(4)%sp%Node(3)%np=>Elem%Node(8)%np
 Elem%Side(4)%sp%Node(4)%np=>Elem%Node(7)%np
-!side 5                                    
+!side 5
 Elem%Side(5)%sp%Node(1)%np=>Elem%Node(1)%np
 Elem%Side(5)%sp%Node(2)%np=>Elem%Node(5)%np
 Elem%Side(5)%sp%Node(3)%np=>Elem%Node(8)%np
 Elem%Side(5)%sp%Node(4)%np=>Elem%Node(4)%np
-!side 6                                                
+!side 6
 Elem%Side(6)%sp%Node(1)%np=>Elem%Node(5)%np
 Elem%Side(6)%sp%Node(2)%np=>Elem%Node(6)%np
 Elem%Side(6)%sp%Node(3)%np=>Elem%Node(7)%np

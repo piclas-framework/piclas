@@ -1,18 +1,25 @@
 ---
-title: PICLas Documentation
+title: PICLas
+logo: ../logo.png
+subtitle: User Guide
+version: Version 1
 author: 
   - Institute for Aerodynamics and Gas Dynamics (IAG)
   - Institute for Space Systems (IRS)
   - University of Stuttgart, Germany
+institute: IAG IRS
 date: \today
 documentclass: scrreprt
 lang: en-US
 papersize: a4
+geometry: "left=2.5cm,right=2.5cm,top=3.5cm,bottom=3.5cm"
 colorlinks: yes
 toc: yes
 header-includes:
   - \input{header}
-
+bibliography: ../references.bib
+csl: ../ieee.csl
+link-citations: true
 ---
 
 \hypertarget{introduction}{}
@@ -30,13 +37,16 @@ header-includes:
  It is licensed under GPLv3, written in Fortran and parallelized with MPI. Implemented features are
  
  * Coupled Particle-in-Cell with Direct Simulation Monte Carlo methods
- * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and electromagnetic solvers
- * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org)
- * Non-conforming interfaces based on the mortar approach (electromagnetic solver)
- * Non-reflecting boundary conditions via CFS-PMLs (electromagnetic solver)
+ * Particle-based Bhatnagar-Gross-Krook (Ellipsoidal Statistical, Shakov, Unified) and Fokker–Planck (Cubic, Ellipsoidal Statistical) models for continuum gas flows
+ * Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation 
+   points for electrostatic and electromagnetic solvers
+ * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or 
+   simple analytic blocks via the open source preprocessor [**HOPR**](http://hopr-project.org) [@Hindenlang2015]
+ * Non-conforming interfaces [@Sonntag2017] based on the mortar approach [@Kopriva2001;@Bui2012] (electromagnetic solver)
+ * Non-reflecting boundary conditions via CFS-PMLs [@Copplestone2017] (electromagnetic solver)
  * Automatic domain decomposition for parallel simulations based on a space filling curve
- * High order low-storage explicit Runge-Kutta time integration
- * I/O using the HDF5 library optimized for massively parallel jobs
+ * High order low-storage explicit Runge-Kutta time integration [@Carpenter1994]
+ * I/O using the [**HDF5**](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
 
 ## How this documentation is organized
 
@@ -50,6 +60,6 @@ the simulation code's features from a user and a developer point of view.
 * Chapter \ref{chap:features_models} shall serve as a reference for the models and features implemented in **PICLas**.
 * Chapter \ref{chap:tools} lists tools within the **PICLas** repository, including the post-processing tools. 
 * Simulation tutorials are contained in Chapter \ref{chap:tutorials}.
-* Additional installation guidelines for specific systems are given in Chapter \ref{chap:install_guide}.
-* A complete list of all parameters is given in Chapter \ref{chap:parameterfile}.
+* Cluster-specific user guidelines are given in Chapter \ref{chap:cluster_guide}.
+<!-- * A complete list of all parameters is given in Chapter \ref{chap:parameterfile}. -->
 <!-- * The unit test system used to test key routines with CTest is described in Chapter \ref{chap:unittest}. -->
