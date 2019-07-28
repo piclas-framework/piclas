@@ -180,7 +180,7 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep, PDM
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -419,6 +419,17 @@ IF (CalcPartBalance) THEN
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
+  IF(nProcessors.GT.1)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 proc!')
+  ELSE
+    IF(PDM%ParticleVecLength.GT.1)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
+    END IF
+  END IF
   printDiff=GETLOGICAL('printDiff','.FALSE.')
   IF(printDiff)THEN
     printDiffTime=GETREAL('printDiffTime','12.')
