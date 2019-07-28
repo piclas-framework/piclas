@@ -159,10 +159,10 @@ CASE(2) !PartBound%ReflectiveBC)
     CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
 #endif /*NOT IMPA*/
   END IF
-  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    ! decide if reactive or simple sattering
+  IF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 !deleted particle -> particle swapped to species 0
+    ! decide if reactive or simple scattering
     IF (.NOT.PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
-    ! simple reflection (previously used wall interaction model, maxwellian scattering)
+    ! simple reflection (previously used wall interaction model, Maxwellian scattering)
       CALL RANDOM_NUMBER(RanNum)
       IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PorousReflection) THEN
         ! perfectly reflecting, specular re-emission

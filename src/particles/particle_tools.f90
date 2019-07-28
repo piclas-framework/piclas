@@ -169,7 +169,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
 INTEGER,INTENT(IN)          :: specID       !< input species
-REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J]
+REAL,INTENT(IN)             :: Tempergy         !< input temperature [K] or energy [J] or velocity [m/s]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -343,10 +343,10 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
 END IF
 
 PDM%ParticleInside(newParticleID) = .TRUE.
-PDM%dtFracPush(newParticleID) = .FALSE.
-PDM%IsNewPart(newParticleID) = .FALSE.   ! ??????? correct ????
-PEM%Element(newParticleID) = ElemID
-PEM%lastElement(newParticleID) = ElemID
+PDM%dtFracPush(newParticleID)     = .FALSE.
+PDM%IsNewPart(newParticleID)      = .FALSE.   ! ??????? correct ????
+PEM%Element(newParticleID)        = ElemID
+PEM%lastElement(newParticleID)    = ElemID
 
 ! ?????? necessary?
 ! IF (VarTimeStep%UseVariableTimeStep) THEN

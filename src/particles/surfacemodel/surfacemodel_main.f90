@@ -264,6 +264,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(INOUT)       :: adsindex
 REAL,INTENT(INOUT)          :: PartTrajectory(1:3), LengthPartTrajectory, alpha
+REAL                        :: PartTrajectory2(1:3)
 REAL,INTENT(IN)             :: xi, eta
 INTEGER,INTENT(IN)          :: PartID
 INTEGER,INTENT(IN)          :: sideID_IN
@@ -548,7 +549,7 @@ CASE(3) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   IF (ModelERSpecular) THEN
     ! perfect velocity reflection
     NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
-    ! mass changes, therefore velocity is scaled because impuls remains the same
+    ! mass changes, therefore velocity is scaled because momentum remains the same
     NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(2))%MassIC/Species(SpecID)%MassIC)
   ELSE
     ! diffuse reflection
@@ -647,6 +648,11 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
                                            + ReactionEnthalpie * Species(SpecID)%MacroParticleFactor
   END IF
   oldVelo(1:3) = PartState(PartID,4:6)
+  !IF (ProductSpec(2).EQ.3) THEN
+    !WRITE (*,*) "old PartState(",PartID,",:) =", PartState(PartID,:)
+    !WRITE (*,*) "PartTrajectory          =                                                                               ", PartTrajectory
+    !read*
+  !END IF ! ProductSpec(2).EQ.3
   ! Sampling the particle energy that is transferred onto the surface
   CALL PartEnergyToSurface(PartID,SpecID,Transarray,IntArray)
 
@@ -658,10 +664,27 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
   CASE(5) ! reflected particle velocity vector from a defined velocity distribution function
     ! sample new velocity for reflected particle
     NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
+
     ! important: n_loc points outwards
     PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+
+
+
+
+    ! intersection point with surface
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+    ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+    TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
+    POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+    ! travel rest of particle vector
+    IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+
+    ! recompute trajectory etc
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
   CASE(6) ! perfect or diffuse velocity reflection
     IF (PartBound%MomentumACC(locBCID).GT.0.0) THEN
+      !write(*,*) "diffuse reflection"
+      !read*
       ! diffuse reflection
       TransACC   = PartBound%TransACC(locBCID)
       !VibACC     = PartBound%VibACC(locBCID)
@@ -673,7 +696,7 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
       Fak_D       = VeloCrad**2 + VeloCz**2
       EtraWall    = BoltzmannConst * WallTemp * Fak_D
       VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
-      EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+      EtraOld     = 1.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
       EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
       Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(2))%MassIC * Fak_D))
       CALL RANDOM_NUMBER(RanNum)
@@ -685,26 +708,42 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
     ELSE
       ! perfect velocity reflection
       NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
-      ! mass changes, therefore velocity is scaled because impuls remains the same
+      ! mass changes, therefore velocity is scaled because momentum remains the same
       NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(2))%MassIC/Species(SpecID)%MassIC)
+      ! IF (ProductSpec(2).EQ.3) THEN
+      !   WRITE (*,*) "PartState(PartID,1:3) =", PartState(PartID,1:3)
+      !   WRITE (*,*) "NewVelo(1:3) =", NewVelo(1:3)
+      !   read*
+      ! END IF ! ProductSpec(2).EQ.3
     END IF
+
+
+
+    ! intersection point with surface
+    LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
+    ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+    TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
+    POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+    ! travel rest of particle vector
+    IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+    PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
+    !----  saving new particle velocity
+    PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
   END SELECT
 
-  ! intersection point with surface
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
-  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-  TildTrajectory=dt*RKdtFrac*oldVelo(1:3)
-  POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-  ! travel rest of particle vector
-  IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 
-  ! recompute trajectory etc
-  PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * PartState(PartID,4:6)
+
+
   PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-  ! set new species
+  !IF (ProductSpec(2).EQ.3) THEN
+    !WRITE (*,*) "new PartState(",PartID,",:) =", PartState(PartID,:)
+    !WRITE (*,*) "PartTrajectory          =                                                                               ", PartTrajectory
+    !read*
+  !END IF ! ProductSpec(2).EQ.3
+  ! set new species of reflected particle
   PartSpecies(PartID) = ProductSpec(2)
 
   ! Sampling the energy that is transferred from the surface onto the particle
@@ -721,9 +760,18 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
     NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
     ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+
+    PartTrajectory2=UNITVECTOR(NewVelo(1:3))
+
     CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+  
+
+    !write(*,*) " "
+    !WRITE (*,*) "new particle created at PartState(",NewPartID,",:) =", PartState(NewPartID,:)
+    !WRITE (*,*) "                        PartTrajectory2            =", PartTrajectory2
+    !write(*,*) " "
     CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
-    CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+    CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory2,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
   END DO ! iNewPart = 1, ProductSpecNbr
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT ! diffuse reflection
