@@ -384,9 +384,9 @@ USE MOD_Timedisc_Vars,          ONLY:dt
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPorousBCInfo
 USE MOD_DSMC_Vars,              ONLY:DSMC, RadialWeighting
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -406,7 +406,7 @@ ELSE
 END IF
 
 ! 1) MPI communication of particles that impinged on halo sides to corresponding side
-#ifdef MPI
+#if USE_MPI
 CALL ExchangeImpingedPartPorousBC()
 #endif
 
@@ -414,7 +414,7 @@ CALL ExchangeImpingedPartPorousBC()
 DO iPBC = 1,nPorousBC
   ! a) Summing up the number of impinged particles for the whole BC surface
   SumPartPorousBC = SUM(PorousBC(iPBC)%Sample(1:PorousBC(iPBC)%SideNumber,1))
-#ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,SumPartPorousBC,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,iError)
 #endif
   ! 2.1) Loop over all sides within each porous BC
@@ -500,14 +500,14 @@ DO iPBC = 1,nPorousBC
 END DO    ! iPBC=1, nPorousBC
 
 ! Exchange removal probability for halo cells
-#ifdef MPI
+#if USE_MPI
 CALL ExchangeRemovalProbabilityPorousBC()
 #endif
 
 END SUBROUTINE PorousBoundaryRemovalProb_Pressure
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE ExchangeImpingedPartPorousBC()
 !===================================================================================================================================
 !
@@ -700,7 +700,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO
 
 END SUBROUTINE ExchangeRemovalProbabilityPorousBC
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 SUBROUTINE GetRadialDistance2D(BCSideID,dir,origin,rmin,rmax)

@@ -81,7 +81,7 @@ USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
 USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,         ONLY:mpiroot
 #endif
 USE MOD_Mesh_Vars,       ONLY:SideToElem
@@ -184,9 +184,9 @@ SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside,DoRadius,Radius,Dis
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,              ONLY:abort,UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,              ONLY:MPI_COMM_WORLD,mpiroot
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars,            ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -336,7 +336,7 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,             ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
@@ -376,7 +376,7 @@ isFace_combined=-3.
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
-#ifdef MPI
+#if USE_MPI
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRUE.)  ! Includes Mortar sides
 
 ! 3.  MPI: communicate slave sides to master
@@ -384,7 +384,7 @@ CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.TRU
 CALL StartReceiveMPIData(1,isFace_Slave,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIData(   1,isFace_Slave,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 
@@ -405,13 +405,13 @@ isFace_combined=2*isFace_Slave+isFace_Master
 !         CURRENTLY NOT NEEDED!
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.FALSE.)
 
-#ifdef MPI
+#if USE_MPI
 CALL Flux_Mortar_SideInfo(isFace_Master,isFace_Slave,doMPISides=.TRUE.)
 ! send Master special region info (real with [0=no special region] or [1=special region] as (N+1)*(N+1) array) to Slave procs
 CALL StartReceiveMPIData(1,isFace_Master,1,nSides ,RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,isFace_Master,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=1) !Send YOUR -receive MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
@@ -597,7 +597,7 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,     ONLY: nSides,nGlobalElems
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,     ONLY: ElemToSide
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -615,7 +615,7 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
 #endif
 !===================================================================================================================================
@@ -644,7 +644,7 @@ END DO ! iElem
 !===================================================================================================================================
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-#ifdef MPI
+#if USE_MPI
     nMasterFaces      = 0
     nMasterInterFaces = 0
     DO iElem=1,nElems ! loop over all local elems
@@ -734,7 +734,7 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -767,7 +767,7 @@ SUBROUTINE DisplayMinMax(MinMax)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -802,7 +802,7 @@ SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_na
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY:UNIT_stdOut
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,               ONLY:MPIRoot
 #endif
 ! IMPLICIT VARIABLE HANDLING

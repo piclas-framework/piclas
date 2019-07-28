@@ -45,7 +45,7 @@
 ! Check for charged particles: x = iPart
 #define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
-#ifdef MPI
+#if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #else

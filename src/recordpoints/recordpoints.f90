@@ -78,7 +78,7 @@ USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize
 USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
-#ifdef MPI
+#if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -108,9 +108,9 @@ nSamples=0
 RPDefFile=GETSTR('RP_DefFile')                        ! Filename with RP coords
 CALL ReadRPList(RPDefFile) ! RP_inUse is set to FALSE by ReadRPList if no RP is on proc.
 maxRP=nGlobalRP
-#ifdef MPI
+#if USE_MPI
   CALL InitRPCommunicator()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(RP_onProc)THEN
   RP_maxMemory=GETREAL('RP_MaxMemory','100.')         ! Max buffer (100MB)
@@ -130,7 +130,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRecordPoints
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitRPCommunicator()
 !===================================================================================================================================
 ! Read RP parameters from ini file and RP definitions from HDF5
@@ -184,7 +184,7 @@ IF(RP_onProc) CALL MPI_COMM_SIZE(RP_COMM, nRP_Procs,iError)
 IF(myRPrank.EQ.0 .AND. RP_onProc) WRITE(*,*) 'RP COMM:',nRP_Procs,'procs'
 
 END SUBROUTINE InitRPCommunicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 SUBROUTINE ReadRPList(FileString)
@@ -417,7 +417,7 @@ USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
-#ifdef MPI
+#if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -429,12 +429,12 @@ LOGICAL,INTENT(IN)             :: finalizeFile
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileString
-#ifdef MPI
+#if USE_MPI
 REAL                           :: startT,endT
 #endif
 !===================================================================================================================================
 IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
 startT=MPI_WTIME()
 #endif
 
@@ -453,7 +453,7 @@ IF(myRPrank.EQ.0)THEN
   CALL CloseDataFile()
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(RP_COMM,iError)
 IF(nRP_Procs.EQ.1)THEN
   CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -477,7 +477,7 @@ IF(iSample.GT.0)THEN
         iSample      => INT(iSample,IK)      ,&
         offsetRP     => INT(offsetRP,IK)     )
 
-#ifdef MPI
+#if USE_MPI
     IF(nRP_Procs.EQ.1)THEN
 #endif
       CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank= 3       , &
@@ -488,7 +488,7 @@ IF(iSample.GT.0)THEN
                             chunkSize   = (/PP_nVar+1 , nGlobalRP     , chunkSamples      /) , &
                             RealArray   = RP_Data(:,:,1:iSample),&
                             collective  = .FALSE.)
-#ifdef MPI
+#if USE_MPI
     ELSE
       CALL WriteArrayToHDF5(DataSetName = 'RP_Data'   , rank = 3      , &
                             nValGlobal  = (/PP_nVarP1 , INT(nGlobalRP , IK)                  , nSamples/) , &
@@ -526,7 +526,7 @@ IF(finalizeFile)THEN
   RP_Data(:,:,1)=lastSample
 END IF
 
-#ifdef MPI
+#if USE_MPI
 endT=MPI_WTIME()
 IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE  [',EndT-StartT,'s]'
 #else
@@ -555,9 +555,9 @@ IMPLICIT NONE
 IF(DoLoadBalance)THEN
   IF(RP_onProc)THEN
     SDEALLOCATE(RP_Data)
-#ifdef MPI
+#if USE_MPI
     CALL MPI_COMM_FREE(RP_Comm,iERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
   nRP=0
   RP_onProc=.FALSE.

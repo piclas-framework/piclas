@@ -125,7 +125,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TriaTracking
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,SideSlabNormals,SideSlabIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BoundingBoxIsEmpty,ElemSlabNormals,ElemSlabIntervals
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #ifdef CODE_ANALYZE
@@ -227,7 +227,7 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
@@ -286,7 +286,7 @@ nUniqueSides       = lastMPISide_MINE ! MY_MORTAR_MPI_SIDES are missing
 IF(nMortarInnerSides.GT.0) CALL abort(&
       __STAMP__&
       ,' Mortars not implemented for HDG. Fix nUniqueSides, as well!')
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else
 nGlobalUniqueSides=nSides
@@ -786,7 +786,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
                     MINVAL(Face_xGP(2,:,:,1:nBCSides)),MAXVAL(Face_xGP(2,:,:,1:nBCSides)),&
                     MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
 ! get global bounding box of faces for damping value ramp
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(xyzMinMaxloc(1),xyzMinMax(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(2),xyzMinMax(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(xyzMinMaxloc(3),xyzMinMax(3), 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, IERROR)
@@ -795,7 +795,7 @@ xyzMinMaxloc(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:n
    CALL MPI_ALLREDUCE(xyzMinMaxloc(6),xyzMinMax(6), 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #else
    xyzMinMax=xyzMinMaxloc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! don't call twice
 GetMeshMinMaxBoundariesIsDone=.TRUE.
@@ -851,10 +851,10 @@ SUBROUTINE InitElemVolumes()
 ! Calculate Element volumes for later use in particle routines
 !===================================================================================================================================
 ! MODULES                                               ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE mpi
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
@@ -922,11 +922,11 @@ DO iElem=1,nElems
 END DO
 
 GEO%LocalVolume=SUM(GEO%Volume)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #else
 GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', GEO%MeshVolume
 

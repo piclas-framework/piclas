@@ -43,7 +43,7 @@ USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide,nBCSide
 USE MOD_Particle_Mesh_Vars,    ONLY : SidePeriodicType
 USE MOD_Particle_Boundary_Vars,ONLY:PartBound
 USE MOD_TimeDisc_Vars,         ONLY : iter
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides
 #endif
 !--------------------------------------------------------------------------------------------------!
@@ -85,7 +85,7 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
       IF (.NOT.IsDoneLagVelo(SideID)) THEN
         IsDoneLagVelo(SideID) = .TRUE.
         IsStationary = .FALSE.
-#ifdef MPI
+#if USE_MPI
         IF (SideID.GT.nBCSides+nInnerSides) THEN ! it must be a MPI Side
           Elem2 = -1
           Velo2(1) = MPINeighborBulkVal(SideID,1)
@@ -237,7 +237,7 @@ __STAMP__&
             LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature
           END IF
         END IF
-#ifdef MPI
+#if USE_MPI
         END IF
 #endif
         IF (.NOT.IsStationary) THEN

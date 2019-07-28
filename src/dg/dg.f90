@@ -152,12 +152,12 @@ USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,
 USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 #ifdef PP_HDG
-#ifdef MPI
+#if USE_MPI
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -173,9 +173,9 @@ REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
 INTEGER                                    :: iMass
 #ifdef PP_HDG
-#ifdef MPI
+#if USE_MPI
 REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
 !===================================================================================================================================
 ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
@@ -202,7 +202,7 @@ CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_HatMinus(:) = MATMUL(Minv,L_Minus)
 
 #ifdef PP_HDG
-#ifdef MPI
+#if USE_MPI
 ! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
 Geotemp=0.
 Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
@@ -220,7 +220,7 @@ TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
 TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
 END SUBROUTINE InitDGbasis
 
@@ -244,7 +244,7 @@ USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_PML_Vars          ,ONLY: DoPML,U2t
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
-#ifdef MPI
+#if USE_MPI
 USE MOD_PML_Vars          ,ONLY: PMLnVar
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -252,7 +252,7 @@ USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExch
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -270,7 +270,7 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
-#ifdef MPI
+#if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -288,7 +288,7 @@ CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
@@ -302,7 +302,7 @@ IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(Ut,dofirstElems=.TRUE.)
 
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -337,7 +337,7 @@ CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
 ! compute volume integral contribution and add to ut
 CALL VolInt(Ut,dofirstElems=.FALSE.)
 
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -385,7 +385,7 @@ USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_master,Phi_slave,FluxPhi,nTotalPhi
 USE MOD_Interpolation, ONLY: ApplyJacobian
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if USE_LOADBALANCE
@@ -403,13 +403,13 @@ INTEGER,INTENT(IN)              :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iElem,i,j,k,iVar
-#ifdef MPI
+#if USE_MPI
 REAL    :: tLBStart
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
-#ifdef MPI
+#if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -430,7 +430,7 @@ CALL StartSendMPIData(4,Phi_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 !CALL ProlongToFace(Phi,Phi_Minus,Phi_slave,doMPISides=.FALSE.)
@@ -445,7 +445,7 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 
-#ifdef MPI
+#if USE_MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 
@@ -478,7 +478,7 @@ CALL SurfInt_Pois(FluxPhi,Phit,doMPISides=.FALSE.)
 !! compute volume integral contribution and add to ut
 !CALL VolInt(Ut)
 
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/

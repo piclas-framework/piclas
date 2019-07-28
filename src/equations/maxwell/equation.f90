@@ -1316,9 +1316,9 @@ DO iSide=1,nSides
   END DO ! q
 END DO
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
 
@@ -1332,7 +1332,7 @@ SUBROUTINE InitExactFlux()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot,iError
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
 #endif
 USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
@@ -1394,7 +1394,7 @@ DO iElem=1,nElems ! loop over all local elems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   sumExactFluxMasterInterFaces=0
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else
@@ -1419,7 +1419,7 @@ DO iSide=1,lastMPISide_MINE ! nSides
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
   sumExactFluxMasterInterFaces=0
   CALL MPI_REDUCE(nExactFluxMasterInterFaces , sumExactFluxMasterInterFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 #else

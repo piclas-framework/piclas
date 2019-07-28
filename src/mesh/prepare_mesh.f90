@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC::setLocalSideIDs,fillMeshInfo
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE exchangeFlip
   MODULE PROCEDURE exchangeFlip
 END INTERFACE
@@ -68,14 +68,14 @@ USE MOD_Mesh_Vars,          ONLY:tElem,tSide
 USE MOD_Mesh_Vars,          ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_ReadIn,        ONLY: INVMAP
 #ifdef PP_HDG
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,          ONLY: offsetSide
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars,   ONLY:
 USE MOD_Mesh_Vars,          ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars,          ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-#ifdef MPI
+#if USE_MPI
 USE MOD_ReadInTools,        ONLY: GETLOGICAL
 USE MOD_MPI_Vars,           ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
 USE MOD_MPI_Vars,           ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISides_send,offSetMPISides_send
@@ -100,7 +100,7 @@ INTEGER               :: iLocSide,iSide,iInnerSide,iBCSide
 INTEGER               :: iMortar,iMortarInnerSide,iMortarMPISide,nMortars
 INTEGER               :: i,j
 INTEGER               :: PeriodicBCMap(nBCs)       !connected periodic BCs
-#ifdef MPI
+#if USE_MPI
 INTEGER               :: lastMortarInnerSide
 INTEGER               :: nSmallMortarSides
 INTEGER               :: nSmallMortarInnerSides
@@ -115,10 +115,10 @@ CHARACTER(LEN=10)     :: formatstr
 CHARACTER(LEN=64)     :: filename
 CHARACTER(LEN=4)      :: hilf
 #ifdef PP_HDG
-#ifdef MPI
+#if USE_MPI
 INTEGER, ALLOCATABLE         :: offsetSideMPI(:)
 INTEGER                      :: iProc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
 #endif
 !===================================================================================================================================
@@ -298,7 +298,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 nMPISides_MINE=0
 nMPISides_YOUR=0
 
-#ifdef MPI
+#if USE_MPI
 ! SPLITTING number of MPISides in MINE and YOURS
 ! General strategy:
 !  For each neighboring processor split the number of common sides with this proc in two halves.
@@ -769,7 +769,7 @@ IF(MPIroot)THEN
   CLOSE(ioUnit)
 END IF ! MPIroot
 DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END SUBROUTINE setLocalSideIDs
 
 !===================================================================================================================================
@@ -789,7 +789,7 @@ USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
 USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_vars
 #endif
 IMPLICIT NONE
@@ -805,7 +805,7 @@ TYPE(tSide),POINTER :: aSide,mSide
 INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID
 INTEGER             :: nSides_MortarType(1:3),iMortar
 INTEGER             :: FirstElemID,LastElemID,ilocSide,locMortarSide,NBElemID,SideID2,NBlocSideID
-#ifdef MPI
+#if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
 !===================================================================================================================================
@@ -877,7 +877,7 @@ DO SideID=1,nSides
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
   CALL MPI_REDUCE(MPI_IN_PLACE     ,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
@@ -885,7 +885,7 @@ ELSE
   CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
   CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 SWRITE(UNIT_StdOut,'(132("."))')
 SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
 SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
@@ -960,14 +960,14 @@ DO iElem=1,nElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
+#if USE_MPI
 CALL exchangeElemID()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE fillMeshInfo
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE exchangeFlip()
 !===================================================================================================================================
 !> This routine communicates the flip between MPI sides, as the flip determines wheter
@@ -1076,7 +1076,7 @@ END SUBROUTINE exchangeFlip
 #endif
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE exchangeElemID()
 !===================================================================================================================================
 !> This routine communicates the global-elemid between MPI interfaces

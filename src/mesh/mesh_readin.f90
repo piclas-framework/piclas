@@ -213,7 +213,7 @@ USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
 USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
 #ifdef PARTICLES
@@ -260,7 +260,7 @@ INTEGER                        :: nPeriodicSides,nMPIPeriodics
 INTEGER                        :: ReduceData(11)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: iMortar,jMortar,nMortars
-#ifdef MPI
+#if USE_MPI
 INTEGER                        :: ReduceData_glob(11)
 INTEGER                        :: iNbProc
 INTEGER                        :: iProc
@@ -270,7 +270,7 @@ INTEGER,ALLOCATABLE            :: MPISideCount(:)
 LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
 LOGICAL                        :: isMortarMeshExists
-#ifdef MPI
+#if USE_MPI
 INTEGER                        :: nVal(15),iVar
 LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
@@ -301,7 +301,7 @@ DEALLOCATE(HSize)
 IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
     ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
 
-#ifdef MPI
+#if USE_MPI
 !simple partition: nGlobalelems/nprocs, do this on proc 0
 SDEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
@@ -481,7 +481,7 @@ IF(VarTimeStep%UseDistribution) THEN
     ! Allocate the array for the element-wise time step factor
     ALLOCATE(VarTimeStep%ElemFac(nElems))
     VarTimeStep%ElemFac = 1.0
-#ifdef MPI
+#if USE_MPI
     ! Allocate the array for the element-wise weighting factor
     ALLOCATE(VarTimeStep%ElemWeight(nElems))
     VarTimeStep%ElemWeight = 1.0
@@ -524,7 +524,7 @@ END DO
 !                              SIDES
 !----------------------------------------------------------------------------------------------------------------------------
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif /* MPI */
 offsetSideID=ElemInfo(ELEM_FirstSideInd,FirstElemInd) ! hdf5 array starts at 0-> -1
@@ -660,7 +660,7 @@ DO iElem=FirstElemInd,LastElemInd
             END DO !jMortar
           END DO !nbLocSide
         ELSE !MPI connection
-#ifdef MPI
+#if USE_MPI
           aSide%connection=>GETNEWSIDE()
           aSide%connection%flip=aSide%flip
           aSide%connection%Elem=>GETNEWELEM()
@@ -821,7 +821,7 @@ nSides=0
 nPeriodicSides=0
 nMPIPeriodics=0
 nMPISides=0
-#ifdef MPI
+#if USE_MPI
 ALLOCATE(MPISideCount(0:nProcessors-1))
 MPISideCount=0
 #endif
@@ -854,7 +854,7 @@ DO iElem=FirstElemInd,LastElemInd
           IF(ASSOCIATED(aSide%connection))THEN
             IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1)THEN
               nPeriodicSides=nPeriodicSides+1
-#ifdef MPI
+#if USE_MPI
               IF(aSide%NbProc.NE.-1) nMPIPeriodics=nMPIPeriodics+1
 #endif
             END IF
@@ -865,7 +865,7 @@ DO iElem=FirstElemInd,LastElemInd
           END IF
         END IF
         IF(aSide%MortarType.GT.0) nMortarSides=nMortarSides+1
-#ifdef MPI
+#if USE_MPI
         IF(aSide%NbProc.NE.-1) THEN
           nMPISides=nMPISides+1
           MPISideCount(aSide%NbProc)=MPISideCount(aSide%NbProc)+1
@@ -885,7 +885,7 @@ LOGWRITE(*,'(A22,I8)')'nInnerSides:',nInnerSides
 LOGWRITE(*,'(A22,I8)')'nMPISides:',nMPISides
 LOGWRITE(*,*)'-------------------------------------------------------'
  !now MPI sides
-#ifdef MPI
+#if USE_MPI
 nNBProcs=0
 DO iProc=0,nProcessors-1
   IF(iProc.EQ.myRank) CYCLE
@@ -910,7 +910,7 @@ ELSE
   END DO
 END IF
 DEALLOCATE(MPISideCount)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ReduceData(1)=nElems
 ReduceData(2)=nSides
@@ -924,10 +924,10 @@ ReduceData(8)=nAnalyzeSides
 ReduceData(9)=nMortarSides
 ReduceData(10)=nMPIPeriodics
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_REDUCE(ReduceData,ReduceData_glob,11,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 ReduceData=ReduceData_glob
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(MPIRoot)THEN
   WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
@@ -1041,7 +1041,7 @@ END IF
 END FUNCTION INVMAP
 
 
-#ifdef MPI
+#if USE_MPI
 FUNCTION ELEMIPROC(ElemID)
 !===================================================================================================================================
 !> Find the id of a processor on which an element with a given ElemID lies, based on the MPI element offsets defined earlier.

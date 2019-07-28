@@ -118,7 +118,7 @@ IMPLICIT NONE
 
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
-#ifdef MPI
+#if USE_MPI
   CALL MPI_Info_Create(MPIInfo, iError)
 
   !normal case:
@@ -179,7 +179,7 @@ ELSE
     'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF(.NOT.single)THEN
   IF(.NOT.PRESENT(communicatorOpt))CALL abort(__STAMP__,&
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')

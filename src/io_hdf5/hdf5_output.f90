@@ -170,7 +170,7 @@ REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
 StartT=MPI_WTIME()
 #else
 CALL CPU_TIME(StartT)
@@ -206,7 +206,7 @@ IF(PRESENT(PreviousTime))THEN
 END IF
 
 ! Reopen file and write DG solution
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
@@ -336,9 +336,9 @@ ASSOCIATE (&
 
 #ifdef PARTICLES
   ! output of last source term
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   IF(OutPutSource) THEN
     ! output of pure current and density
     ! not scaled with epsilon0 and c_corr
@@ -371,9 +371,9 @@ CALL WriteParticleToHDF5(FileName)
 IF(UseAdaptive.OR.(nAdaptiveBC.GT.0).OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteSurfStateToHDF5(FileName)
 IF(RadialWeighting%DoRadialWeighting) CALL WriteClonesToHDF5(FileName)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*Particles*/
 
 CALL WriteAdditionalElemData(FileName,ElementOut)
@@ -590,9 +590,9 @@ USE MOD_LD_Vars           ,ONLY: UseLD, PartStateBulkValues
 #if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars,           ONLY: velocityAtTime, velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -608,7 +608,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVar
-#ifdef MPI
+#if USE_MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
 #endif
@@ -684,7 +684,7 @@ DO pcount = 1,PDM%ParticleVecLength
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 sendbuf(1)=locnPart
 recvbuf=0_IK
 CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -1007,7 +1007,7 @@ ASSOCIATE (&
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !locnPart_max.EQ.0
-#ifdef MPI
+#if USE_MPI
   CALL DistributedWriteArray(FileName                     , &
                              DataSetName  = 'PartData'    , rank = 2          , &
                              nValGlobal   = (/nPart_glob  , PartDataSize/)    , &
@@ -1059,7 +1059,7 @@ ASSOCIATE (&
                           collective  = .FALSE.         , RealArray=VarTimeStep%ElemFac)
   END IF
   CALL CloseDataFile()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END ASSOCIATE
 ! reswitch
@@ -1117,7 +1117,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:), StrVarNamesData(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
 CHARACTER(LEN=255)             :: CoordID
-#ifdef MPI
+#if USE_MPI
 INTEGER                        :: sendbuf(1),recvbuf(1)
 #endif
 INTEGER                        :: locnSurfPart,offsetnSurfPart,nSurfPart_glob
@@ -1136,13 +1136,13 @@ IF(PartSurfaceModel.EQ.0) RETURN
 IF(.NOT.SurfMesh%SurfOnProc) RETURN
 
 ! only pocs with real surfaces (not halo) in own proc write out
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 IF(SurfMesh%nSides.EQ.0) RETURN
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-#ifdef MPI
+#if USE_MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1151,7 +1151,7 @@ IF(SurfCOMM%MPIOutputRoot)THEN
   CALL WriteAttributeToHDF5(File_ID,'WallModel',1,IntegerScalar=PartSurfaceModel)
   CALL WriteAttributeToHDF5(File_ID,'nSpecies',1,IntegerScalar=nSpecies)
   CALL CloseDataFile()
-#ifdef MPI
+#if USE_MPI
 END IF
 #endif
 
@@ -1174,13 +1174,13 @@ DO iSpec=1,nSpecies
   iVar = iVar + nVar
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfCalcData',nVar*nSpecies,StrArray=StrVarNames)
   CALL CloseDataFile()
-#ifdef MPI
+#if USE_MPI
 END IF
 #endif
 
@@ -1205,7 +1205,7 @@ DO iSurfSide = 1,SurfMesh%nSides
 END DO
 
 WRITE(H5_Name,'(A)') 'SurfCalcData'
-!#ifdef MPI
+!#if USE_MPI
 !CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                        DataSetName=H5_Name, rank=5,&
 !                        nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides,nSpecies/),&
@@ -1231,7 +1231,7 @@ ASSOCIATE (&
                         collective =.TRUE.   , RealArray=SurfCalcData)
 END ASSOCIATE
 CALL CloseDataFile()
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 SDEALLOCATE(StrVarNames)
 SDEALLOCATE(SurfCalcData)
 
@@ -1263,7 +1263,7 @@ IF (PartSurfaceModel.EQ.3) THEN
   END DO
 
   ! communicate number of surface particles and offsets in surfpartdata array
-#ifdef MPI
+#if USE_MPI
   sendbuf(1)=locnSurfPart
   recvbuf(1)=0
   CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,SurfCOMM%OutputCOMM,iError)
@@ -1326,20 +1326,20 @@ IF (PartSurfaceModel.EQ.3) THEN
     StrVarNamesData(iVar+1)='Coord'//TRIM(CoordID)//'_Species'
     iVar = iVar + 2
   END DO
-#ifdef MPI
+#if USE_MPI
   IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfPartInt',SurfPartIntSize*Coordinations,StrArray=StrVarNames)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfParticles',SurfPartDataSize*Coordinations,StrArray=StrVarNamesData)
     CALL CloseDataFile()
-#ifdef MPI
+#if USE_MPI
   END IF
   CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif
 
   ! write array with data into state file
-!#ifdef MPI
+!#if USE_MPI
 !  CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                          DataSetName='SurfPartInt', rank=5,&
 !                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&
@@ -1382,7 +1382,7 @@ IF (PartSurfaceModel.EQ.3) THEN
                           collective  = .TRUE.            , IntegerArray_i4 = SurfPartData(: , :))
   END ASSOCIATE
   CALL CloseDataFile()
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
   SDEALLOCATE(StrVarNames)
   SDEALLOCATE(StrVarNamesData)
   SDEALLOCATE(SurfPartInt)
@@ -1507,7 +1507,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !INTEGER(HID_T)                 :: Dset_ID
 !INTEGER                        :: nVal
-#ifdef MPI
+#if USE_MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 #endif
 INTEGER                        :: pcount, iDelay, iElem_glob
@@ -1566,7 +1566,7 @@ DO pcount = 0,tempDelay
     locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
 END DO
 
-#ifdef MPI
+#if USE_MPI
 sendbuf(1)=locnPart
 recvbuf=0
 CALL MPI_EXSCAN(sendbuf(1),recvbuf(1),1,MPI_INTEGER_INT_KIND,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -1667,7 +1667,7 @@ IF(withDSMC)THEN
   END IF
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 #else
 CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1966,7 +1966,7 @@ NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 DO
   InputFile=TRIM(NextFile)
   ! Read calculation time from file
-#ifdef MPI
+#if USE_MPI
   CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 #else
   CALL GetHDF5NextFileName(Inputfile,NextFile)
@@ -1990,7 +1990,7 @@ IF(DoQDS)THEN
   DO
     InputFile=TRIM(NextFile)
     ! Read calculation time from file
-#ifdef MPI
+#if USE_MPI
     CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 #else
     CALL GetHDF5NextFileName(Inputfile,NextFile)
@@ -2152,7 +2152,7 @@ END IF
 
 ! Create property list for collective dataset write
 CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
-#ifdef MPI
+#if USE_MPI
 IF(collective)THEN
   CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F,  iError)
 ELSE
@@ -2327,7 +2327,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
+#if USE_MPI
 REAL,              ALLOCATABLE          :: UReal(:)
 CHARACTER(LEN=255),ALLOCATABLE          :: UStr(:)
 INTEGER(KIND=IK),ALLOCATABLE            :: UInt(:)
@@ -2405,14 +2405,14 @@ ELSE
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
-#ifdef MPI
+#if USE_MPI
 END IF
 #endif
 
 END SUBROUTINE GatheredWriteArray
 
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray,IntegerArray_i4)
 !===================================================================================================================================
@@ -2441,7 +2441,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
+#if USE_MPI
 INTEGER                        :: Color, OutPutCOMM,nOutPutProcs,MyOutputRank
 LOGICAL                        :: DataOnProc, DoNotSplit
 !===================================================================================================================================
@@ -2500,12 +2500,12 @@ ELSE
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName , rank       , nValGlobal          , nVal , &
                                                offset      , collective , StrArray =StrArray)
   CALL CloseDataFile()
-#ifdef MPI
+#if USE_MPI
 END IF
 #endif
 
 END SUBROUTINE DistributedWriteArray
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 
 
@@ -2519,9 +2519,9 @@ USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: IMDInputFile,IMDTimeScale,IMDLengthScale,IMDNumber
 USE MOD_Mesh_Vars     ,ONLY: MeshFile
 USE MOD_Restart_Vars  ,ONLY: DoRestart
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI           ,ONLY: FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_ReadInTools   ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2569,7 +2569,7 @@ IF(.NOT.DoRestart)THEN
     tFuture=t
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
-#ifdef MPI
+#if USE_MPI
     CALL FinalizeMPI()
     CALL MPI_FINALIZE(iERROR)
     IF(iERROR.NE.0)THEN
@@ -2577,7 +2577,7 @@ IF(.NOT.DoRestart)THEN
       __STAMP__&
       , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
     END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
     STOP 0 ! terminate successfully
   ELSE
     CALL abort(&
@@ -2615,7 +2615,7 @@ END SUBROUTINE WriteIMDStateToHDF5
 !          INTEGER                         :: N_variables
 !          CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 !          CHARACTER(LEN=255)              :: FileName
-!          #ifdef MPI
+!          #if USE_MPI
 !          REAL                            :: StartT,EndT
 !          #endif
 !          !===================================================================================================================================
@@ -2641,14 +2641,14 @@ END SUBROUTINE WriteIMDStateToHDF5
 !          StrVarNames(18)='lambda_D(DebyeLength)'
 !          IF(MPIROOT)THEN
 !            WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TTM_DG TO HDF5 FILE...'
-!          #ifdef MPI
+!          #if USE_MPI
 !            StartT=MPI_WTIME()
 !          #endif
 !          END IF
 !          ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 !          FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TTM',OutputTime))//'.h5'
 !          IF(MPIRoot) CALL GenerateFileSkeleton('TTM',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
-!          #ifdef MPI
+!          #if USE_MPI
 !            CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !          #endif
 !            CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
@@ -2660,7 +2660,7 @@ END SUBROUTINE WriteIMDStateToHDF5
 !                                  nVal=      (/N_variables,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
 !                                  offset=    (/          0,     0,     0,     0,offsetElem  /),&
 !                                  collective=.TRUE.,RealArray=TTM_DG)
-!          #ifdef MPI
+!          #if USE_MPI
 !          IF(MPIROOT)THEN
 !            EndT=MPI_WTIME()
 !            WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2698,7 +2698,7 @@ IMPLICIT NONE
 INTEGER             :: N_variables
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#ifdef MPI
+#if USE_MPI
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
@@ -2724,7 +2724,7 @@ DO iElem=1,PP_nElems
 END DO!iElem
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #endif
 END IF
@@ -2733,7 +2733,7 @@ OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
@@ -2754,7 +2754,7 @@ ASSOCIATE (&
                           offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=PMLzetaGlobal)
 END ASSOCIATE
-#ifdef MPI
+#if USE_MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2791,7 +2791,7 @@ IMPLICIT NONE
 INTEGER             :: N_variables
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#ifdef MPI
+#if USE_MPI
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
@@ -2813,7 +2813,7 @@ DO iElem=1,PP_nElems
 END DO!iElem
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #endif
 END IF
@@ -2822,7 +2822,7 @@ OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
@@ -2843,7 +2843,7 @@ ASSOCIATE (&
                           offset     =(/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=DielectricGlobal)
 END ASSOCIATE
-#ifdef MPI
+#if USE_MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
@@ -2881,7 +2881,7 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 INTEGER             :: N_variables
 CHARACTER(LEN=255)  :: StrVarNames(1:6)
 CHARACTER(LEN=255)  :: FileName
-#ifdef MPI
+#if USE_MPI
 REAL                :: StartT,EndT
 #endif
 INTEGER             :: iElem,j,k,l
@@ -2916,7 +2916,7 @@ DO iElem =1, nQDSElems
 END DO
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE QDS TO HDF5 FILE...'
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #endif
 END IF
@@ -2927,7 +2927,7 @@ END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_QDS',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('QDS',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
@@ -2948,7 +2948,7 @@ ASSOCIATE (&
                           offset         = (/       0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem  /) , &
                           collective     = .TRUE.        , RealArray = Utemp)
 END ASSOCIATE
-#ifdef MPI
+#if USE_MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'

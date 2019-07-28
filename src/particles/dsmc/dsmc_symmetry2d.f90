@@ -127,11 +127,11 @@ END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
 GEO%LocalVolume = SUM(GEO%Volume)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
 #else
 GEO%MeshVolume=GEO%LocalVolume
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE DSMC_2D_InitVolumes
 
