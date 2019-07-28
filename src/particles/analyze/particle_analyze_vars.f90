@@ -66,9 +66,9 @@ LOGICAL                       :: CalcPlasmaParameter                 !< Compute 
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
-LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
 !                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 
@@ -92,6 +92,10 @@ REAL,ALLOCATABLE              :: PICCFLCell(:)                       !< PIC CFL 
 REAL,ALLOCATABLE              :: PICCFLCellX(:)                      !< PIC CFL Condition in X (cell mean value)
 REAL,ALLOCATABLE              :: PICCFLCellY(:)                      !< PIC CFL Condition in Y (cell mean value)
 REAL,ALLOCATABLE              :: PICCFLCellZ(:)                      !< PIC CFL Condition in Z (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCell(:)          !< Maximum particle displacement (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellX(:)         !< Maximum particle displacement in X (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellY(:)         !< Maximum particle displacement in Y (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellZ(:)         !< Maximum particle displacement in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):

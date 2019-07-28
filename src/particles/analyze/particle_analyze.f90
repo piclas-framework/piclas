@@ -100,8 +100,8 @@ CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the points
 CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement', 'Compute the maximum displacement of the fastest particle in terms of'//&
-                                                           ' cell lengths in X, Y and Z for each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle in terms of'//&
+                                                            ' cell lengths in X, Y and Z for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
@@ -242,6 +242,7 @@ END IF
 !--------------------------------------------------------------------------------------------------------------------
 ! get derived particle properties
 !--------------------------------------------------------------------------------------------------------------------
+! Compute a PIC CFL condition for each cell
 CalcPICCFLCondition       = GETLOGICAL('CalcPICCFLCondition','.FALSE.')
 IF(CalcPICCFLCondition)THEN
   ! value in 3D estimated with the characteristic length of the cell
@@ -262,6 +263,26 @@ IF(CalcPICCFLCondition)THEN
   CALL AddToElemData(ElementOut,'PICCFLDirZ',RealArray=PICCFLCellZ(1:PP_nElems))
 END IF ! CalcPICCFLCondition
 
+! Compute the maximum displacement of the fastest particle
+CalcMaxPartDisplacement = GETLOGICAL('CalcMaxPartDisplacement','.FALSE.')
+IF(CalcMaxPartDisplacement)THEN
+  ! value in 3D estimated with the characteristic length of the cell
+  ALLOCATE( MaxPartDisplacementCell(1:PP_nElems) )
+  MaxPartDisplacementCell=0.0
+  CALL AddToElemData(ElementOut,'MaxPartDisplacement3D',RealArray=MaxPartDisplacementCell(1:PP_nElems))
+  ! x
+  ALLOCATE( MaxPartDisplacementCellX(1:PP_nElems) )
+  MaxPartDisplacementCellX=0.0
+  CALL AddToElemData(ElementOut,'MaxPartDisplacementDirX',RealArray=MaxPartDisplacementCellX(1:PP_nElems))
+  ! y
+  ALLOCATE( MaxPartDisplacementCellY(1:PP_nElems) )
+  MaxPartDisplacementCellY=0.0
+  CALL AddToElemData(ElementOut,'MaxPartDisplacementDirY',RealArray=MaxPartDisplacementCellY(1:PP_nElems))
+  ! z
+  ALLOCATE( MaxPartDisplacementCellZ(1:PP_nElems) )
+  MaxPartDisplacementCellZ=0.0
+  CALL AddToElemData(ElementOut,'MaxPartDisplacementDirZ',RealArray=MaxPartDisplacementCellZ(1:PP_nElems))
+END IF ! MaxPartDisplacement
 
 
 !--------------------------------------------------------------------------------------------------------------------
@@ -3688,6 +3709,70 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculatePICCFL
 
 
+SUBROUTINE CalculateCalcMaxPartDisplacement()
+!===================================================================================================================================
+! Compute the maximum displacement of the fastest particle in each cell
+! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
+! where L_cell=V^(1/3) is the characteristic cell length determined from the cell volume
+! MaxPartDisplacementX, MaxPartDisplacementY, MaxPartDisplacementZ are determined by the average distance in X, Y and Z of each cell
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,MaxPartDisplacementCell,MaxPartDisplacementCellX,&
+                                     MaxPartDisplacementCellY,MaxPartDisplacementCellZ
+USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
+USE MOD_Globals               ,ONLY: VECNORM
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem,iPart
+REAL                 :: MaxVelo(1:nElems,1:3)    ! each component
+REAL                 :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
+!===================================================================================================================================
+MaxVelo(1:nElems,1:3) = 0.0
+MaxVeloAbs(1:nElems,1:3) = 0.0
+! loop over all particles
+DO iPart = 1, PDM%ParticleVecLength
+  iElem = PEM%Element(iPart)
+  ! Check velocity of each particle in each direction at get the highest value
+  MaxVelo(iElem,1) = MAX(MaxVelo(iElem,1),PartState(iPart,4))
+  MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(iPart,5))
+  MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(iPart,6))
+  ! Check for fastest particle in cell
+  IF(VECNORM(PartState(iPart,4:6)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
+    MaxVeloAbs(iElem,1:3) = PartState(iPart,4:6)
+  END IF
+END DO ! iPart = 1, PDM%ParticleVecLength
+
+! loop over all elements
+DO iElem=1,PP_nElems
+  ! The resulting value must always be below 1.0
+  ASSOCIATE( vAbs => VECNORM(MaxVeloAbs(iElem,1:3)) ,&
+             vX   => MaxVelo(iElem,1)               ,&
+             vY   => MaxVelo(iElem,2)               ,&
+             vZ   => MaxVelo(iElem,3)               ,& 
+             a    => dt*(REAL(PP_N)+1.0)             &
+             )
+    MaxPartDisplacementCell(iElem)  = a*vAbs/GEO%CharLength(iElem) ! determined with characteristic cell length
+    MaxPartDisplacementCellX(iElem) = a*vX/GEO%CharLengthX(iElem) ! determined from average distance in X
+    MaxPartDisplacementCellY(iElem) = a*vY/GEO%CharLengthY(iElem) ! determined from average distance in Y
+    MaxPartDisplacementCellZ(iElem) = a*vZ/GEO%CharLengthZ(iElem) ! determined from average distance in Z
+  END ASSOCIATE
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculateCalcMaxPartDisplacement
+
+
 SUBROUTINE CalculateIonizationCell()
 !===================================================================================================================================
 ! 1.) Count the number of ions per DG cell and divide it by element-volume -> ion density n_i
@@ -3794,7 +3879,7 @@ SUBROUTINE CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
 USE MOD_Particle_Analyze_Vars  ,ONLY:CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter,CalcPICCFLCondition
+USE MOD_Particle_Analyze_Vars  ,ONLY:CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3832,6 +3917,10 @@ IF(CalcPointsPerDebyeLength) CALL CalculatePPDCell()
 
 ! PICCFL Condition: PICCFL = dt/L_cell * SQRT( kB*Te/me )
 IF(CalcPICCFLCondition) CALL CalculatePICCFL()
+
+! Compute the maximum displacement of the fastest particle
+! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
+IF(CalcMaxPartDisplacement) CALL CalculateCalcMaxPartDisplacement()
 
 END SUBROUTINE CalculatePartElemData
 

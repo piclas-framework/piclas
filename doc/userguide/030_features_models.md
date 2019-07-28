@@ -827,9 +827,27 @@ into a single parameter
 $$\frac{\Delta t}{0.4 \Delta x}\sqrt{\frac{k_{b}T_{e}}{m_{e}}}= \frac{(p+1)\Delta t}{0.4 L}\sqrt{\frac{k_{b}T_{e}}{m_{e}}} \lesssim 1$$
 
 where $\Delta t$ is the time step, $\Delta x$ is the grid spacing (average spacing between grid
-points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ and $m_{e}$ are the electron temperature and
-mass, respectively. Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
-each cell. These values are especially useful when dealing with Cartesian grids.
+points), $p$ is the polynomial degree of the solution, $k_{B}$ is the Boltzmann constant, $T_{e}$ 
+and $m_{e}$ are the electron temperature and mass, respectively. Furthermore, the calculation in 
+each direction $x$, $y$ and $z$ is performed by setting $L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, 
+which are the average distances of the bounding box of each cell. 
+These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
     CalcPICCFLCondition = T
+
+**Maximum Particle Displacement**
+The largest displacement of a particle within one time step $\Delta t$ is estimated for each cell
+via
+
+$$\frac{\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{\Delta x}=\frac{(p+1)\mathrm{max}(v_{\mathrm{iPart}})\Delta t}{L} < 1$$
+
+which means that the fastest particle is not allowed to travel over the length of two grid points
+separated by $\Delta x$.
+Furthermore, the calculation in each direction $x$, $y$ and $z$ is performed by setting 
+$L=\left\{ L_{x}, L_{y}, L_{z} \right\}$, which are the average distances of the bounding box of 
+each cell. 
+These values are especially useful when dealing with Cartesian grids.
+The calculation is activated by
+
+    CalcMaxPartDisplacement = T
