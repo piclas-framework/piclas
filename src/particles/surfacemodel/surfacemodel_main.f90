@@ -696,7 +696,7 @@ CASE(5,6) ! reflect incident particle according to distribution function (variab
       Fak_D       = VeloCrad**2 + VeloCz**2
       EtraWall    = BoltzmannConst * WallTemp * Fak_D
       VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
-      EtraOld     = 1.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+      EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
       EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
       Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(2))%MassIC * Fak_D))
       CALL RANDOM_NUMBER(RanNum)
