@@ -524,7 +524,7 @@ USE MOD_Globals                ,ONLY: abort, MPIRoot, UNIT_StdOut
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT, GETREALARRAY, GETINTARRAY
+USE MOD_ReadInTools            ,ONLY: GETREAL, GETINT, GETREALARRAY, GETINTARRAY, PrintOption
 #if (PP_TimeDiscMethod==42)
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
 #endif
@@ -589,7 +589,7 @@ __STAMP__&
       END DO
     END DO
 
-    ! find max number of associative reactions for each species from dissociations
+    ! find the max number of recombination reactions for each species from dissociation reaction mapping
     ALLOCATE(SpecNRecombReact(1:nSpecies))
     SpecNRecombReact(:) = 0
     DO iSpec = 1,nSpecies
@@ -656,6 +656,11 @@ __STAMP__&
           ELSE
             CYCLE
           END IF
+          CALL PrintOption('Recombination reaction: ','OUTPUT',IntOpt=ReactNum-1)
+          CALL PrintOption('For species: ','OUTPUT',IntOpt=iSpec)
+          CALL PrintOption('PartnerSpec: ','OUTPUT',IntOpt=Adsorption%RecombReact(1,ReactNum-1,iSpec))
+          CALL PrintOption('ResultSpec: ','OUTPUT',IntOpt=Adsorption%RecombReact(2,ReactNum-1,iSpec))
+          CALL PrintOption('DissBondEnergy: ','OUTPUT',RealOpt=Adsorption%EDissBond((MaxDissNum+ReactNum-1),iSpec))
         END DO
       END DO
       IF (ReactNum.LE.(MaxRecombNum)) THEN

@@ -712,10 +712,9 @@ END FUNCTION Calc_E_Act
 
 #if (PP_TimeDiscMethod==42)
 REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp &
-                                 ,SurfPartVibE,loc_ActE,loc_nu)
+                                 ,loc_ActE,loc_nu)
 #else
-REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp &
-                                 ,SurfPartVibE)!,PartnerSpecies)
+REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp)
 #endif
 !===================================================================================================================================
 !> Calculates the Probability for Adsorption with TCE Model
@@ -732,9 +731,8 @@ USE MOD_Particle_Vars          ,ONLY: PartSpecies, Species ,PartState
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
 USE MOD_DSMC_Analyze           ,ONLY: CalcTVib, CalcTVibPoly
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-!USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
+USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActAdsorb, PartitionFuncSurf, PartitionFuncGas
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh
-!USE MOD_DSMC_ChemReact ,ONLY: gammainc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -748,7 +746,6 @@ REAL, INTENT(IN)             :: E_Activation
 REAL, INTENT(IN)             :: E_Activation_max
 !INTEGER, INTENT(IN),OPTIONAL :: PartnerSpecies
 REAL, INTENT(IN),OPTIONAL    :: CharaTemp
-REAL, INTENT(IN),OPTIONAL    :: SurfPartVibE
 #if (PP_TimeDiscMethod==42)
 REAL, INTENT(INOUT),OPTIONAL :: loc_ActE
 REAL, INTENT(INOUT),OPTIONAL :: loc_nu
@@ -758,14 +755,13 @@ REAL, INTENT(INOUT),OPTIONAL :: loc_nu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: EZeroPoint_Educt, Xi_Rot, Xi_Vib, Xi_Total, Norm_Ec, phi_1, phi_2, PartVelo
-REAL    :: SurfPartIntE, Beta, a_f, b_f, c_f, ParticleTemp
+REAL    :: Beta, a_f, b_f, c_f, AdsorptionTemp
 INTEGER :: SpecID
 INTEGER :: globSide, PartBoundID, DissocNum, AssocNum
 !INTEGER :: iDof, iPolyAtMole
 !INTEGER :: iQuant
 !REAL    :: RanNum
-!REAL    :: VarPartitionFuncAct, VarPartitionFuncGas, VarPartitionFuncSurf
-REAL    :: WallTemp
+REAL    :: WallTemp, MeanNormalVelo
 #if (PP_TimeDiscMethod==42)
 INTEGER :: iSampleReact
 #endif
@@ -818,28 +814,33 @@ ELSE
   Xi_vib = 0.0
 END IF
 
+
 CalcAdsorbReactProb = 0.0
-Beta = 0.0
-!-----------------------------------------------------------------------------------------------------------------------------------
-SELECT CASE(ReactionCase)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1) ! adsorption
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-    PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
-    Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    Xi_Total = Xi_vib + Xi_rot + 3.
-    ParticleTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
-    !VarPartitionFuncGas = PartitionFuncGas(SpecID, ParticleTemp)
-    !VarPartitionFuncAct = PartitionFuncActAdsorb(SpecID, ParticleTemp)
-    !a_f = (BoltzmannConst*ParticleTemp/PlanckConst)*(VarPartitionFuncAct/VarPartitionFuncGas)
-    !CalcAdsorbReactProb = a_f*(EXP(-E_activation/(BoltzmannConst*ParticleTemp)) &
-    !                          -EXP(-E_Activation_max/(BoltzmannConst*ParticleTemp)))&
-    !    / SQRT((BoltzmannConst*ParticleTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for particletemp
-    CalcAdsorbReactProb = EXP(-E_activation/(BoltzmannConst*ParticleTemp)) - EXP(-E_Activation_max/(BoltzmannConst*ParticleTemp))
-  ELSE
-    Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    Xi_Total = Xi_vib + Xi_rot + 1.
+IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
+  !AdsorptionTemp = SurfModel%InstantTempAtSurf(SurfID,SpecID)
+  PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
+  Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  Xi_Total = Xi_vib + Xi_rot + 3.
+  AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
+
+  !MeanNormalVelo = SurfModel%InstantVeloAtSurf(SurfID,SpecID)
+  MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for AdsorptionTemp
+
+  a_f = (BoltzmannConst*AdsorptionTemp/PlanckConst) &
+        *(PartitionFuncActAdsorb(SpecID, AdsorptionTemp)/PartitionFuncGas(SpecID, AdsorptionTemp))
+  SELECT CASE(ReactionCase)
+  CASE(1) ! adsorption
+    CalcAdsorbReactProb = a_f/MeanNormalVelo &
+        *( EXP(-E_activation/(BoltzmannConst*AdsorptionTemp)) - EXP(-E_Activation_max/(BoltzmannConst*AdsorptionTemp)) )
+  CASE(2,3) ! dissociation or eley-rideal
+    CalcAdsorbReactProb = a_f/MeanNormalVelo*(EXP(-E_activation/(BoltzmannConst*AdsorptionTemp)))
+  END SELECT
+ELSE
+  Beta = 0.0
+  Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  Xi_Total = Xi_vib + Xi_rot + 1.
+  SELECT CASE(ReactionCase)
+  CASE(1) ! adsorption
     IF ((Norm_Ec.GE.E_Activation) .AND. (Norm_Ec.LT.E_Activation_max)) THEN
       a_f = Adsorption%Ads_Prefactor(SpecID)
       b_f = Adsorption%Ads_Powerfactor(SpecID)
@@ -853,28 +854,16 @@ CASE(1) ! adsorption
       END IF
       CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
     END IF
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(2) ! dissociation
-!-----------------------------------------------------------------------------------------------------------------------------------
-  DissocNum = ReactNum
-  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-    PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
-    Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    Xi_Total = Xi_vib + Xi_rot + 3.
-    ParticleTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
-    !VarPartitionFuncGas = PartitionFuncGas(SpecID, ParticleTemp)
-    !VarPartitionFuncAct = PartitionFuncActAdsorb(SpecID, ParticleTemp)
-    !a_f = (BoltzmannConst*ParticleTemp/PlanckConst)*(VarPartitionFuncAct/VarPartitionFuncGas)
-    !CalcAdsorbReactProb = a_f*(EXP(-E_activation/(BoltzmannConst*ParticleTemp)))&
-    !    / SQRT((BoltzmannConst*ParticleTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for particletemp
-    CalcAdsorbReactProb = EXP(-E_activation/(BoltzmannConst*ParticleTemp))
-  ELSE
-    Norm_Ec = NormalVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    Xi_Total = Xi_vib + Xi_rot + 1.
+  CASE(2,3) ! dissociation or eley-rideal
     IF ((Norm_Ec.GE.E_Activation) ) THEN
-      a_f = Adsorption%Diss_Prefactor(DissocNum,SpecID)
-      b_f = Adsorption%Diss_Powerfactor(DissocNum,SpecID)
+      SELECT CASE(ReactionCase)
+      CASE(2)
+        a_f = Adsorption%Diss_Prefactor(DissocNum,SpecID)
+        b_f = Adsorption%Diss_Powerfactor(DissocNum,SpecID)
+      CASE(3)
+        a_f = Adsorption%ER_Prefactor(AssocNum,SpecID)
+        b_f = Adsorption%ER_Powerfactor(AssocNum,SpecID)
+      END SELECT
       phi_1 = b_f - 1. + Xi_Total/2.
       phi_2 = 1. - Xi_Total/2.
       IF((phi_1+1).GT.0.0) THEN
@@ -885,100 +874,9 @@ CASE(2) ! dissociation
       END IF
       CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
     END IF
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(3) ! eley-rideal
-!-----------------------------------------------------------------------------------------------------------------------------------
-  EZeroPoint_Educt = EZeroPoint_Educt! + DSMC%GammaQuant*BoltzmannConst*CharaTemp
-  SurfPartIntE = 0.
-!  SurfPartVibE = 0.
-  globSide = SurfMesh%SurfIDToSideID(SurfID)
-  PartBoundID = PartBound%MapToPartBC(BC(globSide))
-  WallTemp = PartBound%WallTemp(PartBoundID)
+  END SELECT
+END IF
 
-
-!  ! Set surface2particle vibrational energy
-!  CALL RANDOM_NUMBER(RanNum)
-!  iQuant = INT(-LOG(RanNum)*WallTemp/CharaTemp)
-!  DO WHILE (iQuant.GE.200)
-!    CALL RANDOM_NUMBER(RanNum)
-!    iQuant = INT(-LOG(RanNum)*WallTemp/CharaTemp)
-!  END DO
-!  SurfPartIntE = SurfPartIntE + (iQuant + DSMC%GammaQuant)*CharaTemp*BoltzmannConst!*Adsorption%CrystalIndx(SurfSideID)
-!
-!  ! set vibrational energy of particle
-!  IF(SpecDSMC(PartnerSpecies)%InterID.EQ.2) THEN
-!    IF(SpecDSMC(PartnerSpecies)%PolyatomicMol) THEN
-!      iPolyatMole = SpecDSMC(PartnerSpecies)%SpecToPolyArray
-!      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!        CALL RANDOM_NUMBER(RanNum)
-!        iQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-!        DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
-!          CALL RANDOM_NUMBER(RanNum)
-!          iQuant = INT(-LOG(RanNum)*WallTemp/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
-!        END DO
-!        SurfPartVibE = SurfPartVibE + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-!      END DO
-!    ELSE
-!      CALL RANDOM_NUMBER(RanNum)
-!      iQuant = INT(-LOG(RanNum)*WallTemp/SpecDSMC(PartnerSpecies)%CharaTVib)
-!      DO WHILE (iQuant.GE.SpecDSMC(PartnerSpecies)%MaxVibQuant)
-!        CALL RANDOM_NUMBER(RanNum)
-!        iQuant = INT(-LOG(RanNum)*Walltemp/SpecDSMC(PartnerSpecies)%CharaTVib)
-!      END DO
-!      SurfPartVibE = SurfPartVibE + (iQuant + DSMC%GammaQuant)*SpecDSMC(PartnerSpecies)%CharaTVib*BoltzmannConst
-!    END IF
-!  END IF
-!
-!  IF(SpecDSMC(PartnerSpecies)%InterID.EQ.2) THEN
-!    IF(SpecDSMC(PartnerSpecies)%PolyatomicMol) THEN
-!      EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(PartnerSpecies)%EZeroPoint
-!      ! Calculation of the vibrational degree of freedom for the particle
-!      IF (SurfPartVibE.GT.SpecDSMC(PartnerSpecies)%EZeroPoint) THEN
-!        Xi_vib = Xi_vib + 2.*(SurfPartVibE-SpecDSMC(PartnerSpecies)%EZeroPoint) &
-!                / (BoltzmannConst*CalcTVibPoly(SurfPartVibE, PartnerSpecies))
-!      END IF
-!    ELSE
-!      EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartnerSpecies)%CharaTVib
-!      IF((SurfPartVibE-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartnerSpecies)%CharaTVib).GT.0.0) THEN
-!        Xi_vib = 2.*(SurfPartVibE-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartnerSpecies)%CharaTVib) &
-!                / (BoltzmannConst*CalcTVib(SpecDSMC(PartnerSpecies)%CharaTVib, SurfPartIntE, SpecDSMC(PartnerSpecies)%MaxVibQuant))
-!      END IF
-!    END IF
-!  END IF
-  AssocNum = ReactNum - Adsorption%DissNum
-  IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-    PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
-    Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-    Xi_Total = Xi_vib + Xi_rot + 3.
-    ParticleTemp=2*Norm_Ec/Xi_Total/BoltzmannConst
-    !VarPartitionFuncGas = PartitionFuncGas(SpecID, ParticleTemp)
-    !VarPartitionFuncAct = PartitionFuncActAdsorb(SpecID, ParticleTemp)
-    !a_f = (BoltzmannConst*ParticleTemp/PlanckConst)*(VarPartitionFuncAct/VarPartitionFuncGas)
-    !CalcAdsorbReactProb = a_f*(EXP(-E_activation/(BoltzmannConst*ParticleTemp))) &
-    !    / SQRT((BoltzmannConst*ParticleTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for particletemp
-    CalcAdsorbReactProb = EXP(-E_activation/(BoltzmannConst*ParticleTemp))
-  ELSE
-    Norm_Ec = NormalVelo**2. * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1)
-    Xi_Total = Xi_vib + Xi_rot + 1.
-    IF ((Norm_Ec.GE.E_Activation) ) THEN
-      a_f = Adsorption%ER_Prefactor(AssocNum,SpecID)
-      b_f = Adsorption%ER_Powerfactor(AssocNum,SpecID)
-      phi_1 = b_f - 1. + Xi_Total/2.
-      phi_2 = 1. - Xi_Total/2.
-      IF((phi_1+1).GT.0.0) THEN
-        c_f = BoltzmannConst/PlanckConst &
-            * REAL(Adsorption%DensSurfAtoms(SurfID)*Adsorption%AreaIncrease(SurfID)) &
-            / ( (BoltzmannConst / (2*Pi*Species(SpecID)%MassIC))**0.5 )
-        !Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1)*((gammainc((/phi_1+1,E_Activation/)))))
-        Beta = a_f * c_f * BoltzmannConst**(-b_f) * GAMMA(Xi_Total/2.) / (GAMMA(phi_1+1))
-      END IF
-      CalcAdsorbReactProb = Beta * ((Norm_Ec) - E_Activation)**phi_1 * (Norm_Ec) ** phi_2
-    END IF
-  END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-END SELECT
-!-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
 iSampleReact = 1 + ReactNum
 IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(CalcAdsorbReactProb.GT.0.)) THEN
@@ -998,10 +896,10 @@ IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
       SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f
   loc_nu = a_f
 ELSE
-  ParticleTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
+  AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
   SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) = &
-      SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f*c_f*ParticleTemp**b_f
-  loc_nu = a_f*c_f*ParticleTemp**b_f
+      SurfModel%ProperInfo(SpecID)%MeanAdsnu(iSampleReact) + a_f*c_f*AdsorptionTemp**b_f
+  loc_nu = a_f*c_f*AdsorptionTemp**b_f
 END IF
 SurfModel%ProperInfo(SpecID)%AdsReactCount(iSampleReact) = &
     SurfModel%ProperInfo(SpecID)%AdsReactCount(iSampleReact) + 1

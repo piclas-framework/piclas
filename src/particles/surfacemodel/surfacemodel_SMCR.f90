@@ -79,7 +79,6 @@ REAL                             :: CharaTemp
 INTEGER                          :: DissocReactID, RecombReactID
 REAL                             :: E_d
 REAL                             :: coverage_check
-REAL                             :: SurfPartVibE
 #if (PP_TimeDiscMethod==42)
 ! reservoir sample variables
 INTEGER                          :: iSampleReact
@@ -399,15 +398,12 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
       ! estimate characteristic vibrational temperature of surface-particle bond
       CharaTemp = Heat_A / 200.
       ! calculation of ER-reaction probability
-      SurfPartVibE = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(jCoord)%EVib(Neighpos_j)
 #if (PP_TimeDiscMethod==42)
       iSampleReact = 1 + ReactNum
-      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID, &
-                                Norm_Velo,E_a,E_d,CharaTemp=CharaTemp,SurfPartVibE=SurfPartVibE, &
+      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d,CharaTemp=CharaTemp, &
                                 loc_ActE=loc_AdsActE(iSampleReact),loc_nu=loc_Adsnu(iSampleReact))
 #else
-      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID, &
-                                Norm_Velo,E_a,E_d,CharaTemp=CharaTemp,SurfPartVibE=SurfPartVibE)!,PartnerSpecies=jSpec,WallTemp=WallTemp)
+      ProbAds(ReactNum) = CalcAdsorbReactProb(3,ReactNum,PartID,SurfID,Norm_Velo,E_a,E_d,CharaTemp=CharaTemp)
 #endif
     END IF
   END IF
