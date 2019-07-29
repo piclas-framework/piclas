@@ -1152,7 +1152,7 @@ END IF
 !===================================================================================================================================
 #if USE_MPI
 IF (PartMPI%MPIROOT) THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpecAnalyze
@@ -1381,7 +1381,7 @@ IF (PartMPI%MPIROOT) THEN
     WRITE(unit_index,'(A1)') ' '
 #if USE_MPI
   END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 ! Reset output variables
 IF(CalcPorousBCInfo) THEN

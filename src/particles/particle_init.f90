@@ -2828,8 +2828,6 @@ END IF
 
 #if USE_MPI
 CALL InitEmissionComm()
-#endif /*USE_MPI*/
-#if USE_MPI
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 #endif /*USE_MPI*/
 

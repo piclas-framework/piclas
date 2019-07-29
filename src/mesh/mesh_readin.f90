@@ -457,7 +457,7 @@ nSurfacePartsPerElem=0
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 ! --
-#else /* MPI */
+#else /*USE_MPI*/
 nElems=nGlobalElems   ! Local number of Elements
 offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 #endif /*USE_MPI*/

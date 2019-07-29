@@ -93,7 +93,7 @@ OutputCounter = 2
 unit_index = 537
 #if USE_MPI
 IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
   INQUIRE(UNIT   = unit_index , OPENED = isOpen)
   IF (.NOT.isOpen) THEN
     outfile = 'FieldAnalyze.csv'
@@ -130,7 +130,7 @@ IF(MPIROOT)THEN
   END IF
 #if USE_MPI
 END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 IF(CalcEpot)THEN
   IF(DoDielectric)THEN
@@ -145,7 +145,7 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
 
 #if USE_MPI
  IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
    WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -164,7 +164,7 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
    WRITE(unit_index,'(A1)') ' '
 #if USE_MPI
  END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 
 END SUBROUTINE AnalyzeField
@@ -675,8 +675,6 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #else
 USE MOD_PML_Vars,             ONLY:DoPML,isPMLElem
 #endif /*PP_HDG*/
-#if USE_MPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -796,8 +794,6 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*PP_HDG*/
-#if USE_MPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

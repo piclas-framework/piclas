@@ -4352,7 +4352,7 @@ SDEALLOCATE(Adaptive_Found_Flag)
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
-#endif  /*MPI*/
+#endif /*USE_MPI*/
 
 !-- 2.: create Side lists for applicable BCs
 !--- 2a: temporary (linked) lists

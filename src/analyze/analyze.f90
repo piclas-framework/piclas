@@ -1299,7 +1299,7 @@ IF (DoPartAnalyze) THEN
   unit_index = 555
 #if USE_MPI
   IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
    IF (.NOT.isOpen) THEN
      outfile = 'CodeAnalyze.csv'
@@ -1323,7 +1323,7 @@ IF (DoPartAnalyze) THEN
    END IF
 #if USE_MPI
   END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
  ! MPI Communication
 #if USE_MPI
@@ -1340,7 +1340,7 @@ IF (DoPartAnalyze) THEN
 
 #if USE_MPI
    IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
      WRITE(unit_index,104,ADVANCE='NO') Time
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') rBoundingBoxChecks
@@ -1351,7 +1351,7 @@ IF (DoPartAnalyze) THEN
      WRITE(unit_index,'(A1)') ' '
 #if USE_MPI
    END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 104    FORMAT (e25.14)
 

@@ -2600,8 +2600,6 @@ DO iStage=2,nRKStages
     CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
-#endif /*USE_MPI*/
-#if USE_MPI
     ! finish communication
     CALL MPIParticleRecv()
     ! set exchanged number of particles to zero
@@ -3043,8 +3041,6 @@ USE MOD_DG_Vars,                 ONLY:U,Un
 #ifdef PP_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
-#if USE_MPI
-#endif /*USE_MPI*/
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 USE MOD_LinearOperator,          ONLY:MatrixVector
 USE MOD_LinearSolver,            ONLY:LinearSolver
@@ -3560,8 +3556,6 @@ DO iStage=2,nRKStages
     CALL SendNbOfParticles()
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
-#endif /*USE_MPI*/
-#if USE_MPI
     ! finish communication
     CALL MPIParticleRecv()
 #endif /*USE_MPI*/

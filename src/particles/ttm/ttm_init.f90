@@ -116,7 +116,7 @@ USE MOD_TTM_Vars
 USE MOD_Restart_Vars      ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
 USE MOD_Equation_Vars     ,ONLY: eps0

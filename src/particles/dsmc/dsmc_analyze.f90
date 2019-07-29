@@ -973,7 +973,7 @@ REAL, ALLOCATABLE                       :: DetJacGauss_N(:,:,:,:), DetLocal(:,:,
 LOGICAL, ALLOCATABLE                    :: VolumeDone(:,:,:)
 #if !(USE_MPI)
 INTEGER       :: k2,m2,l2
-#endif /*NOT MPI*/
+#endif /*!(USE_MPI)*/
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT High Order DSMC Sampling...'

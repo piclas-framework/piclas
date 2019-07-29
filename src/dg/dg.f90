@@ -326,7 +326,7 @@ CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendI
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /* MPI*/
+#endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
@@ -468,7 +468,7 @@ CALL StartSendMPIData(4,FluxPhi,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /* MPI*/
+#endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux_BC_Pois(t,tDeriv,FluxPhi)

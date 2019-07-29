@@ -382,7 +382,7 @@ IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 !===================================================================================================================================
 #if USE_MPI
 IF (PartMPI%MPIROOT) THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption

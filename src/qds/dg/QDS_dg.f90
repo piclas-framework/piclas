@@ -255,7 +255,7 @@ CALL StartReceiveMPIData(QDSnVar,FluxQDS_Slave,1,nSides,RecRequest_Flux,SendID=1
 CALL FillFluxQDS(t,tDeriv,FluxQDS_Master,FluxQDS_Slave,UQDS_Master,UQDS_Slave,doMPISides=.TRUE.)
 
 CALL StartSendMPIData(QDSnVar,FluxQDS_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-#endif /* MPI*/
+#endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
 CALL FillFluxQDS(t,tDeriv,FluxQDS_Master,FluxQDS_Slave,UQDS_Master,UQDS_Slave,doMPISides=.FALSE.)

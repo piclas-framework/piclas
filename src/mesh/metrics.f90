@@ -112,7 +112,7 @@ USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,Be
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 #if !(USE_MPI)
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMortarInnerSides
-#endif /*not MPI*/
+#endif /*!(USE_MPI)*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING

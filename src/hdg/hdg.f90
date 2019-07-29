@@ -1610,8 +1610,6 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_MPI
-#endif /*USE_MPI*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #endif

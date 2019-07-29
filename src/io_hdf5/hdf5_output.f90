@@ -1753,9 +1753,9 @@ IF(nVar_Avg.GT.0)THEN
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
   END IF
-#if MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
+#endif /*USE_MPI*/
 
   ! Reopen file and write DG solution
   ! Associate construct for integer KIND=8 possibility
@@ -1783,9 +1783,9 @@ IF(nVar_Fluc.GT.0)THEN
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
   END IF
-#if MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
+#endif /*USE_MPI*/
 
   ! Reopen file and write DG solution
   ! Associate construct for integer KIND=8 possibility
