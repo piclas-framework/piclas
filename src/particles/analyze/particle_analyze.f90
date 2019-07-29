@@ -42,6 +42,10 @@ INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
 
+INTERFACE RemoveParticle
+  MODULE PROCEDURE RemoveParticle
+END INTERFACE
+
 INTERFACE CalcPowerDensity
   MODULE PROCEDURE CalcPowerDensity
 END INTERFACE
@@ -65,7 +69,7 @@ END INTERFACE
 #endif /*CODE_ANALYZE*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron
+PUBLIC:: CalcEkinPart, AnalyzeParticles, PartIsElectron, RemoveParticle
 PUBLIC:: CalcPowerDensity
 PUBLIC:: CalculatePartElemData
 PUBLIC:: WriteParticleTrackingData
@@ -4141,6 +4145,44 @@ IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartS
 
 END SUBROUTINE AnalyticParticleMovement
 #endif /*CODE_ANALYZE*/
+
+SUBROUTINE RemoveParticle(PartID,alpha,crossedBC)
+!===================================================================================================================================
+!> removes a single particle "PartID" and analyzes nPartOut
+!>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Particle_Vars         ,ONLY: PDM, PartSpecies
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcPartBalance,nPartOut,PartEkinOut
+#if defined(IMPA)
+USE MOD_Particle_Vars         ,ONLY: PartIsImplicit
+USE MOD_Particle_Vars         ,ONLY: DoPartInNewton
+#endif /*IMPA*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+INTEGER, INTENT(IN)           :: PartID
+REAL, INTENT(OUT),OPTIONAL    :: alpha                   !< if removed during tracking optional alpha can be set to -1
+LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is needed if particle removed on BC interaction
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+PDM%ParticleInside(PartID) = .FALSE.
+
+IF(CalcPartBalance) THEN
+  nPartOut(PartSpecies(PartID))=nPartOut(PartSpecies(PartID)) + 1
+  PartEkinOut(PartSpecies(PartID))=PartEkinOut(PartSpecies(PartID))+CalcEkinPart(PartID)
+END IF ! CalcPartBalance
+#ifdef IMPA
+PartIsImplicit(PartID) = .FALSE.
+DoPartInNewton(PartID) = .FALSE.
+#endif /*IMPA*/
+
+IF (PRESENT(alpha)) alpha=-1.
+IF (PRESENT(crossedBC)) crossedBC=.TRUE.
+
+END SUBROUTINE RemoveParticle
 
 
 SUBROUTINE FinalizeParticleAnalyze()
