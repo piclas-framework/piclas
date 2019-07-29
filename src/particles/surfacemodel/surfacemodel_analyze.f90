@@ -1239,7 +1239,7 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
 commSize = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
 IF (SurfCOMM%MPIOutputRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE ,ReactRate        ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
@@ -1253,7 +1253,7 @@ ELSE
   CALL MPI_REDUCE(SurfaceActE       ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(ProperSurfaceActE ,RR ,commSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%MeanProbDes = 0.
@@ -1280,9 +1280,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfMesh
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1295,12 +1295,12 @@ REAL   , INTENT(OUT)            :: DesReactCount(1:nSpecies*(Adsorption%ReactNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iCase, iReact
-#ifdef MPI
+#if USE_MPI
 INTEGER                         :: commSize1, commSize2
 REAL                            :: HE(1:2,1:nSpecies)
 REAL                            :: RA(1:nSpecies*(Adsorption%ReactNum+1))
 REAL                            :: RD(1:nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(SurfMesh%SurfOnProc)THEN
