@@ -53,8 +53,8 @@ INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
 REAL   ,INTENT(OUT)     :: Adsorption_prob_OUT !< probability of an electron being emitted due to an impacting particles
                                                !< (ion/electron bombardment)
 INTEGER,INTENT(OUT)     :: interactionCase     !< what happens to the bombarding particle and is a new one created?
-INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of newly released electron
-                                               !< ProductSpec(2) new ID of impacting particle (the old one can change)
+INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
+                                               !< ProductSpec(2) new ID of newly released electron
 INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
 REAL,INTENT(OUT)        :: v_new  ! Velocity of emitted secondary electron
 CHARACTER(LEN=*),INTENT(OUT)   :: velocityDistribution(2) !< Name of veloctiy distribution of reflected and newly created electron
@@ -75,7 +75,7 @@ SELECT CASE(PartSurfaceModel_IN)
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
-  ProductSpec(2)  = PartSpecies(PartID_IN) ! old particle
+  ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
   interactionCase = 8
   velocityDistribution(1:2) = 'deltadistribution'
 
@@ -109,7 +109,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LT.k_ee/(k_ee+k_refl))THEN ! SEE
             !interactionCase = 8 ! SEE + perfect elastic scattering of the bombarding electron
-            ProductSpec(1)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+            ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
             ProductSpecNbr = 1
             v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
@@ -138,7 +138,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
           !   END IF
         ELSE ! Removal of the bombarding electron
           interactionCase = 3 ! Removal of the bombarding electron
-          ProductSpec(2) = 0 ! just for sanity check
+          ProductSpec(1) = 0 ! just for sanity check
         END IF
       END ASSOCIATE
     ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.NE.0.0)THEN ! Positive bombarding ion
@@ -146,7 +146,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
       !IF(iRan.LT.1.)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
         !interactionCase = -2       ! SEE + perfect elastic scattering of the bombarding electron
-        ProductSpec(1)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+        ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
         ProductSpecNbr = 1
         eps_e           = I-2.*phi ! Energy of the injected electron
         v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
@@ -162,7 +162,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
     ELSE ! Neutral bombarding particle
     !  IF(iRan.LT.0.1)THEN ! SEE-N: from svn-trunk PICLas version
     !    !interactionCase = -2 ! SEE + perfect elastic scattering of the bombarding electron
-    !    ProductSpec(1)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+    !    ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
     !    ProductSpecNbr = 1
     !  ELSE
     !    !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron

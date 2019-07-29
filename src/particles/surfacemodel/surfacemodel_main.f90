@@ -279,8 +279,10 @@ INTEGER,INTENT(IN),OPTIONAL :: TriNum
 LOGICAL,INTENT(OUT),OPTIONAL :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: ProductSpec(2)   ! 1: additional species added or removed from surface
-                                                     ! 2: product species of incident particle (also used for simple reflection)
+INTEGER                          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
+                                                     !< 2: additional species added or removed from surface
+CHARACTER(30)                    :: velocityDistribution(2)          !< specifying keyword for velocity distribution
+REAL                             :: TempErgy(2)                      !< temperature, energy  or velocity used for velofromdistribution
 INTEGER                          :: NewPartID
 REAL                             :: RanNum
 REAL                             :: Xitild,EtaTild
@@ -303,8 +305,6 @@ INTEGER                          :: iReact, RecombReactID
 REAL                             :: VeloCrad, Fak_D, NewVelo(3)
 REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3)
-CHARACTER(30)                    :: velocityDistribution(2)          ! specifying keyword for velocity distribution
-REAL                             :: TempErgy(2)                      ! temperature or energy used for velofromdistribution
 INTEGER                          :: ProductSpecNbr ! number of particles for ProductSpec(1)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
@@ -388,7 +388,7 @@ CASE (1)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) .AND. &
      (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
-    ProductSpec(2) = SpecID
+    ProductSpec(1) = SpecID
     interactionCase = 3
   END IF
 CASE (2)
@@ -407,8 +407,8 @@ CASE (2)
     CALL RANDOM_NUMBER(RanNum)
     IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
       interactionCase = 3
-      ProductSpec(1) = 0
-      ProductSpec(2) = SpecID
+      ProductSpec(2) = 0
+      ProductSpec(1) = SpecID
     ELSE
       interactionCase = 5
       DO iReact = Adsorption%DissNum+1,(Adsorption%ReactNum)
@@ -417,8 +417,8 @@ CASE (2)
           EXIT
         END IF
       END DO
-      ProductSpec(1) = Adsorption%RecombReact(1,RecombReactID,SpecID)
-      ProductSpec(2) = Adsorption%RecombReact(2,RecombReactID,SpecID)
+      ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,SpecID)
+      ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,SpecID)
       reactionEnthalpie = - Adsorption%EDissBond(iReact,SpecID) * Adsorption%ReactAccomodation(locBCID,SpecID) * BoltzmannConst
     END IF
   END IF
@@ -434,21 +434,21 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
            ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,interactionCase,ProductSpec,&
-  ProductSpecNbr,TempErgy(1),velocityDistribution)
-  TempErgy(2) = WallTemp
+  ProductSpecNbr,TempErgy(2),velocityDistribution)
+  TempErgy(1) = WallTemp
 CASE (101) ! constant condensation coefficient
   interactionCase = 1
-  ProductSpec(2) = SpecID
+  ProductSpec(1) = SpecID
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN
     interactionCase = 3
   END IF
 CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
-  ProductSpec(2) = SpecID
+  ProductSpec(1) = SpecID
   interactionCase = 6
-  velocityDistribution(2)='liquid_refl'
-  TempErgy(2)=WallTemp
+  velocityDistribution(1)='liquid_refl'
+  TempErgy(1)=WallTemp
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   CALL RANDOM_NUMBER(RanNum)
   IF ( (TSURUTACONDENSCOEFF(SpecID,Norm_velo,WallTemp).GE.RanNum) ) THEN
@@ -467,7 +467,7 @@ CASE(1,2) ! (particle is treated in boundary condition)
 CASE(3) ! Molecular adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
   ReflectionIndex = 3
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) + 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) + 1
 #if (PP_TimeDiscMethod==42)
   SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
 #endif
@@ -504,7 +504,7 @@ CASE(5) ! Eley-Rideal reaction (reflecting particle and changes species at conta
 !-----------------------------------------------------------------------------------------------------------------------------------
   ReflectionIndex = 3
   !SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumERDesorbed(p,q,SurfSideID,ProductSpec(2)) + 1
-  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(1)) - 1
+  SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ProductSpec(2)) - 1
   ! --------
   ! sampling and analyze stuff for heat flux and reaction rates
 #if (PP_TimeDiscMethod==42)
@@ -516,7 +516,7 @@ CASE(5) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
     ! Sample recombination reaction counter
     DO iReact = 1,Adsorption%RecombNum
-      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.ProductSpec(2))THEN
+      IF (Adsorption%RecombReact(2,iReact,SpecID).EQ.ProductSpec(1))THEN
         SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) = &
             SampWall(SurfSideID)%SurfModelReactCount(Adsorption%DissNum+iReact,SpecID,p,q) + 1
       END IF
@@ -536,7 +536,7 @@ CASE(5) ! Eley-Rideal reaction (reflecting particle and changes species at conta
     ! perfect velocity reflection
     NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
     ! mass changes, therefore velocity is scaled because momentum remains the same
-    NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(2))%MassIC/Species(SpecID)%MassIC)
+    NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
   ELSE
     ! diffuse reflection
     TransACC   = PartBound%TransACC(locBCID)
@@ -551,7 +551,7 @@ CASE(5) ! Eley-Rideal reaction (reflecting particle and changes species at conta
     VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
     EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
     EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-    Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(2))%MassIC * Fak_D))
+    Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(1))%MassIC * Fak_D))
     CALL RANDOM_NUMBER(RanNum)
     Phi     = 2.0 * PI * RanNum
     VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
@@ -575,9 +575,9 @@ CASE(5) ! Eley-Rideal reaction (reflecting particle and changes species at conta
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   ! set new species
-  PartSpecies(PartID) = ProductSpec(2)
+  PartSpecies(PartID) = ProductSpec(1)
 
-  CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
+  CALL SurfaceToPartEnergy(PartID,ProductSpec(1),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) ! Distribution function reflection  (reflecting particle according to defined distribution function)
@@ -597,7 +597,7 @@ CASE(6) ! Distribution function reflection  (reflecting particle according to de
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
   ! sample new velocity
-  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
+  NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
   ! important: n_loc points outwards
   PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -615,7 +615,7 @@ CASE(6) ! Distribution function reflection  (reflecting particle according to de
   lengthPartTrajectory=SQRT(DOT_PRODUCT(PartTrajectory,PartTrajectory))
   PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-  CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
+  CALL SurfaceToPartEnergy(PartID,ProductSpec(1),WallTemp,Transarray,IntArray)
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(7,8) ! reflect incident particle according to distribution function (variable "velocityDistribution" has to be defined)
@@ -624,7 +624,7 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
   ReflectionIndex = 3
   ! sampling and analyze stuff for heat flux and reaction rates
 #if (PP_TimeDiscMethod==42)
-  SurfModel%Info(ProductSpec(1))%NumOfDes = SurfModel%Info(ProductSpec(1))%NumOfDes + 1
+  SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
   SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) &
      + reactionEnthalpie/BoltzmannConst
 #endif
@@ -640,14 +640,14 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
   ! Sample momentum, heatflux and collision counter on surface
   CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID)
 
-  IF (ProductSpec(2).LT.0) THEN
+  IF (ProductSpec(1).LT.0) THEN
     CALL RemoveParticle(PartID,alpha=alpha,crossedBC=Opt_Reflected)
   ELSE
     ! Set velocity vector of reflected particle
     SELECT CASE(interactionCase)
     CASE(7) ! reflected particle velocity vector from a defined velocity distribution function
       ! sample new velocity for reflected particle
-      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
+      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
       ! important: n_loc points outwards
       PartState(PartID,4:6) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
@@ -676,7 +676,7 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
         VeloReal    = SQRT(DOT_PRODUCT(oldVelo,oldVelo))
         EtraOld     = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
         EtraNew     = EtraOld + TransACC * (EtraWall - EtraOld)
-        Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(2))%MassIC * Fak_D))
+        Cmr         = SQRT(2.0 * EtraNew / (Species(ProductSpec(1))%MassIC * Fak_D))
         CALL RANDOM_NUMBER(RanNum)
         Phi     = 2.0 * PI * RanNum
         VeloCx  = Cmr * VeloCrad * COS(Phi) ! tang1
@@ -687,7 +687,7 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
         ! perfect velocity reflection
         NewVelo(1:3) = oldVelo(1:3) - 2.*DOT_PRODUCT(oldVelo(1:3),n_loc)*n_loc
         ! mass changes, therefore velocity is scaled because momentum remains the same
-        NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(2))%MassIC/Species(SpecID)%MassIC)
+        NewVelo(1:3) = NewVelo(1:3) * (Species(ProductSpec(1))%MassIC/Species(SpecID)%MassIC)
       END IF
       ! intersection point with surface
       LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
@@ -705,9 +705,9 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
     PartTrajectory=PartTrajectory/lengthPartTrajectory
 
     ! set new species of reflected particle
-    PartSpecies(PartID) = ProductSpec(2)
+    PartSpecies(PartID) = ProductSpec(1)
     ! Sampling the energy that is transferred from the surface onto the particle
-    CALL SurfaceToPartEnergy(PartID,ProductSpec(2),WallTemp,Transarray,IntArray)
+    CALL SurfaceToPartEnergy(PartID,ProductSpec(1),WallTemp,Transarray,IntArray)
     ! Sample momentum, heatflux and collision counter on surface
     CALL CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
   END IF
@@ -717,13 +717,13 @@ CASE(7,8) ! reflect incident particle according to distribution function (variab
     !IPWRITE(UNIT_stdOut,*) 'NEW PARTICLE! iNewPart =',iNewPart
     ! create new particle and assign correct energies
     ! sample newly created velocity
-    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(1),SpecID,TempErgy(1))
+    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
     ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
     NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
     PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
-    CALL CreateParticle(ProductSpec(1),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+    CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
 
     CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
     CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory2,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)

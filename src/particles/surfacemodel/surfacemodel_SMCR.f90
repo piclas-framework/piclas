@@ -32,7 +32,7 @@ PUBLIC :: SMCR_Diffusion
 
 CONTAINS
 
-SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,outSpec,AdsorptionEnthalpie)
+SUBROUTINE SMCR_PartAdsorb(subsurfxi,subsurfeta,SurfID,PartID,Norm_Velo,adsorption_case,ProductSpec,AdsorptionEnthalpie)
 !===================================================================================================================================
 !> Particle adsorption probability calculation for one impinging particle using a surface replication (SMCR) (surfacemodel = 3)
 !===================================================================================================================================
@@ -54,7 +54,8 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfID,PartID
 INTEGER,INTENT(OUT)              :: adsorption_case
-INTEGER,INTENT(OUT)              :: outSpec(2)
+INTEGER,INTENT(OUT)              :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
+                                                        !< ProductSpec(2) new ID of created or consumed partner
 REAL   ,INTENT(OUT)              :: AdsorptionEnthalpie
 REAL   ,INTENT(IN)               :: Norm_Velo
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -183,8 +184,8 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !IF (Adaptive_ACC_FLAG) THEN
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.GE.PartBound%MomentumACC(PartBoundID)) THEN
-    outSpec(1) = 0
-    outSpec(2) = iSpec
+    ProductSpec(1) = iSpec
+    ProductSpec(2) = 0
     AdsorptionEnthalpie = 0.
     adsorption_case = 2
     RETURN
@@ -194,8 +195,8 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !! if no trapping return and perform elastic reflection
 !CALL RANDOM_NUMBER(RanNum)
 !IF (RanNum.GT.trapping_prob) THEN
-!  outSpec(1) = 0
-!  outSpec(2) = iSpec
+!  ProductSpec(1) = iSpec
+!  ProductSpec(2) = 0
 !  AdsorptionEnthalpie = 0.
 !  adsorption_case = 2
 !  RETURN
@@ -430,14 +431,14 @@ IF (sum_probabilities .GT. RanNum) THEN
       IF (ReactNum.EQ.0) THEN
         ! if molecular adsorption set output parameters
         adsorption_case = 3
-        outSpec(1) = 0
-        outSpec(2) = iSpec
+        ProductSpec(1) = iSpec
+        ProductSpec(2) = 0
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.LE.Adsorption%DissNum) THEN
         ! if dissocciative adsorption set output parameters
         adsorption_case = 4
         DissocReactID = ReactNum
-        outSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
-        outSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
+        ProductSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
+        ProductSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
         ! calculate adsorption Enthalpie
         Heat_A = 0.
         Heat_B = 0.
@@ -450,8 +451,8 @@ IF (sum_probabilities .GT. RanNum) THEN
         ! if ER-reaction set output parameters
         adsorption_case = 5
         RecombReactID = ReactNum - Adsorption%DissNum
-        outSpec(1) = Adsorption%RecombReact(1,RecombReactID,iSpec)
-        outSpec(2) = Adsorption%RecombReact(2,RecombReactID,iSpec)
+        ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,iSpec)
+        ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,iSpec)
         ! calculate adsorption Enthalpie
         Heat_A = 0.
         Heat_B = 0.
