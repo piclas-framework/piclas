@@ -87,7 +87,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
         Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -96,7 +96,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
     END DO
@@ -106,7 +106,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
@@ -170,7 +170,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF
@@ -180,7 +180,7 @@ SELECT CASE(PartLorentzType)
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         ! Don't push neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.PUSHPARTICLE(iPart)) CYCLE
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
         Pt(iPart,1:3)=ACCELERATION_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       END IF

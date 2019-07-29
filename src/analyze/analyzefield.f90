@@ -67,7 +67,7 @@ SUBROUTINE AnalyzeField(Time)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars         ,ONLY: DoFieldAnalyze,CalcEpot,CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt, &
-                                    Wel,Wmag
+                                    Wel,Wmag,Wphi,Wpsi
 USE MOD_Particle_Analyze_Vars,ONLY: IsRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Dielectric_Vars      ,ONLY: DoDielectric
@@ -114,6 +114,12 @@ IF(MPIROOT)THEN
          WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-Mag    '
            OutputCounter = OutputCounter + 1
          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-phi    '
+           OutputCounter = OutputCounter + 1
+         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+         WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-psi    '
+           OutputCounter = OutputCounter + 1
+         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
          WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-E-pot    '
            OutputCounter = OutputCounter + 1
        END IF
@@ -133,10 +139,15 @@ END IF
 #endif /*USE_MPI*/
 
 IF(CalcEpot)THEN
+  ! energy of
+  ! 1) electric field
+  ! 2) magnetic field
+  ! 3) divergence correction magnetic 
+  ! 4) divergence correction electric + charge 
   IF(DoDielectric)THEN
-    CALL CalcPotentialEnergy_Dielectric(WEl,WMag)
+    CALL CalcPotentialEnergy_Dielectric(WEl,WMag, Wphi, Wpsi)
   ELSE
-    CALL CalcPotentialEnergy(WEl,WMag)
+    CALL CalcPotentialEnergy(WEl,WMag,Wphi,Wpsi) 
   END IF
 END IF
 #if (PP_nVar>=6)
@@ -153,7 +164,11 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WMag
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WPhi
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WPsi
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') WEl + WMag + WPhi + WPsi
    END IF
    IF(CalcPoyntingInt)THEN
      DO iPlane=1,nPoyntingIntPlanes
@@ -651,7 +666,7 @@ SDEALLOCATE(STEM)
 
 END SUBROUTINE FinalizePoyntingInt
 
-SUBROUTINE CalcPotentialEnergy(WEl, WMag)
+SUBROUTINE CalcPotentialEnergy(WEl, WMag, Wphi, Wpsi) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -681,15 +696,15 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: WEl, WMag
+REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs
+REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
 #ifndef PP_HDG
-REAL              :: B_abs
+REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
 REAL              :: RD
@@ -698,6 +713,8 @@ REAL              :: RD
 
 Wel=0.
 WMag=0.
+Wphi=0.
+Wpsi=0.
 DO iElem=1,nElems
 #ifndef PP_HDG
   IF(DoPML)THEN
@@ -726,7 +743,9 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
     B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-#endif /*PP_nVar=8*/
+    Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
+    Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
+#endif /*PP_nVar=8*/        
 #ifdef PP_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
@@ -737,31 +756,43 @@ DO iElem=1,nElems
     WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
 #if (PP_nVar==8)
     WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-#endif /*PP_nVar=8*/
+    Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs
+    Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs
+#endif /*PP_nVar=8*/        
   END DO; END DO; END DO
   WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
   WMag = WMag + WMag_tmp
+  Wphi = Wphi + Wphi_tmp
+  Wpsi = Wpsi + Wpsi_tmp
 #endif /*PP_nVar=8*/
 END DO
 
 WEl = WEl * eps0 * 0.5
 WMag = WMag * smu0 * 0.5
+! caution: change of coefficients for divergence energies
+Wphi = Wphi * eps0*0.5
+Wpsi = Wpsi * smu0*0.5
 
 #if USE_MPI
+! todo: only one reduce with array
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 ELSE
   CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 END IF
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalcPotentialEnergy
 
 
-SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag)
+SUBROUTINE CalcPotentialEnergy_Dielectric(WEl, WMag, Wphi, Wpsi) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -800,15 +831,15 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: WEl, WMag
+REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs
+REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
 #ifndef PP_HDG
-REAL              :: B_abs
+REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
 REAL              :: RD
@@ -817,6 +848,9 @@ REAL              :: RD
 
 Wel=0.
 WMag=0.
+Wphi=0.
+Wpsi=0.
+
 DO iElem=1,nElems
 #ifndef PP_HDG
   IF(DoPML)THEN
@@ -851,7 +885,9 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-#endif /*PP_nVar=8*/
+      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
+      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
+#endif /*PP_nVar=8*/        
 #ifdef PP_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
@@ -862,7 +898,9 @@ DO iElem=1,nElems
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
 #if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
-#endif /*PP_nVar=8*/
+      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
+      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
+#endif /*PP_nVar=8*/        
     END DO; END DO; END DO
   ELSE
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -883,6 +921,8 @@ DO iElem=1,nElems
 
 #if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem) 
+      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem) 
 #endif /*PP_nVar=8*/
 #ifdef PP_HDG
 #if PP_nVar==3
@@ -894,6 +934,8 @@ DO iElem=1,nElems
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
 #if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs
+      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
     END DO; END DO; END DO
   END IF
@@ -911,6 +953,9 @@ END DO
 
 WEl = WEl * eps0 * 0.5
 WMag = WMag * smu0 * 0.5
+! caution: change of coefficients for divergence energies
+Wphi = Wphi * eps0*0.5
+Wpsi = Wpsi * smu0*0.5
 
 #if USE_MPI
 IF(MPIRoot)THEN

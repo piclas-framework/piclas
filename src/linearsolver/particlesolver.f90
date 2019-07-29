@@ -250,7 +250,7 @@ SUBROUTINE ParticleNewton(t,coeff,Mode,doParticle_In,opt_In,AbortTol_In)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
+USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK,PartNewtonRelaxation
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton    &
                                      ,PartState, Pt, LastPartPos, PEM, PDM, PartLorentzType,PartDeltaX,PartDtFrac,PartStateN  &
                                      ,PartMeshHasReflectiveBCs
@@ -485,6 +485,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       END IF
       Norm_F_PartXk_old(iPart)=Norm_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),(Norm_F_PartXk(iPart)),AbortCritLinSolver,PartDeltaX(1:6,iPart))
+      PartDeltaX(1:6,iPart)=PartDeltaX(1:6,iPart)*PartNewtonRelaxation
       ! everything else is done in Particle_Armijo
     END IF ! ParticleInside
   END DO ! iPart
@@ -756,7 +757,7 @@ LOGICAL                      :: ReMap
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-lambda=1.*PartNewtonRelaxation
+lambda=1. !*PartNewtonRelaxation
 DoSetLambda=.TRUE.
 PartLambdaAccept=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
@@ -973,7 +974,7 @@ CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 ! disable Armijo iteration and use only one fixed value
-IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
+!IF(PartNewtonRelaxation.LT.1.)  PartLambdaAccept=.TRUE.
 
 DoSetLambda=.FALSE.
 IF(ANY(.NOT.PartLambdaAccept)) DoSetLambda=.TRUE.
@@ -994,7 +995,7 @@ END IF
 nLambdaReduce=1
 DO WHILE((DoSetLambda).AND.(nLambdaReduce.LE.nMaxLambdaReduce))
   nLambdaReduce=nLambdaReduce+1
-  lambda=0.1*lambda
+  lambda=0.5*lambda
   IF(DoPrintConvInfo)THEN
     SWRITE(UNIT_stdOut,'(A20,2x,E24.12)') ' lambda: ', lambda
   END IF

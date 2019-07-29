@@ -978,7 +978,7 @@ IF (time.GE.DelayTime) THEN
       PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
       PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
       ! Don't push the velocity component of neutral particles!
-      IF(CHARGEDPARTICLE(iPart))THEN
+      IF(PUSHPARTICLE(iPart))THEN
         Pt_temp(iPart,4) = Pt(iPart,1)
         Pt_temp(iPart,5) = Pt(iPart,2)
         Pt_temp(iPart,6) = Pt(iPart,3)
@@ -1163,7 +1163,7 @@ DO iStage=2,nRKStages
         PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
         PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           Pt_temp(iPart,4) =        Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
           Pt_temp(iPart,5) =        Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
           Pt_temp(iPart,6) =        Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
@@ -2790,7 +2790,7 @@ DO iStage=2,nRKStages
   END IF
 
 #ifdef CODE_ANALYZE
-  SWRITE(*,*) 'sanity check'
+  !SWRITE(*,*) 'sanity check'
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
      CALL ParticleSanityCheck(iPart)
@@ -4691,7 +4691,7 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
         IF (PDM%IsNewPart(iPart)) THEN
           ! Don't push the velocity component of neutral particles!
-          IF(CHARGEDPARTICLE(iPart))THEN
+          IF(PUSHPARTICLE(iPart))THEN
             !-- v(n) => v(n-0.5) by a(n):
             PartState(iPart,4) = PartState(iPart,4) - Pt(iPart,1) * dt*0.5
             PartState(iPart,5) = PartState(iPart,5) - Pt(iPart,2) * dt*0.5
@@ -4700,7 +4700,7 @@ IF (time.GE.DelayTime) THEN
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
           IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
-               CHARGEDPARTICLE(iPart)) THEN ! Don't push the velocity component of neutral particles!
+               PUSHPARTICLE(iPart)) THEN ! Don't push the velocity component of neutral particles!
             PartState(iPart,4:6)  = PartState(iPart,4:6) + Pt(iPart,1:3) * (dt_old-dt)*0.5
           END IF
         END IF
@@ -4713,7 +4713,7 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,2) = PartState(iPart,2) + ( PartState(iPart,5) + Pt(iPart,2) * dtFrac*0.5 ) * dtFrac
         PartState(iPart,3) = PartState(iPart,3) + ( PartState(iPart,6) + Pt(iPart,3) * dtFrac*0.5 ) * dtFrac
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           !-- v(BC) => v(n+0.5) by a(BC):
           PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * (dtFrac - dt*0.5)
           PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * (dtFrac - dt*0.5)
@@ -4728,7 +4728,7 @@ IF (time.GE.DelayTime) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           !-- v(n-0.5) => v(n+0.5) by a(n):
           PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dt
           PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dt
@@ -4748,7 +4748,7 @@ IF (time.GE.DelayTime) THEN
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           !-- v(n) => v(n+1) by a(n):
           PartState(iPart,4) = PartState(iPart,4) + Pt(iPart,1) * dtFrac
           PartState(iPart,5) = PartState(iPart,5) + Pt(iPart,2) * dtFrac
@@ -5086,7 +5086,7 @@ IF (time.GE.DelayTime) THEN
         PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5)*b_dt(1)
         PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6)*b_dt(1)
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           Pt_temp(iPart,4) = Pt(iPart,1)
           Pt_temp(iPart,5) = Pt(iPart,2)
           Pt_temp(iPart,6) = Pt(iPart,3)
@@ -5105,7 +5105,7 @@ __STAMP__&
         END IF
         Pa_rebuilt(:,:)=0.
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           DO iStage_loc=1,iStage
             Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
           END DO
@@ -5131,7 +5131,7 @@ __STAMP__&
         PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)*RandVal
         PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)*RandVal
         ! Don't push the velocity component of neutral particles!
-        IF(CHARGEDPARTICLE(iPart))THEN
+        IF(PUSHPARTICLE(iPart))THEN
           Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
           PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
           PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal
@@ -5276,7 +5276,7 @@ DO iStage=2,nRKStages
           PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)
           PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
-          IF(CHARGEDPARTICLE(iPart))THEN
+          IF(PUSHPARTICLE(iPart))THEN
             Pt_temp(iPart,4) = Pt(iPart,1) - RK_a(iStage) * Pt_temp(iPart,4)
             Pt_temp(iPart,5) = Pt(iPart,2) - RK_a(iStage) * Pt_temp(iPart,5)
             Pt_temp(iPart,6) = Pt(iPart,3) - RK_a(iStage) * Pt_temp(iPart,6)
@@ -5295,7 +5295,7 @@ DO iStage=2,nRKStages
           IF (DoForceFreeSurfaceFlux) Pt(iPart,1:3)=0.
           Pa_rebuilt(:,:)=0.
           ! Don't push the velocity component of neutral particles!
-          IF(CHARGEDPARTICLE(iPart))THEN
+          IF(PUSHPARTICLE(iPart))THEN
             DO iStage_loc=1,iStage
               Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(iPart,1:3)
             END DO
@@ -5321,7 +5321,7 @@ DO iStage=2,nRKStages
           PartState(iPart,2) = PartState(iPart,2) + Pt_temp(iPart,2)*b_dt(iStage)*RandVal
           PartState(iPart,3) = PartState(iPart,3) + Pt_temp(iPart,3)*b_dt(iStage)*RandVal
           ! Don't push the velocity component of neutral particles!
-          IF(CHARGEDPARTICLE(iPart))THEN
+          IF(PUSHPARTICLE(iPart))THEN
             Pt_temp(iPart,4:6) = Pa_rebuilt(1:3,iStage)
             PartState(iPart,4) = PartState(iPart,4) + Pt_temp(iPart,4)*b_dt(iStage)*RandVal
             PartState(iPart,5) = PartState(iPart,5) + Pt_temp(iPart,5)*b_dt(iStage)*RandVal

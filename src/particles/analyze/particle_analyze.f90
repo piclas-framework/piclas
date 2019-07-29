@@ -180,7 +180,7 @@ USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
-USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies, VarTimeStep, PDM
 USE MOD_PICDepo_Vars          ,ONLY: DoDeposition
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_PICDepo_Vars          ,ONLY: r_sf
@@ -419,6 +419,17 @@ IF (CalcPartBalance) THEN
 END IF
 TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
 IF(TrackParticlePosition)THEN
+  IF(nProcessors.GT.1)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 proc!')
+  ELSE
+    IF(PDM%ParticleVecLength.GT.1)THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
+    END IF
+  END IF
   printDiff=GETLOGICAL('printDiff','.FALSE.')
   IF(printDiff)THEN
     printDiffTime=GETREAL('printDiffTime','12.')
@@ -519,7 +530,7 @@ USE MOD_Particle_Analyze_Vars
 USE MOD_PARTICLE_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars           ,ONLY: DoRestart
-USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag
+USE MOD_Analyze_Vars           ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: iter, dt
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
@@ -1204,7 +1215,7 @@ IF (PartMPI%MPIROOT) THEN
     END IF
     IF (CalcEpot .AND. CalcEkin .AND. CalcEtot) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Ekin(nSpecAnalyze) + WEl + WMag
+      WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Ekin(nSpecAnalyze) + WEl + WMag + Wphi+Wpsi
     END IF
     IF (CalcTemp) THEN
       DO iSpec=1, nSpecAnalyze
@@ -1285,7 +1296,7 @@ IF (PartMPI%MPIROOT) THEN
       END IF
       IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal+WEl+WMag
+        WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') ETotal+WEl+WMag + Wphi+Wpsi
       END IF
       IF(CalcTemp) THEN
         DO iSpec=1, nSpecies
