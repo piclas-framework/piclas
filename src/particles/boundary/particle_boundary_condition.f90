@@ -132,6 +132,10 @@ CASE(1) !PartBound%OpenBC)
       END IF
     END DO
   END IF
+
+  ! Particle has left the element over an open BC
+  crossedBC    =.TRUE.
+
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -359,6 +363,9 @@ CASE(1) !PartBound%OpenBC)
     IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
+
+  ! Particle has left the element over an open BC
+  crossedBC    =.TRUE.
 
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
