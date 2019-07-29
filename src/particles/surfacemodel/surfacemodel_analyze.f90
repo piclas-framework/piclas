@@ -606,7 +606,7 @@ IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 ! Output Analyzed variables
 !===================================================================================================================================
 #if USE_MPI
-IF (PartMPI%MPIOutputRoot) THEN
+IF (SurfCOMM%MPIOutputRoot) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
@@ -871,7 +871,7 @@ IF (CalcSurfCoverage .AND. SurfMesh%nSides.GT.0) THEN
 END IF
 
 #if USE_MPI
-  IF (PartMPI%MPIOutputRoot) THEN
+  IF (SurfCOMM%MPIOutputRoot) THEN
     IF (CalcSurfNumSpec)  THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,SubWallNumSpec      ,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_SurfDist,nSpecies  ,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
@@ -898,7 +898,7 @@ END IF
       END IF
     END DO
 #if USE_MPI
-  IF (PartMPI%MPIOutputRoot) THEN
+  IF (SurfCOMM%MPIOutputRoot) THEN
     IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   ELSE
     IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
