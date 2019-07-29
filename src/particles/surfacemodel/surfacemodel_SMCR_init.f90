@@ -282,7 +282,7 @@ Adsorption%Coordination(PartboundID,iSpec))
   END DO
 END IF
 
-#ifdef MPI
+#if USE_MPI
 #ifdef CODE_ANALYZE
 ! write out the number of sites on all surface of the proc, that are considered for adsorption
 WRITE(UNIT_stdOut,'(A,I3,I13,A,I13,A,I13)')' | Maximum number of surface sites on proc: ',myRank,Max_Surfsites_num,&
@@ -292,7 +292,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,Max_Surfsites_own,1,MPI_INTEGER,MPI_SUM,PartMPI%
 SWRITE(UNIT_stdOut,'(A3,A,I0)') ' > ','Surface sites for all catalytic boundaries: ', Max_SurfSites_own
 
 IF (SurfMesh%SurfOnProc) CALL InitSMCR_MPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
 

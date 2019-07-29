@@ -1381,7 +1381,7 @@ CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif
 
 ! write array with data into state file
-!#ifdef MPI
+!#if USE_MPI
 !  CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !                          DataSetName='SurfPartInt', rank=5,&
 !                          nValGlobal=(/SurfMesh%nGlobalSides,nSurfSample,nSurfSample,Coordinations,SurfPartIntSize/),&

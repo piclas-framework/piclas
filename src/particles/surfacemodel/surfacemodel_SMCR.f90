@@ -522,9 +522,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartSideToElem
 USE MOD_LoadBalance_Vars       ,ONLY: nSurfacePartsPerElem, PerformLBSample
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeSurfDistInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -1646,7 +1646,7 @@ DEALLOCATE(ProbDes,P_react_forward,P_react_back)
 DEALLOCATE(Coord_ReactP,Pos_ReactP)
 
 ! 6. communicate surface state to halo sides of neighbours
-#ifdef MPI
+#if USE_MPI
 ! communicate distribution to halo-sides of neighbour procs
 CALL ExchangeSurfDistInfo()
 #endif
