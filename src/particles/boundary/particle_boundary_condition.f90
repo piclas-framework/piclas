@@ -68,8 +68,7 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound,nPorousBC
 USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_SurfaceModel,           ONLY:ReactiveSurfaceTreatment
-USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Analyze,       ONLY:RemoveParticle
 USE MOD_Mesh_Vars,              ONLY:BC
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
@@ -94,7 +93,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
-INTEGER                              :: adsorbindex, iSpec, iSF
+INTEGER                              :: ReflectionIndex, iSpec, iSF
 LOGICAL                              :: isSpeciesSwap, PorousReflection
 !===================================================================================================================================
 
@@ -133,17 +132,7 @@ CASE(1) !PartBound%OpenBC)
       END IF
     END DO
   END IF
-  IF(CalcPartBalance) THEN
-      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-  END IF ! CalcPartBalance
-  PDM%ParticleInside(iPart) = .FALSE.
-  alpha=-1.
-#ifdef IMPA
-  DoPartInNewton(iPart) = .FALSE.
-  PartIsImplicit(iPart) = .FALSE.
-#endif /*IMPA*/
-
+  CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,57 +149,30 @@ CASE(2) !PartBound%ReflectiveBC)
 #endif /*NOT IMPA*/
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! Particle did not Swap to species 0 !deleted particle -> particle swapped to species 0
-    ! decide if reactive or simple scattering
-    IF (.NOT.PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
-    ! simple reflection (previously used wall interaction model, Maxwellian scattering)
-      CALL RANDOM_NUMBER(RanNum)
-      IF((RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))).OR.PorousReflection) THEN
-        ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
-      ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
-      END IF
-    ELSE
-      ! chemical surface interaction (e.g. adsorption)
-      adsorbindex = 0
+    IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
       ! Decide which interaction (reflection, reaction, adsorption)
-      CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,adsorbindex&
-                                            ,opt_Reflected=crossedBC,TriNum=TriNum)
-      ! assign right treatment
-      SELECT CASE (adsorbindex)
-      CASE(1)
-        ! 1: adsorption (is either removed or set to be on surface)
-        IF (KeepWallParticles.AND.(adsorbindex.EQ.1)) THEN
-          PDM%ParticleAtWall(iPart) = .TRUE.
-        ELSE
-          IF(CalcPartBalance) THEN
-            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
-          PDM%ParticleInside(iPart) = .FALSE.
-#ifdef IMPA
-          PartIsImplicit(iPart) = .FALSE.
-          DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-          alpha=-1.
-        END IF
-      CASE(2)
-        ! 2: Eley-Rideal reaction (particle is reflected in catalytic treatment routine)
-      CASE(0) ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
-      CASE(-1) ! elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
-          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
-      CASE DEFAULT ! should not happen
-        WRITE(*,*)'boundary_condition: Adsorption error. wrong interactionindex chosen'
-        CALL Abort(&
-__STAMP__,&
-'Boundary_Error: Adsorptionindex switched to unknown value.')
-      END SELECT
+      CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
+                                    ,ReflectionIndex,opt_Reflected=crossedBC,TriNum=TriNum)
+    ELSE
+      ! simple reflection (maxwellian scattering)
+      ReflectionIndex=2 ! diffuse reflection
+      CALL RANDOM_NUMBER(RanNum)
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID))).OR.PorousReflection) ReflectionIndex=1 ! perfect reflection
     END IF
+    ! assign right treatment
+    SELECT CASE (ReflectionIndex)
+    CASE(1) !elastic reflection
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
+    CASE(2) ! inelastic reflection
+      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip, &
+          IsSpeciesSwap,opt_Reflected=crossedBC,TriNum=TriNum)
+    CASE(3) ! reflection performed in reactive treatment routine
+    CASE DEFAULT
+      CALL abort(&
+__STAMP__&
+,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex',IntInfoOpt=ReflectionIndex)
+    END SELECT
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
@@ -278,8 +240,7 @@ USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_SurfaceModel,           ONLY:ReactiveSurfaceTreatment
-USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Analyze,       ONLY:RemoveParticle
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Tracking_Vars, ONLY:CartesianPeriodic
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
@@ -302,7 +263,7 @@ LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID, adsorbindex
+INTEGER                              :: BCSideID, ReflectionIndex
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -331,17 +292,7 @@ CASE(1) !PartBound%OpenBC)
     IF(flip.NE.0) n_loc=-n_loc
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
-
-  IF(CalcPartBalance) THEN
-      nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-      PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-  END IF ! CalcPartBalance
-  PDM%ParticleInside(iPart) = .FALSE.
-  alpha=-1.
-#ifdef IMPA
-  DoPartInNewton(iPart) = .FALSE.
-  PartIsImplicit(iPart) = .FALSE.
-#endif /*IMPA*/
+  CALL RemoveParticle(iPart,alpha=alpha,crossedBC=crossedBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -356,57 +307,30 @@ CASE(2) !PartBound%ReflectiveBC)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     BCSideID=PartBCSideList(SideID)
-    IF (.NOT.PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
-    ! simple reflection (previously used wall interaction model, maxwellian scattering)
-      CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-        ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      END IF
-    ELSE
-      ! chemical surface interaction (such as adsorption)
-      adsorbindex = 0
+    IF (PartBound%Reactive(PartBound%MapToPartBC(BC(SideID)))) THEN
       ! Decide which interaction (reflection, reaction, adsorption)
-      CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap,adsorbindex&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      ! assign right treatment
-      SELECT CASE (adsorbindex)
-      CASE(1)
-        ! 1: adsorption (is either removed or set to be on surface)
-        IF (KeepWallParticles.AND.(adsorbindex.EQ.1)) THEN
-          PDM%ParticleAtWall(iPart) = .TRUE.
-        ELSE
-          IF(CalcPartBalance) THEN
-            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
-            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-          END IF ! CalcPartBalance
-          PDM%ParticleInside(iPart) = .FALSE.
-#ifdef IMPA
-          PartIsImplicit(iPart) = .FALSE.
-          DoPartInNewton(iPart) = .FALSE.
-#endif /*IMPA*/
-          alpha=-1.
-        END IF
-      CASE(2)
-        ! 2: Eley-Rideal reaction (particle is reflected in catalytic treatment routine)
-        !CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
-      CASE(0) ! inelastic reflection
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      CASE(-1) !elastic reflection
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
-                              ,BCSideID=BCSideID,opt_reflected=crossedBC)
-      CASE DEFAULT ! should not happen
-        WRITE(*,*)'Boundary_PIC: Adsorption error.'
-        CALL Abort(&
-__STAMP__,&
-'Boundary_Error: Adsorptionindex switched to unknown value.')
-      END SELECT
+      CALL ReactiveSurfaceTreatment(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap &
+                                    ,ReflectionIndex,BCSideID=BCSideID,opt_reflected=crossedBC)
+    ELSE
+      ! simple reflection (maxwellian scattering)
+      ReflectionIndex=2 ! diffuse reflection
+      CALL RANDOM_NUMBER(RanNum)
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) ReflectionIndex=1 ! perfect reflection
     END IF
+    ! assign right treatment
+    SELECT CASE (ReflectionIndex)
+    CASE(1) !elastic reflection
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                            ,BCSideID=BCSideID,opt_reflected=crossedBC)
+    CASE(2) ! inelastic reflection
+      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
+                            ,BCSideID=BCSideID,opt_reflected=crossedBC)
+    CASE(3) ! reflection performed in reactive treatment routine
+    CASE DEFAULT
+      CALL abort(&
+__STAMP__&
+,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex',IntInfoOpt=ReflectionIndex)
+    END SELECT
   ELSE
     ! not inside any-more, removed in last step
     crossedBC=.TRUE.

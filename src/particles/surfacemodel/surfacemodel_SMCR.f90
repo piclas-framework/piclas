@@ -187,7 +187,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
     outSpec(1) = 0
     outSpec(2) = iSpec
     AdsorptionEnthalpie = 0.
-    adsorption_case = -1
+    adsorption_case = 2
     RETURN
   END IF
 !END IF
@@ -198,7 +198,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !  outSpec(1) = 0
 !  outSpec(2) = iSpec
 !  AdsorptionEnthalpie = 0.
-!  adsorption_case = -1
+!  adsorption_case = 2
 !  RETURN
 !END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -419,7 +419,7 @@ DO ReactNum = 0,Adsorption%ReactNum
   sum_probabilities = sum_probabilities + ProbAds(ReactNum)
 END DO
 ! initialize adsorption case
-adsorption_case = 0
+adsorption_case = 1
 AdsorptionEnthalpie = 0.
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! choose which adsorption type takes place
@@ -433,12 +433,12 @@ IF (sum_probabilities .GT. RanNum) THEN
     IF ((ProbAds(ReactNum)/sum_probabilities).GT.RanNum) THEN
       IF (ReactNum.EQ.0) THEN
         ! if molecular adsorption set output parameters
-        adsorption_case = 1
+        adsorption_case = 3
         outSpec(1) = 0
         outSpec(2) = iSpec
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.LE.Adsorption%DissNum) THEN
         ! if dissocciative adsorption set output parameters
-        adsorption_case = 2
+        adsorption_case = 4
         DissocReactID = ReactNum
         outSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
         outSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
@@ -452,7 +452,7 @@ IF (sum_probabilities .GT. RanNum) THEN
         AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.GT.Adsorption%DissNum) THEN
         ! if ER-reaction set output parameters
-        adsorption_case = 3
+        adsorption_case = 5
         RecombReactID = ReactNum - Adsorption%DissNum
         outSpec(1) = Adsorption%RecombReact(1,RecombReactID,iSpec)
         outSpec(2) = Adsorption%RecombReact(2,RecombReactID,iSpec)
@@ -470,7 +470,7 @@ IF (sum_probabilities .GT. RanNum) THEN
     sum_probabilities = sum_probabilities - ProbAds(ReactNum)
   END DO
 #if (PP_TimeDiscMethod==42)
-  IF (adsorption_case.GT.0) THEN
+  IF (adsorption_case.GT.2) THEN
     iSampleReact = 1 + ReactNum
     IF (DSMC%ReservoirRateStatistic) THEN
       SurfModel%ProperInfo(iSpec)%NumAdsReact(iSampleReact) = &
@@ -489,7 +489,7 @@ IF (sum_probabilities .GT. RanNum) THEN
 #endif
 END IF
 
-IF (DSMC%ReservoirSurfaceRate) adsorption_case = 0
+IF (DSMC%ReservoirSurfaceRate) adsorption_case = 1
 
 DEALLOCATE(ProbAds,NeighbourID)
 
