@@ -26,7 +26,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE IdentifyHaloMPINeighborhood
   MODULE PROCEDURE IdentifyHaloMPINeighborhood
 END INTERFACE
@@ -2929,6 +2929,6 @@ END IF !MPIroot
 DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
 
 END SUBROUTINE WriteParticleMappingPartitionInformation
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Halo

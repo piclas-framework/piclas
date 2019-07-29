@@ -793,11 +793,11 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound
 REAL                              :: xi(1:3),Distance2,Det(6,2)
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: XiDir,locSideID,flip,SideID
 REAL                              :: locXi,locEta,tmpXi
 INTEGER                           :: Moved(2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ParticleFound = .FALSE.
 IF (KeepWallParticles) THEN
@@ -909,7 +909,7 @@ DO iBGMElem=1,nBGMElems
     ELSE
      InElementCheck=.TRUE.
      ! inelementcheck can only be set to false in the following part
-#ifdef MPI
+#if USE_MPI
 !     ! check if xi is larger than unity, than the
 !     ! particle is found at least twice
      IF(MAXVAL(ABS(Xi)).GT.0.99999999)THEN ! particle possible outside
@@ -985,7 +985,7 @@ __STAMP__&
          END IF
        END IF
      END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
     END IF
   ELSE ! particle at face,edge or node, check most possible point
     InElementCheck=.FALSE.
@@ -1640,11 +1640,11 @@ USE MOD_ReadInTools            ,ONLY: GetRealArray,GetLogical
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalElems,nTotalBCSides, FindNeighbourElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: XiEtaZetaBasis,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitHALOMesh, AddHaloNodeData
 USE MOD_Particle_MPI_Vars      ,ONLY: printMPINeighborWarnings,printBezierControlPointsWarnings
 USE MOD_PICDepo_Vars           ,ONLY: CellLocNodes_Volumes, DepositionType
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_PICDepo_Vars           ,ONLY: ElemRadius2_sf,DepositionType,DoSFLocalDepoAtBounds
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
@@ -1700,7 +1700,7 @@ END IF
 CALL GetElemAndSideType()
 
 StartT=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...'
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.FALSE.')
@@ -1711,7 +1711,7 @@ CALL InitHaloMesh()
 IF(.NOT.DoRefMapping)THEN
   CALL MarkAllBCSides()
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(nTotalElems.GT.PP_nElems)THEN
   ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems))
@@ -1790,14 +1790,14 @@ IF (FindNeighbourElems) THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Neighbourhood ...'
   END IF
   CALL NodeNeighbourhood()
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%MPIROOT)THEN
      WRITE(UNIT_stdOut,'(A)') ' Node-Communication ...'
   END IF
   CALL BuildLocNodeToHaloNodeComm()
   ! calculate additional volumes and weightings for halo region if deposition type is "cell_volume_mean"
   IF (TRIM(DepositionType).EQ.'cell_volweight_mean') CALL AddHaloNodeData(CellLocNodes_Volumes)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 
 SDEALLOCATE(XiEtaZetaBasis)
@@ -1819,13 +1819,13 @@ IF(DoRefMapping) THEN
   DEALLOCATE( SideOrigin, SideRadius)
 END IF
 
-#ifdef MPI
+#if USE_MPI
 ! Output halo element info
 CalcHaloInfo = GETLOGICAL('CalcHaloInfo')
 IF(CalcHaloInfo)THEN
   CALL SetHaloInfo()
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A)')' ... DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1854,13 +1854,13 @@ USE MOD_Particle_Vars        ,ONLY: manualtimestep
 USE MOD_Particle_Vars        ,ONLY: dt_part_ratio
 #endif
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis2D
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI         ,ONLY: InitHALOMesh
 USE MOD_Particle_Mesh_Vars   ,ONLY: FIBGMCellPadding
 USE MOD_PICDepo_Vars         ,ONLY: DepositionType, r_sf
 USE MOD_Particle_MPI_Vars    ,ONLY: PartMPI
 USE MOD_Particle_Mesh_Vars   ,ONLY: NbrOfCases,casematrix
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars        ,ONLY: RK_c,nRKStages
 #endif
@@ -1886,7 +1886,7 @@ INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
 REAL                             :: globalDiag
-#ifdef MPI
+#if USE_MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
 INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
@@ -1902,21 +1902,21 @@ INTEGER                          :: tempproclist(0:PartMPI%nProcs-1)
 INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 INTEGER                          :: ind, Shift(1:3), iCase
 INTEGER                          :: j_offset
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                          :: iStage
 #endif
 !===================================================================================================================================
 
 ! zeros
-#ifdef MPI
+#if USE_MPI
 ii=0
 jj=0
 kk=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
-#ifdef MPI
+#if USE_MPI
 ! allocate and initialize MPINeighbor
 ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
 PartMPI%isMPINeighbor(:) = .FALSE.
@@ -1926,7 +1926,7 @@ PartMPI%nMPINeighbors=0
 CALL InitPeriodicBC()
 
 ! deallocate stuff // required for dynamic load balance
-#ifdef MPI
+#if USE_MPI
 IF (ALLOCATED(GEO%FIBGM)) THEN
   DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
     DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
@@ -1940,7 +1940,7 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !--- compute number of background cells in each direction
 !BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
@@ -2000,7 +2000,7 @@ halo_eps = halo_eps*halo_eps_velo*deltaT*SafetyFactor !dt multiplied with maximu
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 
-#ifdef MPI
+#if USE_MPI
 ! Check whether halo_eps is smaller than shape function radius
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   IF(halo_eps.LT.r_sf)THEN
@@ -2009,7 +2009,7 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     CALL PrintOption('max. RKdtFrac','CALCUL.',RealOpt=halo_eps)
   END IF
 END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! limit halo_eps to diagonal of bounding box
 globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
@@ -2025,7 +2025,7 @@ halo_eps2=halo_eps*halo_eps
 CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
 
 
-#ifdef MPI
+#if USE_MPI
 ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical', 'shape_function_spherical', 'shape_function_simple'
 IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
   ! and changed, tooo
@@ -2052,11 +2052,11 @@ IF (ALLOCSTAT.NE.0) THEN
   WRITE(*,'(A,6(I0,A))')'Problem allocating GEO%FIBGM(',BGMimin,':',BGMimax,',', &
                                                         BGMjmin,':',BGMjmax,',', &
                                                         BGMkmin,':',BGMkmax,')'
-#ifdef MPI
+#if USE_MPI
   iProc=PartMPI%MyRank
 #else
   iProc=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL abort(&
 __STAMP__&
 , 'Problem allocating GEO%FIBGM!' )
@@ -2124,7 +2124,7 @@ END DO ! iElem
 
 !IF(mode.EQ.2) RETURN
 SWRITE(UNIT_stdOut,'(A)')' Building MPI-FIBGM ...'
-#ifdef MPI
+#if USE_MPI
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
@@ -2561,7 +2561,7 @@ DO Cell=0, BGMCells-1
   END IF
 END DO !Cell
 DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetFIBGM
 
@@ -3758,9 +3758,9 @@ SUBROUTINE InitElemBoundingBox()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 !USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3772,10 +3772,10 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 ! first communicate the bezierControlPoints (slave information is missing)
 CALL ExchangeBezierControlPoints3D()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE InitElemBoundingBox
@@ -4413,7 +4413,7 @@ ELSE ! .NOT.DoRefMapping
           nTotalBCElems=nTotalBCElems+1
         END IF ! count only single
       END IF
-#ifdef MPI
+#if USE_MPI
       IF(SideID.GT.nSides)THEN ! halo elements
         IF(BC(SideID).NE.0)THEN
           IF(.NOT.IsTracingBCElem(iElem))THEN
@@ -4943,9 +4943,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalSides,IsTracingBCElem,nTotalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nPartSides
 USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalBCSides
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_HALO      ,ONLY: WriteParticlePartitionInformation
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -4959,10 +4959,10 @@ INTEGER                                  :: nBCElems,nBCelemsTot
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
 INTEGER                                  :: nLinearElems, nCurvedElems, nCurvedElemsTot
-#ifdef MPI
+#if USE_MPI
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
                                             nBilinearHalo,nCurvedHalo,nCurvedElemsHalo,nLinearElemsHalo,nBCElemsHalo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                                  :: nLoop
 !===================================================================================================================================
 
@@ -4975,7 +4975,7 @@ nCurved                    = 0
 nBCElems                   = 0
 nCurvedElems               = 0
 nLinearElems               = 0
-#ifdef MPI
+#if USE_MPI
 nPlanarRectangularHalo     = 0
 nPlanarNonRectangularHalo  = 0
 nPlanarCurvedHalo          = 0
@@ -4984,7 +4984,7 @@ nCurvedHalo                = 0
 nCurvedElemsHalo           = 0
 nLinearElemsHalo           = 0
 nBCElemsHalo               = 0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iElem=1,nTotalElems
   ! count elements by type and in own and halo region
@@ -4997,7 +4997,7 @@ DO iElem=1,nTotalElems
     IF(IsTracingBCElem(iElem))THEN
       nBCElems=nBCElems+1
     END IF ! count only single
-#ifdef MPI
+#if USE_MPI
   ELSE
     IF(CurvedElem(iElem)) THEN
       nCurvedElemsHalo=nCurvedElemsHalo+1
@@ -5007,7 +5007,7 @@ DO iElem=1,nTotalElems
     IF(IsTracingBCElem(iElem))THEN
       nBCElemsHalo=nBCElemsHalo+1
     END IF ! count only single
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
 END DO
 nLoop = nTotalSides
@@ -5026,7 +5026,7 @@ DO iSide=1,nLoop
     CASE (CURVED)
       nCurved = nCurved+1
     END SELECT
-#ifdef MPI
+#if USE_MPI
   ELSE IF (iSide.GT.nPartSides) THEN
     SELECT CASE(SideType(iSide))
     CASE (PLANAR_RECT)
@@ -5040,11 +5040,11 @@ DO iSide=1,nLoop
     CASE (CURVED)
       nCurvedHalo = nCurvedHalo+1
     END SELECT
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -5070,7 +5070,7 @@ nPlanarCurvedTot        =nPlanarCurved
 nCurvedTot              =nCurved
 nCurvedElemsTot         =nCurvedElems
 IF(DorefMapping) nBCElemstot=nBCElems
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-rectangular     faces: ', nPlanarRectangulartot
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
@@ -5084,7 +5084,7 @@ END IF
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear            elems: ', nGlobalElems-nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved                 elems: ', nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(132("-"))')
-#ifdef MPI
+#if USE_MPI
 CALL WriteParticlePartitionInformation(nPlanarRectangular+nPlanarNonRectangular,nBilinear,nCurved+nPlanarCurved,                    &
                                        nPlanarRectangularHalo+nPlanarNonRectangularHalo,nBilinearHalo,nCurvedHalo+nPlanarCurvedHalo &
                                       ,nBCElems,nLinearElems,nCurvedElems,nBCElemsHalo,nLinearElemsHalo,nCurvedElemsHalo)
@@ -5205,9 +5205,9 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Mesh_vars
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -5223,10 +5223,10 @@ INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar
 INTEGER(KIND=8)               :: GlobalElemID
 LOGICAL                       :: found
 REAL                          :: Vec1(1:3)
-#ifdef MPI
+#if USE_MPI
 INTEGER                       :: iHaloElem
 INTEGER(KIND=8)               :: HaloGlobalElemID
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY ... '
@@ -5249,11 +5249,11 @@ ElemToGlobalElemID=-1
 DO iElem=1,nTotalElems
   IF(iElem.LE.nElems)THEN
     ElemToGlobalElemID(iElem)=offSetElem+iElem
-#ifdef MPI
+#if USE_MPI
   ELSE
     ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iElem)
     ElemToGlobalElemID(iElem)=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iElem)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
   DO ilocSide=1,6
     DO iMortar=1,4
@@ -5264,7 +5264,7 @@ DO iElem=1,nTotalElems
         PartElemToElemAndSide(iMortar,ilocSide,iElem)=INT(GlobalElemID-OffSetElem,4)
         CYCLE
       END IF
-#ifdef MPI
+#if USE_MPI
       ! neighbor element not found, hence, it can be a halo element
       DO iHaloElem=PP_nElems+1,nTotalElems
         ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iHaloElem)
@@ -5275,7 +5275,7 @@ DO iElem=1,nTotalElems
           EXIT
         END IF
       END DO ! iHaloElem=1,nTotalElems
-#endif /*MPI*/
+#endif /*USE_MPI*/
     END DO ! iMortar=1,4
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
@@ -5446,7 +5446,7 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
 SWRITE(UNIT_stdOut,'(A)')' BUILD MESH-CONNECTIVITY SUCCESSFUL '
@@ -5465,11 +5465,11 @@ USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: nNodes
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, PartElemToElemAndSide
 #ifdef CODE_ANALYZE
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_MPI_Vars  ,ONLY: PartHaloElemToProc
 USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -5490,16 +5490,16 @@ INTEGER                :: iElem, jNode
 INTEGER                :: iNode
 INTEGER                :: TempHaloElems(1:500)
 INTEGER                :: TempHaloNumElems
-!#ifdef MPI
+!#if USE_MPI
 !LOGICAL                :: HaloNeighNode(1:nNodes)
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 LOGICAL                :: ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 
-!#ifdef MPI
+!#if USE_MPI
 !! set nodes of sides with halo element connected to it as HaloNeighNodes
 !GEO%HaloNeighNode(:) = .FALSE.
 !DO iElem=1,nElems
@@ -5518,7 +5518,7 @@ SWRITE(UNIT_stdOut,'(A)')' BUILD NODE-NEIGHBOURHOOD ... '
 !  END IF
 !END DO
 !#endif /*CODE_ANALYZE*/
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 
 ALLOCATE(GEO%NumNeighborElems(1:PP_nElems))
 ALLOCATE(GEO%ElemToNeighElems(1:PP_nElems))
@@ -5646,7 +5646,7 @@ END DO
 #ifdef CODE_ANALYZE
 ! write some code analyze output of connectivity
 DO iElem=1,PP_nElems
-#ifdef MPI
+#if USE_MPI
   print*,'Rank: ',MyRank,'------ Element: ',iElem+offsetElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
   print*,'Rank: ',MyRank,'------ Neighbours are:'
   DO l=1,GEO%NumNeighborElems(iElem)
@@ -5660,7 +5660,7 @@ DO iElem=1,PP_nElems
 #else
   print*,'Rank: ',MyRank,'------ Element: ',iElem,' has ',GEO%NumNeighborElems(iElem),' Neighbours'
   print*,'Rank: ',MyRank,'------ Neighbours are:',GEO%ElemToNeighElems(iElem)%ElemID(:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END DO
 
 DO iNode=1,nNodes
@@ -5730,7 +5730,7 @@ END DO
 
 END SUBROUTINE RecurseCheckNeighElems
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE BuildLocNodeToHaloNodeComm()
 !===================================================================================================================================
 !> build all missing stuff for node communication, like
@@ -5990,7 +5990,7 @@ CALL MPI_BARRIER(PartMPI%Comm,iError)
 
 
 END SUBROUTINE BuildLocNodeToHaloNodeComm
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 SUBROUTINE DuplicateSlavePeriodicSides()
@@ -6333,7 +6333,7 @@ __STAMP__&
   END DO
 END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
 #endif
 SWRITE(UNIT_StdOut,'(A)') ' Sanity check of duplication successful!'
@@ -6518,9 +6518,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Mesh_Vars              ,ONLY: MortarSlave2MasterInfo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,nTotalSides
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -6570,7 +6570,7 @@ GEO%ymax=ymax
 GEO%zmin=zmin
 GEO%zmax=zmax
 
-#ifdef MPI
+#if USE_MPI
 ! get global min, max
   CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
   CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
@@ -6944,7 +6944,7 @@ END IF
 END SUBROUTINE CheckBoundsWithCartRadius
 
 
-#ifdef MPI
+#if USE_MPI
 !===================================================================================================================================
 !> For each rank an ElemData array 'ElemHaloInfo' is created, which contains information regarding the halo region of each rank
 !> ElemHaloInfo = 0: element not in list
@@ -7245,7 +7245,7 @@ SDEALLOCATE(HaloInfoMPIExchange%RecvRequest)
 SDEALLOCATE(HaloElemTargetProc)
 
 END SUBROUTINE SetHaloInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 END MODULE MOD_Particle_Mesh

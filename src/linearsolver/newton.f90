@@ -83,9 +83,9 @@ INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rTmp(1:8), locMass
 REAL                       :: rRel
 LOGICAL                    :: warning_linear
-#ifdef MPI
+#if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 Norm_R         =0.
@@ -165,7 +165,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 #endif /*DG*/
 
-#ifdef MPI
+#if USE_MPI
 NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
@@ -229,13 +229,13 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_ParticleSolver,          ONLY:ParticleNewton
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools,       ONLY:LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -286,7 +286,7 @@ IF (t.GE.DelayTime) THEN
   END IF
 END IF
 
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -327,7 +327,7 @@ END IF
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ! map particle from gamma v to v
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE
@@ -506,7 +506,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     END IF ! PartRelaxationFac>0
     IF(.NOT.DoFullNewton)THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
       CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -547,7 +547,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! map particle from gamma v to v
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! compute particle source terms on field solver of implicit particles :)
@@ -673,7 +673,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
     ! and update norm with this information. maybe, we should use the correct norm
     IF (t.GE.DelayTime) THEN
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
+#if USE_MPI
 #if USE_LOADBALANCE
       CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -714,7 +714,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
       ! map particle from gamma v to v
       CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #if USE_LOADBALANCE

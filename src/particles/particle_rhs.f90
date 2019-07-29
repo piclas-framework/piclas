@@ -200,7 +200,7 @@ FUNCTION SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,           ONLY : MyRank
 #endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
@@ -262,7 +262,7 @@ FUNCTION FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,           ONLY : MyRank
 #endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
@@ -350,7 +350,7 @@ FUNCTION ACCELERATION_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,           ONLY : abort
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals,           ONLY : MyRank
 #endif
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies

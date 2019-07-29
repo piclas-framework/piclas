@@ -169,7 +169,7 @@ USE MOD_Equation_Vars          ,ONLY: B,E
 #if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 USE MOD_Particle_Vars,        ONLY:DoSurfaceFlux
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-#ifdef MPI
+#if USE_MPI
 ! only required for shape function??  only required for shape function??
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
@@ -209,13 +209,13 @@ IF(doInnerParts)THEN
   firstPart=1
   lastPart =PDM%ParticleVecLength
 ELSE
-#ifdef MPI
+#if USE_MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
 #else
   firstPart=2
   LastPart =1
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
@@ -715,7 +715,7 @@ END IF
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   field(1:6)=0.
   ElemID=PEM%Element(PartID)
-#ifdef MPI
+#if USE_MPI
   IF(ElemID.GT.PP_nElems) RETURN
 #endif
   SELECT CASE(TRIM(InterpolationType))

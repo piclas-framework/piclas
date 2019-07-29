@@ -659,13 +659,13 @@ REAL                :: ETotal, totalChemEnergySum
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze)
 #endif
-#ifdef MPI
+#if USE_MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: sumMeanCollProb
 #endif
 REAL                :: RECBR(nSpecies),RECBR1
 INTEGER             :: RECBIM(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase, iTvib,jSpec
@@ -1048,7 +1048,7 @@ INTEGER             :: dir
       ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
       IF(CollisMode.EQ.3) THEN
         totalChemEnergySum = 0.
-#ifdef MPI
+#if USE_MPI
         IF(PartMPI%MPIRoot) THEN
           CALL MPI_REDUCE(ChemEnergySum,totalChemEnergySum,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
         ELSE
@@ -1098,7 +1098,7 @@ INTEGER             :: dir
 ! MPI Communication for values which are not YET communicated
 ! All routines ABOVE contain the required MPI-Communication
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
   IF (PartMPI%MPIRoot) THEN
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1182,7 +1182,7 @@ INTEGER             :: dir
       END IF
     END IF
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
 IF(PartMPI%MPIRoot) THEN
@@ -1246,9 +1246,9 @@ END IF
 !===================================================================================================================================
 ! Output Routines
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 IF (PartMPI%MPIROOT) THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
     IF (CalcNumSpec) THEN
       DO iSpec=1, nSpecAnalyze
@@ -1475,9 +1475,9 @@ IF (PartMPI%MPIROOT) THEN
     END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' '
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 ! Reset output variables
 IF(CalcPorousBCInfo) THEN
@@ -1530,7 +1530,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1605,7 +1605,7 @@ CASE('AllParts')
     END IF ! inside
   END DO ! i
 IF(NbrOfComps.GT.0.0)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PartMPI%MyRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
   WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PartMPI%MyRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
 #else
@@ -1666,7 +1666,7 @@ CASE('SomeParts')
       END IF ! inside
   END DO ! i
 IF(NbrOfComps.GT.0)THEN
-#ifdef MPI
+#if USE_MPI
   WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PartMPI%MyRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
   WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PartMPI%MyRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
 #else
@@ -1735,9 +1735,9 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #ifndef PP_HDG
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1830,13 +1830,13 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   END DO ! particleveclength
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
 ELSE
   CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcKineticEnergy
 
@@ -1858,9 +1858,9 @@ USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #ifndef PP_HDG
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*PP_HDG*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1966,7 +1966,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   END DO ! particleveclength
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE , EkinMax , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
@@ -1974,7 +1974,7 @@ ELSE
   CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
   CALL MPI_REDUCE(EkinMax      , 0.      , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcKineticEnergyAndMaximum
 
@@ -1995,7 +1995,7 @@ USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2030,7 +2030,7 @@ IF(nSpecAnalyze.GT.1)THEN
   SimNumSpec(nSpecAnalyze) = SUM(SimNumSpec(1:nSpecies))
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF (PartMPI%MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(CalcNumSpec) &
@@ -2040,7 +2040,7 @@ ELSE
   IF(CalcNumSpec) &
   CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_LONG            ,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcNumPartsOfSpec
 
@@ -2241,13 +2241,13 @@ DO i=1,PDM%ParticleVecLength
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 ELSE
   CALL MPI_REDUCE(PartVandV2  ,PartVandV2,nSpecies*6,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(PartMPI%MPIRoot)THEN
   DO iSpec=1, nSpecies
@@ -2313,9 +2313,9 @@ REAL,INTENT(OUT)               :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)
 INTEGER                        :: iSpec
 INTEGER                        :: i
 INTEGER                        :: dir
-#ifdef MPI
+#if USE_MPI
 REAL                           :: RD(nSpecies*4)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ! Compute velocity averages
   PartVtrans = 0.
@@ -2336,13 +2336,13 @@ REAL                           :: RD(nSpecies*4)
     END IF
   END DO
 
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%MPIRoot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PartVtrans ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   ELSE
     CALL MPI_REDUCE(PartVtrans  ,RD         ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   IF(PartMPI%MPIRoot)THEN
     IF (usevMPF) THEN
@@ -2372,9 +2372,9 @@ REAL                           :: RD(nSpecies*4)
     END IF !usevMPF
   END IF
 
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BCAST(PartVtrans,4*nSpecies, MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   ! calculate thermal velocity
   DO i=1,PDM%ParticleVecLength
@@ -2393,13 +2393,13 @@ REAL                           :: RD(nSpecies*4)
     END IF
   END DO
 
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%MPIRoot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PartVtherm,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   ELSE
     CALL MPI_REDUCE(PartVtherm  ,RD        ,4*nSpecies,MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   IF(PartMPI%MPIRoot)THEN
     DO dir = 1,3
@@ -2457,9 +2457,9 @@ REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 ! LOCAL VARIABLES
 INTEGER                        :: iPart, iSpec
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
-#ifdef MPI
+#if USE_MPI
 REAL                           :: RD(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 EVib    = 0.
 ERot    = 0.
@@ -2482,7 +2482,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,EVib ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,ERot ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -2492,7 +2492,7 @@ ELSE
   CALL MPI_REDUCE(ERot        ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF(DSMC%ElectronicModel) CALL MPI_REDUCE(Eelec       ,RD   ,nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! final computation is only done for the root
 IF(PartMPI%MPIRoot)THEN
@@ -2607,18 +2607,18 @@ INTEGER(KIND=8),INTENT(IN)      :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iReac
-#ifdef MPI
+#if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
-#ifdef MPI
+#if USE_MPI
 IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE    ,ChemReac%NumReac,ChemReac%NumOfReact,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
   CALL MPI_REDUCE(ChemReac%NumReac,RD              ,ChemReac%NumOfReact,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
@@ -3233,12 +3233,12 @@ USE MOD_Equation_Vars     ,ONLY: E
 #else
 #endif
 #endif
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPIExchange
 USE MOD_Particle_MPI_Vars ,ONLY: DoExternalParts
 USE MOD_Particle_MPI_Vars ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3274,7 +3274,7 @@ DO iSpec=1,nSpecies
   CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=DoParticle(1:PDM%ParticleVecLength))
 
   ! communicate shape function particles
-#ifdef MPI
+#if USE_MPI
   PartMPIExchange%nMPIParticles=0
   IF(DoExternalParts)THEN
     ! as we do not have the shape function here, we have to deallocate something
@@ -3293,7 +3293,7 @@ DO iSpec=1,nSpecies
     ! set exchanged number of particles to zero
     PartMPIExchange%nMPIParticles=0
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   ! compute source terms
   ! compute particle source terms on field solver of considered species

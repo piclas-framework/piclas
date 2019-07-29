@@ -118,7 +118,7 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
 TYPE tFastInitBGM
   INTEGER                                :: nElem             ! Number of elements in background mesh cell
   INTEGER, ALLOCATABLE                   :: Element(:)        ! List of elements/physical cells in BGM cell
-#ifdef MPI
+#if USE_MPI
   INTEGER, ALLOCATABLE                   :: ShapeProcs(:)     ! first Entry: Number of Shapeprocs,
                                                               ! following: ShapeProcs
   INTEGER, ALLOCATABLE                   :: PaddingProcs(:)   ! first Entry: Number of Paddingprocs,

@@ -611,9 +611,11 @@ IF(PICLAS_MPI)
     LIST(APPEND linkedlibs ${MPI_Fortran_LIBRARIES})
   ENDIF()
   MARK_AS_ADVANCED(MPI_LIBRARY MPI_EXTRA_LIBRARY) # don't show these ones
-  ADD_DEFINITIONS(-DMPI)
   MESSAGE(STATUS "Building PICLas with MPI")
   MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+  ADD_DEFINITIONS(-DUSE_MPI=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_MPI=0)
 ENDIF()
 
 # ========================================================================

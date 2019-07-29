@@ -91,9 +91,9 @@ END IF
 IF (.NOT.DoFieldAnalyze) RETURN
 OutputCounter = 2
 unit_index = 537
-#ifdef MPI
+#if USE_MPI
 IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
   INQUIRE(UNIT   = unit_index , OPENED = isOpen)
   IF (.NOT.isOpen) THEN
     outfile = 'FieldAnalyze.csv'
@@ -134,9 +134,9 @@ IF(MPIROOT)THEN
        WRITE(unit_index,'(A14)') ' '
     END IF
   END IF
-#ifdef MPI
+#if USE_MPI
 END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 IF(CalcEpot)THEN
   ! energy of
@@ -154,9 +154,9 @@ END IF
 IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
 #endif
 
-#ifdef MPI
+#if USE_MPI
  IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
    WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
    IF (CalcEpot) THEN
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -177,9 +177,9 @@ IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
      END DO
    END IF
    WRITE(unit_index,'(A1)') ' '
-#ifdef MPI
+#if USE_MPI
  END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 
 END SUBROUTINE AnalyzeField
@@ -197,7 +197,7 @@ USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars            ,ONLY: U,U_master
 USE MOD_Equation_Vars      ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
-#ifdef MPI
+#if USE_MPI
   USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -214,7 +214,7 @@ INTEGER          :: iElem, SideID,ilocSide,iPoyntingSide
 INTEGER          :: p,q,l
 REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
 REAL             :: SIP(0:PP_N,0:PP_N)
-#ifdef MPI
+#if USE_MPI
 REAL             :: SumSabs(nPoyntingIntPlanes)
 #endif
 LOGICAL          :: Prolong=.TRUE.
@@ -364,10 +364,10 @@ DO iELEM = 1, nElems
   END DO ! iSides
 END DO ! iElems
 
-#ifdef MPI
+#if USE_MPI
   CALL MPI_REDUCE   (PoyntingIntegral(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
   PoyntingIntegral(:) = sumSabs(:)
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcPoyntingIntegral
 #endif
@@ -457,7 +457,7 @@ USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
 USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 USE MOD_Globals         ,ONLY: abort
-#ifdef MPI
+#if USE_MPI
 USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -601,7 +601,7 @@ DO iPlane = 1, nPoyntingIntPlanes
 END DO ! iPlanes
 
 ! Dielectric sides:
-#ifdef MPI
+#if USE_MPI
 ! Send info to ALL MPI ranks:
 ! TODO: If 1/mu_r is never needed on master AND slave procs, this routine can be adjusted so that only master procs determine the
 ! prolonged values of mu_r and no MPI information has to be sent. The master side cannot currently be outside of the dielectric
@@ -616,7 +616,7 @@ IF(PoyntingUseMuR_Inv) CALL SetDielectricFaceProfileForPoynting()
 #endif /*(PP_nVar>=6)*/
 
 ALLOCATE(sumFaces(nPoyntingIntPlanes))
-#ifdef MPI
+#if USE_MPI
 sumFaces=0
 sumAllFaces=0
   CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
@@ -626,7 +626,7 @@ sumAllFaces=0
 #else
 sumFaces=nFaces
 sumAllFaces=nPoyntingIntSides
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 DO iPlane= 1, nPoyntingIntPlanes
   SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
@@ -690,8 +690,6 @@ USE MOD_Equation_Vars,        ONLY:B,E
 #else
 USE MOD_PML_Vars,             ONLY:DoPML,isPMLElem
 #endif /*PP_HDG*/
-#ifdef MPI
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -708,7 +706,7 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
 #ifndef PP_HDG
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
-#ifdef MPI
+#if USE_MPI
 REAL              :: RD
 #endif
 !===================================================================================================================================
@@ -772,12 +770,11 @@ END DO
 
 WEl = WEl * eps0 * 0.5
 WMag = WMag * smu0 * 0.5
-
 ! caution: change of coefficients for divergence energies
 Wphi = Wphi * eps0*0.5
 Wpsi = Wpsi * smu0*0.5
 
-#ifdef MPI
+#if USE_MPI
 ! todo: only one reduce with array
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
@@ -790,7 +787,7 @@ ELSE
   CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcPotentialEnergy
 
@@ -828,8 +825,6 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*PP_HDG*/
-#ifdef MPI
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -846,7 +841,7 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
 #ifndef PP_HDG
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
-#ifdef MPI
+#if USE_MPI
 REAL              :: RD
 #endif
 !===================================================================================================================================
@@ -962,7 +957,7 @@ WMag = WMag * smu0 * 0.5
 Wphi = Wphi * eps0*0.5
 Wpsi = Wpsi * smu0*0.5
 
-#ifdef MPI
+#if USE_MPI
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
@@ -970,7 +965,7 @@ ELSE
   CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE CalcPotentialEnergy_Dielectric
 
@@ -999,7 +994,7 @@ USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_in
 USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricMu
 USE MOD_Mesh_Vars       ,ONLY: nSides
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI             ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
@@ -1015,11 +1010,11 @@ IMPLICIT NONE
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Master
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,1:nSides)           :: Dielectric_dummy_Slave
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_elem
-#ifdef MPI
+#if USE_MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
 INTEGER                                                  :: I,J,iSide
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                                                  :: iElem
 !===================================================================================================================================
 ! General workflow:
@@ -1055,7 +1050,7 @@ END DO
 !3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
-#ifdef MPI
+#if USE_MPI
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
   CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
@@ -1085,7 +1080,7 @@ CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 
   CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
   CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! 6.  Allocate the actually needed arrays containing the dielectric material information on the sides
 ALLOCATE(Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,1:nSides))
@@ -1094,13 +1089,13 @@ ALLOCATE(Dielectric_MuR_Slave_inv( 0:PP_N,0:PP_N,1:nSides))
 
 ! 7.  With MPI, use dummy array which was used for sending the MPI data
 !     or with single execution, directly use prolonged data on face
-#ifdef MPI
+#if USE_MPI
   Dielectric_MuR_Master_inv=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
   Dielectric_MuR_Slave_inv =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
 #else
   Dielectric_MuR_Master_inv=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
   Dielectric_MuR_Slave_inv =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 IF(MINVAL(Dielectric_MuR_Master_inv).LE.0.0)THEN

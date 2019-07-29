@@ -25,9 +25,9 @@ SAVE
 ! DG Operator
 REAL,ALLOCATABLE                      :: R_xkEps(:,:,:,:),XK(:,:,:,:),RXK(:,:,:,:)
 LOGICAL                               :: PrecondFDInitIsDone=.FALSE.
-#ifdef MPI
+#if USE_MPI
 INTEGER                               :: MPIPrecondDummy
-#endif /*MPI*/
+#endif /*USE_MPI*/
 REAL                                  :: rEps0,srEps0               ! SQRT(EPSILON(0.0)), used for EpsFD
 !===================================================================================================================================
 END MODULE MOD_Jac_FD_Vars
