@@ -2994,7 +2994,10 @@ t=6000 ! to be solved
 !  IF(CollInf%diameterCase.EQ.0) THEN ! via d(dref)
     ! dref-based diameter bird to be solved ansonsten krishnan 
     diameter_squared     = CollInf%dref(Spec1ID,Spec2ID) * (CollInf%Tref(Spec1ID,Spec2ID)/T) &
-                         ** (2 * CollInf%omega(Spec1ID,Spec2ID)) ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
+                         ** (2 * CollInf%omega(Spec1ID,Spec2ID)) 
+                       
+                       ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
+! d.h. brauche makroskopischen Wert, um mikroskopischen Wert. Also Sackgasse
   !  WRITE(*,*) "diameter_Squared d(ref)", diameter_squared
  ! ELSE ! via d(muref)
     energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
@@ -3008,7 +3011,7 @@ t=6000 ! to be solved
 !DEBUG    WRITE(*,*) "energy_translational",energy_translational
 !DEBUG    WRITE(*,*) "CollInf%muref(Spec1ID,Spec2ID)",CollInf%muref(Spec1ID,Spec2ID)
 !DEBUG    WRITE(*,*) "CollInf%alphaVSS(Spec1ID,Spec2ID)",CollInf%alphaVSS(Spec1ID,Spec2ID)
-!DEBUG    WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
+WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
 !DEBUG  !END IF
 !DEBUG  DSMC_Cross_Section    = PI*diameter_squared
 !DEBUG  WRITE(*,*) "dsmc_cross_section",DSMC_cross_section
