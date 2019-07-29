@@ -2634,43 +2634,38 @@ IMPLICIT NONE
 REAL,INTENT(OUT)                 :: meanCrossSection(:) ! averaged total cross section 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: nPair, iElem ,ipair! to sum up all cross sections of all colliding particles in all elements
-INTEGER                        :: Spec1ID,Spec2ID 
+INTEGER                        :: nPair, iElem ,ipair! to sum up all cross sections of all colliding particles
+INTEGER                        :: iSpec,jSpec 
 !-----------------------------------------------------------------------------------------------------------------------------------
 !definition
-  Spec1ID    = PartSpecies(Coll_pData(iPair)%iPart_p1)
-  Spec2ID    = PartSpecies(Coll_pData(iPair)%iPart_p2)
+  iSpec    = PartSpecies(Coll_pData(iPair)%iPart_p1)
+  jSpec    = PartSpecies(Coll_pData(iPair)%iPart_p2)
 
 ! reset to zero
-meanCrossSection(:)=0.0 
 iColl=0
-Spec1
-Spec2
 ! to be solved- array mit zuordnung wer kollidiert? elems und coll muss auch laufen
-DO iElem = 1,nElems ! da nicht mpf muss es über alle elemente gemacht werden to be solved
   npair=PEM%pNumber(iElem)/2
                                                 !DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
                                                 !  sigma_t(iColl) = Coll_pData(iColl)%sigma(0) 
                                                 
   ! summing up all sigma(0)=sigma_t over all collisions
   DO iPair = 1,npair
-    DO Spec1 = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
-      DO Spec2 = Spec1,nSpec 
-        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(Spec1,Spec2)) THEN 
-          meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) = meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) + &
+    DO iSpec = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
+      DO jSpec = iSpec,nSpec 
+        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(iSpec,jSpec)) THEN 
+          meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) + &
                                                                Coll_pData(iPair)%sigma_t
         END IF
-      END DO !Spec2
-    END DO !Spec1
+      END DO !jSpec
+    END DO !iSpec
   END DO ! nPair
-END DO !iElem
 ! the arithmetric mean is determined
-DO Spec1 = 1,nSpec       !these two loops are used to get a collision-specific total averaged cross section 
-  DO Spec2 = Spec1,nSpec 
-      meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) = meanCrossSection(CollInf%Coll_Case(Spec1,Spec2)) /  &
-                                                           DSMC%NumColl(CollInf%Coll_Case(Spec1,Spec2))
-  END DO !Spec2
-END DO !Spec1
+DO iSpec = 1,nSpec       !these two loops are used to get a collision-specific total averaged cross section 
+  DO jSpec = iSpec,nSpec 
+      meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) /  &
+                                                           DSMC%NumColl(CollInf%Coll_Case(iSpec,jSpec))
+  END DO !jSpec
+END DO !iSpec
 meanCrossSection(CollInf%NumCase+1) = SUM(meanCrossSection(:))/ REAL(DSMC%NumColl(CollInf%NumCase+1)) ! total sigma_t 
 END SUBROUTINE CrossSection
 #endif

@@ -326,7 +326,7 @@ TYPE tPairData
                                                              !       3: sigma excitation
   REAL                          :: sigma_t                 ! not sure if sigma(0) gets overwritten somewhere
   REAL                          :: CollProbCount           ! not sure if sigma(0) gets overwritten somewhere
-  REAL                          :: CollCount               ! not sure if sigma(0) gets overwritten somewhere
+  REAL                          :: CollCount ! to be solved not matrix(:,:)          ! not sure if sigma(0) gets overwritten somewhere
   REAL                          :: Ec                      ! Collision Energy
   LOGICAL                       :: NeedForRec              ! Flag if pair is needed for Recombination
 END TYPE tPairData

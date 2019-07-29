@@ -65,7 +65,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
   collPart1ID = Coll_pData(iPair)%iPart_p1
   collPart2ID = Coll_pData(iPair)%iPart_p2
-
+ ! iSpec       = PartSpecies(collPart1ID)
+ ! jSpec       = PartSpecies(collPart2ID)
   IF(DSMC%CalcQualityFactors) THEN  
     IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
       DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(collPart1ID,1) &
@@ -77,12 +78,25 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
       DSMC%CollSepCount = DSMC%CollSepCount + 1
     END IF
   END IF
-
-!
-!
-!          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
-!          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
-!
+!  npair=PEM%pNumber(iElem)/2
+                                                !DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
+                                                !  sigma_t(iColl) = Coll_pData(iColl)%sigma(0) 
+                                                
+!  ! summing up all sigma(0)=sigma_t over all collisions
+!  DO iPair = 1,npair
+!    DO iSpec = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
+!      DO jSpec = iSpec,nSpec 
+!        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(iSpec,jSpec)) THEN 
+!          meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) + &
+!                                                               Coll_pData(iPair)%sigma_t
+!          CollInf%CollCount(iSpec,jSpec) 
+!        END IF
+!      END DO !jSpec
+!    END DO !iSpec
+!  END DO ! nPair
+! !          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
+!!          CollInf%CollCount(iColl)   = CollInf%CollCount(iColl)    
+!!
 
   SELECT CASE(CollisMode)
     CASE(1) ! elastic collision
@@ -206,8 +220,7 @@ USE MOD_part_tools,               ONLY : GetParticleWeight
   CRelay = PartState(collPart1ID, 5) - PartState(collPart2ID, 5)
   CRelaz = PartState(collPart1ID, 6) - PartState(collPart2ID, 6)
   ! Calculate random vec
-  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(PartSpecies(collPart1ID) &
-             ,PartSpecies(collPart2ID)))
+  RanVec(1:3)=DiceDeflectedVector(Coll_pData(iPair)%CRela2,CRelaX,CRelaY,CRelaZ,CollInf%alphaVSS(Spec1ID,Spec2ID))
   
  ! deltaV particle 1 
   DSMC_RHS(collPart1ID,1) = VeloMx + FracMassCent2*RanVec(1) - PartState(collPart1ID, 4)
@@ -764,7 +777,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
-  REAL                          :: RanVelox, RanVeloy, RanVeloz                 ! random relativ velo
   INTEGER                       :: Spec1ID, Spec2ID, iDOF, iPolyatMole, DOFRelax
   REAL (KIND=8)                 :: iRan
   LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
@@ -2827,7 +2839,7 @@ SUBROUTINE DSMC_calc_P_rot(Spec1ID, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
   USE MOD_Globals_Vars,       ONLY : Pi, BoltzmannConst
-  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, CollInf
+  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2969,7 +2981,7 @@ FUNCTION DSMC_cross_section(iPair,CRela2)
   USE MOD_Globals,            ONLY : Abort
   USE MOD_Globals_Vars,       ONLY : BoltzmannConst, PI
   USE MOD_Particle_Vars,      ONLY : PartSpecies
-  USE MOD_DSMC_Vars,          ONLY : DSMC, CollInf, Coll_pData, SpecDSMC
+  USE MOD_DSMC_Vars,          ONLY : CollInf, Coll_pData ! DSMC,  SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2998,12 +3010,12 @@ t=6000 ! to be solved
                        
                        ! to be solved temperature NACH SIMULATION in Zelle oder des Teilchens
 ! d.h. brauche makroskopischen Wert, um mikroskopischen Wert. Also Sackgasse
-  !  WRITE(*,*) "diameter_Squared d(ref)", diameter_squared
+  WRITE(*,*) "diameter_Squared d(ref)", diameter_squared
  ! ELSE ! via d(muref)
     energy_translational = .5*CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))*CRela2
     ! viscosity-based diameter bird (3.74)
     diameter_squared     = (5 * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 1) * (CollInf%alphaVSS(Spec1ID,Spec2ID) + 2)        &
-                         * (CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID))/PI) ** 0.5                                     & 
+                         * CollInf%MassRed(CollInf%Coll_Case(Spec1ID,Spec2ID)/PI) ** 0.5                                     & 
                          * (BoltzmannConst * CollInf%Tref(Spec1ID,Spec2ID)) ** (CollInf%omega(Spec1ID,Spec2ID) - 0.5))      &
                          / (16 * CollInf%alphaVSS(Spec1ID,Spec2ID) * GAMMA(4.0 - CollInf%omega(Spec1ID,Spec2ID))            &
                          * CollInf%muref(Spec1ID,Spec2ID) * (energy_translational) ** (CollInf%omega(Spec1ID,Spec2ID) - 1.0)) 
@@ -3015,6 +3027,7 @@ WRITE(*,*) "diameter_Squared d(muref)", diameter_squared
 !DEBUG  !END IF
 !DEBUG  DSMC_Cross_Section    = PI*diameter_squared
 !DEBUG  WRITE(*,*) "dsmc_cross_section",DSMC_cross_section
+STOP
 END FUNCTION DSMC_Cross_Section
 
 RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)

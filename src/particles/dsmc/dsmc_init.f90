@@ -693,6 +693,7 @@ SELECT CASE(CollInf%collModel)
         A2 = 0.5 * SQRT(Pi) * CollInf%dref(jSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(jSpec,jSpec))** &
            (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec)))
         CollInf%Cab(iCase) = (A1 + A2)**2 * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
+        WRITE(*,*) "CASE 1" 
 !=====================================================================================================
     CASE(2) ! omega spec 1 , omega spec 2 and averaged omega for Cab
 !=====================================================================================================
@@ -723,6 +724,7 @@ SELECT CASE(CollInf%collModel)
         CollInf%Cab(iCase) = (SQRT(Pi) * CollInf%dref(iSpec,jSpec)*(2*BoltzmannConst*CollInf%Tref(iSpec,jSpec))** &
                              (CollInf%omega(iSpec,jSpec)*0.5) /SQRT(GAMMA(2.0 - CollInf%omega(iSpec,jSpec))))**2        & 
                              * CollInf%MassRed(iCase)** ( - CollInf%omega(iSpec,jSpec))
+        WRITE(*,*) "CASE 4" 
 !=====================================================================================================
     CASE DEFAULT
 !=====================================================================================================
