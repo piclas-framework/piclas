@@ -80,7 +80,7 @@ USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElemAndSide!,Geo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -92,7 +92,7 @@ USE MOD_MPI_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, trinum, iLocSide, iPart, iInit, iSpec, Elem2
-#ifdef MPI
+#if USE_MPI
 INTEGER                 :: SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
 #endif
 CHARACTER(32)           :: hilf
@@ -234,7 +234,7 @@ __STAMP__&
     END IF
   END DO
 
-#ifdef MPI
+#if USE_MPI
   SumOfMPISides = 0
   DO iProc =1, nNbProcs
     SumOfMPISides =SumOfMPISides + nMPISides_MINE_Proc(iProc) + nMPISides_YOUR_Proc(iProc)
@@ -277,7 +277,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 ! INPUT VARIABLES
 !--------------------------------------------------------------------------------------------------!
   INTEGER, INTENT(IN)           :: iPart
-!#ifdef MPI
+!#if USE_MPI
 !#endif
 !===================================================================================================
   iSpec = PartSpecies(iPart)

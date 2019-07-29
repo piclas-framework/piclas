@@ -104,9 +104,9 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                               RK4
                                                               RK14
                                                               ParticleEuler-FieldRK4
-                                                              DSMC 
+                                                              DSMC
                                                               RESERVOIR
-                                                              CN 
+                                                              CN
                                                               ImplicitO3
                                                               ImplicitO4
                                                               Ascher3
@@ -195,6 +195,20 @@ ENDIF()
 
 IF(PICLAS_PARTICLES)
   ADD_DEFINITIONS(-DPARTICLES)
+ELSE()
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
+    MESSAGE(ERROR " Not allowed to used DSMC without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
+    MESSAGE(ERROR " Not allowed to used RESERVOIR without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK")
+    MESSAGE(ERROR " Not allowed to used BGK without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
+    MESSAGE(ERROR " Not allowed to used FP-Flow without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD")
+    MESSAGE(ERROR " Not allowed to used LD without particles.")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "LD-DSMC")
+    MESSAGE(ERROR " Not allowed to used LD-DSMC without particles.")
+  ENDIF()
 ENDIF(PICLAS_PARTICLES)
 
 # =========================================================================
@@ -597,9 +611,11 @@ IF(PICLAS_MPI)
     LIST(APPEND linkedlibs ${MPI_Fortran_LIBRARIES})
   ENDIF()
   MARK_AS_ADVANCED(MPI_LIBRARY MPI_EXTRA_LIBRARY) # don't show these ones
-  ADD_DEFINITIONS(-DMPI)
   MESSAGE(STATUS "Building PICLas with MPI")
   MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+  ADD_DEFINITIONS(-DUSE_MPI=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_MPI=0)
 ENDIF()
 
 # ========================================================================

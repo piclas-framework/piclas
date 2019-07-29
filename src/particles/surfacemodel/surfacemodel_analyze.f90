@@ -205,9 +205,9 @@ USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfMesh
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if ( PP_TimeDiscMethod ==42)
 USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
@@ -259,9 +259,9 @@ IF (SurfMesh%nSides.EQ.0) RETURN
       EXIT
     END IF
   END DO
-#ifdef MPI
+#if USE_MPI
   IF (SurfCOMM%MPIOutputRoot) THEN
-#endif /* MPI */
+#endif /*USE_MPI*/
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
@@ -544,9 +544,9 @@ IF (SurfMesh%nSides.EQ.0) RETURN
         WRITE(unit_index,'(A1)') ' '
       END IF
     END IF
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 !===================================================================================================================================
 ! Analyze Routines
@@ -605,9 +605,9 @@ IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 !===================================================================================================================================
 ! Output Analyzed variables
 !===================================================================================================================================
-#ifdef MPI
-IF (SurfCOMM%MPIOutputRoot) THEN
-#endif    /* MPI */
+#if USE_MPI
+IF (PartMPI%MPIOutputRoot) THEN
+#endif /*USE_MPI*/
   WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
 #if ((PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4))
 ! output for adsorption
@@ -670,9 +670,9 @@ IF (doDistributiondata) THEN
     END IF
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' '
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE AnalyzeSurface
 
@@ -795,9 +795,10 @@ USE MOD_Particle_Vars             ,ONLY: Species, PartSpecies, PDM, nSpecies, Ke
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh, PartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
-#endif /*MPI*/
+USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -811,10 +812,10 @@ REAL           , INTENT(OUT)    :: WallCoverage(nSpecies)
 INTEGER                         :: i, iSpec, iSurfSide, p, q, SideID, PartBoundID
 REAL                            :: SurfPart
 REAL                            :: Coverage(nSpecies)
-#ifdef MPI
+#if USE_MPI
 REAL                            :: RD(nSpecies)
 INTEGER(KIND=8)                 :: IDR(nSpecies), ID1(nSpecies), ID2(nSpecies), ID3(nSpecies*2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                         :: Coord, AdsorbID, Surfpos, SpecID
 INTEGER                         :: adsorbates(nSpecies)
 REAL                            :: SubWallNumSpec(nSpecies), WallNumSpec_tmp(2*nSpecies)
@@ -869,8 +870,8 @@ IF (CalcSurfCoverage .AND. SurfMesh%nSides.GT.0) THEN
   WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
 END IF
 
-#ifdef MPI
-  IF (SurfCOMM%MPIOutputRoot) THEN
+#if USE_MPI
+  IF (PartMPI%MPIOutputRoot) THEN
     IF (CalcSurfNumSpec)  THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,SubWallNumSpec      ,nSpecies  ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec_SurfDist,nSpecies  ,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
@@ -888,7 +889,7 @@ END IF
     END IF
     IF (CalcSurfCoverage) CALL MPI_REDUCE(WallCoverage,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   IF (KeepWallParticles.AND.CalcSurfNumSpec) THEN
     DO i=1,PDM%ParticleVecLength
@@ -896,13 +897,13 @@ END IF
         WallNumSpec(PartSpecies(i)) = WallNumSpec(PartSpecies(i)) + 1
       END IF
     END DO
-#ifdef MPI
-  IF (SurfCOMM%MPIOutputRoot) THEN
+#if USE_MPI
+  IF (PartMPI%MPIOutputRoot) THEN
     IF (CalcSurfNumSpec) CALL MPI_REDUCE(MPI_IN_PLACE,WallNumSpec,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   ELSE
     IF (CalcSurfNumSpec) CALL MPI_REDUCE(WallNumSpec ,IDR        ,nSpecies,MPI_LONG,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ELSE
     WallNumSpec = INT(SubWallNumSpec)+INT(WallNumSpec_tmp(1:nSpecies))+INT(WallNumSpec_tmp(nSpecies+1:nSpecies*2))
   END IF
@@ -920,9 +921,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModel
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -933,9 +934,9 @@ REAL   , INTENT(OUT)            :: Accomodation(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec
-#ifdef MPI
+#if USE_MPI
 REAL                            :: AC(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 Accomodation(:) = 0.
@@ -957,14 +958,14 @@ ELSE IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   END DO
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF (SurfCOMM%MPIOutputRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,Accomodation,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   Accomodation= Accomodation/ REAL(SurfCOMM%nOutputProcs)
 ELSE
   CALL MPI_REDUCE(Accomodation,AC          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%Accomodation = 0.
@@ -983,9 +984,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1002,10 +1003,10 @@ INTEGER, INTENT(OUT)            :: SurfCollNum(nSpecies), AdsorbNum(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iCase, iReact
-#ifdef MPI
+#if USE_MPI
 REAL                            :: AD(nSpecies),RR(nSpecies*Adsorption%ReactNum)
 INTEGER                         :: ADN(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF (DSMC%ReservoirRateStatistic) THEN
@@ -1069,7 +1070,7 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF (SurfCOMM%MPIOutputRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbRate  ,nSpecies                    ,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies                    ,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
@@ -1088,7 +1089,7 @@ ELSE
   CALL MPI_REDUCE(ReactRate   ,RR       ,nSpecies*(Adsorption%ReactNum+1),MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(AdsorbActE  ,RR          ,nSpecies*Adsorption%ReactNum,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%WallCollCount = 0
@@ -1115,9 +1116,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfModel
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1134,12 +1135,12 @@ REAL   , INTENT(OUT)            :: ProperSurfacenu(nSpecies*(Adsorption%ReactNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iReact, iCase
-#ifdef MPI
+#if USE_MPI
 INTEGER                         :: commSize
 REAL                            :: DE(nSpecies)
 REAL                            :: RR(nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact)
 INTEGER                         :: DEN(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF (DSMC%ReservoirRateStatistic) THEN
@@ -1169,7 +1170,7 @@ DO iSpec = 1,nSpecies
   DesorbNum(iSpec) = SurfModel%Info(iSpec)%NumOfDes
 END DO
 
-#ifdef MPI
+#if USE_MPI
 IF (SurfCOMM%MPIOutputRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbRate  ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
@@ -1179,7 +1180,7 @@ ELSE
   CALL MPI_REDUCE(DesorbRate  ,DE          ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_LONG            ,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%MeanProbDes = 0.
@@ -1329,7 +1330,7 @@ ELSE
   DesReactCount(:) = 0.
 END IF
 
-#ifdef MPI
+#if USE_MPI
 commSize1 = nSpecies*(Adsorption%ReactNum+1)
 commSize2 = nSpecies*(Adsorption%ReactNum+1)+Adsorption%NumOfExchReact
 IF (SurfCOMM%MPIOutputRoot) THEN
@@ -1343,7 +1344,7 @@ ELSE
   CALL MPI_REDUCE(AdsReactCount,RA          ,commSize1,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   CALL MPI_REDUCE(DesReactCount,RD          ,commSize2,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF(SurfMesh%SurfOnProc)THEN
   DO iSpec = 1,nSpecies
@@ -1366,9 +1367,9 @@ USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies
 USE MOD_Particle_Analyze_Vars
 USE MOD_SurfaceModel_Vars     ,ONLY: SurfModel
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars, ONLY : SurfCOMM
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1380,9 +1381,9 @@ REAL, INTENT(OUT)               :: EvaporationRate(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec
-#ifdef MPI
+#if USE_MPI
 REAL                            :: RD(nSpecies)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 EvaporationRate = 0.
 
@@ -1391,13 +1392,13 @@ DO iSpec=1,nSpecies
                         * REAL(SurfModel%Info(iSpec)%NumOfDes - SurfModel%Info(iSpec)%NumOfAds) / dt
 END DO
 
-#ifdef MPI
+#if USE_MPI
   IF (SurfCOMM%MPIOutputRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,EvaporationRate,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   ELSE
     CALL MPI_REDUCE(EvaporationRate,RD,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE GetEvaporationRate
 

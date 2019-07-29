@@ -335,11 +335,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
 USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -350,10 +350,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: ElemID, locSideID, SideID, igf
-#ifdef MPI
+#if USE_MPI
 INTEGER          :: startbuf,endbuf
 REAL,ALLOCATABLE :: P_reshape(:,:,:,:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER           :: lapack_info
 !===================================================================================================================================
 
@@ -381,7 +381,7 @@ CASE(1)
       Precond(igf,igf,SideID)=Precond(igf,igf,SideID)-Fdiag(igf,SideID)
     END DO
   END DO ! SideID=1,nSides
-#ifdef MPI
+#if USE_MPI
   startbuf=nSides-nMPISides+1
   ALLOCATE(P_reshape(nGP_face,0:PP_N,0:PP_N,startbuf:nSides))
   endbuf=nSides-nMPISides+nMPISides_MINE
@@ -395,7 +395,7 @@ CASE(1)
   END IF !nMPIsides_MINE>0
   DEALLOCATE(P_reshape)
   IF(nMPISides_YOUR.GT.0) Precond(:,:,nSides-nMPIsides_YOUR+1:nSides )=0. !set send buf to zero
-#endif /*MPI*/
+#endif /*USE_MPI*/
   DO SideID=1,nSides-nMPIsides_YOUR
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face,Precond(:,:,SideID),nGP_face,lapack_info)
@@ -430,7 +430,7 @@ CASE(2)
       InvPrecondDiag(igf,SideID)=InvPrecondDiag(igf,SideID)-Fdiag(igf,SideID)
     END DO
   END DO ! SideID=1,nSides
-#ifdef MPI
+#if USE_MPI
   startbuf=nSides-nMPISides+1
   ALLOCATE(P_reshape(1,0:PP_N,0:PP_N,startbuf:nSides))
   endbuf=nSides-nMPISides+nMPISides_MINE
@@ -444,7 +444,7 @@ IF(nMPISides_MINE.GT.0)THEN
   END IF !nMPIsides_MINE>0
   DEALLOCATE(P_reshape)
   IF(nMPISides_YOUR.GT.0) InvPrecondDiag(:,nSides-nMPIsides_YOUR+1:nSides )=0. !set send buf to zero
-#endif /*MPI*/
+#endif /*USE_MPI*/
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
     InvPrecondDiag(:,SideID)=1./InvPrecondDiag(:,SideID)

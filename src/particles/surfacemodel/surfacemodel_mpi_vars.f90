@@ -26,7 +26,7 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-#ifdef MPI
+#if USE_MPI
 TYPE tMPIMessage
   REAL,ALLOCATABLE             :: content(:)                                 ! message buffer real
   LOGICAL,ALLOCATABLE          :: content_log(:)                             ! message buffer logical for BGM
@@ -68,7 +68,7 @@ TYPE tSurfModelMPIExchange
 END TYPE
 TYPE (tSurfModelMPIExchange)          :: SurfModelExchange
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 END MODULE MOD_SurfaceModel_MPI_Vars

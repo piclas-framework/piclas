@@ -87,9 +87,9 @@ USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, SurfModel
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SurfaceModel_Tools     ,ONLY: SMCR_AdjustMapNum, IsReactiveSurface, SurfaceHasModelNum
-#ifdef MPI
+#if USE_MPI
 USE MOD_SurfaceModel_MPI       ,ONLY: ExchangeAdsorbNum, ExchangeCoverageInfo, ExchangeSurfDistInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -112,13 +112,13 @@ IF (.NOT.ANY(Partbound%Reactive)) RETURN
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (.NOT.KeepWallParticles) THEN
-#ifdef MPI
+#if USE_MPI
 !----- 1.
   CALL ExchangeAdsorbNum()
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_SURFCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   ! adjust coverages of all species on surfaces
   DO iSpec = 1,nSpecies
@@ -223,7 +223,7 @@ CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !----- 5.
-#ifdef MPI
+#if USE_MPI
 ! communicate coverage and probabilities to halo sides of neighbour procs
 CALL ExchangeCoverageInfo()
 ! communicate distribution to halo-sides of neighbour procs

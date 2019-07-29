@@ -674,9 +674,9 @@ USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 #endif /*CODE_ANALYZE*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Mesh_Vars,               ONLY:BC
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1143,7 +1143,7 @@ ELSE
 !        END IF
       END SELECT
     END IF
-#ifdef MPI
+#if USE_MPI
   ELSE
     ! halo side
     IF(BC(SideID).GT.0)THEN ! BC Sides
@@ -1195,7 +1195,7 @@ ELSE
         isHit=.FALSE.
       END SELECT
     END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   END IF
 END IF ! nRoot
 

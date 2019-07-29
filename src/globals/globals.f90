@@ -17,9 +17,9 @@ MODULE MOD_Globals
 !> Provides parameters, used globally (please use EXTREMELY carefully!)
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE mpi
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ INTEGER            :: MPI_COMM_NODE    ! local node subgroup
 INTEGER            :: MPI_COMM_LEADERS ! all node masters
 INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
 LOGICAL            :: MPIRoot,MPILocalRoot
-#ifdef MPI
+#if USE_MPI
 !#include "mpif.h"
 INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
@@ -273,7 +273,7 @@ END SUBROUTINE InitGlobals
 !
 ! END FUNCTION AlmostZero
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
 #else
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
@@ -293,7 +293,7 @@ CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
 CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
 INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
 REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
-#ifdef MPI
+#if USE_MPI
 LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -303,12 +303,12 @@ LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs ch
 ! LOCAL VARIABLES
 INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
-#ifdef MPI
+#if USE_MPI
 INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: signalout       ! Output errorcode
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
 END IF
@@ -334,7 +334,7 @@ WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
-#ifdef MPI
+#if USE_MPI
 signalout=2 ! MPI_ABORT requires an output error-code /=0
 errOut = 1
 CALL MPI_ABORT(MPI_COMM_WORLD,signalout,errOut)
@@ -409,7 +409,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
                      TRIM(IntString), TRIM(RealString)
 
 CALL FLUSH(UNIT_stdOut)
-#ifdef MPI
+#if USE_MPI
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -681,7 +681,7 @@ TimeStamp=TRIM(Filename)//'_'//TRIM(TimeStamp)
 END FUNCTION TIMESTAMP
 
 
-#ifdef MPI
+#if USE_MPI
 FUNCTION PICLASTIME(Comm)
 #else
 FUNCTION PICLASTIME()
@@ -694,7 +694,7 @@ FUNCTION PICLASTIME()
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef MPI
+#if USE_MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,7 +703,7 @@ REAL                            :: PiclasTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 IF(PRESENT(Comm))THEN
   CALL MPI_BARRIER(Comm,iError)
 ELSE
@@ -731,7 +731,7 @@ REAL                            :: LocalTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 LocalTime=MPI_WTIME()
 #else
 CALL CPU_TIME(LocalTime)

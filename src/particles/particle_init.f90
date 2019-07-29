@@ -1019,7 +1019,7 @@ USE MOD_SurfaceModel_Init,          ONLY: InitSurfaceModel
 USE MOD_Particle_Boundary_Vars,     ONLY: nPorousBC, PartBound
 USE MOD_Particle_Boundary_Porous,   ONLY: InitPorousBoundaryCondition
 USE MOD_Restart_Vars,               ONLY: DoRestart
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,               ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
@@ -1102,7 +1102,7 @@ ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
-#ifdef MPI
+#if USE_MPI
 ! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
@@ -1144,11 +1144,11 @@ USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 #if defined(ROS) || defined (IMPA)
 USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
 #endif /*ROS*/
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs  !, VarTimeStep_SmoothDistribution
@@ -1521,6 +1521,11 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 nMacroRestartFiles = GETINT('Part-nMacroRestartFiles')
 IF (nMacroRestartFiles.GT.0) THEN
+  IF(Symmetry2D.OR.VarTimeStep%UseVariableTimeStep) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: Symmetry2D/Variable Time Step: Restart with a given DSMCHOState (Macroscopic restart) only possible with:\n'//&
+         ' Particles-MacroscopicRestart = T \n Particles-MacroscopicRestart-Filename = Test_DSMCHOState.h5')
+  END IF
   ALLOCATE(MacroRestartFileUsed(1:nMacroRestartFiles))
   MacroRestartFileUsed(:)=.FALSE.
   ALLOCATE(MacroRestartData_tmp(1:DSMC_NVARS,1:nElems,1:nSpecies,1:nMacroRestartFiles))
@@ -1538,13 +1543,13 @@ END IF
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.PerformLoadBalance) THEN
-#endif /*MPI*/
+#endif /*USE_MPI*/
     SpecReset(iSpec)                     = GETLOGICAL('Part-Species'//TRIM(hilf)//'-Reset','.FALSE.')
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ALLOCATE(Species(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
   DO iInit = 0, Species(iSpec)%NumberOfInits
     ! set help characters
@@ -1601,16 +1606,16 @@ DO iSpec = 1, nSpecies
           Species(iSpec)%Init(iInit)%ElemTVibFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTRotFileID.GT.0 .OR. &
           Species(iSpec)%Init(iInit)%ElemTElecFileID.GT.0 ) THEN
-#ifdef MPI
+#if USE_MPI
         IF(.NOT.PerformLoadBalance) THEN
-#endif /*MPI*/
+#endif /*USE_MPI*/
           IF(.NOT.SpecReset(iSpec)) THEN
             SWRITE(*,*) "WARNING: Species-",iSpec," will be reset from macroscopic values."
           END IF
           SpecReset(iSpec)=.TRUE.
-#ifdef MPI
+#if USE_MPI
         END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
         FileID = Species(iSpec)%Init(iInit)%ElemTemperatureFileID
         IF (FileID.GT.0 .AND. FileID.LE.nMacroRestartFiles) THEN
           MacroRestartFileUsed(FileID) = .TRUE.
@@ -2775,9 +2780,9 @@ ELSE
   UseAuxBCs=.FALSE.
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! get new min max
 SWRITE(UNIT_stdOut,'(A)')' Getting Mesh min-max ...'
@@ -2808,12 +2813,10 @@ IF(Symmetry2DAxisymmetric) THEN
     ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL InitEmissionComm()
-#endif /*MPI*/
-#ifdef MPI
 CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -3430,7 +3433,7 @@ SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !> Initialize pseudo random numbers: Create Random_seed array
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -3481,7 +3484,7 @@ IF(.NOT. uRandomExists) THEN
   Clock = IEOR(Clock, INT(ProcessID, KIND(Clock)))
   AuxilaryClock=Clock
   DO iSeed = 1, SeedSize
-#ifdef MPI
+#if USE_MPI
     IF (nRandomSeeds.EQ.0) THEN
       AuxilaryClock=AuxilaryClock+PartMPI%MyRank
     ELSE IF(nRandomSeeds.GT.0) THEN

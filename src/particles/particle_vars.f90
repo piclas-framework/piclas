@@ -231,9 +231,9 @@ TYPE tInit                                                                   ! P
   TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
-#ifdef MPI
+#if USE_MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

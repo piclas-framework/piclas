@@ -235,7 +235,7 @@ USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
 USE MOD_SurfaceModel_Vars          ,ONLY: Adsorption, ModelERSpecular, SurfModel, SpecSurf
 USE MOD_SurfaceModel_Tools         ,ONLY: CalcAdsorbProb, CalcDesorbProb
 USE MOD_SMCR_Init                  ,ONLY: InitSMCR
-#ifdef MPI
+#if USE_MPI
 USE MOD_SurfaceModel_MPI           ,ONLY: InitSurfModel_MPI, ExchangeCoverageInfo
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -502,9 +502,9 @@ Adsorption%NumCovSamples = 0
 ! Initialize surface coverage
 CALL InitSurfCoverage()
 
-#ifdef MPI
+#if USE_MPI
 IF (SurfMesh%SurfOnProc) CALL InitSurfModel_MPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 CALL InitSMCR()
 CALL InitSurfChem()
@@ -1239,16 +1239,16 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars ,ONLY: SurfCOMM
 USE MOD_Particle_MPI_Vars      ,ONLY: SurfSendBuf,SurfRecvBuf,SurfExchange
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
 INTEGER                          :: iSide
-#ifdef MPI
+#if USE_MPI
 INTEGER                          :: iProc, SendArraySize, RecvArraySize
 #endif
 !===================================================================================================================================
@@ -1262,7 +1262,7 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%SurfModelReactCount(1:2*Adsorption%ReactNum,1:nSpecies,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%SurfModelReactCount=0.
 END DO
-#ifdef MPI
+#if USE_MPI
 ! Reallocate buffer for mpi communication of sampling
 DO iProc=1,SurfCOMM%nMPINeighbors
   IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
@@ -1292,12 +1292,12 @@ USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfDistInfo, SurfModel, Sp
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfModelAnalyzeInitIsDone
 USE MOD_Particle_Vars             ,ONLY: PDM, PEM
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, SurfMesh
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfModelExchange
 USE MOD_SurfaceModel_MPI_Vars     ,ONLY: AdsorbSendBuf,AdsorbRecvBuf,SurfDistSendBuf,SurfDistRecvBuf
 USE MOD_SurfaceModel_MPI_Vars     ,ONLY: SurfCoverageSendBuf,SurfCoverageRecvBuf
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1307,9 +1307,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: iSubSurf,jSubSurf,iSurfSide,iCoord
-#ifdef MPI
+#if USE_MPI
 INTEGER                      :: iProc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 SurfModelAnalyzeInitIsDone=.FALSE.
 ! variables used if particles are kept after adsorption (currentyl not working)
@@ -1370,9 +1370,9 @@ IF (ALLOCATED(SurfDistInfo)) THEN
 DO iSurfSide=1,SurfMesh%nSides
   DO iSubSurf = 1,nSurfSample
   DO jSubSurf = 1,nSurfSample
-#ifdef MPI
+#if USE_MPI
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%Nbr_changed)
-#endif /*MPI*/
+#endif /*USE_MPI*/
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%nSites)
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SitesRemain)
     SDEALLOCATE(SurfDistInfo(iSubSurf,jSubSurf,iSurfSide)%SurfAtomBondOrder)
@@ -1397,7 +1397,7 @@ END DO
 DEALLOCATE(SurfDistInfo)
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF (ALLOCATED(AdsorbSendBuf)) THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     SDEALLOCATE(AdsorbSendBuf(iProc)%content_int)
@@ -1453,7 +1453,7 @@ SDEALLOCATE(SurfModelExchange%nSidesSend)
 SDEALLOCATE(SurfModelExchange%nSidesRecv)
 SDEALLOCATE(SurfModelExchange%SendRequest)
 SDEALLOCATE(SurfModelExchange%RecvRequest)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeSurfaceModel
 

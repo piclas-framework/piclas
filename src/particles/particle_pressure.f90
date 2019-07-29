@@ -67,7 +67,7 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:TensorProductInterpolation
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
-#ifdef MPI
+#if USE_MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -227,14 +227,14 @@ __STAMP__&
                 EXIT
               END IF
             END DO ! iElem
-#ifdef MPI
+#if USE_MPI
             IF(.NOT.Marked)THEN
               DO ilocSide=1,6
                 SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
                 IF (SideID.GT.nInnerSides+nBCSides) marked=.TRUE.
               END DO ! ilocSide
             END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
             IF(.NOT.marked) CYCLE
             DO ilocSide=1,6
               DO iShot = 1,200
@@ -470,14 +470,14 @@ __STAMP__&
                 EXIT
               END IF
             END DO ! iElem
-#ifdef MPI
+#if USE_MPI
             IF(.NOT.Marked)THEN
               DO ilocSide=1,6
                 SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
                 IF (SideID.GT.nInnerSides+nBCSides) marked=.TRUE.
               END DO ! ilocSide
             END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
             IF(.NOT.marked) CYCLE
             DO ilocSide=1,6
               DO iShot = 1,200
@@ -648,7 +648,7 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:TensorProductInterpolation
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
-#ifdef MPI
+#if USE_MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -804,14 +804,14 @@ __STAMP__&
                 EXIT
               END IF
             END DO ! iElem
-#ifdef MPI
+#if USE_MPI
             IF(.NOT.Marked)THEN
               DO ilocSide=1,6
                 SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
                 IF (SideID.GT.nInnerSides+nBCSides) marked=.TRUE.
               END DO ! ilocSide
             END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
             IF(.NOT.marked) CYCLE
             DO ilocSide=1,6
               DO iShot = 1,200
@@ -1046,14 +1046,14 @@ __STAMP__&
                 EXIT
               END IF
             END DO ! iElem
-#ifdef MPI
+#if USE_MPI
             IF(.NOT.Marked)THEN
               DO ilocSide=1,6
                 SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
                 IF (SideID.GT.nInnerSides+nBCSides) marked=.TRUE.
               END DO ! ilocSide
             END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
             IF(.NOT.marked) CYCLE
             DO ilocSide=1,6
               DO iShot = 1,200
@@ -1202,7 +1202,7 @@ __STAMP__&
         END IF
         DEALLOCATE (TempElemTotalInside)
         DEALLOCATE (TempElemPartlyInside)
-#ifdef MPI
+#if USE_MPI
         IF(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside.NE.0)THEN
           IPWRITE (UNIT_StdOut,'(I4,A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit,': ', &
                               Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
@@ -1224,7 +1224,7 @@ SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
 ! MODULES
   USE MOD_Globals_Vars,       ONLY: BoltzmannConst
   USE MOD_Particle_Vars
-#ifdef MPI
+#if USE_MPI
   USE MOD_Particle_MPI_Vars,  ONLY: PartMPI
   USE mpi
 #endif
@@ -1240,7 +1240,7 @@ SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
 ! LOCAL VARIABLES
   INTEGER          :: nPartInside
   REAL             :: TempInside, EInside
-#ifdef MPI
+#if USE_MPI
   REAL             :: TempComSend(2)
   REAL             :: TempComRec(2)
   INTEGER          :: IERROR
@@ -1248,7 +1248,7 @@ SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
 !===================================================================================================================================
 
     CALL ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EInside)
-#ifdef MPI
+#if USE_MPI
     TempComSend(1) = REAL(nPartInside)
     TempComSend(2) = EInside
     CALL MPI_ALLREDUCE(TempComSend, TempComRec, 2, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)

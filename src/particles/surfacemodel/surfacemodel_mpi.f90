@@ -25,18 +25,18 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifdef MPI
+#if USE_MPI
 PUBLIC :: InitSurfModel_MPI
 PUBLIC :: InitSMCR_MPI
 PUBLIC :: ExchangeAdsorbNum
 PUBLIC :: ExchangeSurfDistInfo
 PUBLIC :: ExchangeCoverageInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitSurfModel_MPI()
 !===================================================================================================================================
 !> Initializing MPI for Surface Model
@@ -635,6 +635,6 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 
 END SUBROUTINE ExchangeCoverageInfo
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_SurfaceModel_MPI

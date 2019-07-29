@@ -502,7 +502,7 @@ SUBROUTINE  QCrit_evaluation()
   USE MOD_Particle_Boundary_Vars,ONLY : PartBound
   USE MOD_TimeDisc_Vars,         ONLY : iter
   USE MOD_DSMC_Vars,             ONLY : QLocal
-#ifdef MPI
+#if USE_MPI
   USE mpi
   USE MOD_Globals,               ONLY : MPIRoot
 #endif
@@ -523,7 +523,7 @@ SUBROUTINE  QCrit_evaluation()
   INTEGER           :: iSide, nSides
 
   INTEGER :: rank ! DEBUG
-#ifdef MPI
+#if USE_MPI
   REAL              :: maxValue_global
   INTEGER           :: nSides_global
   INTEGER           :: IERROR
@@ -534,7 +534,7 @@ SUBROUTINE  QCrit_evaluation()
   Qfactor2 = 1.85  ! Boyd, Burt
 
   ! DEBUG
-#ifdef MPI
+#if USE_MPI
   CALL MPI_COMM_RANK(MPI_COMM_WORLD,rank,IERROR)
 #else
   rank = 0
@@ -556,7 +556,7 @@ SUBROUTINE  QCrit_evaluation()
     ENDIF
   ENDDO
 
-#ifdef MPI
+#if USE_MPI
       CALL MPI_ALLREDUCE(nSides,nSides_global,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
       nSides = nSides_global
 #endif
@@ -564,7 +564,7 @@ SUBROUTINE  QCrit_evaluation()
   QLocal(1:nBCSides) = QLocal(1:nBCSides) / sqrt(Qfactor1+Qfactor2*log(REAL(nSides)))
 
   IF(nSides.GE.20) THEN
-#ifdef MPI
+#if USE_MPI
     CALL MPI_ALLREDUCE(maxValue,maxValue_global,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
     maxValue = maxValue_global
 #endif
@@ -595,7 +595,7 @@ SUBROUTINE SteadyStateDetection_main()
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : iSamplingIters, nSamplingIters, HistTime, nTime
   USE MOD_DSMC_Vars,             ONLY : Sampler, History, CheckHistory, SamplingActive, SteadyIdentGlobal
-#ifdef MPI
+#if USE_MPI
   USE mpi
 #endif
 
@@ -860,7 +860,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   USE MOD_DSMC_Vars,             ONLY : StudCrit, Stud_Indicator    ! Student-t-Test
   USE MOD_DSMC_Vars,             ONLY : PITCrit, ConvCoeff, PIT_Drift   ! Polynomial Interpolation Test
   USE MOD_DSMC_Vars,             ONLY : MK_Trend       ! Mann Kendall (Trend) Test
-#ifdef MPI
+#if USE_MPI
   USE mpi
 #endif
 
@@ -908,13 +908,13 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   INTEGER           :: nElems_global      ! Overall Number of Cells (MPI)
 
   INTEGER           :: iElem, iTime, jTime
-#ifdef MPI
+#if USE_MPI
   INTEGER           :: IERROR
 #endif
   INTEGER           :: iProc ! DEBUG
 !--------------------------------------------------------------------------------------------------------!
 
-#ifdef MPI
+#if USE_MPI
    CALL MPI_COMM_RANK(MPI_COMM_WORLD,iProc,IERROR)
 #else
    iProc = 0
@@ -1127,7 +1127,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
      IF((SteadyIdent(iElem,iSpec,iVal).EQ.1).AND.(NoParts(iElem).EQ.0)) iCounter = iCounter + 1
    ENDDO
    !
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(iCounter, iCounter_global, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(nElems, nElems_global, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
 #else

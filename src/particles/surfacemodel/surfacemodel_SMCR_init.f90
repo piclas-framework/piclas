@@ -44,10 +44,10 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: Adsorption, SurfDistInfo, BlockingNeigh
 USE MOD_SurfaceModel_Tools     ,ONLY: UpdateSurfPos, SMCR_AdjustMapNum
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_SurfaceModel_MPI       ,ONLY: InitSMCR_MPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==42)
 USE MOD_Particle_Vars          ,ONLY: ManualTimeStep
 USE MOD_TimeDisc_Vars          ,ONLY: tend

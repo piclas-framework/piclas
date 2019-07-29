@@ -80,9 +80,9 @@ USE MOD_RecordPoints,       ONLY:InitRecordPoints
 USE MOD_LinearSolver,       ONLY:InitLinearSolver
 #endif /*ROS or IMPA*/
 USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution,RestartNullifySolution
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI,                ONLY:InitMPIvars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars             ,ONLY:UseDSMC, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep
@@ -167,14 +167,14 @@ END IF
 #endif
 
 CALL InitMesh()
-#ifdef MPI
+#if USE_MPI
 CALL InitMPIVars()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
-!#ifdef MPI
+!#if USE_MPI
 CALL InitParticleMPI
 CALL InitElemBoundingBox()
-!#endif /*MPI*/
+!#endif /*USE_MPI*/
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/
@@ -271,9 +271,9 @@ USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
 !USE MOD_CSR,                       ONLY:FinalizeCSR
 #endif /*IMEX*/
 !USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI,                       ONLY:FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces,         ONLY:FinalizeParticleSurfaces
 USE MOD_InitializeBackgroundField, ONLY:FinalizeBackGroundField
@@ -293,10 +293,10 @@ USE MOD_SurfaceModel_Init,         ONLY:FinalizeSurfaceModel
 USE MOD_Particle_Boundary_Sampling,ONLY:FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 USE MOD_PIC_Vars,                  ONLY:PICInitIsDone
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5,                ONLY:ClearElemData,ElementOut
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -339,9 +339,9 @@ CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
 CALL FinalizeDeposition()
-#ifdef MPI
+#if USE_MPI
 CALL FinalizeParticleMPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL FinalizeDSMC()
 #if (PP_TimeDiscMethod==300)
 CALL FinalizeFPFlow()
@@ -352,16 +352,16 @@ CALL FinalizeBGK()
 CALL FinalizeParticles()
 CALL FinalizeBackGroundField()
 #endif /*PARTICLES*/
-#ifdef MPI
+#if USE_MPI
 CALL FinalizeMPI()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 #ifdef PARTICLES
 ParticlesInitIsDone = .FALSE.
 PICInitIsDone = .FALSE.
-#ifdef MPI
+#if USE_MPI
 ParticleMPIInitIsDone=.FALSE.
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
 #endif /*PARTICLES*/

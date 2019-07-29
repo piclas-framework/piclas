@@ -24,7 +24,7 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#ifdef MPI
+#if USE_MPI
 INTERFACE InitLoadBalance
   MODULE PROCEDURE InitLoadBalance
 END INTERFACE
@@ -47,7 +47,7 @@ PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance
 #if USE_LOADBALANCE
 PUBLIC::ComputeElemLoad
 #endif /*USE_LOADBALANCE*/
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 PUBLIC::DefineParametersLoadBalance
 !===================================================================================================================================
@@ -88,7 +88,7 @@ CALL prms%CreateIntOption(     'WeightDistributionMethod'     ,  "Method for dis
 
 END SUBROUTINE DefineParametersLoadBalance
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitLoadBalance()
 !===================================================================================================================================
 ! init load balancing, new initialization of variables for load balancing
@@ -503,6 +503,6 @@ SDEALLOCATE( tCurrent  )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_LoadBalance

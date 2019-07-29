@@ -173,16 +173,16 @@ TYPE tAdsorbateMapping
   INTEGER                                :: nNeighbours             ! number of adjacent Neigbours sites
                                                                     ! (all possible Coordinations incl.)
   LOGICAL , ALLOCATABLE                  :: IsNearestNeigh(:,:)     ! Flag for defining nearest neighbour of binding site
-#ifdef MPI
+#if USE_MPI
   LOGICAL , ALLOCATABLE                  :: Changed(:)              ! Flag if position changed during iteartion
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END TYPE
 
 TYPE tSurfaceDistributionInfo
   ! variables for surface distribution calculation
-#ifdef MPI
+#if USE_MPI
   INTEGER , ALLOCATABLE                  :: Nbr_changed(:)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination(1:nCoordination=3)
   INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)

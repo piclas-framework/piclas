@@ -175,9 +175,9 @@ SUBROUTINE InitializeParticleEmission()
 ! Initialize particles / Insert initial particles
 !===================================================================================================================================
 ! MODULES
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Restart_Vars      ,ONLY: DoRestart
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, Symmetry2D
@@ -241,7 +241,7 @@ DO i=1,nSpecies
                                     INT(Species(i)%Init(iInit)%initialParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
       END IF
       IF (Species(i)%Init(iInit)%PartDensity.EQ.0) THEN
-#ifdef MPI
+#if USE_MPI
         insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs,8)
 #else
         insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
@@ -251,7 +251,7 @@ DO i=1,nSpecies
       END IF
     ELSE IF ((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cuboid') &
          .OR.(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
-#ifdef MPI
+#if USE_MPI
       insertParticles = insertParticles + INT(REAL(Species(i)%Init(iInit)%initialParticleNumber)/PartMPI%nProcs)
 #else
       insertParticles = insertParticles + INT(Species(i)%Init(iInit)%initialParticleNumber,8)
@@ -312,12 +312,12 @@ __STAMP__&
 ,' Integer of initial particle number larger than max integer size: ',HUGE(1))
       NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',i,' ... '
-#ifdef MPI
+#if USE_MPI
       CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
       CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
       CALL SetParticlePosition(i,iInit,NbrOfParticle)
-#endif /*MPI*/
+#endif /*USE_MPI*/
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',i,' ... '
       CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',i,' ... '
@@ -348,7 +348,7 @@ __STAMP__&
         IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
           NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
           IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
-#ifdef MPI
+#if USE_MPI
           CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
           CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
 #else
@@ -387,7 +387,7 @@ SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE ParticleInserting(mode_opt)
 #else
 SUBROUTINE ParticleInserting()
@@ -396,9 +396,9 @@ SUBROUTINE ParticleInserting()
 ! Particle Inserting
 !===================================================================================================================================
 ! Modules
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
@@ -419,7 +419,7 @@ USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef MPI
+#if USE_MPI
 INTEGER, OPTIONAL                :: mode_opt
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -433,7 +433,7 @@ INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_tim
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime
-#ifdef MPI
+#if USE_MPI
 INTEGER                          :: mode
 INTEGER                          :: InitGroup
 #endif
@@ -446,7 +446,7 @@ INTEGER                          :: InitGroup
 !     Es koennte dann passieren, dass Nachrichten falsch zugeordnet werden.
 !     Sicherheitshalber sollte man kein mode_opt Argument bei mehrern
 !     Spezies uebergeben.
-#ifdef MPI
+#if USE_MPI
 IF (PRESENT(mode_opt)) THEN
   mode=mode_opt
 ELSE
@@ -458,7 +458,7 @@ DO i=1,nSpecies
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (((Species(i)%Init(iInit)%ParticleEmissionType .NE. 4).AND.(Species(i)%Init(iInit)%ParticleEmissionType .NE. 6)) .AND. &
          (Species(i)%Init(iInit)%UseForEmission)) THEN ! no constant density in cell type, + to be used for init
-#ifdef MPI
+#if USE_MPI
       IF (mode.NE.2) THEN
 #endif
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
@@ -538,7 +538,7 @@ DO i=1,nSpecies
             CALL RANDOM_NUMBER(RandVal1)
             NbrOfParticle = INT(PartIns + RandVal1)
           END IF
-#ifdef MPI
+#if USE_MPI
           InitGroup=Species(i)%Init(iInit)%InitCOMM
           IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
             ! only procs which are part of group take part in the communication
@@ -573,7 +573,7 @@ __STAMP__&
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT
-#ifdef MPI
+#if USE_MPI
         CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
       END IF
       IF (mode.NE.1) THEN
@@ -619,7 +619,7 @@ __STAMP__&
        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
-#ifdef MPI
+#if USE_MPI
       END IF
 #endif
     ELSE IF (Species(i)%Init(iInit)%UseForEmission) THEN ! Constant Pressure in Cell Emission (type 4 or 6)
@@ -712,19 +712,19 @@ END DO
 END SUBROUTINE ParticleInserting
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle,mode)
 #else
 SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
-#endif /* MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding,DoTimeDepInflow
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars          ,ONLY: IMDTimeScale,IMDLengthScale,IMDNumber,IMDCutOff,IMDCutOffxValue,IMDAtomFile
@@ -750,7 +750,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 ! USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 ! USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 ! USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-!#ifdef MPI
+!#if USE_MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'
 !#endif
@@ -765,7 +765,7 @@ INTEGER,INTENT(IN)                       :: FractNbr, iInit
 INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
+#if USE_MPI
 INTEGER                                  :: mode
 INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ
 INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)
@@ -797,7 +797,7 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 LOGICAL                                  :: DoExactPartNumInsert
-#ifdef MPI
+#if USE_MPI
 INTEGER                                  :: InitGroup,nChunksTemp,mySumOfRemovedParticles
 INTEGER,ALLOCATABLE                      :: PartFoundInProc(:,:) ! 1 proc id, 2 local part id
 REAL,ALLOCATABLE                         :: ProcMeshVol(:)
@@ -805,13 +805,13 @@ INTEGER,ALLOCATABLE                      :: ProcNbrOfParticle(:)
 #endif
 !===================================================================================================================================
 ! emission group communicator
-#ifdef MPI
+#if USE_MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
 IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
   NbrofParticle=0
   RETURN
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
   DoExactPartNumInsert =  .FALSE.
@@ -831,7 +831,7 @@ __STAMP__&
 !__STAMP__&
 !,'ParticleEmission>0 and PartDensity>0. Can not be set at the same time for cell_local inserting. Set both for species: ',FractNbr)
   chunksize = 0
-#ifdef MPI
+#if USE_MPI
   IF (mode.EQ.2) RETURN
   IF (PartMPI%InitGroup(InitGroup)%nProcs.GT.1 .AND. Species(FractNbr)%Init(iInit)%ElemPartDensityFileID.EQ.0) THEN
     IF (DoExactPartNumInsert) THEN
@@ -860,7 +860,7 @@ __STAMP__&
   END IF
 #else
   IF (DoExactPartNumInsert) chunksize = NbrOfParticle
-#endif /*MPI*/
+#endif /*USE_MPI*/
   !------------------SpaceIC-case: cell_local-------------------------------------------------------------------------------------
   IF ((chunksize.GT.0).OR.(Species(FractNbr)%Init(iInit)%PartDensity.GT.0.)) THEN
     CALL SetCellLocalParticlePosition(chunkSize,FractNbr,iInit,DoExactPartNumInsert)
@@ -1038,7 +1038,7 @@ mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 
 ! process myRank=0 generates the complete list of random positions for all emitted particles
-#ifdef MPI
+#if USE_MPI
 IF(( (nbrOfParticle.GT.PartMPI%InitGroup(InitGroup)%nProcs*10                             ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
@@ -1665,7 +1665,7 @@ __STAMP__&
       END IF
     !------------------SpaceIC-case: cuboid_equal-----------------------------------------------------------------------------------
     CASE('cuboid_equal')
-#ifdef MPI
+#if USE_MPI
       IF (PartMPI%InitGroup(InitGroup)%nProcs.GT. 1) THEN
         SWRITE(UNIT_stdOut,*)'WARNING in SetParticlePosition:'
         SWRITE(UNIT_stdOut,*)'cannot fully handle Particle Initial Condition \"cuboid equal\"'
@@ -1807,12 +1807,12 @@ __STAMP__&
       SWRITE(UNIT_stdOut,'(A,A)') " Reading IMD atom data from file (IMDAtomFile): ",TRIM(IMDAtomFile)
       IF(TRIM(IMDAtomFile).NE.'no file found')THEN
         Species(FractNbr)%Init(iInit)%velocityDistribution='IMD'
-#ifdef MPI
+#if USE_MPI
         IF(.NOT.PartMPI%InitGroup(InitGroup)%MPIROOT)THEN
           CALL abort(__STAMP__&
           ,'ERROR: Cannot SetParticlePosition in multi-core environment for SpaceIC=IMD!')
         END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
         ! Read particle data from file
         ioUnit=GETFREEUNIT()
         OPEN(UNIT=ioUnit,FILE=TRIM(IMDAtomFile),STATUS='OLD',ACTION='READ',IOSTAT=io_error)
@@ -1924,7 +1924,7 @@ __STAMP__&
     !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
     chunkSize=chunkSize2
 
-#ifdef MPI
+#if USE_MPI
  ELSE !no mpi root, nchunks=1
    chunkSize=0
  END IF
@@ -2097,7 +2097,7 @@ ELSE ! mode.NE.1:
 !   END DO
 !   CLOSE(130+PartMPI%iProc)
 
-#ifdef MPI
+#if USE_MPI
   ! in order to remove duplicated particles
   IF(nChunksTemp.EQ.1) THEN
     ALLOCATE(PartFoundInProc(1:2,1:ChunkSize),STAT=ALLOCSTAT)
@@ -2108,7 +2108,7 @@ __STAMP__,&
       END IF
     PartFoundInProc=-1
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   mySumOfMatchedParticles=0
   ParticleIndexNbr = 1
@@ -2134,13 +2134,13 @@ __STAMP__,&
           ! IF(RadialWeighting%DoRadialWeighting) THEN
           !    PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(ParticleIndexNbr,2),FractNbr,ParticleIndexNbr)
           ! END IF
-#ifdef MPI
+#if USE_MPI
           IF(nChunksTemp.EQ.1) THEN
             ! mark elements with Rank and local found particle index
             PartFoundInProc(1,i)=MyRank
             PartFoundInProc(2,i)=mySumOfMatchedParticles
           END IF ! nChunks.EQ.1
-#endif /*MPI*/
+#endif /*USE_MPI*/
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
        END IF
@@ -2157,7 +2157,7 @@ __STAMP__&
 
 ! we want always warnings to know if the emission has failed. if a timedisc does not require this, this
 ! timedisc has to be handled separately
-#ifdef MPI
+#if USE_MPI
   mySumOfRemovedParticles=0
   IF(nChunksTemp.EQ.1) THEN
     CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartfoundInProc(1,:), ChunkSize, MPI_INTEGER, MPI_MAX &
@@ -2194,7 +2194,7 @@ __STAMP__&
   sumOfMatchedParticles = mySumOfMatchedParticles
 #endif
 
-#ifdef MPI
+#if USE_MPI
   IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
 #endif
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
@@ -2235,13 +2235,13 @@ __STAMP__&
       !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
       END IF
     END IF
-#ifdef MPI
+#if USE_MPI
   END IF ! PartMPI%iProc.EQ.0
 #endif
 
   ! Return the *local* NbrOfParticle so that the following Routines only fill in
   ! the values for the local particles
-#ifdef MPI
+#if USE_MPI
   NbrOfParticle = mySumOfMatchedParticles + mySumOfRemovedParticles
 #else
   NbrOfParticle = mySumOfMatchedParticles
@@ -2253,7 +2253,7 @@ __STAMP__&
 __STAMP__&
 ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
   END IF
-#ifdef MPI
+#if USE_MPI
 END IF ! mode 1/2
 #endif
 
@@ -3901,9 +3901,9 @@ SUBROUTINE InitializeParticleSurfaceflux()
 ! Init Particle Inserting via Surface Flux
 !===================================================================================================================================
 ! Modules
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars,          ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
@@ -3973,7 +3973,7 @@ LOGICAL               :: OutputSurfaceFluxLinked
 REAL,ALLOCATABLE      :: ElemData_HDF5(:,:,:)
 LOGICAL               :: AdaptiveDataExists, AdaptiveInitDone
 INTEGER               :: iElem
-#ifdef MPI
+#if USE_MPI
 INTEGER               :: iProc
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 REAL                  :: totalAreaSF_global
@@ -3981,9 +3981,9 @@ REAL                  :: totalAreaSF_global
 REAL                  :: ymin, ymax, VFR_total
 !===================================================================================================================================
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(PartMPI%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 OutputSurfaceFluxLinked=GETLOGICAL('OutputSurfaceFluxLinked','.FALSE.')
 
 ! global calculations for sampling the faces for area and vector calculations (checks the integration with CODE_ANALYZE)
@@ -4350,10 +4350,10 @@ END IF
 SDEALLOCATE(Adaptive_BC_Map)
 SDEALLOCATE(Adaptive_Found_Flag)
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
-#endif  /*MPI*/
+#endif /*USE_MPI*/
 
 !-- 2.: create Side lists for applicable BCs
 !--- 2a: temporary (linked) lists
@@ -4500,7 +4500,7 @@ __STAMP__&
   END DO ! BCSideID (iCount)
 END DO !iBC
 !-- communicate areas
-#ifdef MPI
+#if USE_MPI
    ALLOCATE( areasLoc(1:nPartBound) , areasGlob(1:nPartBound) )
    areasLoc=0.
    areasGlob=0.
@@ -4510,7 +4510,7 @@ END DO !iBC
    CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
    DO iPartBound=1,nPartBound
-#ifdef MPI
+#if USE_MPI
      BCdata_auxSF(iPartBound)%GlobalArea=areasGlob(iPartBound)
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
@@ -4518,7 +4518,7 @@ END DO !iBC
 !     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
 !       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
-#ifdef MPI
+#if USE_MPI
    DEALLOCATE(areasLoc,areasGlob)
 #endif
 
@@ -4842,7 +4842,7 @@ __STAMP__&
       ELSE
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(1)) !dummy for debug
       END IF !MPIroot
-#ifdef MPI
+#if USE_MPI
       CALL MPI_GATHER(Species(iSpec)%Surfaceflux(iSF)%VFR_total,1,MPI_DOUBLE_PRECISION &
         ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iError)
       IF(MPIroot)THEN
@@ -4851,12 +4851,12 @@ __STAMP__&
             + Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(iProc)
         END DO
       END IF
-#else  /*MPI*/
+#else  /*USE_MPI*/
       Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs=Species(iSpec)%Surfaceflux(iSF)%VFR_total
       Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal=Species(iSpec)%Surfaceflux(iSF)%VFR_total
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
     END IF !ReduceNoise
-#ifdef MPI
+#if USE_MPI
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         totalAreaSF_global = 0.0
@@ -4956,17 +4956,17 @@ IF(DoRestart) THEN
   END DO
 END IF
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
 DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE.')
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(PartMPI%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 END SUBROUTINE InitializeParticleSurfaceflux
@@ -4977,9 +4977,9 @@ SUBROUTINE ParticleSurfaceflux()
 ! Particle Inserting via Surface Flux and (if present) adaptiveBC (Surface Flux adapting part density, velocity or temperature)
 !===================================================================================================================================
 ! Modules
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,ONLY: PartMPI
-#endif /* MPI*/
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars          , ONLY: PI, BoltzmannConst
 !commented out in code
@@ -5143,19 +5143,19 @@ DO iSpec=1,nSpecies
         PartInsSF = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
         Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = Species(iSpec)%Surfaceflux(iSF)%InsertedParticle + INT(PartInsSF,8)
         IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
-#ifdef MPI
+#if USE_MPI
           CALL IntegerDivide(PartInsSF,nProcessors,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(0:nProcessors-1) &
             ,PartInsProc(0:nProcessors-1))
-#else  /*MPI*/
+#else  /*USE_MPI*/
           PartInsProc=PartInsSF
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
         END IF !ReduceNoise
       END IF !ReduceNoise, MPIroot
-#ifdef MPI
+#if USE_MPI
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN !scatter PartInsProc into PartInsSF of procs
         CALL MPI_SCATTER(PartInsProc(0:nProcessors-1),1,MPI_INTEGER,PartInsSF,1,MPI_INTEGER,0,PartMPI%COMM,IERROR)
       END IF !ReduceNoise
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
       !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
       SDEALLOCATE(PartInsSubSides)
       ALLOCATE(PartInsSubSides(SurfFluxSideSize(1),SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber))
@@ -6533,16 +6533,17 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,          ONLY : BoltzmannConst
-USE MOD_Particle_Vars,         ONLY : Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
-USE MOD_Particle_Tracking_Vars,ONLY : DoRefMapping, TriaTracking
-USE MOD_Mesh_Vars,             ONLY : nElems
-USE MOD_Particle_Mesh,         ONLY : BoundsOfElement, ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, Symmetry2D, Symmetry2DAxisymmetric, VarTimeStep, PartMPF
+USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping, TriaTracking
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh          ,ONLY: ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Particle_Mesh_Tools    ,ONLY: BoundsOfElement
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars,    ONLY : GEO, epsOneCell
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, epsOneCell
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D        ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -7145,7 +7146,7 @@ USE MOD_Particle_Surfaces_Vars      ,ONLY:SurfMeshSubSideData, BCdata_auxSF, Sur
 USE MOD_TimeDisc_Vars               ,ONLY:dt, RKdtFrac
 USE MOD_Mesh_Vars                   ,ONLY:SideToElem
 USE MOD_Particle_Mesh_Vars,         ONLY:PartElemToSide
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartMPI
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -7250,7 +7251,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   END DO; END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartInsSubSum,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
 
@@ -7373,7 +7374,8 @@ USE MOD_DSMC_Symmetry2D         ,ONLY: CalcRadWeightMPF
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: DoRefMapping, TriaTracking
-USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck, BoundsOfElement
+USE MOD_Particle_Mesh           ,ONLY: ParticleInsideQuad3D, PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: BoundsOfElement
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO, epsOneCell
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 !-----------------------------------------------------------------------------------------------------------------------------------
