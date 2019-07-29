@@ -187,7 +187,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
     ProductSpec(1) = iSpec
     ProductSpec(2) = 0
     AdsorptionEnthalpie = 0.
-    adsorption_case = 2
+    adsorption_case = 1
     RETURN
   END IF
 !END IF
@@ -198,7 +198,7 @@ SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfp
 !  ProductSpec(1) = iSpec
 !  ProductSpec(2) = 0
 !  AdsorptionEnthalpie = 0.
-!  adsorption_case = 2
+!  adsorption_case = 1
 !  RETURN
 !END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -425,42 +425,42 @@ AdsorptionEnthalpie = 0.
 CALL RANDOM_NUMBER(RanNum)
 IF (sum_probabilities .GT. RanNum) THEN
   ! chose surface reaction case (0=inelastic scattering, 1=adsorption, 2=reaction (dissociation), 3=reaction (Eley-Rideal))
+  adsorption_case = 3
   DO ReactNum = 0,(Adsorption%ReactNum)
     CALL RANDOM_NUMBER(RanNum)
     IF ((ProbAds(ReactNum)/sum_probabilities).GT.RanNum) THEN
       IF (ReactNum.EQ.0) THEN
         ! if molecular adsorption set output parameters
-        adsorption_case = 3
-        ProductSpec(1) = iSpec
+        ProductSpec(1) = -iSpec
         ProductSpec(2) = 0
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.LE.Adsorption%DissNum) THEN
         ! if dissocciative adsorption set output parameters
-        adsorption_case = 4
         DissocReactID = ReactNum
-        ProductSpec(1) = Adsorption%DissocReact(1,DissocReactID,iSpec)
-        ProductSpec(2) = Adsorption%DissocReact(2,DissocReactID,iSpec)
-        ! calculate adsorption Enthalpie
-        Heat_A = 0.
-        Heat_B = 0.
-        Heat_AB = 0.
+        ProductSpec(1) = -Adsorption%DissocReact(1,DissocReactID,iSpec)
+        ProductSpec(2) = -Adsorption%DissocReact(2,DissocReactID,iSpec)
+        ! calculate reaction Enthalpie
+        !Heat_A = 0.
+        !Heat_B = 0.
+        !Heat_AB = 0.
         D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-        D_A = 0.
-        D_B = 0.
-        AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        !D_A = 0.
+        !D_B = 0.
+        !AdsorptionEnthalpie = (( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        AdsorptionEnthalpie = D_AB * BoltzmannConst
       ELSE IF (ReactNum.GT.0 .AND. ReactNum.GT.Adsorption%DissNum) THEN
         ! if ER-reaction set output parameters
-        adsorption_case = 5
         RecombReactID = ReactNum - Adsorption%DissNum
         ProductSpec(1) = Adsorption%RecombReact(2,RecombReactID,iSpec)
         ProductSpec(2) = Adsorption%RecombReact(1,RecombReactID,iSpec)
         ! calculate adsorption Enthalpie
-        Heat_A = 0.
-        Heat_B = 0.
-        Heat_AB = 0.
+        !Heat_A = 0.
+        !Heat_B = 0.
+        !Heat_AB = 0.
         D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-        D_A = 0.
-        D_B = 0.
-        AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        !D_A = 0.
+        !D_B = 0.
+        !AdsorptionEnthalpie = -(( Heat_AB -Heat_A -Heat_B ) + ( D_AB -D_A -D_B )) * BoltzmannConst
+        AdsorptionEnthalpie = -D_AB * BoltzmannConst
       END IF
       EXIT
     END IF

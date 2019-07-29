@@ -76,7 +76,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
   ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
-  interactionCase = 8
+  interactionCase = 3
   velocityDistribution(1:2) = 'deltadistribution'
 
 
@@ -108,7 +108,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         IF(iRan.LT.(k_ee+k_refl))THEN ! Either SEE-E or reflection
           CALL RANDOM_NUMBER(iRan)
           IF(iRan.LT.k_ee/(k_ee+k_refl))THEN ! SEE
-            !interactionCase = 8 ! SEE + perfect elastic scattering of the bombarding electron
+            !interactionCase = 3 ! SEE + perfect elastic scattering of the bombarding electron
             ProductSpec(2)  = Adsorption%ResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
             ProductSpecNbr = 1
             v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
@@ -118,7 +118,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 !WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
           ELSE ! Only perfect elastic scattering of the bombarding electron
-            !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron
+            interactionCase = 2 ! Only perfect elastic scattering of the bombarding electron
             ProductSpecNbr = 0 ! do not create new particle
           END IF
           !   IF(k_refl.LT.k_ee)THEN ! -> region with a high chance of SEE
@@ -137,7 +137,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
           !     END IF
           !   END IF
         ELSE ! Removal of the bombarding electron
-          interactionCase = 3 ! Removal of the bombarding electron
+          !interactionCase = 3 ! Removal of the bombarding electron
           ProductSpec(1) = 0 ! just for sanity check
         END IF
       END ASSOCIATE
@@ -156,6 +156,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 !WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
       ELSE ! Removal of the bombarding ion
         !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron
+        ProductSpec(1)  = -PartSpecies(PartID_IN)
         interactionCase = 3 ! Removal of the bombarding ion
         ProductSpecNbr = 0 ! do not create new particle
       END IF
