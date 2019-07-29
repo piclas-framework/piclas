@@ -2792,7 +2792,7 @@ DO iStage=2,nRKStages
   END IF
 
 #ifdef CODE_ANALYZE
-  SWRITE(*,*) 'sanity check'
+  !SWRITE(*,*) 'sanity check'
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
      CALL ParticleSanityCheck(iPart)
