@@ -312,7 +312,6 @@ REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
-ReflectionIndex = -2 ! default, if (check if BC was already crossed)
 
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 IF(PRESENT(BCSideID))THEN
@@ -347,6 +346,7 @@ END IF
 ! check if BC was already crossed
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
   IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  ReflectionIndex = -2 ! default for performing double check. particle moves away from surface not onto surface
   RETURN
 ELSE
   IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
