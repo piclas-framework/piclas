@@ -295,7 +295,6 @@ REAL                             :: Xitild,EtaTild
 INTEGER                          :: p,q
 REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
 REAL                             :: Adsorption_prob, Recombination_prob
-INTEGER                          :: interactionCase
 INTEGER                          :: SurfSideID, SpecID
 REAL                             :: Norm_velo!, Norm_Ec
 ! variables for Energy sampling
@@ -313,6 +312,7 @@ REAL                             :: Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                             :: POI_fak, TildTrajectory(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
+ReflectionIndex = -2 ! default, if (check if BC was already crossed)
 
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
 IF(PRESENT(BCSideID))THEN
@@ -384,7 +384,7 @@ IF (PartBound%SurfaceModel(locBCID).EQ.1) THEN
 END IF
 #endif
 
-interactionCase = -1 ! has to be reset in SurfaceModel or else abort will be called
+ReflectionIndex = -1 ! has to be reset in SurfaceModel, otherwise abort() will be called
 reactionEnthalpie = 0.
 SampledEnthalpie = .FALSE.
 ProductSpec(1) = SpecID
@@ -398,18 +398,18 @@ SELECT CASE(PartBound%SurfaceModel(locBCID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (1)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  interactionCase = 1
+  ReflectionIndex = 1
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) .AND. &
      (Adsorption%Coverage(p,q,SurfSideID,SpecID).LT.Adsorption%MaxCoverage(SurfSideID,SpecID)) ) THEN
     ProductSpec(1) = -SpecID
-    interactionCase = 3
+    ReflectionIndex = 3
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (2)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  interactionCase = 1
+  ReflectionIndex = 1
   ! Set probabilities
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   Recombination_prob = Adsorption%ProbDes(p,q,SurfSideID,SpecID)
@@ -421,7 +421,7 @@ CASE (2)
   ! Decide what happens to colliding particle
   CALL RANDOM_NUMBER(RanNum)
   IF ((Adsorption_prob+Recombination_prob).GE.RanNum) THEN
-    interactionCase = 3
+    ReflectionIndex = 3
     CALL RANDOM_NUMBER(RanNum)
     IF ((Adsorption_prob/(Adsorption_prob+Recombination_prob)).GE.RanNum) THEN
       ProductSpec(1) = -SpecID
@@ -441,10 +441,10 @@ CASE (2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (3)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  interactionCase = 1
+  ReflectionIndex = 1
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   !Norm_Ec = 0.5 * Species(SpecID)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
-  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,interactionCase,ProductSpec,reactionEnthalpie)
+  CALL SMCR_PartAdsorb(p,q,SurfSideID,PartID,Norm_velo,ReflectionIndex,ProductSpec,reactionEnthalpie)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (4)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -455,22 +455,22 @@ CASE (5,6) ! Copied from CASE(1) and adjusted for secondary e- emission (SEE)
            ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,interactionCase,ProductSpec,&
+  CALL SecondaryElectronEmission(PartBound%SurfaceModel(locBCID),PartID,locBCID,Adsorption_prob,ReflectionIndex,ProductSpec,&
   ProductSpecNbr,TempErgy(2),velocityDistribution)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (101) ! constant condensation coefficient
 !-----------------------------------------------------------------------------------------------------------------------------------
-  interactionCase = 1
+  ReflectionIndex = 1
   Adsorption_prob = Adsorption%ProbAds(p,q,SurfSideID,SpecID)
   CALL RANDOM_NUMBER(RanNum)
   IF ( (Adsorption_prob.GE.RanNum) ) THEN
-    interactionCase = 3
+    ReflectionIndex = 3
     ProductSpec(1) = -SpecID
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (102) ! calculate condensation probability by tsuruta2005 and reflection distribution function
 !-----------------------------------------------------------------------------------------------------------------------------------
-  interactionCase = 3
+  ReflectionIndex = 3
   velocityDistribution(1)='liquid_refl'
   Norm_velo = DOT_PRODUCT(PartState(PartID,4:6),n_loc(1:3))
   CALL RANDOM_NUMBER(RanNum)
@@ -480,8 +480,7 @@ CASE (102) ! calculate condensation probability by tsuruta2005 and reflection di
 END SELECT
 
 ! Here, the incident particle is reflected/adsorbed and an additional product is emitted/adsorbed
-ReflectionIndex = interactionCase
-SELECT CASE(interactionCase)
+SELECT CASE(ReflectionIndex)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1,2) ! (particle is treated in boundary condition)
 !-----------------------------------------------------------------------------------------------------------------------------------

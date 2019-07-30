@@ -171,7 +171,7 @@ CASE(2) !PartBound%ReflectiveBC)
     CASE DEFAULT
       CALL abort(&
 __STAMP__&
-,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex',IntInfoOpt=ReflectionIndex)
+,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex=',IntInfoOpt=ReflectionIndex)
     END SELECT
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -329,7 +329,7 @@ CASE(2) !PartBound%ReflectiveBC)
     CASE DEFAULT
       CALL abort(&
 __STAMP__&
-,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex',IntInfoOpt=ReflectionIndex)
+,'ERROR: wrong interaction case in Boundary Condition! ReflectionIndex=',IntInfoOpt=ReflectionIndex)
     END SELECT
   ELSE
     ! not inside any-more, removed in last step
