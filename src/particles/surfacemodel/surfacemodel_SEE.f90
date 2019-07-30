@@ -67,9 +67,9 @@ REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 !===================================================================================================================================
 ! Default 0
-ProductSpec = 0
+ProductSpec    = 0
 ProductSpecNbr = 0
-v_new = 0.0
+v_new          = 0.0
 ! Select particle surface modeling
 SELECT CASE(PartSurfaceModel_IN)
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
@@ -77,7 +77,8 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 
   ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
   interactionCase = 3
-  velocityDistribution(1:2) = 'deltadistribution'
+  velocityDistribution(1) = ''
+  velocityDistribution(2) = 'deltadistribution'
 
 
   ASSOCIATE (&
@@ -113,6 +114,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             ProductSpecNbr = 1
             v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
             eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
+!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,1:3)   =", PartState(PartID_IN,1:3),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mPartState(PartID_IN,4:6)   =", PartState(PartID_IN,4:6),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
@@ -121,6 +123,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             interactionCase = 2 ! Only perfect elastic scattering of the bombarding electron
             ProductSpecNbr = 0 ! do not create new particle
           END IF
+          ! Original Code as described in the paper by Levko (2015)
           !   IF(k_refl.LT.k_ee)THEN ! -> region with a high chance of SEE
           !     IF(iRan.LT.k_refl/(k_ee+k_refl))THEN ! Reflection
           !       interactionCase = -1 ! only perfect elastic scattering of the bombarding electron
@@ -150,13 +153,14 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         ProductSpecNbr = 1
         eps_e           = I-2.*phi ! Energy of the injected electron
         v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
+!WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,1:3) =", PartState(PartID_IN,1:3),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPartState(PartID_IN,4:6) =", PartState(PartID_IN,4:6),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: v_new =", v_new,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
       ELSE ! Removal of the bombarding ion
         !interactionCase = -1 ! Only perfect elastic scattering of the bombarding electron
-        ProductSpec(1)  = -PartSpecies(PartID_IN)
+        ProductSpec(1)  = -PartSpecies(PartID_IN) ! remove and sample
         interactionCase = 3 ! Removal of the bombarding ion
         ProductSpecNbr = 0 ! do not create new particle
       END IF
@@ -177,6 +181,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 END SELECT
 
+! Sanity check: is the newly created particle faster than c
 IF(v_new.GT.c)THEN
   CALL abort(&
       __STAMP__&

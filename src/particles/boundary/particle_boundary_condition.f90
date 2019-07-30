@@ -321,6 +321,8 @@ CASE(2) !PartBound%ReflectiveBC)
     END IF
     ! assign right treatment
     SELECT CASE (ReflectionIndex)
+    CASE(-2) ! special case for double check that needs to be performed because particle moves away from surface
+      ! can happen if particle was reflected or inserted on the surface and consequently alpha is almost 0
     CASE(1) !elastic reflection
       CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,flip,IsSpeciesSwap&
                             ,BCSideID=BCSideID,opt_reflected=crossedBC)

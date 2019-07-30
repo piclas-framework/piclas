@@ -313,7 +313,18 @@ REAL                             :: POI_fak, TildTrajectory(3)
 INTEGER                          :: iNewPart ! particle counter for newly created particles
 !===================================================================================================================================
 
+! =============================
+! Workflow:
+!
+!  0.  Initial surface checks:  Check incident velocity vector and surface normal
+!  2.  Select surface model:    Determine what happens at the surface
+!  3.  (New) Particle handling: Perform reflection/removal of incident particle, create (multiple) possible new particles
+!==============================
+
+!===================================================================================================================================
+! 0.) Initial surface checks
 ! find normal vector two perpendicular tangential vectors (normal_vector points outwards !!!)
+!===================================================================================================================================
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
@@ -393,7 +404,10 @@ ProductSpecNbr = 0
 velocityDistribution(1:2)=''
 TempErgy(1:2)=WallTemp
 
+!===================================================================================================================================
+! 1.) Select surface model
 ! Here, the surfacemodel decides how the particle is treated on the surface
+!===================================================================================================================================
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (1)
@@ -479,7 +493,12 @@ CASE (102) ! calculate condensation probability by tsuruta2005 and reflection di
   END IF
 END SELECT
 
+
+
+!===================================================================================================================================
+! 2.) (New) Particle handling
 ! Here, the incident particle is reflected/adsorbed and an additional product is emitted/adsorbed
+!===================================================================================================================================
 SELECT CASE(ReflectionIndex)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1,2) ! (particle is treated in boundary condition)
