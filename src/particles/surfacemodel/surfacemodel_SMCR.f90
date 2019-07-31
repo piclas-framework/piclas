@@ -41,7 +41,7 @@ USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies, Species!, WriteMacr
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption, SurfModel
-USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act
+USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, CalcDissRecombActEnergy
 USE MOD_SurfaceModel_Tools     ,ONLY: CalcAdsorbReactProb, SpaceOccupied, UpdateSurfPos
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, SurfMesh !, SampWall
 !USE MOD_TimeDisc_Vars          ,ONLY: TEnd, time
@@ -337,10 +337,8 @@ DO ReactNum = 1,(Adsorption%DissNum)
         END IF
         Heat_AB = 0. ! direct dissociative adsorption
         D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-        D_A = 0.
-        D_B = 0.
-        E_a = Calc_E_Act(Heat_A,Heat_B,Heat_AB,0.,D_A,D_B,D_AB,0.) * BoltzmannConst
-        E_d = 0.0  !0.1 * Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
+        E_a = CalcDissRecombActEnergy(Heat_AB,Heat_A,Heat_B,D_AB,iSpec) * BoltzmannConst
+        E_d = 0.0
         ! calculation of dissociative adsorption probability
 #if (PP_TimeDiscMethod==42)
         iSampleReact = 1 + ReactNum
@@ -392,9 +390,7 @@ DO ReactNum = Adsorption%DissNum+1,(Adsorption%ReactNum)
       Heat_B = Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfID,jSpec,Neighpos_j,.FALSE.)
       Heat_AB = 0. ! direct associative desorption (recombination)
       D_AB = Adsorption%EDissBond(ReactNum,iSpec)
-      D_A = 0.
-      D_B = 0.
-      E_a = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,D_A,D_B) * BoltzmannConst
+      E_a = CalcDissRecombActEnergy(Heat_AB,Heat_A,Heat_B,-D_AB,kSpec) * BoltzmannConst
       E_d = 0.
       ! estimate characteristic vibrational temperature of surface-particle bond
       CharaTemp = Heat_A / 200.
@@ -505,7 +501,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, WriteMacroSurfaceValues
 USE MOD_Mesh_Vars              ,ONLY: BC
 USE MOD_DSMC_Vars              ,ONLY: DSMC, SpecDSMC
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfDistInfo, Adsorption, surfmodel
-USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, SampleAdsorptionHeat
+USE MOD_SurfaceModel_Tools     ,ONLY: Calc_Adsorb_Heat, Calc_E_Act, CalcDissRecombActEnergy, SampleAdsorptionHeat
 USE MOD_SurfaceModel_Tools     ,ONLY: SpaceOccupied, UpdateSurfPos, SurfaceHasModelNum
 USE MOD_SurfaceModel_PartFunc  ,ONLY: PartitionFuncActDesorb, PartitionFuncSurf
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, PartBound, SampWall
@@ -724,7 +720,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
     VarPartitionFuncAct = PartitionFuncActDesorb(SpecID, WallTemp, Adsorption%DensSurfAtoms(iSurf))
     ! transition state theory to estimate pre-exponential factor
     nu_react = ((BoltzmannConst*Walltemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall1)
-    E_d = Calc_E_Act(0.,0.,Heat_A,0.,0.,0.,0.,0.)
+    E_d = Heat_A
     rate = nu_react * exp(-E_d/WallTemp)
     ProbDes(ReactID) = rate *dt
 #if (PP_TimeDiscMethod==42)
@@ -859,9 +855,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
             Heat_Product1 = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Prod_Spec1,Pos_Product(1,ReactID),.TRUE.)
             Heat_Product2 = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,Prod_Spec2,Pos_Product(2,ReactID),.TRUE.)
             D_A = Adsorption%EDissBond(iDissocReact,SpecID)
-            D_Product1 = 0.
-            D_Product2 = 0.
-            E_d = Calc_E_Act(Heat_Product1,Heat_Product2,Heat_A,0.,D_Product1,D_Product2,D_A,0.)
+            E_d = CalcDissRecombActEnergy(Heat_A,Heat_Product1,Heat_Product2,D_A,SpecID)
             ! estimate vibrational temperatures of surface-particle bond
             CharaTemp = Heat_A / 200.
             ! calculate partition function of particles bound on surface
@@ -923,7 +917,7 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         Heat_AB = 0. ! immediate desorption
         Heat_B = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,jSpec,Pos_ReactP(ReactID),.FALSE.)
         D_AB = Adsorption%EDissBond(ReactID,SpecID)
-        E_d = Calc_E_Act(Heat_AB,0.,Heat_A,Heat_B,D_AB,0.,0.,0.)
+        E_d = CalcDissRecombActEnergy(Heat_AB,Heat_A,Heat_B,-D_AB,Prod_Spec1)
         ! check diffusion barrier
         IF ((Coord.NE.3).OR.(Coord_ReactP(ReactID).NE.3)) THEN
           IF ((Coord.NE.3).AND.(Coord_ReactP(ReactID).NE.3)) THEN

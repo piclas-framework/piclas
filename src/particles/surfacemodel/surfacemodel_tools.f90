@@ -41,6 +41,10 @@ INTERFACE Calc_Adsorb_Heat
   MODULE PROCEDURE Calc_Adsorb_Heat
 END INTERFACE
 
+INTERFACE CalcDissRecombActEnergy
+  MODULE PROCEDURE CalcDissRecombActEnergy
+END INTERFACE
+
 INTERFACE Calc_E_Act
   MODULE PROCEDURE Calc_E_Act
 END INTERFACE
@@ -78,6 +82,7 @@ PUBLIC :: CalcAdsorbProb
 PUBLIC :: CalcDesorbProb
 PUBLIC :: Calc_Adsorb_Heat
 PUBLIC :: Calc_E_Act
+PUBLIC :: CalcDissRecombActEnergy
 PUBLIC :: CalcAdsorbReactProb
 PUBLIC :: SpaceOccupied
 PUBLIC :: UpdateSurfPos
@@ -708,6 +713,66 @@ END IF
 IF (Calc_E_Act.LT.0.) Calc_E_Act = 0.
 
 END FUNCTION Calc_E_Act
+
+
+REAL FUNCTION CalcDissRecombActEnergy(HeatProduct,HeatReactantA,HeatReactantB,DProduct,ProdSpec)
+!===================================================================================================================================
+!> Calculates the Activation energy for a dissociation or recombination reaction
+!> specify heat and dissociation bond energy of product (recombined) species and heat of adosrptions of educt (dissociated) species
+!>   DISSOCIATION: O2_ads + (-)_ads -> O_ads + O_ads
+!>   HeatProduct = Heat_O2 | HeatProductA = HeatProductB = Heat_O
+!>   RECOMBINATION: O_ads + O_ads -> O2_gas
+!>   HeatProduct = 0. | HeatProductA = HeatProductB = Heat_O
+!> ProdSpec is recombined species, which is used for selection of linear polyatomic case
+!>   DISSOCIATION: CO2_ads + (-)_ads -> CO_ads + O_ads
+!>   HeatProduct = Heat_CO2 | HeatProductA = CO | HeatProductB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
+!>   RECOMBINATION: CO_ads + O_ads -> CO2_gas
+!>   HeatProduct = 0. | HeatProductA = CO | HeatProductB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)               :: HeatProduct, HeatReactantA, HeatReactantB
+REAL, INTENT(IN)               :: DProduct
+INTEGER,INTENT(IN)             :: ProdSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                           :: Delta_H
+LOGICAL                        :: Dissociation
+!===================================================================================================================================
+! decide if dissociation or recombination reaction
+Dissociation = .FALSE.
+IF (DProduct.GT.0.) Dissociation = .TRUE.
+
+Delta_H = HeatProduct +ABS(DProduct) -HeatReactantA -HeatReactantB
+CalcDissRecombActEnergy = 0.5 * ( (HeatReactantA*HeatReactantB / (HeatReactantA+HeatReactantB)) + Delta_H )
+
+IF (Dissociation) THEN
+  IF (SpecDSMC(ProdSpec)%PolyatomicMol) THEN
+    IF(PolyatomMolDSMC(SpecDSMC(ProdSpec)%SpecToPolyArray)%LinearMolec) THEN
+      CalcDissRecombActEnergy = 2.*CalcDissRecombActEnergy
+    END IF
+  END IF
+ELSE
+  IF (CalcDissRecombActEnergy.LT.0.) CalcDissRecombActEnergy = 0.
+  IF (SpecDSMC(ProdSpec)%PolyatomicMol) THEN
+    IF(PolyatomMolDSMC(SpecDSMC(ProdSpec)%SpecToPolyArray)%LinearMolec) THEN
+      CalcDissRecombActEnergy = 2.*CalcDissRecombActEnergy - Delta_H
+    ELSE
+      CalcDissRecombActEnergy = CalcDissRecombActEnergy - Delta_H
+    END IF
+  ELSE
+    CalcDissRecombActEnergy = CalcDissRecombActEnergy - Delta_H
+  END IF
+END IF
+IF (CalcDissRecombActEnergy.LT.0.) CalcDissRecombActEnergy = 0.
+
+END FUNCTION CalcDissRecombActEnergy
 
 
 #if (PP_TimeDiscMethod==42)
