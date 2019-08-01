@@ -1,7 +1,7 @@
 #!/bin/bash
 INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
-templatedir=/opt/Installsources/moduletemplates
+TEMPLATEDIR=/opt/Installsources/moduletemplates
 
 if [ ! -d ${SOURCESDIR} ]; then
   mkdir -p ${SOURCESDIR}
@@ -25,7 +25,7 @@ if [ ! -e ${MODULEFILE} ]; then
   fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
-  make -j 2>&1 | tee make.out
+  make -j 2 2>&1 | tee make.out
   make install 2>&1 | tee install.out
 
   if [ -e ${CMAKEDIR}/bin/cmake ] && [ -e ${CMAKEDIR}/bin/ccmake ]; then
@@ -38,10 +38,10 @@ if [ ! -e ${MODULEFILE} ]; then
     rm -rf cmake-${CMAKEVERSION}.tar.gz
   else
     echo "ERROR in cmake installation, no modulefile created"
-    if [ -e ${CMAKEDIR}/bin/cmake ]; then
+    if [ ! -e ${CMAKEDIR}/bin/cmake ]; then
       echo "ERROR: cmake not installed"
     fi
-    if [ -e ${CMAKEDIR}/bin/ccmake ]; then
+    if [ ! -e ${CMAKEDIR}/bin/ccmake ]; then
       echo "ERROR: cmake-curses-gui not installed"
     fi
   fi

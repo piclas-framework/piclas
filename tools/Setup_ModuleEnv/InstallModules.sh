@@ -3,7 +3,7 @@ INSTALLDIR=/opt
 SOURCESDIR=/opt/Installsources
 calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 
-if [ ! -d ${SOURCESDIR}]; then
+if [ ! -d ${SOURCESDIR} ]; then
   mkdir -p ${SOURCESDIR}
 fi
 
@@ -29,11 +29,13 @@ if [ ! -d ${MODULESHOME} ]; then
     make 2>&1 | tee make.out
     make install 2>&1 | tee install.out
 
-    if [ ! -z $(grep "if [ -f /opt/modules/3.2.10/Modules/3.2.10/init/bash ]; then" /etc/profile) ]; then
+    if [ -z "$(grep "if \[ -f \/opt\/modules\/3.2.10\/Modules\/3.2.10\/init\/bash \]\; then" /etc/profile)" ]; then
       echo "if [ -f /opt/modules/3.2.10/Modules/3.2.10/init/bash ]; then" >> /etc/profile
       echo ". /opt/modules/3.2.10/Modules/3.2.10/init/bash" >> /etc/profile
       echo "fi" >> /etc/profile
     fi
+
+    export /etc/profile
 
     # Change modulefiles path in init -> ${MODULESHOME}/init/.modulespath
     # comment everything

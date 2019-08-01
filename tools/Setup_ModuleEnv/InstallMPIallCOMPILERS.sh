@@ -77,7 +77,7 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
       elif [ ${WHICHCOMPILER} == intel ]; then
         ../configure --prefix=${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION} CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
-      make -j 2>&1 | tee make.out
+      make -j 2 2>&1 | tee make.out
       make install 2>&1 | tee install.out
 
       # create modulefile if installation seems succesfull (check if mpicc, mpicxx, mpifort exists in installdir)
