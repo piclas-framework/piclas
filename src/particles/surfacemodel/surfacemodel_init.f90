@@ -159,7 +159,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-PartBound[$]-RecombinationCoeff
 CALL prms%SetSection("SMCR")
 
 CALL prms%CreateLogicalOption(     'Surface-Adsorption-EnableAttraction'&
-  , 'Activates attracive forces between adsorbates. \n[TRUE] or [FALSE].','.TRUE.')
+  , 'Activates attracive forces between adsorbates. \n[TRUE] or [FALSE].','.FALSE.')
 CALL prms%CreateLogicalOption(     'Surface-Adsorption-NoDiffusion'&
   , 'Disables diffusion into equlibrium on the surface. \n[TRUE] or [FALSE].','.FALSE.')
 CALL prms%CreateLogicalOption(     'Particles-Surface-DistNumCase'&
