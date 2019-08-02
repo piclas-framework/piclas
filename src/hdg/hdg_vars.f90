@@ -80,20 +80,20 @@ INTEGER,ALLOCATABLE :: SmallMortarInfo(:)      ! 1:nSides: info on small Mortar 
 !===================================================================================================================================
 
 
-#ifdef MPI
+#if USE_MPI
 !no interface for reshape inout vector
 !INTERFACE Mask_MPIsides
 !  MODULE PROCEDURE Mask_MPIsides
 !END INTERFACE
 
 PUBLIC :: Mask_MPIsides
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 CONTAINS
 
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE Mask_MPIsides(firstdim,v)
 !===================================================================================================================================
 ! communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
@@ -128,7 +128,7 @@ IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
 IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 
 END SUBROUTINE Mask_MPIsides
-#endif /*MPI*/ 
+#endif /*USE_MPI*/ 
 
 
 #endif /* PP_HDG*/

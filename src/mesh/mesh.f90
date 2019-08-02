@@ -283,11 +283,11 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 ! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
 #ifdef PP_HDG
 nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else
 nGlobalUniqueSides=nSides
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*HDG*/
 
 ! fill ElemToSide, SideToElem,BC
