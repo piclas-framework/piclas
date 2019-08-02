@@ -32,10 +32,10 @@ USE MOD_MPI                    ,ONLY: InitMPI
 USE MOD_RecordPoints_Vars      ,ONLY: RP_Data
 USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
 USE MOD_Mesh                   ,ONLY: SwapMesh
-#ifdef MPI
+#if USE_MPI
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI                    ,ONLY: FinalizeMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Output                 ,ONLY: InitOutput
 USE MOD_Define_Parameters_Init ,ONLY: InitDefineParameters
 USE MOD_StringTools            ,ONLY: STRICMP, GetFileExtension
@@ -140,9 +140,9 @@ CALL InitOutput()
 CALL InitIO()
 
 CALL InitGlobals()
-#ifdef MPI
+#if USE_MPI
 CALL InitLoadBalance()
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ! call init routines
 ! Measure init duration
 !StartTime=PICLASTIME()
@@ -200,7 +200,7 @@ SDEALLOCATE(RP_Data)
 !Measure simulation duration
 Time=PICLASTIME()
 
-#ifdef MPI
+#if USE_MPI
 !! and additional required for restart with load balance
 !ReadInDone=.FALSE.
 !ParticleMPIInitIsDone=.FALSE.
@@ -211,7 +211,7 @@ IF(iError .NE. 0) &
   CALL abort(&
   __STAMP__&
   ,'MPI finalize error',iError,999.)
-#endif
+#endif /*USE_MPI*/
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)')  ' PICLAS FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')

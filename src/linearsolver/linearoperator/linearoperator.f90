@@ -291,7 +291,7 @@ REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iVar,i,j,k,iElem
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -309,7 +309,7 @@ DO iElem=1,PP_nElems
   END DO
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif

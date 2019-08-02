@@ -49,9 +49,9 @@ USE MOD_Interpolation,       ONLY: GetVandermonde
 USE MOD_ChangeBasis,         ONLY: ChangeBasis3D
 USE MOD_VTK,                 ONLY: WriteDataToVTK,WriteVTKMultiBlockDataSet
 USE MOD_Prepare_Mesh,        ONLY: fillMeshInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars,            ONLY: NbProc,nMPISides_Proc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Analyze,             ONLY: CalcErrorStateFiles, CalcErrorStateFileSigma
 USE MOD_Analyze_Vars,        ONLY: NAnalyze
 USE MOD_Mesh_Vars,           ONLY: sJ,NGeoRef
@@ -338,10 +338,10 @@ DO iArgs = iArgsStart,nArgs
       END IF
       ! Deallocate and finalize mesh vars
       SDEALLOCATE(NodeCoords)
-#ifdef MPI
+#if USE_MPI
       SDEALLOCATE(NbProc)
       SDEALLOCATE(nMPISides_Proc)
-#endif /*MPI*/
+#endif /*USE_MPI*/
       CALL FinalizeMesh()
 
       ! Read in parameters from mesh file
@@ -524,7 +524,7 @@ CALL FinalizeParticleMesh()
 #endif
 ! Measure processing duration
 Time=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) THEN
   CALL abort(__STAMP__,&
@@ -733,7 +733,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars
 USE MOD_PreProc
 USE MOD_Prepare_Mesh            ,ONLY: setLocalSideIDs,fillMeshInfo
-#ifdef MPI
+#if USE_MPI
 USE MOD_Prepare_Mesh            ,ONLY: exchangeFlip
 #endif
 #ifdef PARTICLES
@@ -749,7 +749,7 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-#ifdef MPI
+#if USE_MPI
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif

@@ -342,12 +342,12 @@ SUBROUTINE BuildPrecond()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
-USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortarPrecond_HDG
-#ifdef MPI
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
+#if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-#endif /*MPI*/ 
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -381,9 +381,9 @@ CASE(1)
       Precond(:,:,SideID) = Precond(:,:,SideID)+Smat(:,:,locSideID,locSideID,ElemID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
-#ifdef MPI
+#if USE_MPI
   CALL Mask_MPISides(nGP_face,Precond)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
     IF(MaskedSide(SideID))CYCLE
@@ -417,9 +417,9 @@ CASE(2)
       END DO ! igf
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
-#ifdef MPI
+#if USE_MPI
   CALL Mask_MPISides(1,InvPrecondDiag)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR

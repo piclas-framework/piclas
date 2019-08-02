@@ -116,7 +116,7 @@ USE MOD_Jac_FD_Vars,   ONLY: Xk,sreps0,reps0,Rxk
 USE MOD_LinearSolver_Vars, ONLY: nDOFelem
 USE MOD_DG,            ONLY: DGTimeDerivative_WeakForm
 USE MOD_DG_Vars,       ONLY: U,Ut
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -131,7 +131,7 @@ REAL,INTENT(INOUT)                   :: dRdU(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iVar,r,s,ii,jj,kk,iiVar,i,j,k
-#ifdef MPI
+#if USE_MPI
 INTEGER                              :: iProc
 #endif
 !===================================================================================================================================
@@ -143,7 +143,7 @@ Rxk=Ut(:,:,:,:,iElem) !linearization Ut of Xk for FD
 ! nullify
 dRdU = 0.
 
-#ifdef MPI
+#if USE_MPI
 DO iProc=0,nProcessors-1
   s=1
   DO k=0,PP_N
