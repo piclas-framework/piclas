@@ -52,9 +52,9 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       make install 2>&1 | tee install.out
 
       cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
-      sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MODULEFILE}
-      sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MODULEFILE}
-      sed -i 's/hdf5version/'${HDF5VERSION}'/g' ${MODULEFILE} 
+      sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+      sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+      sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
     else
       echo "HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)"
     fi
@@ -82,11 +82,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           make -j 2>&1 | tee make.out
           make install 2>&1 | tee install.out
           cp ${TEMPLATEDIR}/libraries/hdf5/mpi_template ${MODULEFILE}
-          sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MODULEFILE}
-          sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MODULEFILE}
-          sed -i 's/hdf5version/'${HDF5VERSION}'/g' ${MODULEFILE} 
-          sed -i 's/whichmpi/'${WHICHMPI}'/g' ${MODULEFILE}
-          sed -i 's/mpiversion/'${MPIVERSION}'/g' ${MODULEFILE}
+          sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+          sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+          sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE} 
+          sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
+          sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
         else
           echo "HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)"
           continue

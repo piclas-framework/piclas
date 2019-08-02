@@ -51,7 +51,7 @@ if [ ! -e ${MODULEFILE} ]; then
 
   if [ -e ${COMPILERDIR}/bin/gcc ] && [ -e ${COMPILERDIR}/bin/gfortran ]; then
     cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
-    sed -i 's/versionflag/'${GCCVERSION}'/g' ${MODULEFILE}
+    sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
   else
     echo "compiler not installed, no modulefile created"
   fi

@@ -86,10 +86,10 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
           mkdir -p ${MPIMODULEFILEDIR}
         fi
         cp ${MODULETEMPLATESDIR}/MPI/${MODULETEMPLATENAME} ${MPIMODULEFILE}
-        sed -i 's/whichcompiler/'${WHICHCOMPILER}'/g' ${MPIMODULEFILE}
-        sed -i 's/compilerversion/'${COMPILERVERSION}'/g' ${MPIMODULEFILE}
-        sed -i 's/whichmpi/'${WHICHMPI}'/g' ${MPIMODULEFILE}
-        sed -i 's/mpiversion/'${MPIVERSION}'/g' ${MPIMODULEFILE}
+        sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MPIMODULEFILE}
+        sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MPIMODULEFILE}
+        sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MPIMODULEFILE}
+        sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MPIMODULEFILE}
       else
         echo "No module file created for ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
         echo "No mpi found in ${MPIINSTALLDIR}/${WHICHCOMPILER}/${COMPILERVERSION}/bin"
