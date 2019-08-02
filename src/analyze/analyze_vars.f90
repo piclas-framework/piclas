@@ -45,6 +45,8 @@ LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceM
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
 REAL              :: Wel                         !< energy of the electric field
 REAL              :: Wmag                        !< energy of the magnetic field
+REAL              :: Wphi
+REAL              :: Wpsi
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
 #ifdef CODE_ANALYZE

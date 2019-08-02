@@ -38,7 +38,7 @@ INTERFACE WriteSurfSampleToHDF5
   MODULE PROCEDURE WriteSurfSampleToHDF5
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE ExchangeSurfData
   MODULE PROCEDURE ExchangeSurfData
 END INTERFACE
@@ -46,15 +46,15 @@ END INTERFACE
 INTERFACE MapInnerSurfData
   MODULE PROCEDURE MapInnerSurfData
 END INTERFACE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 PUBLIC::InitParticleBoundarySampling
 PUBLIC::WriteSurfSampleToHDF5
 PUBLIC::FinalizeParticleBoundarySampling
-#ifdef MPI
+#if USE_MPI
 PUBLIC::ExchangeSurfData
 PUBLIC::MapInnerSurfData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -76,17 +76,18 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Boundary_Vars  ,ONLY:SurfCOMM,CalcSurfCollis,AnalyzeSurfCollis,nPorousBC
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides,PartSideToElem,GEO
-USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel
+USE MOD_Particle_Vars           ,ONLY:nSpecies, PartSurfaceModel, VarTimeStep, Symmetry2D
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList,PartElemToElemAndSide
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping,TriaTracking
-#ifdef MPI
+USE MOD_DSMC_Symmetry2D         ,ONLY:DSMC_2D_CalcSymmetryArea
+#if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
 USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_PICDepo_Vars            ,ONLY:SFResampleAnalyzeSurfCollis
 USE MOD_PICDepo_Vars            ,ONLY:LastAnalyzeSurfCollis
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -142,8 +143,8 @@ END DO
 DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE !inner side (can be just in the name list from preproc although already sorted out)
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
-  nSurfBC = nSurfBC + 1
-  BCName(nSurfBC) = BoundaryName(iBC)
+    nSurfBC = nSurfBC + 1
+    BCName(nSurfBC) = BoundaryName(iBC)
   END IF
 END DO
 IF (nSurfBC.GE.1) THEN
@@ -261,7 +262,7 @@ SurfMesh%SurfOnProc=.FALSE.
 !IF(SurfMesh%nSides.GT.0)
 IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
 
-#ifdef MPI
+#if USE_MPI
 !CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 CALL MPI_ALLREDUCE(SurfMesh%nBCSides+SurfMesh%nInnerSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #else
@@ -272,7 +273,10 @@ SurfMesh%nGlobalSides=SurfMesh%nBCSides+SurfMesh%nInnerSides
 SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
 
 SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
-#ifdef MPI
+
+IF(VarTimeStep%UseVariableTimeStep) SurfMesh%SampSize = SurfMesh%SampSize + 1
+
+#if USE_MPI
 ! split communitator
 CALL InitSurfCommunicator()
 IF(SurfMesh%SurfOnProc) THEN
@@ -288,7 +292,7 @@ SurfCOMM%nOutputProcs = 1
 SurfCOMM%nOutputProcs=1
 ! get correct offsets
 OffSetSurfSide=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! Initialize surface collision sampling and analyze
 CalcSurfCollis%OnlySwaps = GETLOGICAL('Particles-CalcSurfCollis_OnlySwaps','.FALSE.')
@@ -369,13 +373,6 @@ DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   IF(nPorousBC.GT.0) SampWall(iSide)%PumpCapacity = 0.
-  !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
-  !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
-  !        ,SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) )
-  ! nullify
-  !SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         = 0.
-  !SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          = 0.
-  !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
 END DO
 
 ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides))
@@ -398,30 +395,34 @@ DO iSide=1,nTotalSides
     ElemID = PartSideToElem(S2E_ELEM_ID,iSide)
     LocSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
     IF (ElemID.EQ.-1) THEN
-        ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
-        LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+      ElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+      LocSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     END IF
     SurfaceVal = 0.
     xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,LocSideID,ElemID))
     zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,LocSideID,ElemID))
 
-    DO TriNum = 1,2
-      Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-      Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-      Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
-      Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
-      Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
-      Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
-      Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
-      Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
-      nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-      ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-      nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-      nVal = SQRT(nx*nx + ny*ny + nz*nz)
-      SurfaceVal = SurfaceVal + nVal/2.
-    END DO
-    SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    IF(Symmetry2D) THEN
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = DSMC_2D_CalcSymmetryArea(LocSideID, ElemID)
+    ELSE
+      DO TriNum = 1,2
+        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+        Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - xNod
+        Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - yNod
+        Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,LocSideID,ElemID)) - zNod
+        Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - xNod
+        Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - yNod
+        Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,LocSideID,ElemID)) - zNod
+        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+        nVal = SQRT(nx*nx + ny*ny + nz*nz)
+        SurfaceVal = SurfaceVal + nVal/2.
+      END DO
+      SurfMesh%SurfaceArea(1,1,SurfSideID) = SurfaceVal
+    END IF
   ELSE
     ! call here stephens algorithm to compute area
     DO jSample=1,nSurfSample
@@ -457,9 +458,9 @@ DO iSide=1,nSides
   Area = Area + SUM(SurfMesh%SurfaceArea(:,:,SurfSideID))
 END DO ! iSide=1,nTotalSides
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Area,1,MPI_DOUBLE_PRECISION,MPI_SUM,SurfCOMM%COMM,iError)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SWRITE(UNIT_stdOut,'(A,ES25.14E3)') ' Surface-Area: ', Area
 
@@ -469,7 +470,7 @@ SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
 
 END SUBROUTINE InitParticleBoundarySampling
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitSurfCommunicator()
 !===================================================================================================================================
 ! Creates two new subcommunicators.
@@ -1054,12 +1055,12 @@ IF(nPorousBC.GT.0) THEN
   ALLOCATE(PorousBCRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     IF(SurfExchange%nSidesSend(iProc).GT.0) THEN
-      ALLOCATE(PorousBCSendBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
-      PorousBCSendBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCSendBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesSend(iProc)))
+      PorousBCSendBuf(iProc)%content=0.
     END IF
     IF(SurfExchange%nSidesRecv(iProc).GT.0) THEN
-      ALLOCATE(PorousBCRecvBuf(iProc)%content_int(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
-      PorousBCRecvBuf(iProc)%content_int=0
+      ALLOCATE(PorousBCRecvBuf(iProc)%content(nPorousBCVars*nPorousBC*SurfExchange%nSidesRecv(iProc)))
+      PorousBCRecvBuf(iProc)%content=0.
     END IF
   END DO ! iProc
 END IF
@@ -1270,7 +1271,7 @@ IF(SurfMesh%nSides.GT.StartSurfSide) THEN ! There are reflective inner BCs on Sl
 END IF
 
 END SUBROUTINE MapInnerSurfData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
@@ -1306,10 +1307,10 @@ INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCo
 REAL                                :: tstart,tend
 !===================================================================================================================================
 
-#ifdef MPI
+#if USE_MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 IF(SurfMesh%nSides.EQ.0) RETURN
-#endif /*MPI*/
+#endif /*USE_MPI*/
 IF(SurfCOMM%MPIOutputRoot)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
@@ -1333,7 +1334,7 @@ IF(nPorousBC.GT.0)  nVar2D = nVar2D + nPorousBC
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-#ifdef MPI
+#if USE_MPI
 IF(SurfCOMM%MPIOutputRoot)THEN
 #endif
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1388,11 +1389,11 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 
   CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
-#ifdef MPI
+#if USE_MPI
 END IF
 
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !   IF(SurfCOMM%nProcs.GT.1)THEN
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
@@ -1510,14 +1511,14 @@ LOGICAL,ALLOCATABLE            :: PartDone(:)
     CALL CloseDataFile()
     AnalyzeSurfCollis%Number(nSpecies+1) = SUM( AnalyzeSurfCollis%Number(1:nSpecies) )
   END IF !MPIRoot
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BCAST(AnalyzeSurfCollis%Number(:),nSpecies+1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 #endif
   TotalNumberMPF=AnalyzeSurfCollis%Number(nSpecies+1)
   ALLOCATE( PartSpecData(nSpecies,MAXVAL(AnalyzeSurfCollis%Number(1:nSpecies)),PartDataSize) )
 
   !-- open file for actual read-in
-#ifdef MPI
+#if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
   CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -1684,9 +1685,9 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Boundary_Vars
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars           ,ONLY:SurfSendBuf,SurfRecvBuf,SurfExchange,PartHaloSideToProc
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1702,6 +1703,7 @@ SDEALLOCATE(XiEQ_SurfSample)
 SDEALLOCATE(SurfMesh%SurfaceArea)
 SDEALLOCATE(SurfMesh%SideIDToSurfID)
 SDEALLOCATE(SurfMesh%SurfIDToSideID)
+SDEALLOCATE(SurfMesh%innerBCSideToHaloMap)
 !SDALLOCATE(SampWall%Energy)
 !SDEALLOCATE(SampWall%Force)
 !SDEALLOCATE(SampWall%Counter)
@@ -1713,7 +1715,7 @@ DO iSurfSide=1,SurfMesh%nTotalSides
 END DO
 SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
-#ifdef MPI
+#if USE_MPI
 SDEALLOCATE(PartHaloSideToProc)
 SDEALLOCATE(SurfExchange%nSidesSend)
 SDEALLOCATE(SurfExchange%nSidesRecv)
@@ -1736,7 +1738,7 @@ SDEALLOCATE(SurfSendBuf)
 SDEALLOCATE(SurfRecvBuf)
 SDEALLOCATE(OffSetSurfSideMPI)
 SDEALLOCATE(OffSetInnerSurfSideMPI)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 SDEALLOCATE(CalcSurfCollis%SpeciesFlags)
 SDEALLOCATE(AnalyzeSurfCollis%Data)
 SDEALLOCATE(AnalyzeSurfCollis%Spec)

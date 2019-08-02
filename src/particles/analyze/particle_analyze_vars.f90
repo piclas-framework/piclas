@@ -24,6 +24,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                         !< Calculate the number of simulated particles per species
+LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
@@ -64,7 +65,10 @@ LOGICAL                       :: CalcPlasmaParameter                 !< Compute 
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
+LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
+!                                                                    !< in terms of cell lengths in X, Y and Z for each cell
 !                                                                    !< PPD=(p+1)lambda_D/L_cell
+LOGICAL                       :: CalcMaxPartDisplacement             !< Compute the maximum displacement of the fastest particle 
 LOGICAL                       :: CalcPointsPerShapeFunction          !< Compute the points per shape function sphere
 !                                                                    !< PPS = DOF_cell*VolumeShapeFunction/Volume_cell
 
@@ -81,6 +85,17 @@ REAL                          :: LaserInteractionEkinMaxZPosMin      !< minimum 
 REAL,ALLOCATABLE              :: IonizationCell(:)                   !< Ionization degree cell value
 REAL,ALLOCATABLE              :: QuasiNeutralityCell(:)              !< QuasiNeutrality degree cell value
 REAL,ALLOCATABLE              :: PPDCell(:)                          !< Points per Debye length (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellX(:)                         !< Points per Debye length in X (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellY(:)                         !< Points per Debye length in Y (cell mean value)
+REAL,ALLOCATABLE              :: PPDCellZ(:)                         !< Points per Debye length in Z (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCell(:)                       !< PIC CFL Condition (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellX(:)                      !< PIC CFL Condition in X (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellY(:)                      !< PIC CFL Condition in Y (cell mean value)
+REAL,ALLOCATABLE              :: PICCFLCellZ(:)                      !< PIC CFL Condition in Z (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCell(:)          !< Maximum particle displacement (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellX(:)         !< Maximum particle displacement in X (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellY(:)         !< Maximum particle displacement in Y (cell mean value)
+REAL,ALLOCATABLE              :: MaxPartDisplacementCellZ(:)         !< Maximum particle displacement in Z (cell mean value)
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellEqui(:)                      !< Points per shape function sphere (cell mean value):

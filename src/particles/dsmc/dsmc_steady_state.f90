@@ -502,7 +502,7 @@ SUBROUTINE  QCrit_evaluation()
   USE MOD_Particle_Boundary_Vars,ONLY : PartBound
   USE MOD_TimeDisc_Vars,         ONLY : iter
   USE MOD_DSMC_Vars,             ONLY : QLocal
-#ifdef MPI
+#if USE_MPI
   USE mpi
   USE MOD_Globals,               ONLY : MPIRoot
 #endif
@@ -523,7 +523,7 @@ SUBROUTINE  QCrit_evaluation()
   INTEGER           :: iSide, nSides
 
   INTEGER :: rank ! DEBUG
-#ifdef MPI
+#if USE_MPI
   REAL              :: maxValue_global
   INTEGER           :: nSides_global
   INTEGER           :: IERROR
@@ -534,7 +534,7 @@ SUBROUTINE  QCrit_evaluation()
   Qfactor2 = 1.85  ! Boyd, Burt
 
   ! DEBUG
-#ifdef MPI
+#if USE_MPI
   CALL MPI_COMM_RANK(MPI_COMM_WORLD,rank,IERROR)
 #else
   rank = 0
@@ -556,7 +556,7 @@ SUBROUTINE  QCrit_evaluation()
     ENDIF
   ENDDO
 
-#ifdef MPI
+#if USE_MPI
       CALL MPI_ALLREDUCE(nSides,nSides_global,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,IERROR)
       nSides = nSides_global
 #endif
@@ -564,7 +564,7 @@ SUBROUTINE  QCrit_evaluation()
   QLocal(1:nBCSides) = QLocal(1:nBCSides) / sqrt(Qfactor1+Qfactor2*log(REAL(nSides)))
 
   IF(nSides.GE.20) THEN
-#ifdef MPI
+#if USE_MPI
     CALL MPI_ALLREDUCE(maxValue,maxValue_global,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
     maxValue = maxValue_global
 #endif
@@ -595,7 +595,7 @@ SUBROUTINE SteadyStateDetection_main()
   USE MOD_Globals_Vars,          ONLY : BoltzmannConst
   USE MOD_DSMC_Vars,             ONLY : iSamplingIters, nSamplingIters, HistTime, nTime
   USE MOD_DSMC_Vars,             ONLY : Sampler, History, CheckHistory, SamplingActive, SteadyIdentGlobal
-#ifdef MPI
+#if USE_MPI
   USE mpi
 #endif
 
@@ -806,9 +806,9 @@ END SUBROUTINE SteadyStateDetection_main
 SUBROUTINE SteadyStateDetection_Sampling()
 
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartSpecies, PartMPF, PartState
+  USE MOD_Particle_Vars,         ONLY : PEM, PartSpecies, PartState
   USE MOD_DSMC_Vars,             ONLY : Sampler, DSMC, PartStateIntEn, CollisMode, SpecDSMC
-
+  USE MOD_part_tools,            ONLY : GetParticleWeight
 !--------------------------------------------------------------------------------------------------------!
 ! Sampling of macroscopic properties (over nSamplingIters) for reduction of variance and autocorrelation effects
 !--------------------------------------------------------------------------------------------------------!
@@ -824,44 +824,23 @@ SUBROUTINE SteadyStateDetection_Sampling()
     PartIndex = PEM%pStart(iElem)
     DO iParts = 1, nParts
       ! Summation of energy and velocity for each cell and species
-      IF(usevMPF) THEN
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
-                                                            + 0.5 * PartMPF(PartIndex) * PartState(PartIndex,4:6)**2
-        Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
-                                                            + PartMPF(PartIndex) * PartState(PartIndex,4:6)
-        Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
-                                                            + PartMPF(PartIndex)
-        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
-            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                              + PartStateIntEn(PartIndex,1) * PartMPF(PartIndex)
-            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                              + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
-          END IF
+      Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
+                                                          + 0.5 * GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)**2
+      Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
+                                                          + GetParticleWeight(PartIndex) * PartState(PartIndex,4:6)
+      Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
+                                                          + GetParticleWeight(PartIndex)
+      IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+        IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
+          Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
+                                                            + PartStateIntEn(PartIndex,1) * GetParticleWeight(PartIndex)
+          Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
+                                                            + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
         END IF
-        IF(DSMC%ElectronicModel) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
-                                                            + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
-        ENDIF
-      ELSE
-        Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3)   = Sampler(iElem,PartSpecies(PartIndex))%Energy(1:3) &
-                                                            + 0.5 * PartState(PartIndex,4:6)**2
-        Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) = Sampler(iElem,PartSpecies(PartIndex))%Velocity(1:3) &
-                                                            + PartState(PartIndex,4:6)
-        Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
-                                                            + 1
-        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF((SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.20)) THEN
-            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                              + PartStateIntEn(PartIndex,1)
-            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                              + PartStateIntEn(PartIndex,2)
-          END IF
-        END IF
-        IF(DSMC%ElectronicModel) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
-                                                            + PartStateIntEn(PartIndex,2)
-        ENDIF
+      END IF
+      IF(DSMC%ElectronicModel) THEN
+        Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
+                                                          + PartStateIntEn(PartIndex,2) * GetParticleWeight(PartIndex)
       ENDIF
       PartIndex = PEM%pNext(PartIndex)
     ENDDO
@@ -881,7 +860,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   USE MOD_DSMC_Vars,             ONLY : StudCrit, Stud_Indicator    ! Student-t-Test
   USE MOD_DSMC_Vars,             ONLY : PITCrit, ConvCoeff, PIT_Drift   ! Polynomial Interpolation Test
   USE MOD_DSMC_Vars,             ONLY : MK_Trend       ! Mann Kendall (Trend) Test
-#ifdef MPI
+#if USE_MPI
   USE mpi
 #endif
 
@@ -929,13 +908,13 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
   INTEGER           :: nElems_global      ! Overall Number of Cells (MPI)
 
   INTEGER           :: iElem, iTime, jTime
-#ifdef MPI
+#if USE_MPI
   INTEGER           :: IERROR
 #endif
   INTEGER           :: iProc ! DEBUG
 !--------------------------------------------------------------------------------------------------------!
 
-#ifdef MPI
+#if USE_MPI
    CALL MPI_COMM_RANK(MPI_COMM_WORLD,iProc,IERROR)
 #else
    iProc = 0
@@ -1148,7 +1127,7 @@ SUBROUTINE SteadyStateDetection_Algorithm(iSpec,iVal)
      IF((SteadyIdent(iElem,iSpec,iVal).EQ.1).AND.(NoParts(iElem).EQ.0)) iCounter = iCounter + 1
    ENDDO
    !
-#ifdef MPI
+#if USE_MPI
    CALL MPI_ALLREDUCE(iCounter, iCounter_global, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
    CALL MPI_ALLREDUCE(nElems, nElems_global, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
 #else
@@ -1174,7 +1153,7 @@ END SUBROUTINE SteadyStateDetection_Algorithm
 SUBROUTINE  EntropyCalculation()
 
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartState!, Species, PartSpecies, PartMPF
+  USE MOD_Particle_Vars,         ONLY : PEM, usevMPF, PartState
   USE MOD_DSMC_Vars,             ONLY : HValue
 
 !--------------------------------------------------------------------------------------------------!
@@ -1285,7 +1264,6 @@ SUBROUTINE  EntropyCalculation()
       PartIndex = PEM%pStart(iElem)
       DO iPart = 1, nParts
         IF(usevMPF) THEN
-          !Species(PartSpecies(PartIndex))%MassIC * PartMPF(PartIndex) * PartState(PartIndex,4)
           DO iBin = 1, nBins(1)
             IF((PartState(PartIndex,4).GE.(minvel(1)+BinWidth(1)*(iBin-1))) &
             .AND.(PartState(PartIndex,4).LT.(minvel(1)+BinWidth(1)*iBin))) THEN

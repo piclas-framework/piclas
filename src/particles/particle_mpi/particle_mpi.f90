@@ -30,7 +30,7 @@ INTERFACE InitParticleMPI
   MODULE PROCEDURE InitParticleMPI
 END INTERFACE
 
-#ifdef MPI
+#if USE_MPI
 INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
@@ -82,7 +82,7 @@ PUBLIC :: ExchangeBezierControlPoints3D
 PUBLIC :: AddHaloNodeData
 #else
 PUBLIC :: InitParticleMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 !===================================================================================================================================
 
@@ -116,7 +116,7 @@ IF(ParticleMPIInitIsDone) &
     __STAMP__&
   ,' Particle MPI already initialized!')
 
-#ifdef MPI
+#if USE_MPI
 PartMPI%myRank = myRank
 color = 999
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
@@ -136,7 +136,7 @@ iMessage=0
 PartMPI%myRank = 0
 PartMPI%nProcs = 1
 PartMPI%MPIRoot=.TRUE.
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !! determine datatype length for variables to be sent
 !myRealKind = KIND(myRealTestValue)
 !IF (myRealKind.EQ.4) THEN
@@ -154,7 +154,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleMPI
 
 
-#ifdef MPI
+#if USE_MPI
 SUBROUTINE InitParticleCommSize()
 !===================================================================================================================================
 ! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
@@ -407,7 +407,7 @@ IF(DoExternalParts)THEN
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral external particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! Don't deposit external shape function particles in cells where local deposition is used (only when DoSFLocalDepoAtBounds=T)
     IF(SkipExternalSFParticles(iPart)) CYCLE
     ! Get indices of background mesh cells
@@ -1256,6 +1256,8 @@ USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
                                      ,PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
+USE MOD_DSMC_Vars,               ONLY: RadialWeighting
+USE MOD_DSMC_Symmetry2D,         ONLY: DSMC_2D_RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1265,7 +1267,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
@@ -1404,8 +1406,9 @@ DO iProc=1,PartMPI%nMPINeighbors
         END IF
       END DO ! iElem=1,nTotalElems
       IF(PEM%ElementN(PartID).EQ.0)THEN
-        IPWRITE(*,*) 'bbbbbbb'
-        STOP 'bullshit'
+        CALL Abort(&
+          __STAMP__&
+          ,'Error with IsNewPart in MPIParticleRecv: PEM%ElementN(PartID) = 0!')
       END IF
     END IF
     jPos=jPos+1
@@ -1571,12 +1574,20 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! deallocate non used array
 END DO ! iProc
 
-
+TempNextFreePosition        = PDM%CurrentNextFreePosition
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL abort(&
     __STAMP__&
     ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Checking whether received particles have to be cloned or deleted
+  DO iPart = 1,nrecv
+    PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    CALL DSMC_2D_RadialWeighting(PartID,PEM%Element(PartID))
+  END DO
+END IF
 
 ! validate solution and check
 ! debug
@@ -2748,6 +2759,6 @@ DO iProc=1,PartMPI%nMPINodeNeighbors
 END DO ! iProc
 
 END SUBROUTINE AddHaloNodeData
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI

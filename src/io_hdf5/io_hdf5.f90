@@ -118,7 +118,7 @@ IMPLICIT NONE
 
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
-#ifdef MPI
+#if USE_MPI
   CALL MPI_Info_Create(MPIInfo, iError)
 
   !normal case:
@@ -136,7 +136,7 @@ IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE
   CALL MPI_Info_set(MPIInfo, "romio_cb_read", "enable", iError)
   CALL MPI_Info_set(MPIInfo, "romio_cb_write","enable", iError)
 #endif
-#endif /* MPI */
+#endif /*USE_MPI*/
 END SUBROUTINE InitIO_HDF5
 
 
@@ -179,7 +179,7 @@ ELSE
     'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
-#ifdef MPI
+#if USE_MPI
 IF(.NOT.single)THEN
   IF(.NOT.PRESENT(communicatorOpt))CALL abort(__STAMP__,&
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
@@ -187,7 +187,7 @@ IF(.NOT.single)THEN
 END IF
   IF(iError.NE.0) CALL abort(__STAMP__,&
     'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
-#endif /* MPI */
+#endif /*USE_MPI*/
 
 ! Open the file collectively.
 IF(create)THEN

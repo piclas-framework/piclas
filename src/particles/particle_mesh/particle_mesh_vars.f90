@@ -118,7 +118,7 @@ REAL,ALLOCATABLE                        :: epsOneCell(:)      ! tolerance for pa
 TYPE tFastInitBGM
   INTEGER                                :: nElem             ! Number of elements in background mesh cell
   INTEGER, ALLOCATABLE                   :: Element(:)        ! List of elements/physical cells in BGM cell
-#ifdef MPI
+#if USE_MPI
   INTEGER, ALLOCATABLE                   :: ShapeProcs(:)     ! first Entry: Number of Shapeprocs,
                                                               ! following: ShapeProcs
   INTEGER, ALLOCATABLE                   :: PaddingProcs(:)   ! first Entry: Number of Paddingprocs,
@@ -181,6 +181,9 @@ TYPE tGeometry
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
   REAL, ALLOCATABLE                      :: CharLength(:)                     ! Characteristic length for each cell: L=V^(1/3)
+  REAL, ALLOCATABLE                      :: CharLengthX(:)                    ! Characteristic length in X for each cell
+  REAL, ALLOCATABLE                      :: CharLengthY(:)                    ! Characteristic length in Y for each cell
+  REAL, ALLOCATABLE                      :: CharLengthZ(:)                    ! Characteristic length in Z for each cell
   REAL                                   :: MeshVolume                        ! Total Volume of mesh
   REAL                                   :: LocalVolume                       ! Volume of proc
   REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
@@ -201,6 +204,7 @@ TYPE tGeometry
   INTEGER, ALLOCATABLE                   :: PeriodicElemSide(:,:)             ! 0=not periodic side, others=PeriodicVectorsNum
   LOGICAL, ALLOCATABLE                   :: ConcaveElemSide(:,:)              ! Whether LocalSide of Element is concave side
   REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
+  REAL, ALLOCATABLE                      :: ElemMidPoint(:,:)
 END TYPE
 
 TYPE (tGeometry)                         :: GEO

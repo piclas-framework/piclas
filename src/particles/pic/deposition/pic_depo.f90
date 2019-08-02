@@ -57,7 +57,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALAR
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping,TriaTracking
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: DoExternalParts
 #endif
 USE MOD_ReadInTools            ,ONLY: PrintOption
@@ -86,9 +86,9 @@ INTEGER                   :: nTotalDOF
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
-#ifdef MPI
+#if USE_MPI
   DoExternalParts=.FALSE. ! Initialize
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 DoDeposition = GETLOGICAL('PIC-DoDeposition','T')
 IF(.NOT.DoDeposition) THEN
@@ -302,9 +302,9 @@ CASE('nearest_gausspoint')
     END IF
   END IF
 CASE('shape_function','shape_function_simple')
-#ifdef MPI
+#if USE_MPI
   DoExternalParts=.TRUE.
-#endif /*MPI*/
+#endif /*USE_MPI*/
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__&
@@ -810,9 +810,9 @@ CASE('shape_function','shape_function_simple')
   END IF
 
 CASE('shape_function_1d','shape_function_2d')
-#ifdef MPI
+#if USE_MPI
   DoExternalParts=.TRUE.
-#endif /*MPI*/
+#endif /*USE_MPI*/
   ! Get deposition direction for 1D or perpendicular direction for 2D
   sf1d_dir = GETINT ('PIC-shapefunction1d-direction')
   ! Distribute the charge over the volume (3D) or line (1D)/area (2D): default is TRUE
@@ -928,9 +928,9 @@ CASE('shape_function_1d','shape_function_2d')
   END IF
 
 CASE('shape_function_cylindrical','shape_function_spherical')
-#ifdef MPI
+#if USE_MPI
   DoExternalParts=.TRUE.
-#endif /*MPI*/
+#endif /*USE_MPI*/
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')
@@ -1143,7 +1143,7 @@ CASE('cartmesh_volumeweighting')
       END DO
     END DO
   END DO
-#ifdef MPI
+#if USE_MPI
   CALL MPIBackgroundMeshInit()
 #else
   IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -1267,7 +1267,7 @@ CASE('cartmesh_splines')
       END DO !k
     END DO !j
   END DO !iElem
-#ifdef MPI
+#if USE_MPI
   CALL MPIBackgroundMeshInit()
 #else
   IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -1347,12 +1347,12 @@ USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys,BernSteinPolyno
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,casematrix, NbrOfCases
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
@@ -1410,13 +1410,13 @@ IF(doInnerParts)THEN
   lastPart =PDM%ParticleVecLength
   !IF(firstPart.GT.lastPart) RETURN
 ELSE
-#ifdef MPI
+#if USE_MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
 #else
   firstPart=1
   lastPart =0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 
 !IF((firstPart.GT.lastPart).AND.(DepositionType.NE.'delta_distri').AND.(DepositionType.NE.'shape_function')&
@@ -1439,7 +1439,7 @@ CASE('nearest_blurrycenter')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
 !#if (PP_nVar==8)
@@ -1494,7 +1494,7 @@ CASE('cell_volweight')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -1631,12 +1631,12 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
         + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
     END IF
   END DO
-#ifdef MPI
+#if USE_MPI
   CALL AddHaloNodeData(NodeSource(1,:))
   CALL AddHaloNodeData(NodeSource(2,:))
   CALL AddHaloNodeData(NodeSource(3,:))
   CALL AddHaloNodeData(NodeSource(4,:))
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   DO iElem=1, nNodes
     NodeSource(1:4,iElem) = NodeSource(1:4,iElem)/CellLocNodes_Volumes(iElem)
@@ -1687,7 +1687,7 @@ CASE('epanechnikov')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -1791,7 +1791,7 @@ CASE('shape_function','shape_function_simple')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)*w_sf &
         ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
     END DO ! iPart
@@ -1804,7 +1804,7 @@ CASE('shape_function','shape_function_simple')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       CALL calcSfSource(4,Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor*w_sf &
         ,Vec1,Vec2,Vec3,PartState(iPart,1:3),iPart,PartVelo=PartState(iPart,4:6))
     END DO ! iPart
@@ -1915,7 +1915,7 @@ CASE('shape_function','shape_function_simple')
     END IF !SFResampleAnalyzeSurfCollis
 
     !-- external particles
-#ifdef MPI
+#if USE_MPI
     IF (usevMPF) THEN
       DO iPart=1,NbrOfextParticles  !external Particles
         CALL calcSfSource(4,Species(ExtPartSpecies(iPart))%ChargeIC*ExtPartMPF(iPart)*w_sf &
@@ -1934,7 +1934,7 @@ CASE('shape_function','shape_function_simple')
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
     !-- add const. PartSource and relaxation (only once, i.e., during call with .NOT.DoInnerParts)
     IF (PartSourceConstExists) THEN
@@ -2012,7 +2012,7 @@ CASE('shape_function_1d')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! Set charge pre-factor
     IF (usevMPF) THEN
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
@@ -2065,9 +2065,9 @@ CASE('shape_function_1d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2097,7 +2097,7 @@ CASE('shape_function_1d')
       END DO ! kk
     END DO ! iCase (periodicity)
   END DO ! i
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.DoInnerParts)THEN
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
@@ -2169,9 +2169,9 @@ CASE('shape_function_1d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2209,7 +2209,7 @@ CASE('shape_function_1d')
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map source from Equististant points on Gauss-Points
@@ -2244,7 +2244,7 @@ CASE('shape_function_2d')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! Set charge pre-factor
     IF (usevMPF) THEN
       Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
@@ -2321,9 +2321,9 @@ CASE('shape_function_2d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                 ! Check whether the SF particle has to be locally deposited (set DepoLoc=T/F)
                 CALL DepoSFParticleLocally(DepoLoc,ElemID,iPart)
 
@@ -2364,7 +2364,7 @@ CASE('shape_function_2d')
       END DO ! kk
     END DO ! iCase (periodicity)
   END DO ! i
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.DoInnerParts)THEN
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
@@ -2460,9 +2460,9 @@ CASE('shape_function_2d')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2503,7 +2503,7 @@ CASE('shape_function_2d')
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map source from Equististant points on Gauss-Points
@@ -2538,7 +2538,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     ! compute local radius
     local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
     local_r2_sf=local_r_sf*local_r_sf
@@ -2578,9 +2578,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2615,7 +2615,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
       END DO ! kk
     END DO ! iCase (periodicity)
   END DO ! i
-#ifdef MPI
+#if USE_MPI
   IF(.NOT.DoInnerParts)THEN
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
@@ -2674,9 +2674,9 @@ CASE('shape_function_cylindrical','shape_function_spherical')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -2719,7 +2719,7 @@ CASE('shape_function_cylindrical','shape_function_spherical')
     SDEALLOCATE(ExtPartMPF)
     NbrOfExtParticles=0
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
     ! map PartSource from Equististant points on Gauss-Points
     DO iElem=1,PP_nElems
@@ -2743,7 +2743,7 @@ CASE('delta_distri')
       END IF
       IF(PEM%Element(iPart).EQ.iElem)THEN
         ! Don't deposit neutral particles!
-        IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+        IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
         ! Set pre-factor
         IF (usevMPF) THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2841,7 +2841,7 @@ CASE('nearest_gausspoint')
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
       END IF
       ! Don't deposit neutral particles!
-      IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+      IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF (usevMPF) THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2930,7 +2930,7 @@ CASE('cartmesh_volumeweighting')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
     ELSE
@@ -2965,7 +2965,7 @@ CASE('cartmesh_volumeweighting')
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_CARTMESHDEPO,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#if USE_MPI
   ! should be treated in this way, unforunately, we would negelct the periodic stuff
   !IF(.NOT.DoInnerParts)
   CALL MPISourceExchangeBGM()
@@ -3033,7 +3033,7 @@ CASE('cartmesh_splines')
       IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     END IF
     ! Don't deposit neutral particles!
-    IF(.NOT.CHARGEDPARTICLE(iPart)) CYCLE
+    IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
 !      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -3079,7 +3079,7 @@ CASE('cartmesh_splines')
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_CARTMESHDEPO,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#if USE_MPI
   !IF(.NOT.DoInnerParts)THEN has to be communicated each time :(
   CALL MPISourceExchangeBGM()
 #else
@@ -3244,7 +3244,7 @@ END DO !k
 END SUBROUTINE DepoSFParticleLocally
 
 
-#ifndef MPI
+#if !(USE_MPI)
 SUBROUTINE PeriodicSourceExchange()
 !============================================================================================================================
 ! Exchange sources in periodic case
@@ -3285,7 +3285,7 @@ DO i = 1,GEO%nPeriodicVectors
 END DO
 
 END SUBROUTINE PeriodicSourceExchange
-#else /*MPI*/
+#else /*USE_MPI*/
 SUBROUTINE MPISourceExchangeBGM()
 !=================================================================================================================================
 ! Exchange sources in periodic case for MPI
@@ -3877,7 +3877,7 @@ ELSE
 END IF
 
 END SUBROUTINE MPIBackgroundMeshInit
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)
 !============================================================================================================================
@@ -4296,9 +4296,9 @@ USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_s
 USE MOD_Mesh_Vars,              ONLY:nElems
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_PreProc,                ONLY:PP_N
-#ifdef MPI
+#if USE_MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4348,9 +4348,9 @@ DO kk = kmin,kmax
         ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
         IF(ElemID.GT.nElems) CYCLE
         IF (.NOT.chargedone(ElemID)) THEN
-#ifdef MPI
+#if USE_MPI
           nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
           !--- go through all gauss points
           DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
             !-- calculate distance between gauss and particle
@@ -4407,9 +4407,9 @@ USE MOD_Mesh_Vars,              ONLY:ElemBaryNGeo
 USE MOD_PICDepo_Vars,           ONLY:PartSource, r_sf, r2_sf, r2_sf_inv, alpha_sf, ElemDepo_xGP, ElemRadius2_sf, PartSourceConst
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo
 USE MOD_PreProc,                ONLY:PP_N, PP_nElems
-#ifdef MPI
+#if USE_MPI
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
-#endif  /*MPI*/
+#endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -4443,9 +4443,9 @@ DO ElemID=1,PP_nElems
   IF(dZ.GT.r_sf+ElemRadiusNGeo(ElemID)) CYCLE
   radius2 = dX*dX+dY*dY+dZ*dZ
   IF(radius2.GT.ElemRadius2_sf(ElemID)) CYCLE
-#ifdef MPI
+#if USE_MPI
   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*MPI*/
+#endif /*USE_MPI*/
   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
     !-- calculate distance between gauss and particle
     dX = ABS(Position(1) - ElemDepo_xGP(1,k,l,m,ElemID))
@@ -4517,13 +4517,13 @@ INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 LOGICAL                  :: SolutionExists
 CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
 CHARACTER(LEN=10)        :: strhelp
-#ifdef MPI
+#if USE_MPI
 REAL                     :: StartT,EndT
-#endif /*MPI*/
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
   SWRITE(UNIT_stdOut,*)'Using TimeAverage as constant PartSource(4) from file:',TRIM(FileName)
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #endif
 
@@ -4611,7 +4611,7 @@ REAL                     :: StartT,EndT
   DEALLOCATE(U)
   DEALLOCATE(PartSourceToVar)
 
-#ifdef MPI
+#if USE_MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Readin took  [',EndT-StartT,'s].'
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE!'

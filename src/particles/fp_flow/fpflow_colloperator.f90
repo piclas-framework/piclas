@@ -45,7 +45,7 @@ USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars           ,ONLY: Species, PartState
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar
 USE Ziggurat
@@ -76,7 +76,7 @@ INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
 REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
 REAL                  :: betaV
 REAL                  :: A(3,3), Work(1000), W(3), trace, nu, Theta, iRan, NewEnRot, NewEnVib, OldEnRot
-REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old
+REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old, dtCell, WeightingFactor
 INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
@@ -192,13 +192,21 @@ ELSE
   InnerDOF = 0.
 END IF
 
+IF(VarTimeStep%UseLinearScaling) THEN
+  WeightingFactor = Species(1)%MacroParticleFactor * VarTimeStep%ParticleTimeStep(iPartIndx_Node(1))
+  dtCell = dt * VarTimeStep%ParticleTimeStep(iPartIndx_Node(1))
+ELSE
+  WeightingFactor = Species(1)%MacroParticleFactor
+  dtCell = dt
+END IF
+
 Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst) *nPart/(nPart-1.)
 TEqui = CellTemp
 nu= 1.-3./(2.*Prandtl)
 Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
 nu= MAX(nu,-Theta/(W(3)-Theta))
-dens = nPart * Species(1)%MacroParticleFactor / NodeVolume
+dens = nPart * WeightingFactor / NodeVolume
 dynamicvis = 30.*SQRT(Species(1)%MassIC* BoltzmannConst*SpecDSMC(1)%TrefVHS/Pi) &
         /(4.*(4.- 2.*SpecDSMC(1)%omegaVHS) * (6. - 2.*SpecDSMC(1)%omegaVHS)* SpecDSMC(1)%DrefVHS**2.)
 relaxfreq = dens*BoltzmannConst*SpecDSMC(1)%TrefVHS**(SpecDSMC(1)%omegaVHS + 0.5) &
@@ -211,9 +219,9 @@ ELSE
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  FP_MeanRelaxFactor         = FP_MeanRelaxFactor + dt / relaxtime
+  FP_MeanRelaxFactor         = FP_MeanRelaxFactor + dtCell / relaxtime
   FP_MeanRelaxFactorCounter  = FP_MeanRelaxFactorCounter + 1
-  FP_MaxRelaxFactor          = MAX(FP_MaxRelaxFactor,dt / relaxtime)
+  FP_MaxRelaxFactor          = MAX(FP_MaxRelaxFactor,dtCell / relaxtime)
   IF(FPCollModel.EQ.2) THEN
     FP_PrandtlNumber = FP_PrandtlNumber + (3./2.) / (1.-nu)
   END IF
@@ -225,14 +233,14 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
     CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
-                        DoVibRelaxIn=FPDoVibRelaxation)
+                        dtCell, DoVibRelaxIn=FPDoVibRelaxation)
       Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
   ELSE
     CALL CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
-                    DoVibRelaxIn=FPDoVibRelaxation)
+                    dtCell, DoVibRelaxIn=FPDoVibRelaxation)
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    FP_MaxRotRelaxFactor          = MAX(FP_MaxRotRelaxFactor,rotrelaxfreq*dt)
+    FP_MaxRotRelaxFactor          = MAX(FP_MaxRotRelaxFactor,rotrelaxfreq*dtCell)
   END IF
   ALLOCATE(iPartIndx_NodeRelaxRot(nPart),iPartIndx_NodeRelaxVib(nPart))
   DO iLoop = 1, nPart
@@ -470,15 +478,15 @@ ELSE IF (FPCollModel.EQ.2) THEN
 END IF
 
 IF (FPCollModel.EQ.1) THEN
-  FP_FakA = EXP(-dt/relaxtime)
-  FP_FakB = (1.-EXP(-dt/relaxtime))
-  FP_FakC = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC*(1.-EXP(-2.0*dt/relaxtime)))
+  FP_FakA = EXP(-dtCell/relaxtime)
+  FP_FakB = (1.-EXP(-dtCell/relaxtime))
+  FP_FakC = SQRT(BoltzmannConst*CellTemp/Species(1)%MassIC*(1.-EXP(-2.0*dtCell/relaxtime)))
 ELSE
-  FP_FakA = EXP(-dt/relaxtime)
+  FP_FakA = EXP(-dtCell/relaxtime)
   IF ((FPCollModel.EQ.2).AND.(ESFPModel.EQ.1)) THEN
-    FP_FakC = SQRT(TEqui/CellTemp*(1.-EXP(-2.0*dt/relaxtime)))
+    FP_FakC = SQRT(TEqui/CellTemp*(1.-EXP(-2.0*dtCell/relaxtime)))
   ELSE
-    FP_FakC = SQRT(BoltzmannConst*TEqui/Species(1)%MassIC*(1.-EXP(-2.0*dt/relaxtime)))
+    FP_FakC = SQRT(BoltzmannConst*TEqui/Species(1)%MassIC*(1.-EXP(-2.0*dtCell/relaxtime)))
   END IF
 END IF
 

@@ -428,7 +428,7 @@ END SUBROUTINE ExactFunc
 
 SUBROUTINE CalcSource(Ut)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,ONLY:Abort
@@ -560,7 +560,7 @@ INTEGER                         :: RegionID
 ! Calculate IniExactFunc before particles are superimposed, because the IniExactFunc might be needed by the CalcError function
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
-  ! empty
+  resu=0. ! empty
 CASE(103)
   x(1:3) = Elem_xGP(1:3,i,j,k,iElem)
   dx1=(x(:)-(IniCenter(:)-(/IniHalfwidth,0.,0./)))
