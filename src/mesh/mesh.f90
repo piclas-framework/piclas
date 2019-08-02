@@ -280,21 +280,14 @@ LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastM
 LOGWRITE(*,*)'-------------------------------------------------------'
 
 
-! check with mortars
+! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
 #ifdef PP_HDG
 nUniqueSides       = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
 #ifdef MPI
-CALL MPI_ALLREDUCE(nUniqueSides,i,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #else
-i=nSides
+nGlobalUniqueSides=nSides
 #endif /*MPI*/
-IF(i.NE.nGlobalUniqueSides) THEN
-       IPWRITE(UNIT_StdOut,*) nUniqueSides,i,nGlobalUniqueSides
-       CALL abort( &
-            __STAMP__, &
-            "nGlobalUniqueSides for HDG not equal the one from meshfile... &
-            (Do not change the boundary definitions given in the mesh file, this is not implemented)")
-END IF
 #endif /*HDG*/
 
 ! fill ElemToSide, SideToElem,BC
