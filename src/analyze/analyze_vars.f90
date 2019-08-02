@@ -26,6 +26,7 @@ INTEGER           :: NAnalyze                    !< number of analyzation points
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
+INTEGER(KIND=8)   :: iAnalyze                    !> count number of next analyze
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcPoyntingInt             !< calculate pointing vector integral | only perp to z axis
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
