@@ -1758,6 +1758,9 @@ IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_
     IF(PartMPI%MPIROOT)THEN
        WRITE(UNIT_stdOut,'(A)') ' GetShapeFunctionBCElems ...'
     END IF
+    IF(.NOT.DoRefMapping) CALL abort(&
+    __STAMP__&
+    ,'DoSFLocalDepoAtBounds=T only with DoRefMapping=T because the algorithm requires arrays that are only set for DoRefMapping=T!')
     CALL GetShapeFunctionBCElems()
   END IF
 END IF
