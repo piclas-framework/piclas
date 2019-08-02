@@ -29,16 +29,26 @@ if [ ! -d ${MODULESHOME} ]; then
     make 2>&1 | tee make.out
     make install 2>&1 | tee install.out
 
-    if [ -z "$(grep "if \[ -f \/opt\/modules\/3.2.10\/Modules\/3.2.10\/init\/bash \]\; then" /etc/profile)" ]; then
-      echo "if [ -f /opt/modules/3.2.10/Modules/3.2.10/init/bash ]; then" >> /etc/profile
-      echo ". /opt/modules/3.2.10/Modules/3.2.10/init/bash" >> /etc/profile
-      echo "fi" >> /etc/profile
+    if [ -z "$(grep "if.*Modules.*3.2.10.*init.*bash.*then" /etc/profile)" ]; then
+      sed -i '1 i\if [ -f /opt/modules/3.2.10/Modules/3.2.10/init/bash ]; then' /etc/profile
+      sed -i '2 i\  . /opt/modules/3.2.10/Modules/3.2.10/init/bash' /etc/profile
+      sed -i '3 i\fi' /etc/profile
+    else
+      echo "modules init already exists in /etc/profile"
+      break
     fi
-
-    export /etc/profile
+    if [ -z "$(grep "if.*Modules.*3.2.10.*init.*bash.*then" /etc/bash.bashrc)" ]; then
+      sed -i '1 i\if [ -f /opt/modules/3.2.10/Modules/3.2.10/init/bash ]; then' /etc/bash.bashrc
+      sed -i '2 i\  . /opt/modules/3.2.10/Modules/3.2.10/init/bash' /etc/bash.bashrc
+      sed -i '3 i\fi' /etc/bash.bashrc
+    else
+      echo "modules init already exists in /etc/bash.bashrc"
+      break
+    fi
+    source /etc/profile
 
     # Change modulefiles path in init -> ${MODULESHOME}/init/.modulespath
-    # comment everything
+    # comment everything in .modulespath
     sed -i 's/^/\# /' ${MODULESHOME}/init/.modulespath
     # add:
     echo "/opt/modules/modulefiles/compilers" >> ${MODULESHOME}/init/.modulespath
@@ -59,7 +69,7 @@ else
   echo "module evironment ($(module --version)) already existant"
   # Change modulefiles path in init -> ${MODULESHOME}/init/.modulespath
   # comment everything
-  if [ ! -z $(grep "/opt/modules/modulefiles/" ${MODULESHOME}/init/.modulespath) ]; then
+  if [ ! -z $(grep "${INSTALLDIR}/modules/modulefiles/" ${MODULESHOME}/init/.modulespath) ]; then
     sed -i 's/^/\# /' ${MODULESHOME}/init/.modulespath
     # add:
     echo "/opt/modules/modulefiles/compilers" >> ${MODULESHOME}/init/.modulespath
@@ -74,4 +84,8 @@ else
     mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries
     # cd /opt/modules/modulefiles/compilers/gcc
   fi
+fi
+
+if [[ -z ${MODULESHOME} ]] || [[ -z $(grep -i "${INSTALLDIR}/modules/modulefiles" ${MODULESHOME}/init/.modulespath) ]]; then
+  echo "restart operating system and this run script again"
 fi

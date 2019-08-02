@@ -13,6 +13,12 @@ CMAKEVERSION='3.13.3'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}-d
 
+if [[ -n ${1} ]]; then
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    rm ${MODULEFILE}
+  fi
+fi
+
 if [ ! -e ${MODULEFILE} ]; then
   echo "creating CMake-${CMAKEVERSION}"
   cd ${SOURCESDIR}
@@ -22,6 +28,9 @@ if [ ! -e ${MODULEFILE} ]; then
   tar -xzf cmake-${CMAKEVERSION}.tar.gz
   if [ ! -d ${SOURCESDIR}/cmake-${CMAKEVERSION}/build ]; then
     mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
+  fi
+  if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+    rm ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*
   fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}

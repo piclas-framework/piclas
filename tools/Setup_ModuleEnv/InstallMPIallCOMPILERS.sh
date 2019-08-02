@@ -39,10 +39,19 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
     COMPILERVERSION=$(ls ${MODULESDIR}/compilers/${WHICHCOMPILER}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
     MPIMODULEFILEDIR=${MODULESDIR}/MPI/${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}
     MPIMODULEFILE=${MPIMODULEFILEDIR}/${COMPILERVERSION}
+    if [[ -n ${1} ]]; then
+      if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MPIMODULEFILE} ]]; then
+        rm ${MPIMODULEFILE}
+      fi
+    fi
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e ${MPIMODULEFILE} ]; then
       echo "creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}"
       module purge
+      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION}) ]]; then
+        echo "module ${WHICHCOMPILER}/${COMPILERVERSION} not found "
+        break
+      fi
       module load ${WHICHCOMPILER}/${COMPILERVERSION}
 
       # build and installation
@@ -69,6 +78,9 @@ if [ ${WHICHCOMPILER} == gcc ] || [ ${WHICHCOMPILER} == intel ]; then
       tar -xzf ${WHICHMPI}-${MPIVERSION}.tar.gz
       if [ ! -e ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION} ]; then
         mkdir -p ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
+      fi
+      if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+        rm ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}/* 
       fi
       cd ${SOURCEDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
 

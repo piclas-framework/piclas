@@ -16,6 +16,12 @@ MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 
 COMPILERDIR=${INSTALLDIR}'/compiler/gcc/'${GCCVERSION}
 
+if [[ -n ${1} ]]; then
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    rm ${MODULEFILE}
+  fi
+fi
+
 if [ ! -e ${MODULEFILE} ]; then
   echo "creating Compiler GCC-${GCCVERSION}"
   cd ${SOURCESDIR}
@@ -30,6 +36,9 @@ if [ ! -e ${MODULEFILE} ]; then
   tar -xzf gcc-${GCCVERSION}.tar.gz && rm -rf gcc-${GCCVERSION}.tar.gz
   if [ ! -d ${SOURCESDIR}/gcc-${GCCVERSION}/build ]; then
     mkdir -p gcc-${GCCVERSION}/build
+  fi
+  if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+    rm gcc-${GCCVERSION}/build/* 
   fi
   cd gcc-${GCCVERSION}/build
   ../configure -v \
