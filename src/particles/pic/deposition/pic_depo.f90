@@ -1493,7 +1493,7 @@ PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
     DO iElem=1,PP_nElems
-      PartSource(SourceDim:3,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
+      PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
 #if USE_LOADBALANCE
       CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
