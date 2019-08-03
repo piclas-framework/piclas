@@ -80,7 +80,7 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY:BoundaryName,BoundaryType,nBCs,nUserBCs
+USE MOD_Mesh_Vars,  ONLY:BoundaryName,BoundaryType,nBCs,nUserBCs,ChangedPeriodicBC
 USE MOD_ReadInTools,ONLY:GETINTARRAY,CNTSTR,GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -154,13 +154,17 @@ ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
   CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
 END ASSOCIATE
 ! Now apply boundary mappings
+ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
-      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) &
-        CALL abort(&
-__STAMP__&
-,'Remapping non-periodic to periodic BCs is not possible!')
+      ! non-periodic to periodic
+      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
+          __STAMP__&
+          ,'Remapping non-periodic to periodic BCs is not possible!')
+      ! periodic to non-periodic
+      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1)) ChangedPeriodicBC=.TRUE.
+      ! Output
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
@@ -207,6 +211,7 @@ USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTree
 USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
 USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
 USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars,          ONLY:nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars,          ONLY:useCurveds
 USE MOD_Mesh_Vars,          ONLY:BoundaryType
 USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
@@ -293,6 +298,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 ! Get ElemInfo from Mesh file
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+CALL ReadAttribute(File_ID,'nUniqueSides',1,IntegerScalar=nGlobalUniqueSidesFromMesh)
 CALL CloseDataFile()
 CHECKSAFEINT(HSize(2),4)
 nGlobalElems=INT(HSize(2),4) !global number of elements

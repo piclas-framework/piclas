@@ -102,7 +102,7 @@ INTEGER               :: iMortar,iMortarInnerSide,iMortarMPISide,nMortars
 INTEGER               :: i,j
 INTEGER               :: PeriodicBCMap(nBCs)       !connected periodic BCs
 #if USE_MPI
-INTEGER               :: lastMortarInnerSide
+INTEGER               :: lastMortarInnerSide,nMortarInnerSides_OLD
 INTEGER               :: nSmallMortarSides
 INTEGER               :: nSmallMortarInnerSides
 INTEGER               :: nSlaveMortarMPISides_Proc(1:nNBProcs)
@@ -236,7 +236,8 @@ DO iElem=FirstElemInd,LastElemInd
       IF(aSide%tmp.EQ.-1) THEN                ! if at least one small virtual side has neighbor on another processor
         nMortarMPISides=nMortarMPISides+1     ! then count big side as a Mortar-MPI-side
       ELSE
-        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side
+        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side (old nMortarInnerSides, they are
+                                              ! further increased later on)
       END IF
     END IF ! nMortars>0
     IF(aSide%MortarType.EQ.-10)THEN
@@ -318,7 +319,6 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 
 nMPISides_MINE=0
 nMPISides_YOUR=0
-
 #if USE_MPI
 ! SPLITTING number of MPISides in MINE and YOURS
 ! General strategy:
@@ -368,6 +368,77 @@ offsetMPISides_YOUR(0)=offsetMPISides_MINE(nNbProcs)
 DO iNbProc=1,nNbProcs
   offsetMPISides_YOUR(iNbProc)=offsetMPISides_YOUR(iNbProc-1)+nMPISides_YOUR_Proc(iNbProc)
 END DO
+
+! Optimize Mortars 1/2: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
+! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
+! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
+! Order of sides (see mesh.f90):
+!    BCSides
+!    InnerMortars
+!    InnerSides
+!    MPI_MINE sides
+!    MPI_YOUR sides
+!    MPIMortars
+IF(nMortarSides.GT.0)THEN
+  ! reset 'tmp'-marker of all sides to 0
+  DO iElem=FirstElemInd,LastElemInd
+    aElem=>Elems(iElem)%ep
+    DO iLocSide=1,6
+      aSide=>aElem%Side(iLocSide)%sp
+      aSide%tmp=0
+      DO iMortar=1,aSide%nMortars
+        aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%tmp=0
+      END DO ! iMortar
+    END DO ! iLocSide
+  END DO ! iElem
+
+  ! set 'tmp'-marker of the big Mortar sides to:
+  !  -2 : if a small virtual side is MPI_YOUR (can not be moved)
+  !  -1 : otherwise (can be moved to inner Mortars)
+  ! Therewith only the big Mortar sides have a 'tmp'-marker different from 0.
+  ! Additionally count all big Mortar sides that can be moved to inner Mortars (with tmp == -1).
+  ! ATTENTION: big Mortars, which are already inner Mortars are also marked and counted.
+  addToInnerMortars=0
+  DO iElem=FirstElemInd,LastElemInd
+    aElem=>Elems(iElem)%ep
+    DO iLocSide=1,6
+      aSide=>aElem%Side(iLocSide)%sp
+      IF(aSide%nMortars.GT.0)THEN
+        aSide%tmp=-1 ! mortar side
+        DO iMortar=1,aSide%nMortars
+          IF(aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%SideID.GT.offsetMPISides_YOUR(0))THEN
+            aSide%tmp=-2  ! mortar side with side used in MPI_YOUR
+            EXIT
+          END IF
+        END DO ! iMortar
+        IF(aSide%tmp.EQ.-1) THEN
+          addToInnerMortars=addToInnerMortars+1
+        END IF
+      END IF ! nMortars>0
+    END DO ! iLocSide
+  END DO ! iElem
+
+  addToInnerMortars=addToInnerMortars-nMortarInnerSides ! inner big Mortars are counted as well, subtract them.
+  nMortarInnerSides_OLD = nMortarInnerSides ! store for later use
+  IF(addToInnerMortars.GT.0)THEN
+    nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
+    nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
+#ifdef PP_HDG
+    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,& 
+        "nMortarMPISides.NE.0: with HDG there should not be any Big MPIMortarSides. nMortarMPISides=",IntInfoOpt=nMortarMPISides)
+#endif /*PP_HDG*/
+  END IF ! addToInnerMortars>0
+END IF ! nMortarSides>0
+
+! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
+! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
+! Requires:
+!   nBCSides          is set in ReadMesh()
+!   nMortarInnerSides is set in setLocalSideIDs()
+!   nInnerSides       is set in ReadMesh()
+!   nMPISides_MINE    is set in setLocalSideIDs()
+!   nMPISides_YOUR    is set in setLocalSideIDs()
+CALL setSideRanges()
 
 ! Iterate over all processors and for each processor over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
@@ -467,7 +538,8 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
-! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
+
+! Optimize Mortars 2/2: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
 ! Order of sides (see mesh.f90):
@@ -478,50 +550,52 @@ END DO ! iElem
 !    MPI_YOUR sides
 !    MPIMortars
 IF(nMortarSides.GT.0)THEN
-  ! reset 'tmp'-marker of all sides to 0
-  DO iElem=FirstElemInd,LastElemInd
-    aElem=>Elems(iElem)%ep
-    DO iLocSide=1,6
-      aSide=>aElem%Side(iLocSide)%sp
-      aSide%tmp=0
-      DO iMortar=1,aSide%nMortars
-        aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%tmp=0
-      END DO ! iMortar
-    END DO ! iLocSide
-  END DO ! iElem
+! THIS HAS BEEN MOVED TO THE TOP
+!                      ! reset 'tmp'-marker of all sides to 0
+!                      DO iElem=FirstElemInd,LastElemInd
+!                        aElem=>Elems(iElem)%ep
+!                        DO iLocSide=1,6
+!                          aSide=>aElem%Side(iLocSide)%sp
+!                          aSide%tmp=0
+!                          DO iMortar=1,aSide%nMortars
+!                            aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%tmp=0
+!                          END DO ! iMortar
+!                        END DO ! iLocSide
+!                      END DO ! iElem
 
-  ! set 'tmp'-marker of the big Mortar sides to:
-  !  -2 : if a small virtual side is MPI_YOUR (can not be moved)
-  !  -1 : otherwise (can be moved to inner Mortars)
-  ! Therewith only the big Mortar sides have a 'tmp'-marker different from 0.
-  ! Additionally count all big Mortar sides that can be moved to inner Mortars (with tmp == -1).
-  ! ATTENTION: big Mortars, which are already inner Mortars are also marked and counted.
-  addToInnerMortars=0
-  DO iElem=FirstElemInd,LastElemInd
-    aElem=>Elems(iElem)%ep
-    DO iLocSide=1,6
-      aSide=>aElem%Side(iLocSide)%sp
-      IF(aSide%nMortars.GT.0)THEN
-        aSide%tmp=-1 ! mortar side
-        DO iMortar=1,aSide%nMortars
-          IF(aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%SideID.GT.offsetMPISides_YOUR(0))THEN
-            aSide%tmp=-2  ! mortar side with side used in MPI_YOUR
-            EXIT
-          END IF
-        END DO ! iMortar
-        IF(aSide%tmp.EQ.-1) THEN
-          addToInnerMortars=addToInnerMortars+1
-        END IF
-      END IF ! nMortars>0
-    END DO ! iLocSide
-  END DO ! iElem
+!                      ! set 'tmp'-marker of the big Mortar sides to:
+!                      !  -2 : if a small virtual side is MPI_YOUR (can not be moved)
+!                      !  -1 : otherwise (can be moved to inner Mortars)
+!                      ! Therewith only the big Mortar sides have a 'tmp'-marker different from 0.
+!                      ! Additionally count all big Mortar sides that can be moved to inner Mortars (with tmp == -1).
+!                      ! ATTENTION: big Mortars, which are already inner Mortars are also marked and counted.
+!                      addToInnerMortars=0
+!                      DO iElem=FirstElemInd,LastElemInd
+!                        aElem=>Elems(iElem)%ep
+!                        DO iLocSide=1,6
+!                          aSide=>aElem%Side(iLocSide)%sp
+!                          IF(aSide%nMortars.GT.0)THEN
+!                            aSide%tmp=-1 ! mortar side
+!                            DO iMortar=1,aSide%nMortars
+!                              IF(aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%SideID.GT.offsetMPISides_YOUR(0))THEN
+!                                aSide%tmp=-2  ! mortar side with side used in MPI_YOUR
+!                                EXIT
+!                              END IF
+!                            END DO ! iMortar
+!                            IF(aSide%tmp.EQ.-1) THEN
+!                              addToInnerMortars=addToInnerMortars+1
+!                            END IF
+!                          END IF ! nMortars>0
+!                        END DO ! iLocSide
+!                      END DO ! iElem
+!                    
+!                      addToInnerMortars=addToInnerMortars-nMortarInnerSides ! inner big Mortars are counted as well, subtract them.
+! THIS HAS BEEN MOVED TO THE TOP
 
-
-  addToInnerMortars=addToInnerMortars-nMortarInnerSides ! inner big Mortars are counted as well, subtract them.
   ! Shift all InnerSides, MPI_MINE and MPI_YOUR sides rearwards by the number of big Mortars that will be moved.
   ! Therewith the space/gap in the InnerMortars for the big Mortars, that will be moved, is created.
   IF(addToInnerMortars.GT.0)THEN
-    lastMortarInnerSide=nBCSides+nMortarInnerSides ! SideID of the last InnerMortar (before the move)
+    lastMortarInnerSide=nBCSides+nMortarInnerSides_OLD ! SideID of the last InnerMortar (before the move)
     ! Iterate over all elements and within each element over all sides (6 for hexas)
     DO iElem=FirstElemInd,LastElemInd
       aElem=>Elems(iElem)%ep
@@ -548,12 +622,7 @@ IF(nMortarSides.GT.0)THEN
     offsetMPISides_MINE=offsetMPISides_MINE+addToInnerMortars
     offsetMPISides_YOUR=offsetMPISides_YOUR+addToInnerMortars
 
-    nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
-    nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
-#ifdef PP_HDG
-    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,& 
-        "with HDG there should not be any Big MPIMortarSides")
-#endif /*PP_HDG*/
+
     iMortarMPISide=nSides-nMortarMPISides                  ! first index of the remaining MPI Mortars
     iMortarInnerSide=nBCSides                              ! first index of the new inner Mortars
 
@@ -587,6 +656,13 @@ IF(nMortarSides.GT.0)THEN
   LOGWRITE(*,'(A22,I8)')'new nMortarMPISides:',nMortarMPISides
   LOGWRITE(*,*)'-------------------------------------------------------'
 END IF ! nMortarSides>0
+
+
+
+
+
+
+
 
 nSmallMortarSides=0
 nSmallMortarMPIsides_MINE=0
@@ -1334,6 +1410,103 @@ END DO
 j=nA-i
 A(k:k+nA-i)=part1(i:nA)
 END SUBROUTINE DoMerge
+
+
+SUBROUTINE setSideRanges() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Set the ranges in the different side lists
+!
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals   ,ONLY: Logging,UNIT_logOut,iERROR,MPI_COMM_WORLD,myrank,UNIT_StdOut,abort
+USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
+USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
+USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave,nMortarMPISides,nUniqueSides,nGlobalUniqueSides
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,ChangedPeriodicBC
+#if USE_MPI
+USE mpi
+#endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
+!===================================================================================================================================
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides          ! nBCSides is set in ReadMesh()
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides ! nMortarInnerSides is set in setLocalSideIDs()
+firstMPISide_MINE    = firstInnerSide      +nInnerSides       ! nInnerSides is set in ReadMesh()
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE    ! nMPISides_MINE is set in setLocalSideIDs()
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR    ! nMPISides_YOUR is set in setLocalSideIDs()
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMasterSide     ', firstMasterSide,lastMasterSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
+LOGWRITE(*,*)'-------------------------------------------------------'
+
+
+! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
+#ifdef PP_HDG
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
+#if USE_MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif /*USE_MPI*/
+! Sanity check: Compare the number of global unique sides with the value that is read from the mesh file
+IF((nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides).AND.ChangedPeriodicBC) THEN
+  IPWRITE(UNIT_StdOut,*) "nUniqueSides              =",nUniqueSides
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSidesFromMesh=",nGlobalUniqueSidesFromMesh
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSides        =",nGlobalUniqueSides
+  CALL abort( &
+      __STAMP__, &
+      "nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
+END IF
+#endif /*HDG*/
+
+END SUBROUTINE setSideRanges
 
 
 END MODULE MOD_Prepare_Mesh
