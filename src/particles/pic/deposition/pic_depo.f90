@@ -1715,9 +1715,11 @@ CASE('epanechnikov')
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
-         PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
-                                        * Species(PartSpecies(iPart))%ChargeIC &
-                                        * Species(PartSpecies(iPart))%MacroParticleFactor
+          IF(doCalculateCurrentDensity)THEN
+            PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
+                * Species(PartSpecies(iPart))%ChargeIC &
+                * Species(PartSpecies(iPart))%MacroParticleFactor
+          END IF
          PartSource(4,kk,ll,mm,iElem) = PartSource(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) &
                                         * Species(PartSpecies(iPart))%ChargeIC &
                                         * Species(PartSpecies(iPart))%MacroParticleFactor
