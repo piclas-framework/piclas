@@ -360,7 +360,7 @@ SUBROUTINE ComputePlanarCurvedIntersection(isHit                       &
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: PI
-USE MOD_Globals                ,ONLY: Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
+USE MOD_Globals                ,ONLY: Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR,myrank
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Particle_Vars          ,ONLY: LastPartPos
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec,SideSlabNormals
@@ -369,7 +369,6 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: locXi,locEta,locAlpha,SideDistance
 USE MOD_Utils                  ,ONLY: InsertionSort
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Globals                ,ONLY: myrank
 USE MOD_Particle_Surfaces_Vars ,ONLY: rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2798,9 +2797,8 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipLocalTol,Bez
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Globals,                 ONLY:UNIT_stdout,abort
+USE MOD_Globals,                 ONLY:UNIT_stdout,abort,myrank
 #ifdef CODE_ANALYZE
-USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
 USE MOD_Particle_Surfaces,       ONLY:CalcNormAndTangBezier
 #endif /*CODE_ANALYZE*/

@@ -69,13 +69,13 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_ReadIn        ,ONLY: INVMAP
 #ifdef PP_HDG
 #if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSides
 USE MOD_Mesh_Vars          ,ONLY: offsetSide
 #endif /*USE_MPI*/
 #endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars   ,ONLY: 
 USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSides
 #if USE_MPI
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_MPI_Vars           ,ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
@@ -1435,15 +1435,18 @@ SUBROUTINE setSideRanges()
 !
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals   ,ONLY: Logging,UNIT_logOut,iERROR,MPI_COMM_WORLD,myrank,UNIT_StdOut,abort
+USE MOD_Globals   ,ONLY: Logging,UNIT_logOut,UNIT_StdOut,abort
 USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
-USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave,nMortarMPISides,nUniqueSides,nGlobalUniqueSides
-USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,ChangedPeriodicBC
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
+#ifdef PP_HDG
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,ChangedPeriodicBC,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
 USE mpi
 #endif /*USE_MPI*/
+#endif /*PP_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
