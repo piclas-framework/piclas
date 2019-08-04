@@ -5206,12 +5206,12 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
                                  ,SidePeriodicType,ElemToGlobalElemID
-USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #endif /*USE_MPI*/
 USE MOD_Mesh_vars
 !----------------------------------------------------------------------------------------------------------------------------------!
