@@ -92,7 +92,7 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem,ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
@@ -111,7 +111,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,p,q,r,iElem,SideID,ilocSide
+INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState,RegionID
 REAL              :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
@@ -674,7 +674,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iVar,i,j,k,r,p,q,iElem, iter,RegionID
+INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
@@ -1208,7 +1208,6 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 USE MOD_Globals
 USE MOD_HDG_Vars       ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
 USE MOD_Mesh_Vars      ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
-USE MOD_Mesh_Vars      ,ONLY: MortarType
 USE MOD_FillMortar_HDG ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
@@ -1327,6 +1326,9 @@ END DO ! SideID=1,nSides
 END IF
 #endif
 
+! Suppress compiler warning
+RETURN
+iVar=0
 
 END SUBROUTINE MatVec
 
@@ -1378,8 +1380,7 @@ SUBROUTINE ApplyPrecond(R, V)
 USE MOD_Globals
 USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
 USE MOD_HDG_Vars  ,ONLY: MaskedSide
-USE MOD_Mesh_Vars ,ONLY: nSides,MortarType
-USE MOD_Mesh_Vars ,ONLY: FirstMortarInnerSide 
+USE MOD_Mesh_Vars ,ONLY: nSides
 USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

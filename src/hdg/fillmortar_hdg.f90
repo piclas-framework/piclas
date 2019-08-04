@@ -62,7 +62,7 @@ SUBROUTINE InitMortar_HDG()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
-USE MOD_HDG_Vars,    ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,PrecondType,nGP_Face
+USE MOD_HDG_Vars,    ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,nGP_Face
 USE MOD_Mesh_Vars,   ONLY: nSides,MortarType,MortarInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -424,7 +424,7 @@ SUBROUTINE SmallToBigMortarPrecond_HDG(whichPrecond)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_HDG_Vars,    ONLY: nGP_Face,Precond,InvPrecondDiag,IntMatMortar
 ! IMPLICIT VARIABLE HANDLING
