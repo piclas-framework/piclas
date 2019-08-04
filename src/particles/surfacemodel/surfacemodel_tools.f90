@@ -720,14 +720,14 @@ REAL FUNCTION CalcDissRecombActEnergy(HeatProduct,HeatReactantA,HeatReactantB,DP
 !> Calculates the Activation energy for a dissociation or recombination reaction
 !> specify heat and dissociation bond energy of product (recombined) species and heat of adosrptions of educt (dissociated) species
 !>   DISSOCIATION: O2_ads + (-)_ads -> O_ads + O_ads
-!>   HeatProduct = Heat_O2 | HeatProductA = HeatProductB = Heat_O
+!>   HeatProduct = Heat_O2 | HeatReactantA = HeatReactantB = Heat_O
 !>   RECOMBINATION: O_ads + O_ads -> O2_gas
-!>   HeatProduct = 0. | HeatProductA = HeatProductB = Heat_O
+!>   HeatProduct = 0. | HeatReactantA = HeatReactantB = Heat_O
 !> ProdSpec is recombined species, which is used for selection of linear polyatomic case
 !>   DISSOCIATION: CO2_ads + (-)_ads -> CO_ads + O_ads
-!>   HeatProduct = Heat_CO2 | HeatProductA = CO | HeatProductB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
+!>   HeatProduct = Heat_CO2 | HeatReactantA = CO | HeatReactantB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
 !>   RECOMBINATION: CO_ads + O_ads -> CO2_gas
-!>   HeatProduct = 0. | HeatProductA = CO | HeatProductB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
+!>   HeatProduct = 0. | HeatReactantA = CO | HeatReactantB = Heat_O  | product -> polyatomic-linear -> E_a = 2*E_a
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
@@ -776,10 +776,9 @@ END FUNCTION CalcDissRecombActEnergy
 
 
 #if (PP_TimeDiscMethod==42)
-REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp &
-                                 ,loc_ActE,loc_nu)
+REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,loc_ActE,loc_nu)
 #else
-REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max,CharaTemp)
+REAL FUNCTION CalcAdsorbReactProb(ReactionCase,ReactNum,PartID,SurfID,NormalVelo,E_Activation,E_Activation_max)
 #endif
 !===================================================================================================================================
 !> Calculates the Probability for Adsorption with TCE Model
@@ -810,7 +809,6 @@ REAL, INTENT(IN)             :: NormalVelo
 REAL, INTENT(IN)             :: E_Activation
 REAL, INTENT(IN)             :: E_Activation_max
 !INTEGER, INTENT(IN),OPTIONAL :: PartnerSpecies
-REAL, INTENT(IN),OPTIONAL    :: CharaTemp
 #if (PP_TimeDiscMethod==42)
 REAL, INTENT(INOUT),OPTIONAL :: loc_ActE
 REAL, INTENT(INOUT),OPTIONAL :: loc_nu
