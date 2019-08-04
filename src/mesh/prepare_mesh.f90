@@ -209,8 +209,10 @@ END DO
 ! with a neighbor on another processor (set 'tmp' to -1).
 nMortarInnerSides=0
 nMortarMPISides=0
+#if USE_MPI
 nMasterMortarMPISides_Proc=0
 nSlaveMortarMPISides_Proc=0
+#endif /*USE_MPI*/
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iLocSide=1,6
@@ -218,6 +220,7 @@ DO iElem=FirstElemInd,LastElemInd
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
 #ifdef PP_HDG
+#if USE_MPI
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
         nbProc_loc=aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc
         IF(nbProc_loc.NE.-1) THEN
@@ -225,6 +228,7 @@ DO iElem=FirstElemInd,LastElemInd
           nMasterMortarMPISides_Proc(iNbProc)= nMasterMortarMPISides_Proc(iNbProc)+1
         END IF
       END DO ! iMortar
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
                                   ! if any of the them has a neighbor on another processor
@@ -240,6 +244,7 @@ DO iElem=FirstElemInd,LastElemInd
                                               ! further increased later on)
       END IF
     END IF ! nMortars>0
+#if USE_MPI
     IF(aSide%MortarType.EQ.-10)THEN
       nbProc_loc=aSide%nbProc
       IF(nbProc_loc.NE.-1) THEN
@@ -247,6 +252,7 @@ DO iElem=FirstElemInd,LastElemInd
         nSlaveMortarMPISides_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNbProc)+1
       ENDIF
     END IF
+#endif /*USE_MPI*/
   END DO
 END DO
 IF((nMortarInnerSides+nMortarMPISides).NE.nMortarSides) &
