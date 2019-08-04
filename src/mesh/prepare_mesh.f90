@@ -436,6 +436,7 @@ IF(nMortarSides.GT.0)THEN
   END IF ! addToInnerMortars>0
 END IF ! nMortarSides>0
 
+#endif /*USE_MPI*/
 ! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
 ! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
 ! Requires:
@@ -445,6 +446,7 @@ END IF ! nMortarSides>0
 !   nMPISides_MINE    is set in setLocalSideIDs()
 !   nMPISides_YOUR    is set in setLocalSideIDs()
 CALL setSideRanges()
+#if USE_MPI
 
 ! Iterate over all processors and for each processor over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
