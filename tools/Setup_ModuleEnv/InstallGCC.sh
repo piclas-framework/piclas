@@ -8,13 +8,19 @@ if [ ! -e ${SOURCESDIR} ]; then
   mkdir -p ${SOURCESDIR}
 fi
 
-# DOWNLOAD and INSTALL GCC COMPILER (example gcc-7.3.0)
-GCCVERSION='7.3.0'
+# DOWNLOAD and INSTALL GCC COMPILER (example gcc-7.4.0)
+GCCVERSION='7.4.0'
 # GCCVERSION='8.2.0'
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
 
 COMPILERDIR=${INSTALLDIR}'/compiler/gcc/'${GCCVERSION}
+
+if [[ -n ${1} ]]; then
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    rm ${MODULEFILE}
+  fi
+fi
 
 if [ ! -e ${MODULEFILE} ]; then
   echo "creating Compiler GCC-${GCCVERSION}"
@@ -31,6 +37,9 @@ if [ ! -e ${MODULEFILE} ]; then
   if [ ! -d ${SOURCESDIR}/gcc-${GCCVERSION}/build ]; then
     mkdir -p gcc-${GCCVERSION}/build
   fi
+  if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+    rm gcc-${GCCVERSION}/build/* 
+  fi
   cd gcc-${GCCVERSION}/build
   ../configure -v \
     --prefix=${COMPILERDIR} \
@@ -42,7 +51,7 @@ if [ ! -e ${MODULEFILE} ]; then
     --with-sysroot=/ \
     --with-system-zlib
     # --enable-valgrind-annotations
-  make -j 2>&1 | tee make.out
+  make -j 2 2>&1 | tee make.out
   make install 2>&1 | tee install.out
 
   if [ ! -d ${MODULEFILEDIR} ]; then
@@ -51,7 +60,7 @@ if [ ! -e ${MODULEFILE} ]; then
 
   if [ -e ${COMPILERDIR}/bin/gcc ] && [ -e ${COMPILERDIR}/bin/gfortran ]; then
     cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
-    sed -i 's/versionflag/'${GCCVERSION}'/g' ${MODULEFILE}
+    sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
   else
     echo "compiler not installed, no modulefile created"
   fi

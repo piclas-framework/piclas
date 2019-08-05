@@ -2163,11 +2163,11 @@ IF(DoRefMapping)THEN
    ,'Could not allocate DummyBezierControlPoints3D')
   DummyBezierControlPoints3D=BezierControlPoints3D
   DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
-   ,'Could not reallocate BezierControlPoints3d')
-  BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
+   ,'Could not reallocate BezierControlPoints3D')
+  BezierControlPoints3D(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideSlabNormals
   ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldSides))
