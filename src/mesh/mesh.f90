@@ -940,30 +940,12 @@ lastMPISide_MINE     = firstMPISide_YOUR -1
 lastMPISide_YOUR     = firstMortarMPISide-1
 lastMortarMPISide    = nSides
 
-
 firstMasterSide = 1
 lastMasterSide  = nSides
 firstSlaveSide  = firstInnerSide
 lastSlaveSide   = lastMPISide_YOUR
 nSidesMaster    = lastMasterSide-firstMasterSide+1
 nSidesSlave     = lastSlaveSide -firstSlaveSide+1
-
-DO i = 0, nProcessors-1
-  IF(i.eq.myrank)THEN
-    IPWRITE(*,*)'-------------------------------------------------------'
-    IPWRITE(*,'(I0,A25,I8)')   ' nMortarInnerSides        ', nMortarInnerSides
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMasterSide     ', firstMasterSide,lastMasterSide
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastBCSide         ', firstBCSide         ,lastBCSide
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
-    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
-  END IF ! i.eq.myrank
-  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-END DO ! i = 0, nPr
-
 
 ! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
 #ifdef PP_HDG
