@@ -213,7 +213,7 @@ IF(CalcPointsPerWavelength)THEN
     PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
     PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
   END DO ! iElem = 1, nElems
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMin , 1 , MPI_DOUBLE_PRECISION , MPI_MIN , 0 , MPI_COMM_WORLD , iError)
     CALL MPI_REDUCE(MPI_IN_PLACE , PPWCellMax , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
@@ -222,7 +222,7 @@ IF(CalcPointsPerWavelength)THEN
     CALL MPI_REDUCE(PPWCellMax   , 0          , 1 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL PrintOption('MIN(PPWCell)','CALCUL.',RealOpt=PPWCellMin)
   CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
@@ -254,7 +254,11 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
+#ifdef PP_HDG
+SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
+#else
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
+#endif
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -272,7 +276,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifndef PP_HDG
 REAL,INTENT(IN)               :: time
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
@@ -314,7 +320,7 @@ DO iElem=1,PP_nElems
      END DO ! l
    END DO ! m
 END DO ! iElem=1,PP_nElems
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , PP_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
     CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
@@ -323,7 +329,7 @@ END DO ! iElem=1,PP_nElems
     CALL MPI_REDUCE(L_Inf_Error , 0            , PP_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
     ! in this case the receive value is not relevant.
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_Error = SQRT(L_2_Error/GEO%MeshVolume)
@@ -332,7 +338,7 @@ END SUBROUTINE CalcError
 
 
 #ifdef PARTICLES
-SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 !===================================================================================================================================
 ! Calculates the L2 (particle) source error by integrating the difference between the numerical and analytical solution
 ! over all elements.
@@ -350,7 +356,6 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: time
 INTEGER,INTENT(IN)            :: PartSource_nVar
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -391,7 +396,7 @@ DO iElem=1,PP_nElems
     END DO ! l
   END DO ! m
 END DO ! iElem=1,PP_nElems
-#ifdef MPI
+#if USE_MPI
 IF(MPIroot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE     , L_2_PartSource   , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
   CALL MPI_REDUCE(MPI_IN_PLACE     , L_Inf_PartSource , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
@@ -400,7 +405,7 @@ ELSE
   CALL MPI_REDUCE(L_Inf_PartSource , 0                , PartSource_nVar , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_WORLD , iError)
   ! in this case the receive value is not relevant.
 END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_PartSource = SQRT(L_2_PartSource/GEO%MeshVolume)
@@ -441,7 +446,7 @@ REAL                          :: U2_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAna
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
-#ifdef MPI
+#if USE_MPI
 REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
@@ -496,7 +501,7 @@ DO iElem=1,nElems
      END DO ! l
    END DO ! m
 END DO ! iElem=1,nElems
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
     CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
@@ -507,7 +512,7 @@ END DO ! iElem=1,nElems
     CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
     ! in this case the receive value is not relevant.
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_Error = SQRT(L_2_Error/Volume)
@@ -553,7 +558,7 @@ REAL                          :: U1_NAnalyze(1:nVar,0:NAnalyze,0:NAnalyze,0:NAna
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: Volume,IntegrationWeight
-#ifdef MPI
+#if USE_MPI
 REAL                          :: Volume2
 #endif
 CHARACTER(LEN=40)             :: formatStr
@@ -601,7 +606,7 @@ DO iElem=1,nElems
      END DO ! l
    END DO ! m
 END DO ! iElem=1,nElems
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,L_2_Error,nVar,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
     CALL MPI_REDUCE(MPI_IN_PLACE,volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,iError)
@@ -612,7 +617,7 @@ END DO ! iElem=1,nElems
     CALL MPI_REDUCE(L_Inf_Error,L_Inf_Error2,nVar,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,iError)
     ! in this case the receive value is not relevant.
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 ! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
 L_2_Error = SQRT(L_2_Error/Volume)
@@ -758,7 +763,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! 3) during an analyze step and writing of a state file
 ! 4) during a load-balance step
 ! This routine calls all other analyze-subroutines, which write data to a csv file
-! Currently this are:
+! Currently these are:
 ! I)    AnalyzeField             ->  FieldAnalyze.csv
 ! II)   AnalyzeParticles         ->  PartAnalyze.csv
 ! III)  AnalyzeSurface           ->  SurfaceDatabase.csv
@@ -842,10 +847,10 @@ LOGICAL                       :: ProlongToFaceNeeded
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
 INTEGER                       :: iSide
 #endif
-#ifdef MPI
+#if USE_MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
 REAL                          :: TotalSideBoundingBoxVolume,rDummy
@@ -975,11 +980,15 @@ END IF
 IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
+#ifdef PP_HDG
+    CALL CalcError(L_2_Error,L_Inf_Error)
+#else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
+#endif
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
 #ifdef PARTICLES
     IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+      CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
     END IF
 #endif /*PARTICLES*/
   END IF
@@ -1166,7 +1175,7 @@ END IF
 ! Measure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
 ! Allows non-synchronous measurement of particle tracking
 IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
-#ifdef MPI
+#if USE_MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -1176,7 +1185,7 @@ IF(OutPutHDF5 .AND. MeasureTrackTime)THEN
     CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   END IF
-#endif /*MPI*/
+#endif /*USE_MPI*/
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A,I15)')   ' Number of trackings:   ',nTracks
   SWRITE(UNIT_stdOut,'(A,F15.6)') ' Tracking time:         ',tTracking
@@ -1204,13 +1213,13 @@ IF (DoPartAnalyze)  THEN
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
     TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
-#ifdef MPI
+#if USE_MPI
     IF(MPIRoot) THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
     ELSE ! no Root
       CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
     END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
   END IF
 END IF
@@ -1297,9 +1306,9 @@ IF (DoPartAnalyze) THEN
   !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
   OutputCounter = 2
   unit_index = 555
-#ifdef MPI
+#if USE_MPI
   IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
    IF (.NOT.isOpen) THEN
      outfile = 'CodeAnalyze.csv'
@@ -1321,12 +1330,12 @@ IF (DoPartAnalyze) THEN
         WRITE(unit_index,'(A14)') ' '
      END IF
    END IF
-#ifdef MPI
+#if USE_MPI
   END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
  ! MPI Communication
-#ifdef MPI
+#if USE_MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,rBoundingBoxChecks , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierClip, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
@@ -1336,11 +1345,11 @@ IF (DoPartAnalyze) THEN
     CALL MPI_REDUCE(rPerformBezierClip,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
     CALL MPI_REDUCE(rPerformBezierNewton,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
   END IF
-#endif /* MPI */
+#endif /*USE_MPI*/
 
-#ifdef MPI
+#if USE_MPI
    IF(MPIROOT)THEN
-#endif    /* MPI */
+#endif /*USE_MPI*/
      WRITE(unit_index,104,ADVANCE='NO') Time
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') rBoundingBoxChecks
@@ -1349,9 +1358,9 @@ IF (DoPartAnalyze) THEN
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') rPerformBezierNewton
      WRITE(unit_index,'(A1)') ' '
-#ifdef MPI
+#if USE_MPI
    END IF
-#endif    /* MPI */
+#endif /*USE_MPI*/
 
 104    FORMAT (e25.14)
 

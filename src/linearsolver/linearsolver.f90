@@ -169,7 +169,7 @@ gammaEW=GETREAL('gammaEW','0.9')
 nRestarts             = GETINT('nRestarts','1')
 #ifndef PP_HDG
 nDofGlobalMPI=nDofGlobal
-#ifdef MPI
+#if USE_MPI
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,nDofGlobalMPI,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
 

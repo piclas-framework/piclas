@@ -45,7 +45,22 @@
 ! Check for charged particles: x = iPart
 #define CHARGEDPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
 
-#ifdef MPI
+! Check for particles to be interpolated or deposited: x = iPart
+#if (PP_TimeDiscMethod==300) /*FP-Flow*/ 
+#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#elif (PP_TimeDiscMethod==400) /*BGK*/
+#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#else /*all other methods, mainly PIC*/
+#define PUSHPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define DEPOSITPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#define INTERPOLATEPARTICLE(x) (ABS(Species(PartSpecies(x))%ChargeIC).GT.0.0)
+#endif
+
+#if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #else
@@ -136,8 +151,10 @@
 
 ! formats
 ! print to std out like  "    1.41421356237310E+000   -1.41421356237310E+000   -1.41421356237310E+000"
+! (looks good and prevents the first digit of being a zero)
 #define WRITEFORMAT '(ES25.14E3)'
 ! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
+! (does not look that good but it saves disk space)
 #define CSVFORMAT '(A1,E23.16E3))'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations

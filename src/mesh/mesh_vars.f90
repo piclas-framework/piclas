@@ -154,6 +154,7 @@ INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointe
 INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides
 INTEGER          :: nUniqueSides=0          !< =uniquesides for hdg output
 INTEGER          :: nGlobalUniqueSides=0    !< =uniquesides for hdg output
+INTEGER          :: nGlobalUniqueSidesFromMesh=0 !< =uniquesides read from mesh file
 INTEGER          :: nGlobalMortarSides=0    !< global number of big mortar sides
 INTEGER          :: offsetSide=0            !< for MPI, until now=0  Sides pointer array range
 INTEGER          :: nSidesMaster=0          !< =sideIDMaster
@@ -167,6 +168,7 @@ INTEGER          :: nMPISides_YOUR=0        !< number of YOUR MPI sides (on neig
 INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, number of unique nodes
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
+LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)

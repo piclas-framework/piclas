@@ -290,9 +290,9 @@ USE MOD_Mesh_Vars,               ONLY:BC
 USE MOD_SurfaceModel_Vars,       ONLY:SurfDistInfo, Adsorption
 USE MOD_Particle_Boundary_Vars,  ONLY:nSurfBC
 USE MOD_Particle_Boundary_Vars,  ONLY:nSurfSample,SurfMesh,offSetSurfSide,PartBound
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-#endif /*MPI*/
+#endif /*USE_MPI*/
 USE MOD_Particle_Tracking,       ONLY:ParticleCollectCharges
 USE MOD_PICDepo_Vars,            ONLY:DoDeposition, RelaxDeposition, PartSourceOld
 #endif /*PARTICLES*/
@@ -324,9 +324,9 @@ LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*PP_HDG*/
 INTEGER                            :: iElem
-#ifdef MPI
+#if USE_MPI
 REAL                               :: StartT,EndT
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
@@ -346,13 +346,13 @@ INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar
 ! 2D Symmetry RadialWeighting
 LOGICAL                            :: CloneExists
-#ifdef MPI
+#if USE_MPI
 REAL, ALLOCATABLE                  :: SendBuff(:), RecBuff(:)
 INTEGER                            :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                            :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 INTEGER, ALLOCATABLE               :: SendBuffPoly(:), RecBuffPoly(:)
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 INTEGER                            :: locnSurfPart,offsetnSurfPart
 INTEGER,ALLOCATABLE                :: SurfPartInt(:,:,:,:,:)
 INTEGER,ALLOCATABLE                :: SurfPartData(:,:)
@@ -381,7 +381,7 @@ INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*not PP_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
-#ifdef MPI
+#if USE_MPI
   StartT=MPI_WTIME()
 #endif
 
@@ -1018,7 +1018,7 @@ __STAMP__&
         END DO
       END IF
     END IF
-#ifdef MPI
+#if USE_MPI
     ! Step 2: All particles that are not found withing MyProc need to be communicated to the others and located there
     ! Combine number of lost particles of all processes and allocate variables
     CALL MPI_ALLGATHER(COUNTER2, 1, MPI_INTEGER, LostParts, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1427,7 +1427,7 @@ __STAMP__&
 
   ! Delete all files that will be rewritten
   IF(DoWriteStateToHDF5) CALL FlushHDF5(RestartTime)
-#ifdef MPI
+#if USE_MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
@@ -1614,7 +1614,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 
-ALLOCATE(MacroRestartValues(nElems,nSpecies+1,nVar_HDF5))
+ALLOCATE(MacroRestartValues(1:nElems,1:nSpecies+1,1:DSMC_NVARS))
 MacroRestartValues = 0.
 
 ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
@@ -1629,9 +1629,9 @@ END ASSOCIATE
 iVar = 1
 DO iSpec = 1, nSpecies
   DO iElem = 1, nElems
-    MacroRestartValues(iElem,iSpec,:) = ElemData_HDF5(iVar:iVar-1+nVar_HDF5,iElem)
+    MacroRestartValues(iElem,iSpec,:) = ElemData_HDF5(iVar:iVar-1+DSMC_NVARS,iElem)
   END DO
-  iVar = iVar + nVar_HDF5
+  iVar = iVar + DSMC_NVARS
 END DO
 
 CALL MacroRestart_InsertParticles()
@@ -1656,10 +1656,10 @@ USE MOD_HDG,                     ONLY: HDG
 USE MOD_TimeDisc_Vars,           ONLY: iter
 #ifdef PARTICLES
 USE MOD_PICDepo,                 ONLY: Deposition
-#ifdef MPI
+#if USE_MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange,DoExternalParts
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1671,7 +1671,7 @@ REAL,INTENT(IN)       :: t
 !===================================================================================================================================
 
 #ifdef PARTICLES
-#ifdef MPI
+#if USE_MPI
 IF(DoExternalParts)THEN
   ! communication of shape-function particles, YEAH.
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
@@ -1683,12 +1683,12 @@ END IF
 
 ! Deposition of particles
 CALL Deposition(doInnerParts=.TRUE.)
-#ifdef MPI
+#if USE_MPI
 ! here: finish deposition with delta kernal
 !       maps source terms in physical space
 ! ALWAYS require
 PartMPIExchange%nMPIParticles=0
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL Deposition(doInnerParts=.FALSE.)
 #endif /*PARTICLES*/
 

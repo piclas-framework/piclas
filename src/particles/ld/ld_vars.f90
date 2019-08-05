@@ -102,7 +102,7 @@ REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle 
                                                                                                   ! 3.Velocity uz
                                                                                                   ! 4.Temperature
                                                                                                   ! 5.Degree of freedom
-#ifdef MPI
+#if USE_MPI
   REAL  , ALLOCATABLE               :: MPINeighborBulkVal(:,:) ! LD values for cells on other procs (SideID, with 2nd index:
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy

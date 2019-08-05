@@ -92,7 +92,7 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem,ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,NbrOfRegions
@@ -111,7 +111,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,p,q,r,iElem,SideID,ilocSide
+INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState,RegionID
 REAL              :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
@@ -570,9 +570,9 @@ END DO
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-#ifdef MPI
+#if USE_MPI
 CALL Mask_MPIsides(PP_nVar,RHS_face)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
 
@@ -641,27 +641,27 @@ SUBROUTINE HDGNewton(t,U_out,td_iter)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
-USE MOD_FillMortar_HDG,    ONLY: SmallToBigMortar_HDG
+USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
 #if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars, ONLY:DoPrintConvInfo
+USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
 #endif
-USE MOD_Equation_Vars,     ONLY:eps0
-USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
-USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars,ONLY:wGP
-USE MOD_Particle_Vars     ,ONLY:  RegionElectronRef
-USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars,ONLY : GEO
-USE MOD_Elem_Mat          ,ONLY:PostProcessGradient, Elem_Mat,BuildPrecond
-USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
+USE MOD_Equation_Vars          ,ONLY: eps0
+USE MOD_Equation_Vars          ,ONLY: chitens_face
+USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars     ,ONLY: wGP
+USE MOD_Particle_Vars          ,ONLY:  RegionElectronRef
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
+USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
-USE MOD_Equation_Vars,     ONLY:E
+USE MOD_Equation_Vars          ,ONLY: E
 #endif
-USE MOD_TimeDisc_Vars,     ONLY:IterDisplayStep,DoDisplayIter
+USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_tools,       ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -674,7 +674,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iVar,i,j,k,r,p,q,iElem, iter,RegionID
+INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
@@ -777,9 +777,9 @@ END DO
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef MPI
+#if USE_MPI
 CALL Mask_MPISides(PP_nVar,RHS_Face)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
 #if USE_LOADBALANCE
@@ -915,9 +915,9 @@ ELSE
     END DO
 
 
-#ifdef MPI
+#if USE_MPI
   CALL Mask_MPIsides(PP_nVar,RHS_face)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
 
     ! SOLVE
@@ -993,23 +993,23 @@ REAL, INTENT(OUT) :: Norm_r2
 REAL,DIMENSION(nGP_face*nSides) :: R
 INTEGER                         :: VecSize
 !===================================================================================================================================
-#ifdef MPI
+#if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
   VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
   VecSize=nSides*nGP_face
-#endif /*MPI*/
+#endif /*USE_MPI*/
   CALL EvalResidual(RHS,lambda,R)
 
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 !  print*, Norm_R2
 !  read*
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsNonLinear**2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END SUBROUTINE CheckNonLinRes
 
 SUBROUTINE CG_solver(RHS,lambda,iVar)
@@ -1047,12 +1047,12 @@ IF(MOD(iter,IterDisplayStep).EQ.0) THEN
   SWRITE(*,*)'CG solver start'
 END IF
 TimeStartCG=PICLASTIME()
-#ifdef MPI
+#if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
 VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
 VecSize=nSides*nGP_face
-#endif /*MPI*/
+#endif /*USE_MPI*/
 IF(PRESENT(iVar)) THEN
   CALL EvalResidual(RHS,lambda,R,iVar)
 ELSE
@@ -1061,19 +1061,19 @@ END IF
 
 CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 IF(useRelativeAbortCrit)THEN
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.1e-16)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.1e-16)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 ELSE
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsCG**2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 END IF
 IF(converged) THEN !converged
 !  SWRITE(*,*)'CG not needed, residual already =0'
@@ -1108,13 +1108,13 @@ DO iteration=1,MaxIterCG
   lambda=lambda+omega*V
   R=R-omega*Z
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
-#ifdef MPI
+#if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
 !  IF(MPIroot) print*, rr, AbortCrit2
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(rr.LT.AbortCrit2)
-#endif /*MPI*/
+#endif /*USE_MPI*/
   IF(converged) THEN !converged
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
@@ -1208,13 +1208,12 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 USE MOD_Globals
 USE MOD_HDG_Vars       ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC
 USE MOD_Mesh_Vars      ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
-USE MOD_Mesh_Vars      ,ONLY: MortarType
 USE MOD_FillMortar_HDG ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_HDG_Vars       ,ONLY: Mask_MPIsides 
-#endif /*MPI*/ 
+#endif /*USE_MPI*/ 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1233,10 +1232,10 @@ INTEGER :: jLocSide,jSideID(6)
 
 CALL BigToSmallMortar_HDG(1,lambda)
 
-#ifdef MPI
+#if USE_MPI
 CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 firstSideID = 1
@@ -1273,7 +1272,7 @@ DO SideID=firstSideID,lastSideID
 END DO ! SideID=1,nSides
 !SWRITE(*,*)'DEBUG---------------------------------------------------------'
 
-#ifdef MPI
+#if USE_MPI
 ! Finish lambda communication
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 
@@ -1307,13 +1306,13 @@ DO SideID=firstSideID,lastSideID
   !add mass matrix
 END DO ! SideID=1,nSides
 
-#endif /*MPI*/
+#endif /*USE_MPI*/
 
 
 
-#ifdef MPI
+#if USE_MPI
 CALL Mask_MPIsides(1,mv)
-#endif /*MPI*/
+#endif /*USE_MPI*/
 CALL SmallToBigMortar_HDG(1,mv)
 
 #if (PP_nVar!=1)
@@ -1327,6 +1326,9 @@ END DO ! SideID=1,nSides
 END IF
 #endif
 
+! Suppress compiler warning
+RETURN
+iVar=0
 
 END SUBROUTINE MatVec
 
@@ -1351,7 +1353,7 @@ REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
-#ifdef MPI
+#if USE_MPI
 REAL              :: ResuSend
 #endif
 !===================================================================================================================================
@@ -1361,7 +1363,7 @@ DO i=1,dim1
   Resu=Resu + A(i)*B(i)
 END DO
 
-#ifdef MPI
+#if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
@@ -1378,8 +1380,7 @@ SUBROUTINE ApplyPrecond(R, V)
 USE MOD_Globals
 USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
 USE MOD_HDG_Vars  ,ONLY: MaskedSide
-USE MOD_Mesh_Vars ,ONLY: nSides,MortarType
-USE MOD_Mesh_Vars ,ONLY: FirstMortarInnerSide 
+USE MOD_Mesh_Vars ,ONLY: nSides
 USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1470,9 +1471,9 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
-#ifdef MPI
+#if USE_MPI
 USE MOD_MPI_Vars
-#endif /*MPI*/
+#endif /*USE_MPI*/
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
 #elif (PP_nVar==3)
