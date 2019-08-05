@@ -16,7 +16,7 @@ apt-get install \
   make \
   libphonon-dev \
   qt4-qmake \
-  qt4-dev-tools
+  qt4-dev-tools \
   libqt4-opengl-dev \
   libqt4-dev \
   libxt-dev \
