@@ -182,10 +182,11 @@ Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations
 
 Testing the field solver (without compiling particle related routines) with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_maxwell_RK4/builds.ini).
 
-| **No.** |      **Case**       | **CMAKE-CONFIG** | **Feature** | **Execution** |     **Comparing**      | **Readme** |
-| :-----: | :-----------------: | :--------------: | :---------: | :-----------: | :--------------------: | :--------: |
-|     1   | dipole_cylinder_PML |                  |             |  nProcs=1,4   | L2 error, DG_Solution  |            |
-|     2   |    ExactFlux_PML    |                  |             | nProcs=1,4,8  | L2 error, FieldAnalyze |            |
+| **No.** | **Case**            | **CMAKE-CONFIG** | **Feature** | **Execution**     | **Comparing**            | **Readme**                                                               |
+| :-----: | :-----------------: | :--------------: | :---------: | :-----------:     | :--------------------:   | :--------:                                                               |
+| 1       | dipole_cylinder_PML |                  |             | nProcs=1,4        | L2 error, DG_Solution    |                                                                          |
+| 2       | ExactFlux_PML       |                  |             | nProcs=1,4,8      | L2 error, FieldAnalyze   |                                                                          |
+| 3       | MortarPlaneWave     |                  | Mortars     | nProcs=1,2,5,7,12 | DG_Solution,FieldAnalyze | [Link](regressioncheck/checks/NIG_maxwell_RK4/MortarPlaneWave/readme.md) |
 
 ## Weekly
 
