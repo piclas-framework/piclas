@@ -150,10 +150,6 @@ INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: validMesh,ExistFile
-INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
-INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
-INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
-INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -233,62 +229,15 @@ SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
-!RANGES
-!-----------------|-----------------|-------------------|
-!    U_master     | U_slave         |    FLUX           |
-!-----------------|-----------------|-------------------|
-!  BCsides        |                 |    BCSides        |
-!  InnerMortars   |                 |    InnerMortars   |
-!  InnerSides     | InnerSides      |    InnerSides     |
-!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
-!                 | MPI_YOUR sides  |    MPI_YOUR sides |
-!  MPIMortars     |                 |    MPIMortars     |
-!-----------------|-----------------|-------------------|
-
-firstBCSide          = 1
-firstMortarInnerSide = firstBCSide         +nBCSides
-firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
-firstMPISide_MINE    = firstInnerSide      +nInnerSides
-firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
-firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
-
-lastBCSide           = firstMortarInnerSide-1
-lastMortarInnerSide  = firstInnerSide    -1
-lastInnerSide        = firstMPISide_MINE -1
-lastMPISide_MINE     = firstMPISide_YOUR -1
-lastMPISide_YOUR     = firstMortarMPISide-1
-lastMortarMPISide    = nSides
-
-
-firstMasterSide = 1
-lastMasterSide  = nSides
-firstSlaveSide  = firstInnerSide
-lastSlaveSide   = lastMPISide_YOUR
-nSidesMaster    = lastMasterSide-firstMasterSide+1
-nSidesSlave     = lastSlaveSide -firstSlaveSide+1
-
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMasterSide     ', firstMasterSide,lastMasterSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
-LOGWRITE(*,*)'-------------------------------------------------------'
-LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
-LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
-LOGWRITE(*,*)'-------------------------------------------------------'
-
-
-! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
-#ifdef PP_HDG
-nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
-#if USE_MPI
-CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#else
-nGlobalUniqueSides=nSides
-#endif /*USE_MPI*/
-#endif /*HDG*/
+! Set the side ranges here (because by now nMortarInnerSides, nMPISides_MINE and nMPISides_YOUR have been determined)
+! and calculate nGlobalUniqueSides (also required are nBCSides and nInnerSides, which have been determined in ReadMesh())
+! Requires:
+!   nBCSides          is set in ReadMesh()
+!   nMortarInnerSides is set in setLocalSideIDs()
+!   nInnerSides       is set in ReadMesh()
+!   nMPISides_MINE    is set in setLocalSideIDs()
+!   nMPISides_YOUR    is set in setLocalSideIDs()
+CALL setSideRanges()
 
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
@@ -930,6 +879,112 @@ SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |            
 SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
+
+
+SUBROUTINE setSideRanges() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Set the ranges in the different side lists
+!
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+!
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals   ,ONLY: Logging,UNIT_logOut,UNIT_StdOut,abort,myrank,nProcessors
+USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMPISide_MINE,firstMPISide_YOUR
+USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
+USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
+#ifdef PP_HDG
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,ChangedPeriodicBC,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
+#if USE_MPI
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
+USE mpi
+#endif /*USE_MPI*/
+#endif /*PP_HDG*/
+USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES 
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
+INTEGER           :: i
+!===================================================================================================================================
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides          ! nBCSides is set in ReadMesh()
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides ! nMortarInnerSides is set in setLocalSideIDs()
+firstMPISide_MINE    = firstInnerSide      +nInnerSides       ! nInnerSides is set in ReadMesh()
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE    ! nMPISides_MINE is set in setLocalSideIDs()
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR    ! nMPISides_YOUR is set in setLocalSideIDs()
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+DO i = 0, nProcessors-1
+  IF(i.eq.myrank)THEN
+    IPWRITE(*,*)'-------------------------------------------------------'
+    IPWRITE(*,'(I0,A25,I8)')   ' nMortarInnerSides        ', nMortarInnerSides
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMasterSide     ', firstMasterSide,lastMasterSide
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastBCSide         ', firstBCSide         ,lastBCSide
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
+    IPWRITE(*,'(I0,A25,I8,I8)')' first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
+  END IF ! i.eq.myrank
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+END DO ! i = 0, nPr
+
+
+! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
+#ifdef PP_HDG
+nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
+#if USE_MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif /*USE_MPI*/
+! Sanity check: Compare the number of global unique sides with the value that is read from the mesh file
+IF((nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides).AND.ChangedPeriodicBC) THEN
+  IPWRITE(UNIT_StdOut,*) "nUniqueSides              =",nUniqueSides
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSidesFromMesh=",nGlobalUniqueSidesFromMesh
+  IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSides        =",nGlobalUniqueSides
+  CALL abort( &
+      __STAMP__, &
+      "nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
+END IF
+#endif /*HDG*/
+
+END SUBROUTINE setSideRanges
 
 
 SUBROUTINE FinalizeMesh()

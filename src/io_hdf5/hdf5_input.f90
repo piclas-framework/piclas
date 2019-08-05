@@ -447,7 +447,9 @@ INTEGER(HSIZE_T)               :: Offset(Rank),Dimsf(Rank)
 #ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
 #endif
+#if USE_MPI
 INTEGER(HID_T)                 :: driver
+#endif /*USE_MPI*/
 !==================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
 Dimsf=nVal
@@ -470,7 +472,7 @@ CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
 !CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError) ! old
 CALL H5PGET_DRIVER_F(Plist_File_ID, driver, iError) ! remove error "collective access for MPI-based drivers only"
 IF(driver.EQ.H5FD_MPIO_F) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
-#endif
+#endif /*USE_MPI*/
 CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
 
 ! Read the data

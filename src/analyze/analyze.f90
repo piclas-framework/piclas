@@ -254,7 +254,11 @@ REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze
 END SUBROUTINE InitAnalyzeBasis
 
 
+#ifdef PP_HDG
+SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
+#else
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
+#endif
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
@@ -272,7 +276,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifndef PP_HDG
 REAL,INTENT(IN)               :: time
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solution
@@ -332,7 +338,7 @@ END SUBROUTINE CalcError
 
 
 #ifdef PARTICLES
-SUBROUTINE CalcErrorPartSource(time,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 !===================================================================================================================================
 ! Calculates the L2 (particle) source error by integrating the difference between the numerical and analytical solution
 ! over all elements.
@@ -350,7 +356,6 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)               :: time
 INTEGER,INTENT(IN)            :: PartSource_nVar
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -975,11 +980,15 @@ END IF
 IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
+#ifdef PP_HDG
+    CALL CalcError(L_2_Error,L_Inf_Error)
+#else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
+#endif
     IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
 #ifdef PARTICLES
     IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
+      CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
     END IF
 #endif /*PARTICLES*/
   END IF

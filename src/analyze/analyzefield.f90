@@ -702,13 +702,16 @@ REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
+REAL              :: WEl_tmp, WMag_tmp, E_abs
 #ifndef PP_HDG
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
 REAL              :: RD
 #endif
+#if (PP_nVar==8)
+REAL              :: Wphi_tmp, Wpsi_tmp
+#endif /*PP_nVar=8*/        
 !===================================================================================================================================
 
 Wel=0.
@@ -847,13 +850,16 @@ REAL,INTENT(OUT)                :: WEl, WMag , Wpsi,Wphi
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs, Wphi_tmp, Wpsi_tmp
+REAL              :: WEl_tmp, WMag_tmp, E_abs
 #ifndef PP_HDG
 REAL              :: B_abs , Phi_abs, Psi_abs
 #endif
 #if USE_MPI
 REAL              :: RD
 #endif
+#if (PP_nVar==8)
+REAL              :: Wphi_tmp, Wpsi_tmp
+#endif /*PP_nVar=8*/
 !===================================================================================================================================
 
 Wel=0.

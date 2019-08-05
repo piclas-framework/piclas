@@ -3730,8 +3730,8 @@ SUBROUTINE CalculateCalcMaxPartDisplacement()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc               ,ONLY: PP_nElems,PP_N
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell,MaxPartDisplacementCell,MaxPartDisplacementCellX,&
-                                     MaxPartDisplacementCellY,MaxPartDisplacementCellZ
+USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
+USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass

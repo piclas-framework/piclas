@@ -331,13 +331,13 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DG_Vars          ,ONLY:U
-USE MOD_Timedisc_Vars,    ONLY:dt!, iter
-USE MOD_TimeDisc_Vars    ,ONLY:tAnalyze
-USE MOD_Analyze_Vars     ,ONLY:Analyze_dt,FieldAnalyzeStep
-USE MOD_RecordPoints_Vars,ONLY:RP_Data,RP_ElemID
-USE MOD_RecordPoints_Vars,ONLY:RP_Buffersize,RP_MaxBuffersize,iSample
-USE MOD_RecordPoints_Vars,ONLY:l_xi_RP,l_eta_RP,l_zeta_RP,nRP
+USE MOD_DG_Vars           ,ONLY: U
+USE MOD_Timedisc_Vars     ,ONLY: dt
+USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
+USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
+USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
+USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
+USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -391,6 +391,10 @@ IF(iSample.EQ.RP_Buffersize) THEN
   SWRITE(UNIT_StdOut,*) ' BufferSize reached!'
   CALL WriteRPToHDF5(tAnalyze,.FALSE.)
 END IF
+
+! Suppress compiler warnings
+RETURN
+write(*,*) Output
 
 END SUBROUTINE RecordPoints
 

@@ -54,7 +54,7 @@ Overview of the test cases performed during the nightly regression testing.
 
 | **No.** | **Case**                                           | **CMAKE-CONFIG**                                | **Feature**                                           | **Execution**                               | **Comparing**                    | **Readme**                                                                                              |
 | :-----: | :-------------------------------------:            | :---------------------:                         | :------------------------------:                      | :-----------------------------------------: | :------------------------------: | :-----------------------------------------------------------------------------------------------------: |
-| -       | [NIG_convtest](#nig_convtest)                      | maxwell, RK4                                    | Spatial order of convergence for Maxwell field solver |                                             |                                  |                                                                                                         |
+| -       | [NIG_convtest](#nig_convtest_maxwell)              | maxwell, RK4                                    | Spatial order of convergence for Maxwell field solver |                                             |                                  |                                                                                                         |
 | -       | [NIG_convtest_poisson](#nig_convtest_poisson)      | poisson, RK3                                    | Spatial order of convergence for HDG field solver     |                                             |                                  |                                                                                                         |
 | -       | [NIG_convtest_t](#nig_convtest_t)                  | maxwell, RK3,RK4,CN,ImplicitO3,ImplicitO4,ROS46 | Temporal order of convergence for particle push       |                                             |                                  |                                                                                                         |
 | -       | [NIG_Reservoir](#nig_reservoir)                    | maxwell, DSMC                                   | Relaxation, (Surface-) Chemistry                      |                                             |                                  |                                                                                                         |
@@ -75,7 +75,7 @@ Overview of the test cases performed during the nightly regression testing.
 
 ### NIG Convergence Tests
 
-### NIG_convtest
+### NIG_convtest_maxwell
 
 Convergence tests (spatially by varying either the polynomial degree of the solution or the number of mesh cells) for Maxwell's equations on conforming, non-conforming (hanging nodes/Mortars) Cartesian or non-orthogonal meshes with open or PEC boundaries: [Link CMAKE-CONFIG](regressioncheck/checks/NIG_convtest/builds.ini).
 
@@ -182,10 +182,11 @@ Testing PIC compiled with Runge-Kutta 4 integration, solving Maxwell's equations
 
 Testing the field solver (without compiling particle related routines) with Runge-Kutta 4 integration, solving Maxwell's equations: [Link to build](regressioncheck/checks/NIG_maxwell_RK4/builds.ini).
 
-| **No.** |      **Case**       | **CMAKE-CONFIG** | **Feature** | **Execution** |     **Comparing**      | **Readme** |
-| :-----: | :-----------------: | :--------------: | :---------: | :-----------: | :--------------------: | :--------: |
-|     1   | dipole_cylinder_PML |                  |             |  nProcs=1,4   | L2 error, DG_Solution  |            |
-|     2   |    ExactFlux_PML    |                  |             | nProcs=1,4,8  | L2 error, FieldAnalyze |            |
+| **No.** | **Case**            | **CMAKE-CONFIG** | **Feature** | **Execution**     | **Comparing**            | **Readme**                                                               |
+| :-----: | :-----------------: | :--------------: | :---------: | :-----------:     | :--------------------:   | :--------:                                                               |
+| 1       | dipole_cylinder_PML |                  |             | nProcs=1,4        | L2 error, DG_Solution    |                                                                          |
+| 2       | ExactFlux_PML       |                  |             | nProcs=1,4,8      | L2 error, FieldAnalyze   |                                                                          |
+| 3       | MortarPlaneWave     |                  | Mortars     | nProcs=1,2,5,7,12 | DG_Solution,FieldAnalyze | [Link](regressioncheck/checks/NIG_maxwell_RK4/MortarPlaneWave/readme.md) |
 
 ## Weekly
 

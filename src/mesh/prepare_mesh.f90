@@ -75,7 +75,7 @@ USE MOD_Mesh_Vars          ,ONLY: offsetSide
 USE MOD_LoadBalance_Vars   ,ONLY: 
 USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSides
+USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSidesFromMesh
 #if USE_MPI
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_MPI_Vars           ,ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
@@ -209,8 +209,10 @@ END DO
 ! with a neighbor on another processor (set 'tmp' to -1).
 nMortarInnerSides=0
 nMortarMPISides=0
+#if USE_MPI
 nMasterMortarMPISides_Proc=0
 nSlaveMortarMPISides_Proc=0
+#endif /*USE_MPI*/
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iLocSide=1,6
@@ -218,6 +220,7 @@ DO iElem=FirstElemInd,LastElemInd
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
 #ifdef PP_HDG
+#if USE_MPI
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
         nbProc_loc=aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc
         IF(nbProc_loc.NE.-1) THEN
@@ -225,6 +228,7 @@ DO iElem=FirstElemInd,LastElemInd
           nMasterMortarMPISides_Proc(iNbProc)= nMasterMortarMPISides_Proc(iNbProc)+1
         END IF
       END DO ! iMortar
+#endif /*USE_MPI*/
 #endif /*PP_HDG*/
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
                                   ! if any of the them has a neighbor on another processor
@@ -236,9 +240,11 @@ DO iElem=FirstElemInd,LastElemInd
       IF(aSide%tmp.EQ.-1) THEN                ! if at least one small virtual side has neighbor on another processor
         nMortarMPISides=nMortarMPISides+1     ! then count big side as a Mortar-MPI-side
       ELSE
-        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side
+        nMortarInnerSides=nMortarInnerSides+1 ! else count big side as a Mortar-Inner-side (old nMortarInnerSides, they are
+                                              ! further increased later on)
       END IF
     END IF ! nMortars>0
+#if USE_MPI
     IF(aSide%MortarType.EQ.-10)THEN
       nbProc_loc=aSide%nbProc
       IF(nbProc_loc.NE.-1) THEN
@@ -246,6 +252,7 @@ DO iElem=FirstElemInd,LastElemInd
         nSlaveMortarMPISides_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNbProc)+1
       ENDIF
     END IF
+#endif /*USE_MPI*/
   END DO
 END DO
 IF((nMortarInnerSides+nMortarMPISides).NE.nMortarSides) &
@@ -393,9 +400,9 @@ DO iNbProc=1,nNbProcs
         ! KEEP all small mortars from big side as master!!!
         IF(myRank.LT.aSide%NBproc)THEN
           IF(iMortar.GT.0)  aSide%ind=-aSide%ind   ! small mortars from big sides
-          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=2*nGlobalUniqueSides+ aSide%ind   ! small mortar neighbors (MortarType=-1)
+          IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=2*nGlobalUniqueSidesFromMesh+ aSide%ind   ! small mortar neighbors (MortarType=-1)
         ELSE 
-          IF(iMortar.GT. 0)  aSide%ind=2*nGlobalUniqueSides+aSide%ind   ! small mortars from big sides
+          IF(iMortar.GT. 0)  aSide%ind=2*nGlobalUniqueSidesFromMesh+aSide%ind   ! small mortars from big sides
           IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.-10)) aSide%ind=-aSide%ind   ! small mortar neighbors (MortarType=-1)
         END IF
 #else
@@ -462,7 +469,7 @@ DO iElem=FirstElemInd,LastElemInd
       IF(iMortar.GT.0) aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
       aSide%ind=ABS(aSide%ind) ! revert negative sideIDs (used to put non-mortars at the top of the list)
 #ifdef PP_HDG
-      IF(aSide%ind.GT.2*nGlobalUniqueSides) aSide%ind=aSide%ind-2*nGlobalUniqueSides !revert small slave mortar at end of list
+      IF(aSide%ind.GT.2*nGlobalUniqueSidesFromMesh) aSide%ind=aSide%ind-2*nGlobalUniqueSidesFromMesh !revert small slave mortar at end of list
 #endif /*PP_HDG*/
     END DO ! iMortar
   END DO ! iLocSide
