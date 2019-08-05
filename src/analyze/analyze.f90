@@ -122,7 +122,7 @@ USE MOD_Preproc
 USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary,InterpolationInitIsDone
 USE MOD_Analyze_Vars          ,ONLY: Nanalyze,AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,CalcPoyntingInt
 USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
-USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL
 USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL
