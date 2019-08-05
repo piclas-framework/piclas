@@ -180,7 +180,9 @@ CalcEpot          = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot)        DoFieldAnalyze = .TRUE.
 IF(CalcPoyntingInt) DoFieldAnalyze = .TRUE.
 
-! initialize time and counter for analyze measurement
+! Get logical for measurement of time spent in analyze routines
+DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime' ,'.FALSE.')
+! Initialize time and counter for analyze measurement
 AnalyzeCount = 0
 AnalyzeTime  = 0.0
 
@@ -1260,6 +1262,8 @@ IF(DoPerformErrorCalc)THEN
       WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
       AnalyzeCount = 0
       AnalyzeTime  = 0.0
+    ELSE
+      StartAnalyzeTime=PICLASTIME()
     END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
