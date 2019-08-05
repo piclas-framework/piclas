@@ -1356,6 +1356,9 @@ USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
+#if (defined (PP_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1381,28 +1384,46 @@ REAL                             :: dx,dy,dz
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
 REAL, ALLOCATABLE                :: NodeSource(:,:), tempNodeSource(:,:)
-REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)!, caseShiftedPart(1:3)
+REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
-REAL                             :: ElemSource(nElems,1:4)
+REAL, ALLOCATABLE                :: ElemSource(:,:)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
 INTEGER                          :: iLayer, layerParts
-!LOGICAL                          :: DoCycle
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
-REAL                             :: DeltaIntCoeff,prefac!, SFfixDistance
+REAL                             :: DeltaIntCoeff,prefac
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 LOGICAL                          :: DoCycle,DepoLoc
 #if USE_LOADBALANCE
 REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#if !(defined (PP_HDG) && (PP_nVar==1))
+INTEGER, PARAMETER               :: SourceDim=1
+LOGICAL, PARAMETER               :: doCalculateCurrentDensity=.TRUE.
+#else
+LOGICAL                          :: doCalculateCurrentDensity
+INTEGER                          :: SourceDim
+#endif
+INTEGER                          :: NodeID(1:8)
 !============================================================================================================================
+! Return, if no deposition is required
+IF(.NOT.DoDeposition) RETURN
+
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
-! Return, if no deposition is required
-IF(.NOT.DoDeposition) RETURN
+! Check whether charge and current density have to be compute or just the charge density
+#if (defined (PP_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
 
 IF(doInnerParts)THEN
   PartSource=0.0
@@ -1426,6 +1447,7 @@ SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
   ! TODO: Info why and under which conditions the following 'RETURN' is called
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
+  ALLOCATE(ElemSource(SourceDim:4,1:nElems))
   ElemSource=0.0
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
@@ -1442,28 +1464,26 @@ CASE('nearest_blurrycenter')
       IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
-!#if (PP_nVar==8)
-         ElemSource(iElem,1:3) = ElemSource(iElem,1:3)+ &
-                PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-!#endif
-         ElemSource(iElem,4) = ElemSource(iElem,4) + &
-              Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
+          IF(doCalculateCurrentDensity)THEN
+            ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ PartState(iPart,4:6)*Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+          END IF
+          ElemSource(4,iElem) = ElemSource(4,iElem)  + Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
         ELSE
-!#if (PP_nVar==8)
-         ElemSource(iElem,1:3) = ElemSource(iElem,1:3)+ &
+          IF(doCalculateCurrentDensity)THEN
+            ElemSource(1:3,iElem) = ElemSource(1:3,iElem)+ &
                 PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-!#endif
-         ElemSource(iElem,4) = ElemSource(iElem,4) + &
+          END IF
+          ElemSource(4,iElem) = ElemSource(4,iElem) + &
               Species(PartSpecies(iPart))%ChargeIC* Species(PartSpecies(iPart))%MacroParticleFactor
         END IF ! usevMPF
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
-!#if (PP_nVar==8)
-    PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(iElem,1)
-    PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(iElem,2)
-    PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(iElem,3)
-!#endif
-    PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(iElem,4)
+IF(doCalculateCurrentDensity)THEN
+  PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
+  PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
+  PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
+END IF
+PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1473,18 +1493,14 @@ CASE('nearest_blurrycenter')
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
     DO iElem=1,PP_nElems
-!#if (PP_nVar==8)
-      PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem) / GEO%Volume(iElem)
-!#else
-!      PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem) / GEO%Volume(iElem)
-!#endif
+      PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
 #if USE_LOADBALANCE
       CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
-  ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
+  ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
@@ -1509,24 +1525,23 @@ CASE('cell_volweight')
     ELSE
       CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos,iElem,ForceMode=.TRUE.)
     END IF
-    TSource(:) = 0.0
-!#if (PP_nVar==8)
-    TSource(1) = PartState(iPart,4)*Charge
-    TSource(2) = PartState(iPart,5)*Charge
-    TSource(3) = PartState(iPart,6)*Charge
-!#endif
+    IF(doCalculateCurrentDensity)THEN
+      TSource(1:3) = PartState(iPart,4:6)*Charge
+    ELSE
+      TSource(1:3) = 0.0
+    END IF
     TSource(4) = Charge
     alpha1=(TempPartPos(1)+1.0)/2.0
     alpha2=(TempPartPos(2)+1.0)/2.0
     alpha3=(TempPartPos(3)+1.0)/2.0
-    BGMSourceCellVol(0,0,0,iElem,1:4) = BGMSourceCellVol(0,0,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    BGMSourceCellVol(0,0,1,iElem,1:4) = BGMSourceCellVol(0,0,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
-    BGMSourceCellVol(0,1,0,iElem,1:4) = BGMSourceCellVol(0,1,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
-    BGMSourceCellVol(0,1,1,iElem,1:4) = BGMSourceCellVol(0,1,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
-    BGMSourceCellVol(1,0,0,iElem,1:4) = BGMSourceCellVol(1,0,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
-    BGMSourceCellVol(1,0,1,iElem,1:4) = BGMSourceCellVol(1,0,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
-    BGMSourceCellVol(1,1,0,iElem,1:4) = BGMSourceCellVol(1,1,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
-    BGMSourceCellVol(1,1,1,iElem,1:4) = BGMSourceCellVol(1,1,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))
+    BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+    BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+    BGMSourceCellVol(:,0,1,0,iElem) = BGMSourceCellVol(:,0,1,0,iElem) + (TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+    BGMSourceCellVol(:,0,1,1,iElem) = BGMSourceCellVol(:,0,1,1,iElem) + (TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(alpha3))
+    BGMSourceCellVol(:,1,0,0,iElem) = BGMSourceCellVol(:,1,0,0,iElem) + (TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+    BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
+    BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
+    BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
 #if USE_LOADBALANCE
     CALL LBElemPauseTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1536,14 +1551,14 @@ CASE('cell_volweight')
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
   DO iElem=1, nElems
-    BGMSourceCellVol(0,0,0,iElem,:) = BGMSourceCellVol(0,0,0,iElem,1:4)/CellVolWeight_Volumes(0,0,0,iElem)
-    BGMSourceCellVol(0,0,1,iElem,:) = BGMSourceCellVol(0,0,1,iElem,1:4)/CellVolWeight_Volumes(0,0,1,iElem)
-    BGMSourceCellVol(0,1,0,iElem,:) = BGMSourceCellVol(0,1,0,iElem,1:4)/CellVolWeight_Volumes(0,1,0,iElem)
-    BGMSourceCellVol(0,1,1,iElem,:) = BGMSourceCellVol(0,1,1,iElem,1:4)/CellVolWeight_Volumes(0,1,1,iElem)
-    BGMSourceCellVol(1,0,0,iElem,:) = BGMSourceCellVol(1,0,0,iElem,1:4)/CellVolWeight_Volumes(1,0,0,iElem)
-    BGMSourceCellVol(1,0,1,iElem,:) = BGMSourceCellVol(1,0,1,iElem,1:4)/CellVolWeight_Volumes(1,0,1,iElem)
-    BGMSourceCellVol(1,1,0,iElem,:) = BGMSourceCellVol(1,1,0,iElem,1:4)/CellVolWeight_Volumes(1,1,0,iElem)
-    BGMSourceCellVol(1,1,1,iElem,:) = BGMSourceCellVol(1,1,1,iElem,1:4)/CellVolWeight_Volumes(1,1,1,iElem)
+    BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem)/CellVolWeight_Volumes(0,0,0,iElem)
+    BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem)/CellVolWeight_Volumes(0,0,1,iElem)
+    BGMSourceCellVol(:,0,1,0,iElem) = BGMSourceCellVol(:,0,1,0,iElem)/CellVolWeight_Volumes(0,1,0,iElem)
+    BGMSourceCellVol(:,0,1,1,iElem) = BGMSourceCellVol(:,0,1,1,iElem)/CellVolWeight_Volumes(0,1,1,iElem)
+    BGMSourceCellVol(:,1,0,0,iElem) = BGMSourceCellVol(:,1,0,0,iElem)/CellVolWeight_Volumes(1,0,0,iElem)
+    BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem)/CellVolWeight_Volumes(1,0,1,iElem)
+    BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem)/CellVolWeight_Volumes(1,1,0,iElem)
+    BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem)/CellVolWeight_Volumes(1,1,1,iElem)
   END DO
 #if USE_LOADBALANCE
   CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
@@ -1559,15 +1574,15 @@ CASE('cell_volweight')
          alpha1 = CellVolWeightFac(kk)
          alpha2 = CellVolWeightFac(ll)
          alpha3 = CellVolWeightFac(mm)
-         PartSource(1:4,kk,ll,mm,iElem) =PartSource(1:4,kk,ll,mm,iElem) +&
-              BGMSourceCellVol(0,0,0,iElem,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(0,0,1,iElem,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(0,1,0,iElem,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(0,1,1,iElem,1:4) * (1-alpha1) * (alpha2) * (alpha3) + &
-              BGMSourceCellVol(1,0,0,iElem,1:4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(1,0,1,iElem,1:4) * (alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(1,1,0,iElem,1:4) * (alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(1,1,1,iElem,1:4) * (alpha1) * (alpha2) * (alpha3)
+         PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) +&
+              BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) * (alpha2) * (alpha3) + &
+              BGMSourceCellVol(:,1,0,0,iElem) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(:,1,0,1,iElem) * (alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(:,1,1,0,iElem) * (alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(:,1,1,1,iElem) * (alpha1) * (alpha2) * (alpha3)
        END DO !mm
      END DO !ll
    END DO !kk
@@ -1577,80 +1592,60 @@ CASE('cell_volweight')
  END DO !iEle
  DEALLOCATE(BGMSourceCellVol)
 CASE('cell_volweight_mean','cell_volweight_mean2')
-  ALLOCATE(NodeSource(1:4,1:nNodes))
+  ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
   NodeSource = 0.0
 
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-!#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
-!      Charge = Species(PartSpecies(iPart))%MacroParticleFactor
-!#else
       IF (usevMPF) THEN
         Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
       ELSE
         Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
-!#endif
       iElem = PEM%Element(iPart)
       CALL GetPositionInRefElem(PartState(iPart,1:3),TempPartPos(1:3),iElem,ForceMode=.TRUE.)
-      !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
       TSource(:) = 0.0
-!#if (PP_TimeDiscMethod==440) || (PP_TimeDiscMethod==441) || (PP_TimeDiscMethod==442) || (PP_TimeDiscMethod==443) || (PP_TimeDiscMethod==445)
-!      IF (PartSpecies(iPart).EQ.1) THEN
-!        TSource(4) = Charge
-!      ELSE
-!        TSource(1) = Charge
-!      END IF
-!#else
-#if !(defined (PP_HDG) && (PP_nVar==1))
-      TSource(1) = PartState(iPart,4)*Charge
-      TSource(2) = PartState(iPart,5)*Charge
-      TSource(3) = PartState(iPart,6)*Charge
-#endif
+      IF(doCalculateCurrentDensity)THEN
+        TSource(1:3) = PartState(iPart,4:6)*Charge
+      END IF
       TSource(4) = Charge
-!#endif
 
-      alpha1=(TempPartPos(1)+1.0)/2.0
-      alpha2=(TempPartPos(2)+1.0)/2.0
-      alpha3=(TempPartPos(3)+1.0)/2.0
-      NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) &
-        + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) &
-        + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) &
-        + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) &
-        + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) &
-        + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) &
-        + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) &
-        + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))
-      NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) = NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) &
-        + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+      alpha1=0.5*(TempPartPos(1)+1.0)
+      alpha2=0.5*(TempPartPos(2)+1.0)
+      alpha3=0.5*(TempPartPos(3)+1.0)
+      NodeID=GEO%ElemToNodeID(1:8,iElem)
+      NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+      NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
+      NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
+      NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(alpha3))
     END IF
   END DO
 #if USE_MPI
-  CALL AddHaloNodeData(NodeSource(1,:))
-  CALL AddHaloNodeData(NodeSource(2,:))
-  CALL AddHaloNodeData(NodeSource(3,:))
+  IF(doCalculateCurrentDensity)THEN
+    CALL AddHaloNodeData(NodeSource(1,:))
+    CALL AddHaloNodeData(NodeSource(2,:))
+    CALL AddHaloNodeData(NodeSource(3,:))
+  END IF
   CALL AddHaloNodeData(NodeSource(4,:))
 #endif /*USE_MPI*/
 
   DO iElem=1, nNodes
-    NodeSource(1:4,iElem) = NodeSource(1:4,iElem)/CellLocNodes_Volumes(iElem)
+    NodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)/CellLocNodes_Volumes(iElem)
   END DO
 
   IF (TRIM(DepositionType).EQ.'cell_volweight_mean2') THEN
-    ALLOCATE(tempNodeSource(1:4,1:nNodes))
+    ALLOCATE(tempNodeSource(SourceDim:4,1:nNodes))
     tempNodeSource = 0.0
     DO iElem=1, nNodes
-      tempNodeSource(1:4,iElem) = NodeSource(1:4,iElem)
+      tempNodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)
       DO kk =1, GEO%NeighNodesOnNode(iElem)
-        tempNodeSource(1:4,iElem) = tempNodeSource(1:4,iElem) + NodeSource(1:4,GEO%NodeToNeighNode(iElem)%ElemID(kk))
+        tempNodeSource(SourceDim:4,iElem) = tempNodeSource(SourceDim:4,iElem) + NodeSource(SourceDim:4,GEO%NodeToNeighNode(iElem)%ElemID(kk))
       END DO
-      tempNodeSource(1:4,iElem) = tempNodeSource(1:4,iElem) / (GEO%NeighNodesOnNode(iElem) + 1.0)
+      tempNodeSource(SourceDim:4,iElem) = tempNodeSource(SourceDim:4,iElem) / (GEO%NeighNodesOnNode(iElem) + 1.0)
     END DO
     NodeSource = tempNodeSource
   END IF
@@ -1663,14 +1658,16 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
          alpha1 = CellVolWeightFac(kk)
          alpha2 = CellVolWeightFac(ll)
          alpha3 = CellVolWeightFac(mm)
-         Partsource(1:4,kk,ll,mm,iElem) = NodeSource(1:4,GEO%ElemToNodeID(1,iElem)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(2,iElem)) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(3,iElem)) * (alpha1) * (alpha2) * (1-alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(4,iElem)) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(5,iElem)) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(6,iElem)) * (alpha1) * (1-alpha2) * (alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(7,iElem)) * (alpha1) * (alpha2) * (alpha3) + &
-              NodeSource(1:4,GEO%ElemToNodeID(8,iElem)) * (1-alpha1) * (alpha2) * (alpha3)
+         NodeID=GEO%ElemToNodeID(1:8,iElem)
+         Partsource(SourceDim:4,kk,ll,mm,iElem) = &
+              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+              NodeSource(SourceDim:4,NodeID(2)) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+              NodeSource(SourceDim:4,NodeID(3)) * (alpha1) * (alpha2) * (1-alpha3) + &
+              NodeSource(SourceDim:4,NodeID(4)) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+              NodeSource(SourceDim:4,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+              NodeSource(SourceDim:4,NodeID(6)) * (alpha1) * (1-alpha2) * (alpha3) + &
+              NodeSource(SourceDim:4,NodeID(7)) * (alpha1) * (alpha2) * (alpha3) + &
+              NodeSource(SourceDim:4,NodeID(8)) * (1-alpha1) * (alpha2) * (alpha3)
          END DO !mm
        END DO !ll
      END DO !kk
@@ -1718,9 +1715,11 @@ CASE('epanechnikov')
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
-         PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
-                                        * Species(PartSpecies(iPart))%ChargeIC &
-                                        * Species(PartSpecies(iPart))%MacroParticleFactor
+          IF(doCalculateCurrentDensity)THEN
+            PartSource(1:3,kk,ll,mm,iElem) = PartSource(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) &
+                * Species(PartSpecies(iPart))%ChargeIC &
+                * Species(PartSpecies(iPart))%MacroParticleFactor
+          END IF
          PartSource(4,kk,ll,mm,iElem) = PartSource(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) &
                                         * Species(PartSpecies(iPart))%ChargeIC &
                                         * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -1744,7 +1743,7 @@ CASE('epanechnikov')
         DO ll = 0, PP_N
           DO mm = 0, PP_N
             alpha = wGP(kk)*wGP(ll)*wGP(mm)/sJ(kk,ll,mm,iElem)
-            PartSource(1:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * PartSource(1:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
+            PartSource(SourceDim:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * PartSource(SourceDim:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
             tempgridsource(iElem) = tempgridsource(iElem) + PartSource(4,kk,ll,mm,iElem)*alpha
          END DO !mm
        END DO !ll
@@ -1753,7 +1752,7 @@ CASE('epanechnikov')
       !IF (tempgridsource(iElem).GT.0.0) THEN
       IF (ABS(tempgridsource(iElem)).GT.0.0) THEN
         alpha = tempcharge(iElem)/tempgridsource(iElem)
-        PartSource(1:4,:,:,:,iElem) = PartSource(1:4,:,:,:,iElem)*alpha
+        PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem)*alpha
       END IF
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
