@@ -40,6 +40,8 @@ REAL              :: AnalyzeTime                 !< accumulated time of analyzes
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           !< z-coordinate of plane
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
+LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis
+                                                 !< calls (to std out stream)
 INTEGER           :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel

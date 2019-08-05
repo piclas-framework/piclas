@@ -72,6 +72,8 @@ CALL prms%CreateIntOption(    'NAnalyze'         , 'Polynomial degree at which a
 CALL prms%CreateRealOption(   'OutputTimeFixed'  , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateIntOption(    'nSkipAnalyze'     , '(Skip Analyze-Dt)')
 CALL prms%CreateLogicalOption('CalcTimeAverage'  , 'Flag if time averaging should be performed')
+CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'measure time that is spent in analyze routines and count the number of '//&
+                                                       'analysis calls (to std out stream)','.FALSE.')
 CALL prms%CreateStringOption( 'VarNameAvg'       , 'Count of time average variables',multiple=.TRUE.)
 CALL prms%CreateStringOption( 'VarNameFluc'      , 'Count of fluctuation variables',multiple=.TRUE.)
 CALL prms%CreateIntOption(    'nSkipAvg'         , 'Iter every which CalcTimeAverage is performed')
@@ -769,7 +771,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars           ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
-USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime
+USE MOD_Analyze_Vars           ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars          ,ONLY: iter,tEnd
 USE MOD_RecordPoints           ,ONLY: RecordPoints
@@ -878,13 +880,11 @@ REAL                          :: L_2_PartSource(1:4)
 REAL                          :: L_Inf_PartSource(1:4)
 #endif
 #endif /* PARTICLES */
+REAL                          :: CurrentTime
 !===================================================================================================================================
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter=iter)
-
-StartAnalyzeTime=PICLASTIME()
-AnalyzeCount = AnalyzeCount + 1
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -967,6 +967,12 @@ IF(FirstOrLastIter.OR.OutputHDF5)THEN
   IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
 END IF
 
+IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
+  StartAnalyzeTime=PICLASTIME()
+  AnalyzeCount = AnalyzeCount + 1
+END IF
+
+
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -976,7 +982,10 @@ IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
-    IF (OutputTime.GE.tEnd) CALL AnalyzeToFile(OutputTime,StartAnalyzeTime,L_2_Error)
+    IF (OutputTime.GE.tEnd)THEN
+      CurrentTime=PICLASTIME()
+      CALL AnalyzeToFile(OutputTime,CurrentTime,L_2_Error)
+    END IF
 #ifdef PARTICLES
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL CalcErrorPartSource(OutputTime,PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
@@ -1217,8 +1226,10 @@ END IF
 #endif /*CODE_ANALYZE*/
 
 ! Time for analysis
-EndAnalyzeTime=PICLASTIME()
-AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
+IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
+  EndAnalyzeTime=PICLASTIME()
+  AnalyzeTime = AnalyzeTime + EndAnalyzeTime-StartAnalyzeTime
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Output info
@@ -1245,9 +1256,11 @@ IF(DoPerformErrorCalc)THEN
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A17,ES16.7)')        ' Sim time      : ',OutputTime
-    WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
-    AnalyzeCount = 0
-    AnalyzeTime  = 0.0
+    IF(DoMeasureAnalyzeTime)THEN
+      WRITE(UNIT_StdOut,'(A17,ES16.7,A9,I11,A)')' Analyze time  : ',AnalyzeTime, ' (called ',AnalyzeCount,' times)'
+      AnalyzeCount = 0
+      AnalyzeTime  = 0.0
+    END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
       WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
