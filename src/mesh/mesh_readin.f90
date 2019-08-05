@@ -154,7 +154,9 @@ ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
   CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
 END ASSOCIATE
 ! Now apply boundary mappings
+#ifdef HDG
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
+#endif /*HDG*/
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
@@ -162,8 +164,17 @@ IF(nUserBCs .GT. 0)THEN
       IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
           __STAMP__&
           ,'Remapping non-periodic to periodic BCs is not possible!')
+#ifdef HDG
       ! periodic to non-periodic
-      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1)) ChangedPeriodicBC=.TRUE.
+      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
+        ChangedPeriodicBC=.TRUE.
+        ! Currently, remapping periodic to non-periodic BCs is not allowed. In the future, implement nGlobalUniqueSides
+        ! determination.
+        CALL abort(&
+        __STAMP__&
+        ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
+      END IF
+#endif /*HDG*/
       ! Output
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
