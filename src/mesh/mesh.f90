@@ -904,7 +904,8 @@ USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerS
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
 USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
 #ifdef PP_HDG
-USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,ChangedPeriodicBC,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
+USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
+!USE MOD_Mesh_Vars ,ONLY: ChangedPeriodicBC ! FUTURE: use this variable when nGlobalUniqueSides is calculated from mesh info
 #if USE_MPI
 USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
 USE mpi
@@ -956,13 +957,15 @@ CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COM
 nGlobalUniqueSides=nSides
 #endif /*USE_MPI*/
 ! Sanity check: Compare the number of global unique sides with the value that is read from the mesh file
-IF((nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides).AND.ChangedPeriodicBC) THEN
+IF(nGlobalUniqueSidesFromMesh.NE.nGlobalUniqueSides)THEN!.AND.ChangedPeriodicBC) THEN ! FUTURE: use this variable when
+                                                          ! nGlobalUniqueSides is calculated from mesh info
   IPWRITE(UNIT_StdOut,*) "nUniqueSides              =",nUniqueSides
   IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSidesFromMesh=",nGlobalUniqueSidesFromMesh
   IPWRITE(UNIT_StdOut,*) "nGlobalUniqueSides        =",nGlobalUniqueSides
   CALL abort( &
       __STAMP__, &
-      "nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
+      "nGlobalUniqueSides for HDG not equal the one from meshfile.")
+      !"nGlobalUniqueSides for HDG not equal the one from meshfile even though no periodic sides have been changed to non-periodic.")
 END IF
 #endif /*HDG*/
 
