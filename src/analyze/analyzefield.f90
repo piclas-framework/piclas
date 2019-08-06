@@ -724,6 +724,10 @@ DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
   WEl_tmp=0.
   WMag_tmp=0.
+#if (PP_nVar==8)
+    Wphi_tmp = 0.
+    Wpsi_tmp = 0.
+#endif /*PP_nVar=8*/        
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 ! in electromagnetische felder by henke 2011 - springer
@@ -770,22 +774,28 @@ END DO
 
 WEl = WEl * eps0 * 0.5
 WMag = WMag * smu0 * 0.5
+#if (PP_nVar==8)
 ! caution: change of coefficients for divergence energies
 Wphi = Wphi * eps0*0.5
 Wpsi = Wpsi * smu0*0.5
+#endif /*PP_nVar=8*/
 
 #if USE_MPI
 ! todo: only one reduce with array
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,WEl  , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,WMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#if (PP_nVar==8)
   CALL MPI_REDUCE(MPI_IN_PLACE,Wphi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,Wpsi , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#endif /*PP_nVar=8*/
 ELSE
   CALL MPI_REDUCE(WEl         ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(WMag        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#if (PP_nVar==8)
   CALL MPI_REDUCE(Wphi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   CALL MPI_REDUCE(Wpsi        ,RD   , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+#endif /*PP_nVar=8*/
 END IF
 #endif /*USE_MPI*/
 
