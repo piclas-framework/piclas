@@ -152,7 +152,7 @@
 ! print to std out like  "    1.41421356237310E+000   -1.41421356237310E+000   -1.41421356237310E+000"
 #define WRITEFORMAT '(ES25.14E3)'
 ! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
-#define CSVFORMAT '(A1,E23.16E3))'
+#define CSVFORMAT '(A1,E23.16E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
 #define LB_DG            1

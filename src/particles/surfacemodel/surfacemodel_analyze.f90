@@ -305,18 +305,18 @@ IF (SurfMesh%nSides.EQ.0) RETURN
               CALL WriteDataHeaderInfo(unit_index,'Prob_adsorption-Spec',OutputCounter,nSpecies)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-P_Molec-Adsorb-Spec-',iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-P_Dissoc-Spec-',iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1, Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-P_ER-Spec-',iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-P_ER-Spec-',iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -324,35 +324,35 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             IF (CalcAdsorbnu) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nu-Adsorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-nu-Adsorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-nu-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-nu-diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-nu-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-nu-ER-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-nu-Adsorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Proper-nu-Adsorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-nu-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-nu-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-ER-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -360,35 +360,35 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             IF (CalcAdsorbE) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Adsorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-E-Adsorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-E-diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-E-ER-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-E-Adsorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Proper-E-Adsorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-E-diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-E-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-ER-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -399,18 +399,18 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             IF (CalcSurfProb) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-P-SurfDesorb-Molec-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1, Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-P-SurfDissoc-Spec-',iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-P-SurfDissoc-Spec-',iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1, Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-P-SurfLH-Spec-',iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-P-SurfLH-Spec-',iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -419,36 +419,36 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             IF (CalcSurfnu) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nu-Desorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-nu-Desorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-nu-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-nu-Diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-nu-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-nu-LH-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
               CALL WriteDataHeaderInfo(unit_index,'nu-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-nu-Desorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Proper-nu-Desorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-nu-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-Diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-nu-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-nu-LH-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -457,36 +457,36 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             IF (CalcSurfE) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-E-Desorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-E-Desorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-E-Diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-E-LH-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
               CALL WriteDataHeaderInfo(unit_index,'E-Exch-Reaction',OutputCounter,Adsorption%NumOfExchReact)
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Proper-E-Desorb-Spec-', iSpec,' '
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Proper-E-Desorb-Spec-', iSpec
                 OutputCounter = OutputCounter + 1
                 DO iCase = 1,Adsorption%DissNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-E-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-Diss-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
                 DO iCase = 1,Adsorption%RecombNum
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                      OutputCounter,'-Proper-E-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                      OutputCounter,'-Proper-E-LH-Spec-', iSpec,'-Reaction-', iCase
                   OutputCounter = OutputCounter + 1
                 END DO
               END DO
@@ -497,36 +497,36 @@ IF (SurfMesh%nSides.EQ.0) RETURN
             CALL WriteDataHeaderInfo(unit_index,'Adsorption-HeatFlux-Spec',OutputCounter,nSpecies)
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-AdsCount-Spec-', iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-AdsCount-Spec-', iSpec
               OutputCounter = OutputCounter + 1
               DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase
                 OutputCounter = OutputCounter + 1
               END DO
               DO iCase = 1,Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Count-ER-Spec-', iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                    OutputCounter,'-Count-ER-Spec-', iSpec,'-Reaction-', iCase
                 OutputCounter = OutputCounter + 1
               END DO
             END DO
             CALL WriteDataHeaderInfo(unit_index,'Desorption-HeatFlux-Spec',OutputCounter,nSpecies)
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-DesCount-Spec-', iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-DesCount-Spec-', iSpec
               OutputCounter = OutputCounter + 1
               DO iCase = 1,Adsorption%DissNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                    OutputCounter,'-Count-Diss-Spec-', iSpec,'-Reaction-', iCase
                 OutputCounter = OutputCounter + 1
               END DO
               DO iCase = 1,Adsorption%RecombNum
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') &
-                    OutputCounter,'-Count-LH-Spec-', iSpec,'-Reaction-', iCase,' '
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') &
+                    OutputCounter,'-Count-LH-Spec-', iSpec,'-Reaction-', iCase
                 OutputCounter = OutputCounter + 1
               END DO
             END DO
@@ -541,7 +541,7 @@ IF (SurfMesh%nSides.EQ.0) RETURN
 #endif
         END IF
 #endif
-        WRITE(unit_index,'(A1)') ' '
+        WRITE(unit_index,'(A)') ''
       END IF
     END IF
 #if USE_MPI
@@ -609,7 +609,7 @@ IF (CalcEvaporation) CALL GetEvaporationRate(EvaporationRate)
 #if USE_MPI
 IF (SurfCOMM%MPIOutputRoot) THEN
 #endif /*USE_MPI*/
-  WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') Time
+  WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcCollCounter) THEN
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=SurfCollNum(:))
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=AdsorptionNum(:))
@@ -674,7 +674,7 @@ IF (doDistributiondata) THEN
 #endif /*(PP_TimeDiscMethod==42)*/
     END IF
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)*/
-    WRITE(unit_index,'(A1)') ' '
+    WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF
 #endif /*USE_MPI*/
@@ -703,7 +703,7 @@ INTEGER                     :: iLoop
 !===================================================================================================================================
 DO iLoop = 1, LoopSize
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(I3.3,A,A,A,I3.3,A3)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName),'-',iLoop,'   '
+  WRITE(unit_index,'(I3.3,A,A,A,I3.3)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName),'-',iLoop
   OutputCounter = OutputCounter + 1
 END DO
 END SUBROUTINE WriteDataHeaderInfo
@@ -726,7 +726,7 @@ INTEGER           ,INTENT(IN)          :: unit_index
 INTEGER           ,INTENT(IN)          :: nVal
 REAL              ,INTENT(IN),OPTIONAL :: RealScalar
 INTEGER           ,INTENT(IN),OPTIONAL :: IntegerScalar
-CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL :: StrScalar(1)
+CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL :: StrScalar
 REAL              ,INTENT(IN),OPTIONAL :: RealArray(nVal)
 INTEGER           ,INTENT(IN),OPTIONAL :: IntegerArray(nVal)
 INTEGER(KIND=8)   ,INTENT(IN),OPTIONAL :: IntegerK8Array(nVal)
@@ -747,18 +747,18 @@ END IF
 
 IF(PRESENT(IntegerArray)) THEN
   DO iLoop = 1, nVal
-    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerArray(iLoop)
+    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerArray(iLoop))
   END DO
 END IF
 
 IF(PRESENT(IntegerK8Array)) THEN
   DO iLoop = 1, nVal
-    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerK8Array(iLoop)
+    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerK8Array(iLoop))
   END DO
 END IF
 
 IF(PRESENT(IntegerScalar)) THEN
-  WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerScalar
+  WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerScalar)
 END IF
 
 IF(PRESENT(StrArray)) THEN
@@ -775,7 +775,7 @@ END IF
 
 IF(PRESENT(LogicalScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(I1)',ADVANCE='NO') INT(LogicalScalar)
+  WRITE(unit_index,'(I1)',ADVANCE='NO') LogicalScalar
 END IF
 END SUBROUTINE WriteDataInfo
 
