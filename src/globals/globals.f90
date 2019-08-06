@@ -29,6 +29,7 @@ INTEGER,PARAMETER  :: UNIT_stdOut=6
 INTEGER,PARAMETER  :: UNIT_logOut=133
 INTEGER            :: UNIT_errOut=999
 LOGICAL            :: Logging
+CHARACTER(LEN=255) :: LogFile
 CHARACTER(LEN=255) :: ErrorFileName='NOT_SET'
 INTEGER            :: iError
 REAL               :: StartTime
@@ -55,6 +56,10 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 
 INTERFACE InitGlobals
   MODULE PROCEDURE InitGlobals
+END INTERFACE
+
+INTERFACE ReOpenLogFile
+  MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
 
 INTERFACE Abort
@@ -138,7 +143,7 @@ IMPLICIT NONE
 INTEGER                        :: OpenStat
 CHARACTER(LEN=8)               :: StrDate
 CHARACTER(LEN=10)              :: StrTime
-CHARACTER(LEN=255)             :: LogFile
+LOGICAL                        :: LogIsOpen
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
@@ -152,24 +157,49 @@ TwoEpsMach=2.0d0*epsMach
 
 ! Open file for logging
 IF(Logging)THEN
-  WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
-  OPEN(UNIT=UNIT_logOut,  &
-       FILE=LogFile,      &
-       STATUS='UNKNOWN',  &
-       ACTION='WRITE',    &
-       POSITION='APPEND', &
-       IOSTAT=OpenStat)
-  CALL DATE_AND_TIME(StrDate,StrTime)
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,'(132("#"))')
-  WRITE(UNIT_logOut,*)
-  WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
-                      StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(.NOT.LogIsOpen)THEN
+    WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
+    OPEN(UNIT=UNIT_logOut,  &
+         FILE=LogFile,      &
+         STATUS='UNKNOWN',  &
+         ACTION='WRITE',    &
+         POSITION='APPEND', &
+         IOSTAT=OpenStat)
+    CALL DATE_AND_TIME(StrDate,StrTime)
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,'(132("#"))')
+    WRITE(UNIT_logOut,*)
+    WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
+                        StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+  END IF !logIsOpen
 END IF  ! Logging
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGlobals
+
+
+SUBROUTINE ReOpenLogFile()
+!===================================================================================================================================
+! re-open log file (used by preprocessor LOGWRITE_BARRIER) to be sure that all logwrites are written to file 
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                        :: OpenStat
+LOGICAL                        :: LogIsOpen
+!===================================================================================================================================
+  INQUIRE(UNIT=UNIT_LogOut,OPENED=LogIsOpen)
+  IF(logIsOpen)CLOSE(UNIT_logOut)
+  OPEN(UNIT=UNIT_logOut, FILE=LogFile, STATUS='UNKNOWN', ACTION='WRITE', POSITION='APPEND', IOSTAT=OpenStat)
+END SUBROUTINE ReOpenLogFile
 
 
 ! FUNCTION AlmostEqual(Num1,Num2) ! see piclas.h
@@ -308,6 +338,7 @@ INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: signalout       ! Output errorcode
 #endif /*USE_MPI*/
 !===================================================================================================================================
+IF(logging) CLOSE(UNIT_logOut)
 #if USE_MPI
 IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN

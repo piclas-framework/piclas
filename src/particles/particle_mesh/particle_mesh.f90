@@ -1423,6 +1423,8 @@ DO iLocSide = 1,6
           InElementCheckMortarNb = .TRUE.
           NbElemID = PartElemToElemAndSide(ind,iLocSide,ElemID)
           IF (NbElemID.LT.1) THEN
+            IPWRITE(*,*) 'PartState:', PartStateLoc(1:3)
+            IPWRITE(*,*) 'ElemID:', ElemID
             CALL abort(&
               __STAMP__ &
               ,'ERROR PartInsideQuad: Please increase the size of the halo region (HaloEpsVelo)!')
@@ -5214,12 +5216,12 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToElemGlob, PartElemToElemAndSide,nTotalElems,PartElemToSide,PartBCSideList &
                                  ,SidePeriodicType,ElemToGlobalElemID
-USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem,BC,BoundaryType,MortarType
 USE MOD_Particle_Surfaces_Vars ,ONLY: SideNormVec
 USE MOD_Particle_Tracking_Vars ,ONLY: DoRefMapping
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: OffSetElemMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartHaloElemToProc
 #endif /*USE_MPI*/
 USE MOD_Mesh_vars
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -5435,29 +5437,37 @@ __STAMP__&
   END DO ! ilocSide=1,6
 END DO
 
-! check is working on CONFORM mesh!!!
-DO iElem=1,nTotalElems
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(DoRefMapping)THEN
-      IF(SideID.LT.1) CYCLE
-    ELSE
-      IF(SideID.LE.0) CALL abort(&
+IF(nGlobalMortarSides.GT.0) THEN
+  SWRITE(UNIT_StdOut,*)
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(*,*)'===> TODO TODO TODO: CHECKS for particle mesh do not work on NON-CONFORMING MESHES  !!!'
+  SWRITE(UNIT_StdOut,'(132("!"))')
+  SWRITE(UNIT_StdOut,*)
+ELSE
+  ! check is working on CONFORM mesh!!!
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)    
+      IF(DoRefMapping)THEN
+        IF(SideID.LT.1) CYCLE
+      ELSE
+        IF(SideID.LE.0) CALL abort(&
 __STAMP__&
-       , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
-    END IF
-    IF(MortarType(1,SideID).NE.0) CYCLE
-    BCID=BC(SideID)
-    IF(BCID.NE.0)THEN
-      IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
-    END IF
-    IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
-       CALL abort(&
-__STAMP__&
-      , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+         , ' Error in PartElemToSide! No SideID for side!. iElem,ilocSide',iElem,REAL(ilocSide))
       END IF
-  END DO ! ilocSide=1,6
-END DO
+      IF(MortarType(1,SideID).NE.0) CYCLE
+      BCID=BC(SideID)
+      IF(BCID.NE.0)THEN
+        IF(BoundaryType(BCID,BC_TYPE).GT.1) CYCLE
+      END IF
+      IF(PartElemToElemAndSide(1,ilocSide,iElem).LT.1)THEN
+         CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+        END IF
+    END DO ! ilocSide=1,6
+  END DO
+END IF
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iERROR)
@@ -5497,7 +5507,7 @@ TYPE tNodeToElem
 END TYPE
 TYPE(tNodeToElem)      :: TempNodeToElem(1:nNodes)
 INTEGER                :: TempElemsOnNode(1:nNodes)
-INTEGER                :: Element, iLocSide, k, l
+INTEGER                :: Element, iLocSide, k, l,iMortar
 LOGICAL                :: ElemExists
 INTEGER                :: iElem, jNode
 INTEGER                :: iNode
@@ -5549,21 +5559,23 @@ DO iElem =1, PP_nElems
   ! now check every side for neighbours, add valid neighbour to corresponding array and proceed recursively until neighbourhood
   ! is finished
   DO iLocSide = 1, 6
-    ElemExists = .FALSE.
-    Element = PartElemToElemAndSide(1,iLocSide,iElem)
-    IF (Element.GT.0) THEN !side has neighbour element
-      DO l=1, TempHaloNumElems
-        IF(Element.EQ.TempHaloElems(l)) THEN
-          ElemExists=.TRUE.
-          EXIT
+    DO iMortar=1,4
+      ElemExists = .FALSE.
+      Element = PartElemToElemAndSide(iMortar,iLocSide,iElem)
+      IF (Element.GT.0) THEN !side has neighbour element
+        DO l=1, TempHaloNumElems
+          IF(Element.EQ.TempHaloElems(l)) THEN
+            ElemExists=.TRUE.
+            EXIT
+          END IF
+        END DO
+        IF (.NOT.ElemExists) THEN
+         TempHaloNumElems = TempHaloNumElems + 1
+          TempHaloElems(TempHaloNumElems) = Element
         END IF
-      END DO
-      IF (.NOT.ElemExists) THEN
-        TempHaloNumElems = TempHaloNumElems + 1
-        TempHaloElems(TempHaloNumElems) = Element
+        CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
       END IF
-      CALL RecurseCheckNeighElems(iElem,Element,TempHaloNumElems,TempHaloElems)
-    END IF
+    END DO
   END DO
   IF (TempHaloNumElems.LE.0) CALL abort(&
 __STAMP__&
@@ -5704,41 +5716,43 @@ INTEGER,INTENT(INOUT)  :: StartElem,HaloElem,TempHaloElems(1:500), TempHaloNumEl
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                :: iNode, jNode
-INTEGER                :: iLocSide, l
+INTEGER                :: iLocSide, l, iMortar
 INTEGER                :: currentElem
 LOGICAL                :: ElemExists, ElemDone
 REAL                   :: MPINodeCoord(3), ElemCoord(3)
 !===================================================================================================================================
 DO iLocSide = 1,6
-  ElemExists = .FALSE.
-  currentElem = PartElemToElemAndSide(1,iLocSide,HaloElem)
-  IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
-  !IF (currentElem.GT.PP_nElems) THEN
-    DO l=1, TempHaloNumElems
-      IF(currentElem.EQ.TempHaloElems(l)) THEN
-        ElemExists=.TRUE.
-        EXIT
-      END IF
-    END DO
-    IF (.NOT.ElemExists) THEN
-      ElemDone = .FALSE.
-      DO iNode = 1, 8
-        DO jNode = 1, 8
-          MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
-          ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
-          IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
-              .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
-            TempHaloNumElems = TempHaloNumElems + 1
-            TempHaloElems(TempHaloNumElems) = currentElem
-            ElemDone = .TRUE.
-            CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
-          END IF
+  DO iMortar=1,4
+    ElemExists = .FALSE.
+    currentElem = PartElemToElemAndSide(iMortar,iLocSide,HaloElem)
+    IF (currentElem.GT.0 .AND. currentElem.NE.StartElem) THEN
+    !IF (currentElem.GT.PP_nElems) THEN
+      DO l=1, TempHaloNumElems
+        IF(currentElem.EQ.TempHaloElems(l)) THEN
+          ElemExists=.TRUE.
+          EXIT
+        END IF
+      END DO
+      IF (.NOT.ElemExists) THEN
+        ElemDone = .FALSE.
+        DO iNode = 1, 8
+          DO jNode = 1, 8
+            MPINodeCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(jNode,currentElem))
+            ElemCoord(1:3) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,StartElem))
+            IF(ALMOSTEQUAL(MPINodeCoord(1),ElemCoord(1)).AND.ALMOSTEQUAL(MPINodeCoord(2),ElemCoord(2)) &
+                .AND.ALMOSTEQUAL(MPINodeCoord(3),ElemCoord(3))) THEN
+              TempHaloNumElems = TempHaloNumElems + 1
+              TempHaloElems(TempHaloNumElems) = currentElem
+              ElemDone = .TRUE.
+              CALL RecurseCheckNeighElems(StartElem,currentElem,TempHaloNumElems,TempHaloElems)
+            END IF
+            IF (ElemDone) EXIT
+          END DO
           IF (ElemDone) EXIT
         END DO
-        IF (ElemDone) EXIT
-      END DO
+      END IF
     END IF
-  END IF
+  END DO
 END DO
 
 END SUBROUTINE RecurseCheckNeighElems
@@ -6081,9 +6095,13 @@ IF(.NOT.CartesianPeriodic .AND. GEO%nPeriodicVectors.GT.0)THEN
   DO iSide=1,nSides
     IF(SidePeriodicType(iSide).NE.0)THEN
       ! abort if particles are traced over mortar sides
-      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) CALL abort(&
-__STAMP__&
-      , ' Periodic tracing over mortar sides is not implemented!')
+      IF(MortarSlave2MasterInfo(iSide).NE.-1.OR.MortarType(1,iSide).GE.0) THEN
+        WRITE (*,*) "MortarSlave2MasterInfo(iSide) =", MortarSlave2MasterInfo(iSide)
+        WRITE (*,*) "MortarType(1,iSide)           =", MortarType(1,iSide)
+        CALL abort(&
+          __STAMP__&
+          , ' Periodic tracing over mortar sides is not implemented!')
+      END IF
       ! ignore MPI sides, these have NOT to be mirrored
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       IF(ElemID.EQ.-1) THEN
