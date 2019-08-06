@@ -1613,13 +1613,6 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         END IF
       END DO
     END IF
-    !-------------------------------------------------------------------------------------------------------------------------------
-    ! analyze rate data
-    !-------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==42)
-    SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes &
-                                          + SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
-#endif
   END DO ! nSpecies (analyze)
 END DO ; END DO ! nSurfSample
 END DO ! SurfMesh%nSides

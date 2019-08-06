@@ -273,15 +273,17 @@ IF (KeepWallParticles) THEN
   ALLOCATE(PEM%wNumber(1:nElems))
 END IF
 ! allocate info and constants
-#if (PP_TimeDiscMethod==42)
 ALLOCATE( SurfModel%Info(1:nSpecies))
+DO iSpec = 1,nSpecies
+  SurfModel%Info(iSpec)%WallCollCount = 0
+  SurfModel%Info(iSpec)%NumOfAds = 0
+  SurfModel%Info(iSpec)%NumOfDes = 0
+END DO
+#if (PP_TimeDiscMethod==42)
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%MeanProbAds  = 0.
   SurfModel%Info(iSpec)%MeanProbDes  = 0.
-  SurfModel%Info(iSpec)%WallCollCount = 0
   SurfModel%Info(iSpec)%WallSpecNumCount = 0
-  SurfModel%Info(iSpec)%NumOfAds = 0
-  SurfModel%Info(iSpec)%NumOfDes = 0
   SurfModel%Info(iSpec)%Accomodation = 0
 END DO
 ! initialize specific variables for analyze functionality like TPD and rate analysis

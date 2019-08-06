@@ -25,18 +25,20 @@ SAVE
 LOGICAL                                  :: ModelERSpecular         ! Flag defining case for ER reflection (diffuse, specular)
 LOGICAL                                  :: BlockingNeigh(3,3)      ! defines which of neighbour sites can block current site
                                                                     ! (nCurrentCoords,nNeighCoords) relevant for SMCR
-#if (PP_TimeDiscMethod==42)
 ! definition of surfacmodel mean info container
 TYPE tMeanInfo
+  INTEGER                                :: WallCollCount           ! counter of wallcollisions
+  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
+  INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
+#if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
   REAL                                   :: MeanProbDes             ! mean desorption probability
   INTEGER                                :: WallSpecNumCount        ! counter of Particles on Surface
-  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
-  INTEGER                                :: NumOfDes                ! Number of Desorptions on surfaces
   REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from Hard-Cube-Model
-  INTEGER                                :: WallCollCount           ! counter of wallcollisions
+#endif
 END TYPE
 
+#if (PP_TimeDiscMethod==42)
 ! definition of proper info container allocated for each reflective surface
 TYPE tProperInfo
   REAL     , ALLOCATABLE                 :: NumAdsReact(:)          ! mean probability for reaction at surface collision
@@ -61,8 +63,8 @@ END TYPE
 #endif
 
 TYPE tSurfaceModel
-#if (PP_TimeDiscMethod==42)
   TYPE(tMeanInfo), ALLOCATABLE           :: Info(:)                 ! surfacemodel info for species n (nSpecies)
+#if (PP_TimeDiscMethod==42)
   TYPE(tProperInfo), ALLOCATABLE         :: ProperInfo(:)           ! proper surfacemodel info for species n (nSpecies)
 #endif
   ! are all reset in updateSurfaceVars except SumEvapPart, which is reset in particle emission after particle inserting

@@ -24,8 +24,12 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
 INTEGER                       :: SurfaceAnalyzeStep                  ! Analyze of surface is performed each Nth time step
+LOGICAL                       :: CalcCollCounter                     ! Calculate the number of surface collision and number of
+                                                                     ! adsorbed particles per species
+LOGICAL                       :: CalcDesCounter                      ! Calculate the number of desorption particle per species
 LOGICAL                       :: CalcSurfNumSpec                     ! Calculate the number of simulated particles per species
                                                                      ! on surfaces
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42)
 LOGICAL                       :: CalcEvaporation                     ! Calculate rate of evaporation [kg/s]
 LOGICAL                       :: CalcSurfCoverage                    ! Calculate the surface coverages for each species
 LOGICAL                       :: CalcAccomodation                    ! Calculate the surface accommodation coefficient
@@ -38,5 +42,6 @@ LOGICAL                       :: CalcSurfProb                        ! Calculate
 LOGICAL                       :: CalcSurfnu                          ! Calculate the surface reaction rate per reaction (nu_r)
 LOGICAL                       :: CalcSurfE                           ! Calculate the surface reaction rate per reaction (E_r)
 LOGICAL                       :: CalcHeatflux                        ! Calculate the surface reaction rate per reaction (q)
+#endif
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

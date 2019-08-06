@@ -5231,6 +5231,7 @@ __STAMP__&
                   ExtraParts = ExtraPartsTria(2)
                 END IF
               END IF !TriaSurfaceFlux
+              SurfModel%Info(iSpec)%NumOfDes=SurfModel%Info(iSpec)%NumOfDes+ExtraParts
             END IF !SurfMesh%SideIDToSurfID(SideID).GT.0
           END IF !reactive surface
         END IF !noAdaptive

@@ -408,9 +408,9 @@ END IF
 
 SurfSideID = SurfMesh%SideIDToSurfID(sideID_IN)
 SpecID = PartSpecies(PartID)
-#if (PP_TimeDiscMethod==42)
 ! Update wallcollision counter
 SurfModel%Info(SpecID)%WallCollCount = SurfModel%Info(SpecID)%WallCollCount + 1
+#if (PP_TimeDiscMethod==42)
 IF (PartBound%SurfaceModel(locBCID).EQ.1) THEN
   SurfModel%Info(SpecID)%Accomodation = SurfModel%Info(SpecID)%Accomodation &
       + (PartBound%TransACC(locBCID) + PartBound%VibACC(locBCID)+ PartBound%RotACC(locBCID))/3.
@@ -532,18 +532,14 @@ CASE(3) ! reactive interaction case
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (ProductSpec(1).LT.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(1))) + 1
-#if (PP_TimeDiscMethod==42)
     SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
-#endif
   END IF
   IF (ProductSpec(2).NE.0) THEN
     SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) = SurfModel%SumAdsorbPart(p,q,SurfSideID,ABS(ProductSpec(2))) &
                                                                 - SIGN(1,ProductSpec(2))
-#if (PP_TimeDiscMethod==42)
     IF (ProductSpec(2).LT.0) THEN
       SurfModel%Info(SpecID)%NumOfAds = SurfModel%Info(SpecID)%NumOfAds + 1
     END IF
-#endif
   END IF
 #if (PP_TimeDiscMethod==42)
   SurfModel%ProperInfo(SpecID)%HeatFlux(1) = SurfModel%ProperInfo(SpecID)%HeatFlux(1) + reactionEnthalpie/BoltzmannConst
@@ -663,20 +659,23 @@ CASE(3) ! reactive interaction case
 
   !-----------------------------------------------------------
   ! Create new particles
-  DO iNewPart = 1, ProductSpecNbr
-    ! create new particle and assign correct energies
-    ! sample newly created velocity
-    NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
-    ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
-    NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
+  IF (ProductSpec(2).GT.0) THEN
+    DO iNewPart = 1, ProductSpecNbr
+        SurfModel%Info(ProductSpec(2))%NumOfDes = SurfModel%Info(ProductSpec(2))%NumOfDes + 1
+      ! create new particle and assign correct energies
+      ! sample newly created velocity
+      NewVelo(1:3) = VELOFROMDISTRIBUTION(velocityDistribution(2),SpecID,TempErgy(2))
+      ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
+      NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
 
-    PartTrajectory2=UNITVECTOR(NewVelo(1:3))
+      PartTrajectory2=UNITVECTOR(NewVelo(1:3))
 
-    CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+      CALL CreateParticle(ProductSpec(2),LastPartPos(PartID,1:3),PEM%Element(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
 
-    CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
-    CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory2,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
-  END DO ! iNewPart = 1, ProductSpecNbr
+      CALL AddPartInfoToSample(NewPartID,TransArray,IntArray)
+      CALL CalcWallSample(NewPartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory2,alpha,IsSpeciesSwap,locBCID,emission_opt=.TRUE.)
+    END DO ! iNewPart = 1, ProductSpecNbr
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT
 !-----------------------------------------------------------------------------------------------------------------------------------
