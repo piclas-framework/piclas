@@ -270,17 +270,7 @@ IF (SurfMesh%nSides.EQ.0) RETURN
 #endif /*USE_MPI*/
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
-#if (PP_TimeDiscMethod==42)
-    ! if only the reaction rate is desired (resevoir) the projectname is added to the filename
-      IF (Adsorption%TPD.OR.CalcHeatFlux) THEN
-        outfile = 'SurfaceAnalyze_'//TRIM(ProjectName)//'.csv'
-      ELSE
-        outfile = 'SurfaceAnalyze.csv'
-      END IF
-#else
       outfile = 'SurfaceAnalyze.csv'
-#endif
-
 !===================================================================================================================================
 ! Write Header
 !===================================================================================================================================
@@ -713,7 +703,7 @@ INTEGER                     :: iLoop
 !===================================================================================================================================
 DO iLoop = 1, LoopSize
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(I3.3,A,A,A,I3.3,A3)',ADVANCE='NO') OutputCounter,'-',AttribName,'-',iLoop,'   '
+  WRITE(unit_index,'(I3.3,A,A,A,I3.3,A3)',ADVANCE='NO') OutputCounter,'-',TRIM(AttribName),'-',iLoop,'   '
   OutputCounter = OutputCounter + 1
 END DO
 END SUBROUTINE WriteDataHeaderInfo
@@ -748,49 +738,44 @@ INTEGER                     :: iLoop
 !===================================================================================================================================
 IF(PRESENT(RealArray)) THEN
   DO iLoop = 1, nVal
-    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealArray(iLoop)
+    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealArray(iLoop)
   END DO
 END IF
 IF(PRESENT(RealScalar)) THEN
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(ES25.14E3)',ADVANCE='NO') RealScalar
+  WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealScalar
 END IF
 
 IF(PRESENT(IntegerArray)) THEN
   DO iLoop = 1, nVal
-    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(I18.1)',ADVANCE='NO') IntegerArray(iLoop)
+    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerArray(iLoop)
   END DO
 END IF
 
 IF(PRESENT(IntegerK8Array)) THEN
   DO iLoop = 1, nVal
-    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(I18.1)',ADVANCE='NO') IntegerK8Array(iLoop)
+    WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerK8Array(iLoop)
   END DO
 END IF
 
 IF(PRESENT(IntegerScalar)) THEN
-  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(I18.1)',ADVANCE='NO') IntegerScalar
+  WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',IntegerScalar
 END IF
 
 IF(PRESENT(StrArray)) THEN
   DO iLoop = 1, nVal
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    WRITE(unit_index,'(A)',ADVANCE='NO') StrArray(iLoop)
+    WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrArray(iLoop))
   END DO
 END IF
 
 IF(PRESENT(StrScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(A)',ADVANCE='NO') StrScalar
+  WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrScalar)
 END IF
 
 IF(PRESENT(LogicalScalar)) THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-  WRITE(unit_index,'(L2)',ADVANCE='NO') LogicalScalar
+  WRITE(unit_index,'(I1)',ADVANCE='NO') INT(LogicalScalar)
 END IF
 END SUBROUTINE WriteDataInfo
 
