@@ -106,11 +106,11 @@ SUBROUTINE InitOutput()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars, ONLY: ParameterFile,ProjectName,ParameterDSMCFile
+USE MOD_Globals_Vars ,ONLY: ParameterFile,ProjectName,ParameterDSMCFile
 USE MOD_Preproc
-USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
-USE MOD_Output_Vars,ONLY:OutputInitIsDone,OutputFormat
-USE MOD_Output_Vars,ONLY:userblock_len, userblock_total_len, UserBlockTmpFile
+USE MOD_ReadInTools  ,ONLY: GetStr,GetLogical,GETINT
+USE MOD_Output_Vars  ,ONLY: OutputInitIsDone,OutputFormat
+USE MOD_Output_Vars  ,ONLY: userblock_len, userblock_total_len, UserBlockTmpFile
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -189,8 +189,8 @@ SUBROUTINE InitOutputBasis(N_in,NVisu_in,xGP,wBary)
 ! Initialize all output variables.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Output_Vars, ONLY:Vdm_GaussN_NVisu
-USE MOD_Basis,       ONLY:InitializeVandermonde
+USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu
+USE MOD_Basis       ,ONLY: InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -218,7 +218,7 @@ SUBROUTINE FinalizeOutput()
 ! Deallocate global variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Output_Vars,ONLY:Vdm_GaussN_NVisu,OutputInitIsDone
+USE MOD_Output_Vars ,ONLY: Vdm_GaussN_NVisu,OutputInitIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
