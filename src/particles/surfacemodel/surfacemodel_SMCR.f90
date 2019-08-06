@@ -127,6 +127,12 @@ Coord = Adsorption%Coordination(PartBoundID,SpecID)
 AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfID)%nSites(Coord)*RanNum)
 Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
 SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfID)%AdsMap(Coord)%Species(Surfpos)
+
+! sample the normal velo at surfaces for the incident temperature that is needed in adsorption probability calculation
+Adsorption%SurfaceNormalVelo(SurfID,SpecID) = Adsorption%SurfaceNormalVelo(SurfID,SpecID) + Norm_Velo
+Adsorption%SurfaceNormalVelo2(SurfID,SpecID) = Adsorption%SurfaceNormalVelo2(SurfID,SpecID) + Norm_Velo**2
+Adsorption%CollSpecPartNum(SurfID,SpecID) = Adsorption%CollSpecPartNum(SurfID,SpecID) + 1
+
 !!-----------------------------------------------------------------------------------------------------------------------------------
 !! calculate trapping probability (using hard cube collision with surface atom or adsorbate)
 !!-----------------------------------------------------------------------------------------------------------------------------------

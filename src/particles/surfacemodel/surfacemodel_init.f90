@@ -224,11 +224,12 @@ SUBROUTINE InitSurfaceModel()
 !> Initialize surface model variables
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars               ,ONLY: BoltzmannConst, PI
 USE MOD_Globals
 USE MOD_Mesh_Vars                  ,ONLY: nElems, BC
 USE MOD_DSMC_Vars                  ,ONLY: DSMC, CollisMode, SpecDSMC
 USE MOD_Particle_Vars              ,ONLY: nSpecies, PDM, WriteMacroSurfaceValues
-USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM
+USE MOD_Particle_Vars              ,ONLY: KeepWallParticles, PEM, Species
 USE MOD_ReadInTools                ,ONLY: GETINT,GETREAL,GETLOGICAL,GETREALARRAY
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample, SurfMesh, nPartBound, PartBound
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
@@ -498,6 +499,19 @@ DO iSide=1,SurfMesh%nTotalSides
   END IF
 END DO
 Adsorption%NumCovSamples = 0
+
+ALLOCATE ( Adsorption%IncidentNormalTempAtSurf(1:SurfMesh%nTotalSides,1:nSpecies),&
+           Adsorption%SurfaceNormalVelo(1:SurfMesh%nTotalSides,1:nSpecies),&
+           Adsorption%SurfaceNormalVelo2(1:SurfMesh%nTotalSides,1:nSpecies),&
+           Adsorption%CollSpecPartNum(1:SurfMesh%nTotalSides,1:nSpecies) )
+DO iSide = 1,SurfMesh%nTotalSides
+  DO iSpec = 1,nSpecies
+    Adsorption%IncidentNormalTempAtSurf(iSide,iSpec) = Species(iSpec)%Init(0)%MWTemperatureIC
+  END DO
+END DO
+Adsorption%SurfaceNormalVelo(:,:)  = 0.
+Adsorption%SurfaceNormalVelo2(:,:) = 0.
+Adsorption%CollSpecPartNum(:,:)    = 0
 
 ! Initialize surface coverage
 CALL InitSurfCoverage()

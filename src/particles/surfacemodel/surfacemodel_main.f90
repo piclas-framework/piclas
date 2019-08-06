@@ -77,6 +77,7 @@ SUBROUTINE UpdateSurfModelVars()
 !>    and need coverage info for adsorption calculation (mpi routines know which sides to communicate)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Vars          ,ONLY: WriteMacroSurfaceValues, KeepWallParticles, Species, nSpecies
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample, SurfMesh, SampWall, PartBound
@@ -98,6 +99,7 @@ IMPLICIT NONE
 INTEGER                          :: iSpec, iSurfSide, p, q, new_adsorbates, numSites
 REAL                             :: maxPart
 REAL                             :: coverage_tmp, coverage_corrected
+REAL                             :: MeanPartV_2, Mean_PartV2
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -230,6 +232,26 @@ CALL ExchangeCoverageInfo()
 CALL ExchangeSurfDistInfo()
 #endif
 
+DO iSurfSide = 1,SurfMesh%nSides
+  DO iSpec=1, nSpecies
+    MeanPartV_2=0.
+    Mean_PartV2=0.
+    IF(Adsorption%CollSpecPartNum(iSurfSide,iSpec).GT.1) THEN
+      !Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) = 0.9 * Adsorption%IncidentNormalVeloAtSurf(iSurfSide,iSpec) &
+          !+ 0.1 * Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))
+      ! Compute velocity averages
+      MeanPartV_2 = (Adsorption%SurfaceNormalVelo(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec)))**2  ! <|v|>**2
+      Mean_PartV2 = Adsorption%SurfaceNormalVelo2(iSurfSide,iSpec) / REAL(Adsorption%CollSpecPartNum(iSurfSide,iSpec))      ! <|v|**2>
+      ! Compute temperature
+      Adsorption%IncidentNormalTempAtSurf(iSurfSide,iSpec) = 0.9 * Adsorption%IncidentNormalTempAtSurf(iSurfSide,iSpec) &
+          + 0.1 *Species(iSpec)%MassIC/BoltzmannConst/(2.-Pi/2.) * (Mean_PartV2 - MeanPartV_2)
+     END IF
+  END DO
+END DO
+Adsorption%SurfaceNormalVelo(:,:)  = 0.
+Adsorption%SurfaceNormalVelo2(:,:) = 0.
+Adsorption%CollSpecPartNum(:,:)    = 0
+
 END SUBROUTINE UpdateSurfModelVars
 
 
@@ -284,8 +306,8 @@ INTEGER                          :: ProductSpec(2)   !< 1: product species of in
                                                           !< If productSpec is positive the particle is reflected/emitted 
                                                           !< with respective species 
 INTEGER                          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
-CHARACTER(30)                    :: velocityDistribution(2)          !< specifying keyword for velocity distribution
-REAL                             :: TempErgy(2)                      !< temperature, energy or velocity used for velofromdistribution
+CHARACTER(30)                    :: velocityDistribution(2)   !< specifying keyword for velocity distribution
+REAL                             :: TempErgy(2)               !< temperature, energy or velocity used for velofromdistribution
 REAL                             :: reactionEnthalpie     !< negative: transferred to surface / positive: transferred from surface
 LOGICAL                          :: SampledEnthalpie
 REAL                             :: PartTrajectory2(1:3)

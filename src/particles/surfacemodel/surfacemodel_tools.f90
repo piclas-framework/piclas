@@ -880,14 +880,15 @@ END IF
 
 CalcAdsorbReactProb = 0.0
 IF (Adsorption%TST_Calc(ReactNum,SpecID)) THEN
-  !AdsorptionTemp = SurfModel%InstantTempAtSurf(SurfID,SpecID)
-  PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
-  Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
-  Xi_Total = Xi_vib + Xi_rot + 3.
-  AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
+  AdsorptionTemp = Adsorption%IncidentNormalTempAtSurf(SurfID,SpecID)
+  !MeanNormalVelo = Adsorption%IncidentNormalVeloAtSurf(SurfID,SpecID)
+  MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
 
-  !MeanNormalVelo = SurfModel%InstantVeloAtSurf(SurfID,SpecID)
-  MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*Pi*Species(SpecID)%MassIC)) ! equilibrium normalvelo for AdsorptionTemp
+  !PartVelo = SQRT(PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2)
+  !Norm_Ec = PartVelo**2 * 0.5*Species(SpecID)%MassIC + PartStateIntEn(PartID,2) + PartStateIntEn(PartID,1) - EZeroPoint_Educt
+  !Xi_Total = Xi_vib + Xi_rot + 3.
+  !AdsorptionTemp=2.*Norm_Ec/Xi_Total/BoltzmannConst
+  !MeanNormalVelo = SQRT((BoltzmannConst*AdsorptionTemp) / (2*PI*Species(SpecID)%MassIC)) ! equilibrium mean thermal velo for AdsorptionTemp
 
   a_f = (BoltzmannConst*AdsorptionTemp/PlanckConst) &
         *(PartitionFuncActAdsorb(SpecID, AdsorptionTemp)/PartitionFuncGas(SpecID, AdsorptionTemp))
