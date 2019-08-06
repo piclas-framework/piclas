@@ -30,8 +30,6 @@ INTERFACE AnalyzeSurface
   MODULE PROCEDURE AnalyzeSurface
 END INTERFACE
 
-
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 INTERFACE WriteDataHeaderInfo
   MODULE PROCEDURE WriteDataHeaderInfo
 END INTERFACE
@@ -39,7 +37,6 @@ END INTERFACE
 INTERFACE WriteDataInfo
   MODULE PROCEDURE WriteDataInfo
 END INTERFACE
-#endif /* DSMC*/
 
 #if (PP_TimeDiscMethod==42)
 INTERFACE AnalyzeSurfRates
@@ -223,9 +220,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_SurfaceModel_Vars         ,ONLY: Adsorption, SurfModel
 #endif /* DSMC*/
-#if ( PP_TimeDiscMethod ==42) || (PP_TimeDiscMethod==4)
 USE MOD_Particle_Vars             ,ONLY: nSpecies
-#endif /* DSMC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -238,12 +233,12 @@ REAL,INTENT(IN)                 :: Time
 LOGICAL             :: isOpen, isRestart, doDistributionData
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter, iPB
+INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: iCase
 INTEGER             :: iSpec
 REAL                :: Adsorptionrate(nSpecies), Desorptionrate(nSpecies), Accomodation(nSpecies)
 REAL                :: EvaporationRate(nSpecies)
-INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 REAL,ALLOCATABLE    :: SurfReactRate(:), AdsorptionReactRate(:)
 REAL,ALLOCATABLE    :: AdsorptionActE(:), ProperAdsorptionActE(:), Adsorptionnu(:), ProperAdsorptionnu(:)
 REAL,ALLOCATABLE    :: SurfaceActE(:), ProperSurfaceActE(:), Surfacenu(:), ProperSurfacenu(:)
@@ -697,7 +692,6 @@ IF (doDistributiondata) THEN
 END SUBROUTINE AnalyzeSurface
 
 
-#if (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==4)
 SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize)
 !===================================================================================================================================
 !> writes OutputCounter-AttribNamestring-iLoop into WRITEFORMAT output
@@ -799,7 +793,6 @@ IF(PRESENT(LogicalScalar)) THEN
   WRITE(unit_index,'(L2)',ADVANCE='NO') LogicalScalar
 END IF
 END SUBROUTINE WriteDataInfo
-#endif /*DSMC*/
 
 
 SUBROUTINE GetCollCounter(SurfCollNum,AdsorbNum)
