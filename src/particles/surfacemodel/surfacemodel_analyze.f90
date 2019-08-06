@@ -872,6 +872,9 @@ ELSE
   CALL MPI_REDUCE(DesorbNum   ,DEN         ,nSpecies,MPI_INTEGER,MPI_SUM,0,SurfCOMM%OutputCOMM,IERROR)
 END IF
 #endif /*USE_MPI*/
+DO iSpec = 1,nSpecies
+  SurfModel%Info(iSpec)%NumOfDes = 0
+END DO
 
 END SUBROUTINE GetDesCounter
 
@@ -1257,7 +1260,6 @@ END IF
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%MeanProbDes = 0.
-  SurfModel%Info(iSpec)%NumOfDes = 0
 END DO
 
 iCase = 1
@@ -1330,7 +1332,6 @@ END IF
 
 DO iSpec = 1,nSpecies
   SurfModel%Info(iSpec)%MeanProbDes = 0.
-  SurfModel%Info(iSPec)%NumOfDes = 0
   SurfModel%ProperInfo(iSpec)%MeanSurfActE = 0.
   SurfModel%ProperInfo(iSpec)%ProperSurfActE = 0.
   SurfModel%ProperInfo(iSpec)%MeanSurfnu = 0.
