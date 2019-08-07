@@ -232,6 +232,9 @@ USE MOD_IO_HDF5
 #if USE_MPI
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
+#ifdef HDG
+USE MOD_LoadBalance_Vars,   ONLY:ElemHDGSides,TotalHDGSides
+#endif /*HDG*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
 USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem
@@ -405,7 +408,13 @@ offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
              ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
 
-
+#ifdef HDG
+! Allocate container for number of master sides for the HDG solver for each element
+SDEALLOCATE(ElemHDGSides)
+ALLOCATE(ElemHDGSides(1:nElems))
+ElemHDGSides=0
+TotalHDGSides=0
+#endif /*HDG*/
 
 ! Set new ElemTime depending on new load distribution
 SDEALLOCATE(ElemTime)

@@ -498,7 +498,7 @@ IF(nMortarSides.GT.0)THEN
   END DO ! iElem
 
   ! set 'tmp'-marker of the big Mortar sides to:
-  !  -2 : if a small virtual side is MPI_YOUR (can not be moved)
+  !  -2 : if a small virtual side is MPI_YOUR (cannot be moved)
   !  -1 : otherwise (can be moved to inner Mortars)
   ! Therewith only the big Mortar sides have a 'tmp'-marker different from 0.
   ! Additionally count all big Mortar sides that can be moved to inner Mortars (with tmp == -1).
@@ -588,10 +588,10 @@ IF(nMortarSides.GT.0)THEN
     END DO ! iElem
   END IF ! addToInnerMortars>0
   LOGWRITE(*,*)'-------------------------------------------------------'
-  LOGWRITE(*,'(A22,I8)')'addToInnerMortars:',addToInnerMortars
-  LOGWRITE(*,'(A22,I8)')'new nMortarSides:',nMortarSides
+  LOGWRITE(*,'(A22,I8)')'addToInnerMortars    :',addToInnerMortars
+  LOGWRITE(*,'(A22,I8)')'new nMortarSides     :',nMortarSides
   LOGWRITE(*,'(A22,I8)')'new nMortarInnerSides:',nMortarInnerSides
-  LOGWRITE(*,'(A22,I8)')'new nMortarMPISides:',nMortarMPISides
+  LOGWRITE(*,'(A22,I8)')'new nMortarMPISides  :',nMortarMPISides
   LOGWRITE(*,*)'-------------------------------------------------------'
 END IF ! nMortarSides>0
 
@@ -841,14 +841,17 @@ END SUBROUTINE setLocalSideIDs
 SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
-USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
-USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
+USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
+USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if USE_MPI
 USE MOD_MPI_vars
 #endif
+#ifdef HDG
+USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
+#endif /*HDG*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1021,6 +1024,35 @@ DO iElem=1,nElems
     IF(ElemToElemGlob(1,ilocSide,offSetElem+iElem).EQ.-1) ElemToElemGlob(1,ilocSide,offSetElem+iElem) = offSetElem+iElem
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
+
+
+#ifdef HDG
+! Weight elements with mortar sides
+DO iElem=1,nElems
+  DO ilocSide=1,6
+    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    ! TODO: don't count Dirichlet sides, but Neumann sides
+    !IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
+
+    locMortarSide=MortarType(2,SideID)
+    IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
+      IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
+        ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
+        TotalHDGSides=TotalHDGSides+1
+      END IF
+    ELSE ! mortar side
+      DO iMortar=1,4
+        SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
+        IF(SideID2.GT.0)THEN
+          ElemHDGSides(iElem)=ElemHDGSides(iElem)+1
+          TotalHDGSides=TotalHDGSides+1
+        END IF
+      END DO ! iMortar=1,4
+    END IF ! locMortarSide
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,PP_nElems
+#endif /*HDG*/
+
 
 #if USE_MPI
 CALL exchangeElemID()

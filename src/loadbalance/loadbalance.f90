@@ -261,7 +261,11 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
   ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
     ! time used in dg routines
+#ifdef HDG
+    ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_DG)*ElemHDGSides(iElem)/TotalHDGSides + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
+#else
     ElemTime(iElem) = ElemTime(iElem) + (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
+#endif /*HDG*/
 #ifndef PP_HDG
     ! time used in pml routines
     IF(DoPML)THEN
@@ -271,16 +275,16 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
 #ifdef PARTICLES
     ! add particle LB times to elements with respective weightings
-    ElemTime(iElem) = ElemTime(iElem)                                            &
-        + tCurrent(LB_ADAPTIVE) * nPartsPerBCElem(iElem)*sTotalBCParts           &
-        + tCurrent(LB_INTERPOLATION) * nPartsPerElem(iElem)*sTotalParts          &
-        + tCurrent(LB_PUSH) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_UNFP) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_DSMC) * nPartsPerElem(iElem)*sTotalParts                   &
-        + tCurrent(LB_CARTMESHDEPO) * nPartsPerElem(iElem)*sTotalParts           &
-        + tCurrent(LB_TRACK) * nTracksPerElem(iElem)*sTotalTracks                &
-        + tCurrent(LB_SURFFLUX) * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
-        + tCurrent(LB_SURF) * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
+    ElemTime(iElem) = ElemTime(iElem)                                             &
+        + tCurrent(LB_ADAPTIVE)      * nPartsPerBCElem(iElem)*sTotalBCParts       &
+        + tCurrent(LB_INTERPOLATION)   * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_PUSH)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_UNFP)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_DSMC)            * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_CARTMESHDEPO)    * nPartsPerElem(iElem)*sTotalParts         &
+        + tCurrent(LB_TRACK)          * nTracksPerElem(iElem)*sTotalTracks        &
+        + tCurrent(LB_SURFFLUX)  * nSurfacefluxPerElem(iElem)*stotalSurfacefluxes &
+        + tCurrent(LB_SURF)     * nSurfacePartsPerElem(iElem)*stotalSurfaceParts
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
       ElemTime(iElem) = ElemTime(iElem)                              &
@@ -318,12 +322,12 @@ PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold) PerformLoadBalance=.TRUE.
 
 #ifdef PARTICLES
-nTracksPerElem=0
-nDeposPerElem=0
-nPartsPerElem=0
-nSurfacefluxPerElem=0
-nPartsPerBCElem=0
-nSurfacePartsPerElem=0
+nTracksPerElem       = 0
+nDeposPerElem        = 0
+nPartsPerElem        = 0
+nSurfacefluxPerElem  = 0
+nPartsPerBCElem      = 0
+nSurfacePartsPerElem = 0
 #endif /*PARTICLES*/
 tCurrent = 0.
 

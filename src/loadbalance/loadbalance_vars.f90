@@ -37,6 +37,7 @@ LOGICAL                             :: InitLoadBalanceIsDone                    
 REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
                                                                                   ! measured elem-independent and later weighted
                                                                                   ! for indeces look into piclas.h
+REAL,ALLOCATABLE                    :: tCurrent_LB_DG(:)                                ! time measurement over one step
 ! counter
 INTEGER                             :: nLoadBalance                               ! number of load balances
 INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
@@ -68,6 +69,8 @@ REAL                                :: targetWeight                             
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: ElemTime(:)
+INTEGER,ALLOCATABLE                 :: ElemHDGSides(:) ! number of master sides for the HDG solver for each element
+INTEGER                             :: TotalHDGSides   ! total number of master sides for the HDG solver over all local elements
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nDeposPerElem(:)

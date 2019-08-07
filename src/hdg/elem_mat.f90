@@ -91,7 +91,7 @@ IF(DoPrintConvInfo)THEN
 END IF
 #else
 IF(DoDisplayIter)THEN
-  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time0=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("-"))')
     SWRITE(*,*)'HDG ELEM_MAT: Pre-compute HDG local element matrices...'
@@ -302,7 +302,7 @@ IF(DoPrintConvInfo)THEN
 END IF
 #else
 IF(DoDisplayIter)THEN
-  IF(MOD(td_iter,IterDisplayStep).EQ.0) THEN
+  IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time=PICLASTIME()
     SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
     SWRITE(UNIT_stdOut,'(132("-"))')
