@@ -56,12 +56,12 @@ SUBROUTINE IdentifyHaloMPINeighborhood(iProc,SideIndex,ElemIndex)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,         ONLY:GEO,SidePeriodicType,nPartSides,PartElemToSide
+USE MOD_Particle_Mesh_Vars,         ONLY:GEO,SidePeriodicType,nPartSides,PartElemToSide,PartSideToElem
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
 USE MOD_Particle_MPI_Vars,          ONLY:halo_eps
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType
+USE MOD_Mesh_Vars,                  ONLY:NGeo,firstMPISide_MINE,MortarSlave2MasterInfo,BC,BoundaryType,MortarType,MortarInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -85,10 +85,10 @@ TYPE tMPISideMessage
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
-INTEGER                     :: ALLOCSTAT,PVID,iDir
+INTEGER                     :: ALLOCSTAT,PVID,iDir,ind,nbSideID,nMortarElems,SideIDMortar
 REAL                        :: MinMax(2),Vec1(1:3)
 LOGICAL                     :: SideisDone(1:nPartSides)
-LOGICAL                     :: SideInside
+LOGICAL                     :: SideInside, CycleMortarInnerSides
 !=================================================================================================================================
 
 ! 1) Exchange Sides:
@@ -124,7 +124,6 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
 END IF
 
 SideisDone=.FALSE.
-SideisDone(1:firstMPISide_MINE-1)=.TRUE.
 DO iElem=1,PP_nElems
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -132,8 +131,31 @@ DO iElem=1,PP_nElems
     IF(SideID.LT.1) CYCLE
     IF(SideID.GT.nPartSides) CYCLE ! only MY sides are checked, no HALO sides of other processes
     IF(SideID.LT.firstMPISide_MINE)THEN ! for my-inner-sides, we have to check the periodic sides
-      IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
-      IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+      ! HDG: MortarMPISides have been moved to MortarInnerSides
+      IF(MortarType(1,SideID).LT.1) THEN
+        ! Cycle over inner sides which are not mortars
+        IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
+        IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+      ELSE
+        ! Cycle over inner mortar sides which do have defined neighbors and thus are not a former MortarMPISide
+        SideIDMortar = MortarType(2,SideID)
+        IF (MortarType(1,SideID).EQ.1) THEN
+          nMortarElems = 4
+        ELSE
+          nMortarElems = 2
+        END IF
+        CycleMortarInnerSides = .TRUE.
+        DO ind = 1, nMortarElems
+          nbSideID=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
+          IF(PartSideToElem(S2E_NB_ELEM_ID,nbSideID).LT.1) THEN
+            CycleMortarInnerSides = .FALSE.
+          END IF
+        END DO
+        IF(CycleMortarInnerSides) THEN
+          IF(BC(SideID).LE.0) CYCLE ! no boundary side, cycle
+          IF(BoundaryType(BC(SideID),BC_TYPE).NE.1) CYCLE  ! not a periodic BC, cycle
+        END IF
+      END IF
     END IF
     ! side is already checked
     IF(SideIsDone(SideID)) CYCLE

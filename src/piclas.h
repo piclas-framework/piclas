@@ -68,7 +68,8 @@
 #  define IPWRITE(a,b) WRITE(a,b)0,
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
-#define LOGWRITE(a,b) IF(Logging) WRITE(UNIT_logOut,b)
+#define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
+#define LOGWRITE_BARRIER  IF(Logging) CALL ReOpenLogFile()
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
 
 #ifdef OPTIMIZED
@@ -150,8 +151,10 @@
 
 ! formats
 ! print to std out like  "    1.41421356237310E+000   -1.41421356237310E+000   -1.41421356237310E+000"
+! (looks good and prevents the first digit of being a zero)
 #define WRITEFORMAT '(ES25.14E3)'
 ! print to csv file like "0.1414213562373095E+001,-.1414213562373095E+001,-.1414213562373095E+001"
+! (does not look that good but it saves disk space)
 #define CSVFORMAT '(A1,E23.16E3)'
 
 ! Load Balance (LB) position in array for measuring the time that is spent on specific operations
