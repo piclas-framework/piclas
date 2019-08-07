@@ -1613,6 +1613,14 @@ DO jSubSurf = 1,nSurfSample ; DO iSubSurf = 1,nSurfSample
         END IF
       END DO
     END IF
+#if (PP_TimeDiscMethod==42)
+    !-------------------------------------------------------------------------------------------------------------------------------
+    ! analyze desorption data in case TPD is enabled
+    !-------------------------------------------------------------------------------------------------------------------------------
+    IF (DSMC%ReservoirSimu) THEN
+      SurfModel%Info(iSpec)%NumOfDes = SurfModel%Info(iSpec)%NumOfDes + SurfModel%SumDesorbPart(iSubSurf,jSubSurf,iSurf,iSpec)
+    END IF
+#endif
   END DO ! nSpecies (analyze)
 END DO ; END DO ! nSurfSample
 END DO ! SurfMesh%nSides
@@ -1647,7 +1655,7 @@ END SUBROUTINE SMCR_PartDesorb
 SUBROUTINE SMCR_Diffusion()
 !===================================================================================================================================
 !> Calculation of diffusion on reconstructed surface with assumption of Quasi Chemical Approximation (QCA)
-!> 1. diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
+!>   diffusion into equilibrium (Quasi Chemical Approximation - QCA) is performed for particles on surface
 !===================================================================================================================================
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_Mesh_Vars              ,ONLY: BC
@@ -1717,7 +1725,7 @@ DO iSurf=1,SurfMesh%nSides
         ! update surfatom bond order and species map
         CALL UpdateSurfPos(iSurf,iSubSurf,jSubSurf,Coord,Surfpos,SpecID,.TRUE.,relaxation=.TRUE.)
 
-        ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
+        ! choose Neighbour position with highest heat of adsorption 
         Heat_j = 0.
         DO i = 1,n_equal_site_Neigh
           Heat_temp = Calc_Adsorb_Heat(iSubSurf,jSubSurf,iSurf,SpecID,free_Neigh_pos(i),.TRUE.)
