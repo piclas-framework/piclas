@@ -361,10 +361,10 @@ IF (DoRestart) THEN
     offsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 
     ! NEW method
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-    IPWRITE(UNIT_stdOut,*)"DONE"
     CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
     IF(ElemTimeExists)THEN
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+      IPWRITE(UNIT_stdOut,*)"DONE"
       CALL ReadArray('ElemTime',2,(/1_IK,nGlobalElems/),0,2,RealArray=ElemTime_local)
       CALL CloseDataFile()
     END IF ! ElemTimeExists
@@ -426,11 +426,13 @@ LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
 ! Read the ElemTime again, but this time with every proc, depending on the domain decomposition in order to write the data
 ! to the state file (keep ElemTime on restart, if no new ElemTime is calculated during the run or replace with newly measured values
 ! if LoadBalance is on)
-ALLOCATE(ElemTime_tmp(1:nElems))
-ElemTime_tmp=0.
-CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadArray('ElemTime',2,(/1_IK,nElems/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
-CALL CloseDataFile()
+IF(ElemTimeExists)THEN
+  ALLOCATE(ElemTime_tmp(1:nElems))
+  ElemTime_tmp=0.
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadArray('ElemTime',2,(/1_IK,nElems/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+  CALL CloseDataFile()
+END IF ! ElemTimeExists
 
 #if USE_HDG
 ! Allocate container for number of master sides for the HDG solver for each element

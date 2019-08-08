@@ -523,8 +523,6 @@ CHARACTER(LEN=255)                   :: StrVarNames
 REAL,ALLOCATABLE                     :: ElemData(:,:)
 INTEGER                              :: nVar,iElem
 TYPE(tElementOut),POINTER            :: e
-
-!REAL,ALLOCATABLE                     :: ElemTime_tmp(:)
 !===================================================================================================================================
 
 IF(.NOT. ASSOCIATED(ElemList)) RETURN
@@ -564,7 +562,10 @@ IF(nVar.NE.1) CALL abort(&
     ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
 
 ! Check if ElemTime is all zeros and if this is a restart (save the old values)
-IF((MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime'))THEN
+IF((MAXVAL(ElemData).LE.0.0)          .AND.& ! Restart
+    DoRestart                         .AND.& ! Restart
+    (TRIM(ElemDataName).EQ.'ElemTime').AND.& ! only for ElemTime array
+    ALLOCATED(ElemTime_tmp))THEN             ! only allocated when not starting simulation from zero
   ! Additionally, store old values in ElemData container
   ElemTime = ElemTime_tmp
 

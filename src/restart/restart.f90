@@ -58,13 +58,13 @@ CALL prms%CreateLogicalOption('DoInitialAutoRestart',&
                                "Restart is done if Imbalance > 'Load-DeviationThreshold'."&
                                , '.FALSE.')
 CALL prms%CreateIntOption('InitialAutoRestartSample',&
-                               "Define number of iterations at simulation start used for elemtime "// &
+                               "Define number of iterations at simulation start used for ElemTime "// &
                                "sampling before performing automatic initial restart.\n"// &
                                "IF 0 than one iteration is sampled and statefile written has zero timeflag.\n"// &
                                " DEFAULT: LoadBalanceSample.")
 CALL prms%CreateLogicalOption( 'InitialAutoRestart-PartWeightLoadBalance', &
                                "Set flag for doing initial auto restart with partMPIWeight instead of"//&
-                               " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
+                               " ElemTimes. ElemTime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
                                " If Flag [TRUE] InitialAutoRestartSample is set to 0 and vice versa.", '.FALSE.')
 #endif /*USE_LOADBALANCE*/
 CALL prms%CreateLogicalOption( 'RestartNullifySolution', &
@@ -187,10 +187,10 @@ WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
 InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
 IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
 IF (IAR_PerformPartWeightLB) THEN
-  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
+  InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of ElemTimes if balancing with partweight is enabled
   CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
 ELSE IF (InitialAutoRestartSample.EQ.0) THEN
-  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
+  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (ElemTimes) is done with partmpiweight if loadbalancesampling is set to zero
   CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
 END IF
 #endif /*USE_LOADBALANCE*/
