@@ -1354,7 +1354,7 @@ USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
-USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg,LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
@@ -1396,9 +1396,6 @@ REAL                             :: DeltaIntCoeff,prefac
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 REAL                             :: RandVal, RandVal2(2), layerPartPos(3), PartRadius, FractPush(3), SFfixDistance
 LOGICAL                          :: DoCycle,DepoLoc
-#if USE_LOADBALANCE
-REAL                             :: tLBStart ! load balance
-#endif /*USE_LOADBALANCE*/
 #if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER               :: SourceDim=1
 LOGICAL, PARAMETER               :: doCalculateCurrentDensity=.TRUE.
@@ -1407,9 +1404,19 @@ LOGICAL                          :: doCalculateCurrentDensity
 INTEGER                          :: SourceDim
 #endif
 INTEGER                          :: NodeID(1:8)
+#if USE_LOADBALANCE
+REAL                             :: tLBStart,tLBEnd
+#endif /*USE_LOADBALANCE*/
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
+
+! Start time measurement for shape function deposition only
+#if USE_LOADBALANCE
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  CALL LBStartTime(tLBStart) ! Start time measurement
+END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
+#endif /*USE_LOADBALANCE*/
 
 doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
@@ -1478,30 +1485,34 @@ CASE('nearest_blurrycenter')
         END IF ! usevMPF
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
-IF(doCalculateCurrentDensity)THEN
-  PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
-  PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
-  PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
-END IF
-PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
+    IF(doCalculateCurrentDensity)THEN
+      PartSource(1,:,:,:,iElem) = PartSource(1,:,:,:,iElem)+ElemSource(1,iElem)
+      PartSource(2,:,:,:,iElem) = PartSource(2,:,:,:,iElem)+ElemSource(2,iElem)
+      PartSource(3,:,:,:,iElem) = PartSource(3,:,:,:,iElem)+ElemSource(3,iElem)
+    END IF
+    PartSource(4,:,:,:,iElem) = PartSource(4,:,:,:,iElem)+ElemSource(4,iElem)
 #if USE_LOADBALANCE
     CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END DO ! iElem=1,PP_nElems
+
   IF(.NOT.doInnerParts)THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
     DO iElem=1,PP_nElems
       PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / GEO%Volume(iElem)
-#if USE_LOADBALANCE
-      CALL LBElemSplitTime(iElem,tLBStart)
-#endif /*USE_LOADBALANCE*/
     END DO ! iElem=1,PP_nElems
+#if USE_LOADBALANCE                                                                                                                  
+    CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
   END IF ! .NOT. doInnerParts
 CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
+#if USE_LOADBALANCE
+    CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iPart = firstPart, lastPart
     ! TODO: Info why and under which conditions the following 'CYCLE' is called
     IF(doPartInExists)THEN
@@ -1511,9 +1522,6 @@ CASE('cell_volweight')
     END IF
     ! Don't deposit neutral particles!
     IF(.NOT.DEPOSITPARTICLE(iPart)) CYCLE
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
     IF (usevMPF) THEN
       Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
     ELSE
@@ -1542,14 +1550,11 @@ CASE('cell_volweight')
     BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
     BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
     BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem) + (TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
-#if USE_LOADBALANCE
-    CALL LBElemPauseTime(iElem,tLBStart)
+#if USE_LOADBALANCE                                                                                                                  
+    CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
 #endif /*USE_LOADBALANCE*/
   END DO
 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
   DO iElem=1, nElems
     BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem)/CellVolWeight_Volumes(0,0,0,iElem)
     BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem)/CellVolWeight_Volumes(0,0,1,iElem)
@@ -1560,41 +1565,38 @@ CASE('cell_volweight')
     BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem)/CellVolWeight_Volumes(1,1,0,iElem)
     BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem)/CellVolWeight_Volumes(1,1,1,iElem)
   END DO
-#if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(tLBStart) ! average over the number of elems
-#endif /*USE_LOADBALANCE*/
 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
   DO iElem = 1, nElems
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
-         alpha1 = CellVolWeightFac(kk)
-         alpha2 = CellVolWeightFac(ll)
-         alpha3 = CellVolWeightFac(mm)
-         PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) +&
-              BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) * (alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,1,0,0,iElem) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,1,0,1,iElem) * (alpha1) * (1-alpha2) * (alpha3) + &
-              BGMSourceCellVol(:,1,1,0,iElem) * (alpha1) * (alpha2) * (1-alpha3) + &
-              BGMSourceCellVol(:,1,1,1,iElem) * (alpha1) * (alpha2) * (alpha3)
-       END DO !mm
-     END DO !ll
-   END DO !kk
-#if USE_LOADBALANCE
-   CALL LBElemSplitTime(iElem,tLBStart)
+          alpha1 = CellVolWeightFac(kk)
+          alpha2 = CellVolWeightFac(ll)
+          alpha3 = CellVolWeightFac(mm)
+          PartSource(SourceDim:4,kk,ll,mm,iElem) =PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+              BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) *   (alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,1,0,0,iElem) *   (alpha1) * (1-alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,1,0,1,iElem) *   (alpha1) * (1-alpha2) *   (alpha3)    + &
+              BGMSourceCellVol(:,1,1,0,iElem) *   (alpha1) *   (alpha2) * (1-alpha3)    + &
+              BGMSourceCellVol(:,1,1,1,iElem) *   (alpha1) *   (alpha2) *   (alpha3)
+        END DO ! mm
+      END DO ! ll
+    END DO ! kk
+  END DO ! iElem
+#if USE_LOADBALANCE                                                                                                                  
+  CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
- END DO !iEle
  DEALLOCATE(BGMSourceCellVol)
 CASE('cell_volweight_mean','cell_volweight_mean2')
   ALLOCATE(NodeSource(SourceDim:4,1:nNodes))
   NodeSource = 0.0
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       IF (usevMPF) THEN
@@ -1615,15 +1617,20 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
       alpha3=0.5*(TempPartPos(3)+1.0)
       NodeID=GEO%ElemToNodeID(1:8,iElem)
       NodeSource(:,NodeID(1)) = NodeSource(:,NodeID(1))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(1-alpha3))
-      NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*(alpha1)*(1-alpha2)*(alpha3))
-      NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*(alpha1)*(alpha2)*(alpha3))
-      NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*(alpha2)*(alpha3))
+      NodeSource(:,NodeID(2)) = NodeSource(:,NodeID(2))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(3)) = NodeSource(:,NodeID(3))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(4)) = NodeSource(:,NodeID(4))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(:,NodeID(5)) = NodeSource(:,NodeID(5))+(TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(:,NodeID(6)) = NodeSource(:,NodeID(6))+(TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(:,NodeID(7)) = NodeSource(:,NodeID(7))+(TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+      NodeSource(:,NodeID(8)) = NodeSource(:,NodeID(8))+(TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+#if USE_LOADBALANCE                                                                                                                  
+     CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
     END IF
   END DO
+
+  ! Node MPI communication
 #if USE_MPI
   IF(doCalculateCurrentDensity)THEN
     CALL AddHaloNodeData(NodeSource(1,:))
@@ -1633,6 +1640,11 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
   CALL AddHaloNodeData(NodeSource(4,:))
 #endif /*USE_MPI*/
 
+
+  ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
   DO iElem=1, nNodes
     NodeSource(SourceDim:4,iElem) = NodeSource(SourceDim:4,iElem)/CellLocNodes_Volumes(iElem)
   END DO
@@ -1649,7 +1661,6 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
     END DO
     NodeSource = tempNodeSource
   END IF
-
 
   DO iElem = 1, nElems
     DO kk = 0, PP_N
@@ -1672,6 +1683,9 @@ CASE('cell_volweight_mean','cell_volweight_mean2')
        END DO !ll
      END DO !kk
    END DO !iEle
+#if USE_LOADBALANCE                                                                                                                  
+   CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
+#endif /*USE_LOADBALANCE*/
    DEALLOCATE(NodeSource)
 CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
@@ -3125,6 +3139,13 @@ CASE DEFAULT
   __STAMP__&
   ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+
+! End time measurement for shape function deposition only
+#if USE_LOADBALANCE
+IF(TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function')THEN
+  CALL LBPauseTime(LB_DEPOSITION,tLBStart)
+END IF ! TRIM(DepositionType(1:MIN(14,LEN(TRIM(ADJUSTL(DepositionType)))))).EQ.'shape_function'
+#endif /*USE_LOADBALANCE*/
 
 RETURN
 END SUBROUTINE Deposition
