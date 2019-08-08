@@ -239,7 +239,7 @@ USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem,ElemTime_tmp
+USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem
 #endif
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
@@ -254,6 +254,9 @@ USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 #endif /*PARTICLES*/
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTime_tmp
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -366,7 +369,7 @@ IF (DoRestart) THEN
       CALL CloseDataFile()
     END IF ! ElemTimeExists
 
-    ! OLD method
+    ! OLD method (do not delete!)
     ! CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
     ! IPWRITE(UNIT_stdOut,*)"DONE"
     ! CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,ElemData_tmp,VarNamesElemData_loc)
