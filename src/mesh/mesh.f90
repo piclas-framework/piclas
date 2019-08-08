@@ -159,6 +159,9 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
 
+! Output of myrank, ElemID and tracking info
+CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
+
 ! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
 DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
 IF(DoSwapMesh)THEN
@@ -384,9 +387,6 @@ DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)
 DEALLOCATE(Ja_Face)
 
-
-! Output of myrank, ElemID and tracking info
-CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
 
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)

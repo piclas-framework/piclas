@@ -849,9 +849,9 @@ USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if USE_MPI
 USE MOD_MPI_vars
 #endif
-#ifdef HDG
+#ifdef PP_HDG
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-#endif /*HDG*/
+#endif /*PP_HDG*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1026,7 +1026,7 @@ DO iElem=1,nElems
 END DO ! iElem=1,PP_nElems
 
 
-#ifdef HDG
+#ifdef PP_HDG
 ! Weight elements with mortar sides
 DO iElem=1,nElems
   DO ilocSide=1,6
@@ -1051,7 +1051,7 @@ DO iElem=1,nElems
     END IF ! locMortarSide
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
-#endif /*HDG*/
+#endif /*PP_HDG*/
 
 
 #if USE_MPI

@@ -154,9 +154,9 @@ ASSOCIATE ( nBCs   => INT(nBCs,IK)   ,&
   CALL ReadArray('BCType',2,(/4_IK,nBCs/),Offset,1,IntegerArray_i4=BCType)
 END ASSOCIATE
 ! Now apply boundary mappings
-#ifdef HDG
+#ifdef PP_HDG
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
-#endif /*HDG*/
+#endif /*PP_HDG*/
 IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
@@ -164,7 +164,7 @@ IF(nUserBCs .GT. 0)THEN
       IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
           __STAMP__&
           ,'Remapping non-periodic to periodic BCs is not possible!')
-#ifdef HDG
+#ifdef PP_HDG
       ! periodic to non-periodic
       IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
         ChangedPeriodicBC=.TRUE.
@@ -174,7 +174,7 @@ IF(nUserBCs .GT. 0)THEN
         __STAMP__&
         ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
       END IF
-#endif /*HDG*/
+#endif /*PP_HDG*/
       ! Output
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
@@ -215,44 +215,45 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:tElem,tSide
-USE MOD_Mesh_Vars,          ONLY:NGeo,NGeoTree
-USE MOD_Mesh_Vars,          ONLY:NodeCoords,TreeCoords
-USE MOD_Mesh_Vars,          ONLY:offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
-USE MOD_Mesh_Vars,          ONLY:xiMinMax,ElemToTree
-USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
-USE MOD_Mesh_Vars,          ONLY:nMortarSides,isMortarMesh
-USE MOD_Mesh_Vars,          ONLY:nGlobalUniqueSidesFromMesh
-USE MOD_Mesh_Vars,          ONLY:useCurveds
-USE MOD_Mesh_Vars,          ONLY:BoundaryType
-USE MOD_Mesh_Vars,          ONLY:MeshInitIsDone
-USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
-USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
+USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
+USE MOD_Mesh_Vars            ,ONLY: NGeo,NGeoTree
+USE MOD_Mesh_Vars            ,ONLY: NodeCoords,TreeCoords
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,offsetTree,nElems,nGlobalElems,nTrees,nGlobalTrees,nNodes
+USE MOD_Mesh_Vars            ,ONLY: xiMinMax,ElemToTree
+USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
+USE MOD_Mesh_Vars            ,ONLY: nMortarSides,isMortarMesh
+USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
+USE MOD_Mesh_Vars            ,ONLY: useCurveds
+USE MOD_Mesh_Vars            ,ONLY: BoundaryType
+USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
+USE MOD_Mesh_Vars            ,ONLY: Elems,Nodes
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE,createSides
 USE MOD_IO_HDF5
 #if USE_MPI
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
-USE MOD_LoadBalance_Vars,   ONLY:NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
-#ifdef HDG
-USE MOD_LoadBalance_Vars,   ONLY:ElemHDGSides,TotalHDGSides
-#endif /*HDG*/
+USE MOD_MPI_Vars             ,ONLY: offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight,ElemTime
+#ifdef PP_HDG
+USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
+#endif /*PP_HDG*/
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars,   ONLY:nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
-USE MOD_LoadBalance_Vars,   ONLY:nTracksPerElem,nPartsPerBCElem
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
+USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,   ONLY:nSurfacePartsPerElem
+USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem
 #endif
 #endif /*PARTICLES*/
-USE MOD_LoadDistribution,   ONLY:ApplyWeightDistributionMethod
-USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
+USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
+USE MOD_MPI_Vars             ,ONLY: offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_Restart_Vars,       ONLY:DoRestart,RestartFile
-USE MOD_StringTools,        ONLY:STRICMP
+USE MOD_Restart_Vars         ,ONLY: DoRestart,RestartFile
+USE MOD_StringTools          ,ONLY: STRICMP
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_Vars       ,ONLY:VarTimeStep
-USE MOD_Particle_VarTimeStep,ONLY:VarTimeStep_InitDistribution
+USE MOD_Particle_Vars        ,ONLY: VarTimeStep
+USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 #endif /*PARTICLES*/
+USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -408,13 +409,16 @@ offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
              ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
 
-#ifdef HDG
+#ifdef PP_HDG
 ! Allocate container for number of master sides for the HDG solver for each element
 SDEALLOCATE(ElemHDGSides)
 ALLOCATE(ElemHDGSides(1:nElems))
 ElemHDGSides=0
+IF(CalcMeshInfo)THEN
+  CALL AddToElemData(ElementOut,'ElemHDGSides',IntArray=ElemHDGSides(1:nElems))
+END IF ! CalcMeshInfo
 TotalHDGSides=0
-#endif /*HDG*/
+#endif /*PP_HDG*/
 
 ! Set new ElemTime depending on new load distribution
 SDEALLOCATE(ElemTime)
