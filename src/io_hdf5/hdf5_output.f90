@@ -106,32 +106,32 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars       ,ONLY: U
-USE MOD_Globals_Vars  ,ONLY: ProjectName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
-USE MOD_Equation_Vars ,ONLY: StrVarNames
-USE MOD_Restart_Vars  ,ONLY: RestartFile
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_DSMC_Vars     ,ONLY:RadialWeighting
-USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E,Phi
+USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
+USE MOD_Mesh_Vars              ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars ,ONLY: B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars ,ONLY: E,B
+USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*USE_HDG*/
-USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
+USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -376,6 +376,10 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 #endif /*Particles*/
 
+! Write 'ElemTime' to a separate container in the state.h5 file
+CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
+
+! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
 #if (PP_nVar==8)
@@ -479,6 +483,122 @@ END ASSOCIATE
 DEALLOCATE(ElemData,StrVarNames)
 
 END SUBROUTINE WriteAdditionalElemData
+
+
+SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
+!===================================================================================================================================
+!> Similar to WriteAdditionalElemData() but only writes one of the fields to a separate container
+!> ----------------
+!> Write additional data for analyze purpose to HDF5.
+!> The data is taken from a lists, containing either pointers to data arrays or pointers
+!> to functions to generate the data, along with the respective varnames.
+!>
+!> Two options are available:
+!>    1. WriteAdditionalElemData:
+!>       Element-wise scalar data, e.g. the timestep or indicators.
+!>       The data is collected in a single array and written out in one step.
+!>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars        ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_HDF5_Input       ,ONLY: ReadArray
+USE MOD_Restart_Vars     ,ONLY: RestartFile,DoRestart
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)        :: FileName
+TYPE(tElementOut),POINTER,INTENT(IN) :: ElemList !< Linked list of arrays to write to file
+CHARACTER(LEN=*),INTENT(IN)          :: ElemDataName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)                   :: StrVarNames
+REAL,ALLOCATABLE                     :: ElemData(:,:)
+INTEGER                              :: nVar,iElem
+TYPE(tElementOut),POINTER            :: e
+
+!REAL,ALLOCATABLE                     :: ElemTime_tmp(:)
+!===================================================================================================================================
+
+IF(.NOT. ASSOCIATED(ElemList)) RETURN
+
+! Allocate variable names and data array
+ALLOCATE(ElemData(1,nElems))
+
+! Fill the arrays
+nVar = 0
+e=>ElemList
+DO WHILE(ASSOCIATED(e))
+  StrVarNames=e%VarName
+  IF(StrVarNames.EQ.TRIM(ElemDataName))THEN
+    nVar=nVar+1
+    IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
+    IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
+    IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
+    IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
+    IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
+    IF(ASSOCIATED(e%LogArray)) THEN
+      DO iElem=1,nElems
+        IF(e%LogArray(iElem))THEN
+          ElemData(nVar,iElem)=1.
+        ELSE
+          ElemData(nVar,iElem)=0.
+        END IF
+      END DO ! iElem=1,PP_nElems
+    END IF
+    IF(ASSOCIATED(e%eval))       CALL e%eval(ElemData(nVar,:)) ! function fills elemdata
+    EXIT
+  END IF ! StrVarNames.EQ.TRIM(ElemDataName)
+  e=>e%next
+END DO
+
+IF(nVar.NE.1) CALL abort(&
+    __STAMP__&
+    ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
+
+! Check if ElemTime is all zeros and if this is a restart (save the old values)
+IF((MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime'))THEN
+  ! Additionally, store old values in ElemData container
+  ElemTime = ElemTime_tmp
+
+  ! Write 'ElemTime' container
+  ASSOCIATE (&
+        nVar         => INT(nVar,IK)         ,&
+        nGlobalElems => INT(nGlobalElems,IK) ,&
+        PP_nElems    => INT(PP_nElems,IK)    ,&
+        offsetElem   => INT(offsetElem,IK)   )
+    CALL GatheredWriteArray(FileName,create = .FALSE.,&
+                            DataSetName     = TRIM(ElemDataName), rank = 2,  &
+                            nValGlobal      = (/nVar,nGlobalElems/),&
+                            nVal            = (/nVar,PP_nElems   /),&
+                            offset          = (/0_IK,offsetElem  /),&
+                            collective      = .TRUE.,RealArray        = ElemTime_tmp)
+  END ASSOCIATE
+ELSE
+  ASSOCIATE (&
+        nVar         => INT(nVar,IK)         ,&
+        nGlobalElems => INT(nGlobalElems,IK) ,&
+        PP_nElems    => INT(PP_nElems,IK)    ,&
+        offsetElem   => INT(offsetElem,IK)   )
+    CALL GatheredWriteArray(FileName,create = .FALSE.,&
+                            DataSetName     = TRIM(ElemDataName), rank = 2,  &
+                            nValGlobal      = (/nVar,nGlobalElems/),&
+                            nVal            = (/nVar,PP_nElems   /),&
+                            offset          = (/0_IK,offsetElem  /),&
+                            collective      = .TRUE.,RealArray        = ElemData)
+  END ASSOCIATE
+END IF ! (MAXVAL(ElemData).LE.0.0).AND.DoRestart.AND.(TRIM(ElemDataName).EQ.'ElemTime')
+
+DEALLOCATE(ElemData)
+
+END SUBROUTINE WriteElemDataToSeparateContainer
 
 
 #if (PP_nVar==8)

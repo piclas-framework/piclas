@@ -22,31 +22,33 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                             :: DoLoadBalance                              ! DoLoadBalance
-LOGICAL                             :: PerformLoadBalance=.FALSE.                 ! Flag if loadbalance is performed in current iter
-INTEGER                             :: LoadBalanceSample                          ! Number of samples for loadbalance
-LOGICAL                             :: PerformLBSample                            ! Flag for enabling time measurement in current
-                                                                                  ! timestep (automatically set depending on LB
-                                                                                  ! sampling method)
-LOGICAL                             :: PerformPartWeightLB                        ! Flag for performing LB with partMPIWeight
-                                                                                  ! instead of summed Elemtimes
-                                                                                  ! -> nParts*PartWeight written into elemtime array
-LOGICAL                             :: InitLoadBalanceIsDone                      ! switch for checking
+LOGICAL                             :: DoLoadBalance               ! DoLoadBalance
+LOGICAL                             :: PerformLoadBalance=.FALSE.  ! Flag if loadbalance is performed in current iter
+INTEGER                             :: LoadBalanceSample           ! Number of samples for loadbalance
+LOGICAL                             :: PerformLBSample             ! Flag for enabling time measurement in current
+                                                                   ! timestep (automatically set depending on LB
+                                                                   ! sampling method)
+LOGICAL                             :: PerformPartWeightLB         ! Flag for performing LB with partMPIWeight
+                                                                   ! instead of summed Elemtimes
+                                                                   ! -> nParts*PartWeight written into elemtime array
+LOGICAL                             :: InitLoadBalanceIsDone       ! Switch for checking
 
 ! time measurement
-REAL,ALLOCATABLE                    :: tCurrent(:)                                ! time measurement over one step
-                                                                                  ! measured elem-independent and later weighted
-                                                                                  ! for indeces look into piclas.h
-REAL,ALLOCATABLE                    :: tCurrent_LB_DG(:)                                ! time measurement over one step
+REAL,ALLOCATABLE                    :: tCurrent(:)                 ! Time measurement over one step
+                                                                   ! measured elem-independent and later weighted
+                                                                   ! for indices look into piclas.h
+
+REAL,ALLOCATABLE                    :: tCurrent_LB_DG(:)           ! Time measurement over one step
 ! counter
-INTEGER                             :: nLoadBalance                               ! number of load balances
-INTEGER                             :: nLoadBalanceSteps                          ! number of performed  load balances steps
-REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
-INTEGER,ALLOCATABLE                 :: PartDistri(:)                              ! Part distribution of all procs
-REAL                                :: MaxWeight                                  ! Maximum Weight of proc on domain
-REAL                                :: MinWeight                                  ! Minimum Weight of proc on domain
+INTEGER                             :: nLoadBalance                ! Number of load balances calculations (calls of ComputeElemLoad)
+INTEGER                             :: nLoadBalanceSteps           ! Number of performed load balances steps
+INTEGER                             :: LoadBalanceMaxSteps         ! Number of maximum allowed performed load balances steps
+REAL,ALLOCATABLE                    :: LoadDistri(:)               ! Weighted load distribution of all procs
+INTEGER,ALLOCATABLE                 :: PartDistri(:)               ! Part distribution of all procs
+REAL                                :: MaxWeight                   ! Maximum Weight of proc on domain
+REAL                                :: MinWeight                   ! Minimum Weight of proc on domain
 REAL                                :: CurrentImbalance
-REAL                                :: NewImbalance                               ! Imbalance after rebalance step
+REAL                                :: NewImbalance                ! Imbalance after rebalance step
 
 TYPE tData
   INTEGER, ALLOCATABLE :: offsetElemMPI(:)
@@ -58,17 +60,19 @@ TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI fo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER(KIND=8)                     :: nSkipAnalyze                               ! Skip Analyze-Dt
+INTEGER(KIND=8)                     :: nSkipAnalyze                ! Skip Analyze-Dt
 REAL                                :: ParticleMPIWeight
-REAL                                :: DeviationThreshold                         ! threshold for load-balancing
-LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file
-REAL                                :: WeightSum                                  ! global sum of all weights
-REAL                                :: targetWeight                               ! optimal weight for each proc
+REAL                                :: DeviationThreshold          ! threshold for load-balancing
+LOGICAL                             :: writePartitionInfo          ! write partitioninfo file
+REAL                                :: WeightSum                   ! global sum of all weights
+REAL                                :: targetWeight                ! optimal weight for each proc
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Element Local measurement
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: ElemTime(:)
+REAL,ALLOCATABLE                    :: ElemTime_tmp(:) ! Additional container for restarting and keeping the old ElemTime values in
+                                                       ! the state.h5 file
 INTEGER,ALLOCATABLE                 :: ElemHDGSides(:) ! number of master sides for the HDG solver for each element
 INTEGER                             :: TotalHDGSides   ! total number of master sides for the HDG solver over all local elements
 REAL,ALLOCATABLE                    :: ElemGlobalTime(:)

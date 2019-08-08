@@ -65,26 +65,30 @@ IMPLICIT NONE
 CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
-CALL prms%CreateLogicalOption( 'DoLoadBalance'                ,  "Set flag for doing dynamic LoadBalance.", '.FALSE.')
-CALL prms%CreateIntOption(     'LoadBalanceSample'            ,  "Define number of iterations (before analyze_dt)"//&
-  " that are used for calculation of elemtime information"    , value='1')
-CALL prms%CreateLogicalOption( 'PartWeightLoadBalance'        ,  "Set flag for doing LoadBalance with partMPIWeight instead of"//&
-  " elemtimes. Elemtime array in state file is filled with nParts*PartMPIWeight for each Elem. "//&
-  " If Flag [TRUE] LoadBalanceSample is set to 0 and vice versa.", '.FALSE.')
-CALL prms%CreateRealOption(    'Load-DeviationThreshold'       ,  "Define threshold for dynamic load-balancing.\n"//&
-  "Restart performed if (Maxweight-Targetweight)/Targetweight > defined value." , value='0.10')
+CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
+CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before analyze_dt)'//&
+                                                          ' that are used for calculation of elemtime information', value='1')
+CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps'//&
+                                                          ' that are allowed.', value='1')
+CALL prms%CreateLogicalOption('PartWeightLoadBalance'   , 'Set flag for doing LoadBalance with partMPIWeight instead of '//&
+                                                          'elemtimes. Elemtime array in state file is filled with '//&
+                                                          'nParts*PartMPIWeight for each Elem. '//&
+                                                          ' If Flag [TRUE] LoadBalanceSample is set to 0 and vice versa.', '.FALSE.')
+CALL prms%CreateRealOption(   'Load-DeviationThreshold' , 'Define threshold for dynamic load-balancing.\n'//&
+                                                          'Restart performed if (Maxweight-Targetweight)/Targetweight '//&
+                                                          '> defined value.' , value='0.10')
 #endif /*USE_LOADBALANCE*/
-CALL prms%CreateRealOption(    'Particles-MPIWeight'          ,  "Define weight of particles for elem loads.\n"//&
-  "(only used if ElemTime does not exist or DoLoadBalance=F).", value='0.02')
-CALL prms%CreateIntOption(     'WeightDistributionMethod'     ,  "Method for distributing the elem to procs.\n"//&
-  "DEFAULT: 1 if Elemtime exits else -1\n"//&
-  "-1: elements are equally distributed\n"//&
-  " 0: distribute to procs using elemloads\n"//&
-  " 1: distribute to procs using elemloads, last proc recieves least\n"//&
-  " 2: NOT WORKING\n"//&
-  " 3: TODO DEFINE\n"//&
-  " 4: TODO DEFINE\n"//&
-  " 5/6: iterative smoothing of loads towards last proc\n")
+CALL prms%CreateRealOption(   'Particles-MPIWeight'     , 'Define weight of particles for elem loads.\n'//&
+                                                          '(only used if ElemTime does not exist or DoLoadBalance=F).', value='0.02')
+CALL prms%CreateIntOption(    'WeightDistributionMethod', 'Method for distributing the elem to procs.\n'//&
+                                                          'DEFAULT: 1 if Elemtime exits else -1\n'//&
+                                                          '-1: elements are equally distributed\n'//&
+                                                          ' 0: distribute to procs using elemloads\n'//&
+                                                          ' 1: distribute to procs using elemloads, last proc recieves least\n'//&
+                                                          ' 2: NOT WORKING\n'//&
+                                                          ' 3: TODO DEFINE\n'//&
+                                                          ' 4: TODO DEFINE\n'//&
+                                                          ' 5/6: iterative smoothing of loads towards last proc\n')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -129,10 +133,11 @@ IF(nProcessors.EQ.1)THEN
   CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
-  DoLoadBalance = GETLOGICAL('DoLoadBalance','F')
+  DoLoadBalance       = GETLOGICAL('DoLoadBalance','F')
   DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
+LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
@@ -438,7 +443,7 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars,    ONLY:WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB
+USE MOD_LoadBalance_Vars,    ONLY:ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -480,10 +485,10 @@ ELSE
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight ) / TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MaxWeight:        ', MaxWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' MinWeight:        ', MinWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' TargetWeight:     ', TargetWeight
-  SWRITE(UNIT_stdOut,'(A25,ES15.7)') ' CurrentImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MaxWeight:        ', MaxWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' MinWeight:        ', MinWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7)')             ' TargetWeight:     ', TargetWeight
+  SWRITE(UNIT_stdOut,'(A25,ES15.7,A,ES15.7,A1)') ' CurrentImbalance: ', CurrentImbalance, ' (Threshold: ', DeviationThreshold, ')'
 
 END IF
 

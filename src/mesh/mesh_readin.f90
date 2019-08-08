@@ -239,7 +239,7 @@ USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem
+USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem,ElemTime_tmp
 #endif
 #endif /*PARTICLES*/
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
@@ -293,7 +293,7 @@ LOGICAL                        :: isMortarMeshExists
 INTEGER                        :: nVal(15),iVar
 LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
-REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
+REAL,ALLOCATABLE               :: ElemData_loc(:,:),ElemData_tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
 #endif
 #ifdef PARTICLES
@@ -345,30 +345,46 @@ END IF
 IF (DoRestart) THEN
   !--------------------------------------------------------------------------------------------------------------------------------!
   ! Readin of ElemTime: Read in only by MPIRoot in single mode, only communicate logical ElemTimeExists
+  ! because the root performs the distribution of elements (domain decomposition) due to the load distribution scheme
+
   ! 1) Only MPIRoot does readin of ElemTime
   SDEALLOCATE(ElemGlobalTime)
   ALLOCATE(ElemGlobalTime(1:nGlobalElems))
   ElemGlobalTime=0.
   IF(MPIRoot)THEN
     ALLOCATE(ElemTime_local(1:nGlobalElems))
-    ElemTime_local=0.0
-    nElems = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
-    offsetElem=0          ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+    ElemTime_local = 0.0
+    nElems         = nGlobalElems ! Temporary set nElems as nGlobalElems for GetArrayAndName
+    offsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+
+    ! NEW method
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
     IPWRITE(UNIT_stdOut,*)"DONE"
-    CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,tmp,VarNamesElemData_loc)
-    CALL CloseDataFile()
-    IF (ALLOCATED(VarNamesElemData_loc)) THEN
-      ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
-      ElemData_loc = RESHAPE(tmp,(/nVal(1),nVal(2)/))
-      DO iVar=1,nVal(1) ! Search for ElemTime
-        IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
-          ElemTime_local = REAL(ElemData_loc(iVar,:))
-          ElemTimeExists = .TRUE.
-        END IF
-      END DO
-      DEALLOCATE(ElemData_loc,VarNamesElemData_loc,tmp)
-    END IF
+    CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
+    IF(ElemTimeExists)THEN
+      CALL ReadArray('ElemTime',2,(/1_IK,nGlobalElems/),0,2,RealArray=ElemTime_local)
+      CALL CloseDataFile()
+    END IF ! ElemTimeExists
+
+    ! OLD method
+    ! CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+    ! IPWRITE(UNIT_stdOut,*)"DONE"
+    ! CALL GetArrayAndName('ElemData','VarNamesAdd',nVal,ElemData_tmp,VarNamesElemData_loc)
+    ! CALL CloseDataFile()
+    ! IF (ALLOCATED(VarNamesElemData_loc)) THEN
+    !   ALLOCATE(ElemData_loc(nVal(1),nVal(2)))
+    !   ElemData_loc = RESHAPE(ElemData_tmp,(/nVal(1),nVal(2)/))
+    !   DEALLOCATE(ElemData_tmp)
+    !   ! Search for ElemTime and fill array
+    !   DO iVar=1,nVal(1)
+    !     IF (STRICMP(VarNamesElemData_loc(iVar),"ElemTime")) THEN
+    !       ElemTime_local = REAL(ElemData_loc(iVar,:))
+    !       ElemTimeExists = .TRUE.
+    !     END IF
+    !   END DO
+    !   DEALLOCATE(ElemData_loc,VarNamesElemData_loc)
+    ! END IF
+    
     ElemGlobalTime = ElemTime_local
     DEALLOCATE(ElemTime_local)
     ! if the elemtime is 0.0, the value must be changed in order to prevent a division by zero
@@ -392,11 +408,6 @@ ELSE
   offsetElemMPI(nProcessors)=nGlobalElems
 END IF ! IF(DoRestart)
 
-
-
-
-
-
 ! Set local number of elements
 nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
 
@@ -408,6 +419,15 @@ IF(nElems.LE.0) CALL abort(__STAMP__,&
 offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
              ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
+
+! Read the ElemTime again, but this time with every proc, depending on the domain decomposition in order to write the data
+! to the state file (keep ElemTime on restart, if no new ElemTime is calculated during the run or replace with newly measured values
+! if LoadBalance is on)
+ALLOCATE(ElemTime_tmp(1:nElems))
+ElemTime_tmp=0.
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+CALL ReadArray('ElemTime',2,(/1_IK,nElems/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+CALL CloseDataFile()
 
 #if USE_HDG
 ! Allocate container for number of master sides for the HDG solver for each element

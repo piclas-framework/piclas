@@ -263,7 +263,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime
-USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
@@ -701,7 +701,8 @@ DO !iter_t=0,MaxIter
     END IF ! actual analyze is done
     iter_PID=0
 #if USE_LOADBALANCE
-    IF((DoLoadBalance.AND.PerformLBSample))THEN
+    ! Check if load balancing must be performed
+    IF(DoLoadBalance.AND.PerformLBSample.AND.(LoadBalanceMaxSteps.GT.nLoadBalanceSteps))THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
         IF(PerformLoadBalance) THEN
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
