@@ -1350,10 +1350,10 @@ USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
-USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: nDeposPerElem
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
 #if ((USE_HDG) && (PP_nVar==1))
@@ -2064,9 +2064,9 @@ CASE('shape_function_1d')
               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
               IF(ElemID.GT.nElems) CYCLE
               IF (.NOT.chargedone(ElemID)) THEN
-#if USE_MPI
+#if USE_LOADBALANCE
                 nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
                 !--- go through all gauss points
                 !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N

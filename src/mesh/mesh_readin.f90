@@ -236,9 +236,9 @@ USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalT
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 #endif /*USE_HDG*/
 #ifdef PARTICLES
-USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
 USE MOD_LoadBalance_Vars     ,ONLY: nTracksPerElem,nPartsPerBCElem
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,nSurfacefluxPerElem,nDeposPerElem
 USE MOD_LoadBalance_Vars     ,ONLY: nSurfacePartsPerElem,ElemTime_tmp
 #endif
 #endif /*PARTICLES*/
@@ -488,9 +488,11 @@ ELSE
 END IF
 nPartsPerElem=0
 CALL AddToElemData(ElementOut,'nPartsPerElem',LongIntArray=nPartsPerElem(:))
+#if USE_LOADBALANCE
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
 nDeposPerElem=0
+#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
 nTracksPerElem=0
