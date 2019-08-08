@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_CalcSymmetryArea
-PUBLIC :: CalcRadWeightMPF
+PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
 !===================================================================================================================================
 
 CONTAINS
@@ -465,6 +465,59 @@ END IF
 RETURN
 
 END FUNCTION DSMC_2D_CalcSymmetryArea
+
+
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
+!===================================================================================================================================
+! 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iLocSide,iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+! REAL, INTENT(OUT)                 :: ymax(RadialWeighting%nSubSides),ymin(RadialWeighting%nSubSides)
+REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iNode
+REAL                              :: P(1:2,1:4), Pmin(2), Pmax(2), MidPoint, PminTemp, PmaxTemp, Length
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = GEO%NodeCoords(1:2,GEO%ElemSideNodeID(iNode,iLocSide,iElem))
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+DO iNode = 1, RadialWeighting%nSubSides
+  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
+  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+  ! IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
+  !   ymin(iNode) = PminTemp
+  !   ymax(iNode) = PmaxTemp
+  ! END IF
+  MidPoint = (PmaxTemp+PminTemp) / 2.
+  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+END DO
+
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 
 REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)

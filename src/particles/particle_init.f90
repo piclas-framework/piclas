@@ -2382,6 +2382,9 @@ __STAMP__&
 #endif
      PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
+  CASE('symmetric_axis')
+     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryAxis
+     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('analyze')
      PartBound%TargetBoundCond(iPartBound) = PartBound%AnalyzeBC
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
