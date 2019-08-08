@@ -245,7 +245,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: nSkipAnalyze
 USE MOD_TimeDisc_Vars          ,ONLY: dt_temp, MaximumIterNum
 USE MOD_Particle_Vars          ,ONLY: dt_max_particles, dt_maxwell,dt_part_ratio,maxwelliternum
 #endif
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #if USE_LOADBALANCE
@@ -255,7 +255,7 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
@@ -549,13 +549,13 @@ DO !iter_t=0,MaxIter
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#ifndef PP_HDG
+#if !(USE_HDG)
   IF(DoPML)THEN
     IF(DoPMLTimeRamp)THEN
       CALL PMLTimeRamping(time,PMLTimeRamp)
     END IF
   END IF
-#endif /*NOT PP_HDG*/
+#endif /*NOT USE_HDG*/
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -601,7 +601,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-#ifdef PP_HDG
+#if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
   CALL TimeStepPoisson() ! Euler Explicit or leapfrog, Poisson
 #else
@@ -611,7 +611,7 @@ DO !iter_t=0,MaxIter
   CALL abort(&
   __STAMP__&
   ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #elif (PP_TimeDiscMethod==1000)
   CALL TimeStep_LD()
 #elif (PP_TimeDiscMethod==1001)
@@ -2032,7 +2032,7 @@ USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_old, time
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, DoPrintConvInfo,FieldStage
 USE MOD_DG_Vars,                 ONLY:U,Un
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 USE MOD_DG_Vars,                 ONLY:Ut
@@ -2045,7 +2045,7 @@ USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
 #endif /*maxwell*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars,           ONLY:RK_fillSF
@@ -2132,7 +2132,7 @@ LOGICAL            :: UpdatePrecondLoc
 #endif /*maxwell*/
 !===================================================================================================================================
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef maxwell
 ! caution hard coded
 IF (iter==0)THEN
@@ -2247,7 +2247,7 @@ ImplicitSource=0.
 #ifdef PARTICLES
 ExplicitPartSource=0.
 #endif /*PARTICLES*/
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2377,7 +2377,7 @@ IF(time.GE.DelayTime)THEN
 END IF ! time.GE. DelayTime
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! LoadBalance Time-Measurement is in DGTimeDerivative_weakForm
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(time, time, 0,doSource=.FALSE.)
 iStage=0
@@ -2404,7 +2404,7 @@ DO iStage=2,nRKStages
     SWRITE(UNIT_StdOut,'(A)')    '-----------------------------'
     SWRITE(UNIT_StdOut,'(A,I2)') 'istage:',istage
   END IF
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2632,7 +2632,7 @@ DO iStage=2,nRKStages
   ! implicit - particle pusher & Maxwell's field
   !--------------------------------------------------------------------------------------------------------------------------------
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -2765,7 +2765,7 @@ DO iStage=2,nRKStages
 #endif /*PARTICLES*/
   ! full newton for particles and fields
   CALL FullNewton(time,tStage,alpha)
-#ifndef PP_HDG
+#if !(USE_HDG)
   CALL DivCleaningDamping()
 #endif /*DG*/
 #ifdef PARTICLES
@@ -3030,7 +3030,7 @@ USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,dt_inv,dt_old, t
 USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_c,RK_g,RK_b,RK_gamma
 USE MOD_LinearSolver_Vars,       ONLY:FieldStage,DoPrintConvInfo
 USE MOD_DG_Vars,                 ONLY:U,Un
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG,                     ONLY:HDG
 #else /*pure DG*/
 USE MOD_Precond_Vars,            ONLY:UpdatePrecond
@@ -3044,7 +3044,7 @@ USE MOD_Equation,                ONLY:CalcSource
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 #endif /*maxwell*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_LinearOperator,          ONLY:PartMatrixVector, PartVectorDotProduct
@@ -3127,7 +3127,7 @@ LOGICAL            :: UpdatePrecondLoc
 coeff=dt*RK_gamma
 coeff_inv=1./coeff
 dt_inv=1.
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef maxwell
 ! caution hard coded
 IF (iter==0)THEN
@@ -3308,7 +3308,7 @@ END IF
 CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-#ifdef PP_HDG
+#if USE_HDG
 ! update the fields due to changed particle number: emission or velocity change in DSMC
 ! LB measurement is performed within HDG
 IF(DoFieldUpdate) CALL HDG(time,U,iter)
@@ -3410,7 +3410,7 @@ END IF ! time.GE. DelayTime
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 ! LB measurement is performed within DGTimeDerivative_weakForm and LinearSolver (again DGTimeDerivative_weakForm)
 ! the copy time of the arrays is ignored within this measurement
 Un = U
@@ -3440,7 +3440,7 @@ DO iStage=2,nRKStages
   ! DGSolver: explicit contribution and 1/dt_inv sum_ij RK_g FieldStage
   ! is the state before the linear system is solved
   !--------------------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef PARTICLES
   IF(DoFieldUpdate) THEN
 #endif /*PARTICLES*/
@@ -3561,7 +3561,7 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#ifdef PP_HDG
+#if USE_HDG
     ! update the fields due to changed particle position and velocity/momentum
     ! LB-TimeMeasurement is performed within HDG
     IF(DoFieldUpdate) CALL HDG(time,U,iter)
@@ -3671,7 +3671,7 @@ DO iStage=2,nRKStages
   ! LB-TimeMeasurement is performed in DGTimeDerivative_weakForm and LinearSolver (DGTimeDerivative_weakForm), hence,
   ! it is neglected here, array copy assumed to be zero
   !--------------------------------------------------------------------------------------------------------------------------------
-#ifndef PP_HDG
+#if !(USE_HDG)
     ! next DG call is f(u^n + dt sum_j^i-1 a_ij k_j) + source terms
     CALL DGTimeDerivative_weakForm(time, time, 0,doSource=.TRUE.) ! source terms are not-added in linear solver
     ! CAUTION: invert sign of Ut
@@ -3686,7 +3686,7 @@ DO iStage=2,nRKStages
 END DO
 
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 #ifdef PARTICLES
 IF(DoFieldUpdate)THEN
 #endif /*PARTICLES*/
@@ -4525,7 +4525,7 @@ PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
 END SUBROUTINE TimeStep_BGK
 #endif
 
-#ifdef PP_HDG
+#if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
 SUBROUTINE TimeStepPoisson()
 !===================================================================================================================================
@@ -5430,7 +5430,7 @@ END IF
 
 END SUBROUTINE TimeStepPoissonByLSERK
 #endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #if (PP_TimeDiscMethod==1000)
 SUBROUTINE TimeStep_LD()
@@ -5673,7 +5673,7 @@ SUBROUTINE InitTimeStep()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars,      ONLY: dt, dt_Min
 USE MOD_TimeDisc_Vars,      ONLY: sdtCFLOne
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep,       ONLY:CalcTimeStep
 USE MOD_TimeDisc_Vars,      ONLY: CFLtoOne
 #endif
@@ -5726,13 +5726,13 @@ ELSE ! .NO. ManualTimeStep
 #endif /*PARTICLES*/
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
-#ifndef PP_HDG
+#if !(USE_HDG)
   dt_Min=CalcTimeStep()
   sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
 #else
   dt_Min=0
   sdtCFLOne  = -1.0 !dummy for HDG!!!
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
   dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction

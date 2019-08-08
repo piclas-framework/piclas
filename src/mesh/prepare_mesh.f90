@@ -67,11 +67,11 @@ USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: tElem,tSide
 USE MOD_Mesh_Vars          ,ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_ReadIn        ,ONLY: INVMAP
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: offsetSide
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_LoadBalance_Vars   ,ONLY: 
 USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
@@ -117,12 +117,12 @@ REAL,ALLOCATABLE      :: tmpreal(:,:),tmpreal2(:,:)
 CHARACTER(LEN=10)     :: formatstr
 CHARACTER(LEN=64)     :: filename
 CHARACTER(LEN=4)      :: hilf
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
 INTEGER, ALLOCATABLE         :: offsetSideMPI(:)
 INTEGER                      :: iProc
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #endif
 !===================================================================================================================================
 FirstElemInd= offsetElem+1
@@ -219,7 +219,7 @@ DO iElem=FirstElemInd,LastElemInd
     aSide=>aElem%Side(iLocSide)%sp
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
-#ifdef PP_HDG
+#if USE_HDG
 #if USE_MPI
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
         nbProc_loc=aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc
@@ -229,7 +229,7 @@ DO iElem=FirstElemInd,LastElemInd
         END IF
       END DO ! iMortar
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
       DO iMortar=1,aSide%nMortars ! iterate over small virtual sides and check
                                   ! if any of the them has a neighbor on another processor
         IF(aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp%nbProc.NE.-1)THEN
@@ -342,7 +342,7 @@ DO iNbProc=1,nNbProcs
     nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_Proc(iNbProc)/2
   END IF
   nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
-#ifdef PP_HDG
+#if USE_HDG
   ! KEEP all small mortars from big side as master!!!
   IF(nMasterMortarMPISides_Proc(iNBProc).GT.nMPISides_MINE_Proc(iNBProc)) THEN
     nMPISides_MINE_Proc(iNbProc)=nMasterMortarMPISides_Proc(iNBProc)  
@@ -351,7 +351,7 @@ DO iNbProc=1,nNbProcs
     nMPISides_YOUR_Proc(iNbProc)=nSlaveMortarMPISides_Proc(iNBProc)  
     nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_YOUR_Proc(iNbProc)
   END IF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 END DO
 nMPISides_MINE=SUM(nMPISides_MINE_Proc)
 nMPISides_YOUR=SUM(nMPISides_YOUR_Proc)
@@ -396,7 +396,7 @@ DO iNbProc=1,nNbProcs
         IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
         iSide=iSide+1
         ! optimization: put non-mortars first to optimize addtoInnerMortars (also small virtual sides are marked with MortarType<0)
-#ifdef PP_HDG 
+#if USE_HDG 
         ! KEEP all small mortars from big side as master!!!
         IF(myRank.LT.aSide%NBproc)THEN
           IF(iMortar.GT.0)  aSide%ind=-aSide%ind   ! small mortars from big sides
@@ -407,7 +407,7 @@ DO iNbProc=1,nNbProcs
         END IF
 #else
         IF((iMortar.EQ.0).AND.(aSide%MortarType.EQ.0)) aSide%ind=-aSide%ind
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
         SideIDMap(iSide)=aSide%ind ! fill map with global Side indices
       END DO ! iMortar
@@ -468,9 +468,9 @@ DO iElem=FirstElemInd,LastElemInd
     DO iMortar=0,nMortars
       IF(iMortar.GT.0) aSide=>aElem%Side(iLocSide)%sp%mortarSide(iMortar)%sp ! point to small virtual side
       aSide%ind=ABS(aSide%ind) ! revert negative sideIDs (used to put non-mortars at the top of the list)
-#ifdef PP_HDG
+#if USE_HDG
       IF(aSide%ind.GT.2*nGlobalUniqueSidesFromMesh) aSide%ind=aSide%ind-2*nGlobalUniqueSidesFromMesh !revert small slave mortar at end of list
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
@@ -557,10 +557,10 @@ IF(nMortarSides.GT.0)THEN
 
     nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
     nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
-#ifdef PP_HDG
+#if USE_HDG
     IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,& 
         "with HDG there should not be any Big MPIMortarSides")
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
     iMortarMPISide=nSides-nMortarMPISides                  ! first index of the remaining MPI Mortars
     iMortarInnerSide=nBCSides                              ! first index of the new inner Mortars
 
@@ -657,7 +657,7 @@ LOGWRITE(*,formatstr)'offsetMPISides_MINE:',offsetMPISides_MINE
 LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
 
-#ifdef PP_HDG
+#if USE_HDG
 ! CAUTION: MY-MORTAR-MPI-Sides are missing
 IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
 ALLOCATE(offsetSideMPI(nProcessors))
@@ -666,7 +666,7 @@ offsetSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   offsetSide = offsetSide + offsetSideMPI(iProc)
 END DO
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
 IF(DoLoadBalance)THEN
@@ -849,9 +849,9 @@ USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if USE_MPI
 USE MOD_MPI_vars
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1026,7 +1026,7 @@ DO iElem=1,nElems
 END DO ! iElem=1,PP_nElems
 
 
-#ifdef PP_HDG
+#if USE_HDG
 ! Weight elements with mortar sides
 DO iElem=1,nElems
   DO ilocSide=1,6
@@ -1051,7 +1051,7 @@ DO iElem=1,nElems
     END IF ! locMortarSide
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 
 #if USE_MPI

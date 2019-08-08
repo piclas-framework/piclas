@@ -1860,9 +1860,9 @@ USE MOD_Globals
 USE MOD_Partilce_Periodic_BC ,ONLY: InitPeriodicBC
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO
 USE MOD_Particle_MPI_Vars    ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_CalcTimeStep         ,ONLY: CalcTimeStep
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Equation_Vars        ,ONLY: c
 USE MOD_Particle_Vars        ,ONLY: manualtimestep
 #if (PP_TimeDiscMethod==201)
@@ -1982,13 +1982,13 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1
 !--- PO: modified for curved and shape-function influence
 !        c*dt*SafetyFactor+r_cutoff
 IF (ManualTimeStep.EQ.0.0) THEN
-#ifndef PP_HDG
+#if !(USE_HDG)
   deltaT=CALCTIMESTEP()
 #else
    CALL abort(&
 __STAMP__&
 , 'ManualTimeStep.EQ.0.0 -> ManualTimeStep is not defined correctly! Particles-ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ELSE
   deltaT=ManualTimeStep
 END IF

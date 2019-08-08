@@ -175,11 +175,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_LoadBalance_Vars       ,ONLY: ElemHDGSides,TotalHDGSides
 #else
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, LoadBalanceSample
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,nDeposPerElem,nTracksPerElem
@@ -263,18 +263,18 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
   ! distribute times of different routines on elements with respective weightings
   DO iElem=1,PP_nElems
     ! time used in dg routines
-#ifdef PP_HDG
+#if USE_HDG
     ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_DG)*REAL(ElemHDGSides(iElem))/REAL(TotalHDGSides) &
                                       + tCurrent(LB_DGANALYZE)/REAL(PP_nElems)
 #else
     ElemTime(iElem) = ElemTime(iElem) + (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
-#endif /*PP_HDG*/
-#ifndef PP_HDG
+#endif /*USE_HDG*/
+#if !(USE_HDG)
     ! time used in pml routines
     IF(DoPML)THEN
       IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tCurrent(LB_PML)/REAL(nPMLElems)
     END IF
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 #ifdef PARTICLES
     ! add particle LB times to elements with respective weightings

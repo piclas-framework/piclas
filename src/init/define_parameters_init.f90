@@ -43,15 +43,15 @@ USE MOD_RecordPoints                    ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDisc                        ,ONLY: DefineParametersTimedisc
 USE MOD_Mesh                            ,ONLY: DefineparametersMesh
 USE MOD_Equation                        ,ONLY: DefineParametersEquation
-#ifndef PP_HDG
+#if !(USE_HDG)
 USE MOD_PML                             ,ONLY: DefineParametersPML
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if USE_QDS_DG
 USE MOD_QDS                             ,ONLY: DefineParametersQDS
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_HDG                             ,ONLY: DefineParametersHDG
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Dielectric                      ,ONLY: DefineParametersDielectric
 USE MOD_Filter                          ,ONLY: DefineParametersFilter
 USE MOD_Piclas_Init                     ,ONLY: DefineParametersPiclas
@@ -97,15 +97,15 @@ CALL DefineParametersPiclas()
 CALL DefineParametersTimedisc()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
-#ifndef PP_HDG
+#if !(USE_HDG)
 CALL DefineParametersPML()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 #if USE_QDS_DG
 CALL DefineParametersQDS()
 #endif
-#ifdef PP_HDG
+#if USE_HDG
 CALL DefineParametersHDG()
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 CALL DefineParametersDielectric()
 CALL DefineParametersFilter()
 CALL DefineParametersAnalyze()

@@ -23,7 +23,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-#ifdef PP_HDG
+#if USE_HDG
 INTEGER             :: HDG_N
 INTEGER             :: nGP_vol              !=(PP_N+1)**3
 INTEGER             :: nGP_face             !=(PP_N+1)**2
@@ -132,5 +132,5 @@ END SUBROUTINE Mask_MPIsides
 #endif /*USE_MPI*/ 
 
 
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars

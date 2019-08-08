@@ -903,14 +903,14 @@ USE MOD_Mesh_Vars ,ONLY: firstBCSide,firstMortarInnerSide,firstInnerSide,firstMP
 USE MOD_Mesh_Vars ,ONLY: nMPISides_MINE,nMPISides_YOUR,nInnerSides,nMortarInnerSides,nBCSides
 USE MOD_Mesh_Vars ,ONLY: lastBCSide,lastMortarInnerSide,lastInnerSide,lastMPISide_MINE,lastMPISide_YOUR,lastMortarMPISide
 USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,nSides,nSidesMaster,nSidesSlave
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 !USE MOD_Mesh_Vars ,ONLY: ChangedPeriodicBC ! FUTURE: use this variable when nGlobalUniqueSides is calculated from mesh info
 #if USE_MPI
 USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
 USE mpi
 #endif /*USE_MPI*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Globals   ,ONLY: iError,MPI_COMM_WORLD,myrank
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -949,7 +949,7 @@ nSidesMaster    = lastMasterSide-firstMasterSide+1
 nSidesSlave     = lastSlaveSide -firstSlaveSide+1
 
 ! Set nGlobalUniqueSides: Note that big mortar sides are appended to the end of the list
-#ifdef PP_HDG
+#if USE_HDG
 nUniqueSides = lastMPISide_MINE + nMortarMPISides !big mortars are at the end of the side list! 
 #if USE_MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)

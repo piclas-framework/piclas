@@ -128,7 +128,7 @@ PartSourceConstExists=.FALSE.
 RelaxDeposition = GETLOGICAL('PIC-RelaxDeposition','F')
 IF (RelaxDeposition) THEN
   RelaxFac     = GETREAL('PIC-RelaxFac','0.001')
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
   ALLOCATE(PartSourceOld(1,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 #else
   ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
@@ -160,7 +160,7 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
             PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
             PartSourceOld(1,2,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
 #else
@@ -487,7 +487,7 @@ CASE('shape_function','shape_function_simple')
     ConstantSFdepoLayers=GETLOGICAL('PIC-ConstantSFdepoLayers','.FALSE.')
     IF (ConstantSFdepoLayers) PartSourceConstExists=.TRUE.
     DO iSFfix=1,NbrOfSFdepoLayers
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       CALL abort(__STAMP__, &
         ' NbrOfSFdepoLayers are only implemented for electrostatic HDG!')
 #endif
@@ -1356,7 +1356,7 @@ USE MOD_Particle_MPI           ,ONLY: AddHaloNodeData
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_tools      ,ONLY: LBStartTime,LBPauseTime,LBElemPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 #endif /*USE_LOADBALANCE*/
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars          ,ONLY: dt,tAnalyzeDiff,tEndDiff
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1399,7 +1399,7 @@ LOGICAL                          :: DoCycle,DepoLoc
 #if USE_LOADBALANCE
 REAL                             :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER               :: SourceDim=1
 LOGICAL, PARAMETER               :: doCalculateCurrentDensity=.TRUE.
 #else
@@ -1415,7 +1415,7 @@ doPartInExists=.FALSE.
 IF(PRESENT(doParticle_In)) doPartInExists=.TRUE.
 
 ! Check whether charge and current density have to be compute or just the charge density
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 IF(ALMOSTEQUAL(dt,tAnalyzeDiff).OR.ALMOSTEQUAL(dt,tEndDiff))THEN
   doCalculateCurrentDensity=.TRUE.
   SourceDim=1
@@ -1943,7 +1943,7 @@ CASE('shape_function','shape_function_simple')
             DO mm = 0, PP_N
               PartSource(1:4,mm,ll,kk,iElem) = PartSource(1:4,mm,ll,kk,iElem) + PartSourceConst(1:4,mm,ll,kk,iElem)
               IF (RelaxDeposition) THEN
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
                 PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
                                              + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
                 PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
@@ -1962,7 +1962,7 @@ CASE('shape_function','shape_function_simple')
         DO kk = 0, PP_N
           DO ll = 0, PP_N
             DO mm = 0, PP_N
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
               PartSource(4,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem) * RelaxFac*dtWeight &
                                            + PartSourceOld(1,1,mm,ll,kk,iElem) * (1.0-RelaxFac*dtWeight)
               PartSourceOld(1,1,mm,ll,kk,iElem) = PartSource(4,mm,ll,kk,iElem)
@@ -4118,7 +4118,7 @@ LOGICAL, INTENT(IN), OPTIONAL    :: const_opt
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!#if (defined (PP_HDG) && (PP_nVar==1))
+!#if ((USE_HDG) && (PP_nVar==1))
 !yes, PartVelo and SourceSize_in are not used, but the subroutine-call and -head would be ugly with the preproc-flags...
 !INTEGER, PARAMETER               :: SourceSize=1
 !REAL                             :: Fac(4:4), Fac2(4:4)
@@ -4139,12 +4139,12 @@ IF (PRESENT(const_opt)) THEN
 ELSE
   const=.FALSE.
 END IF
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
 SourceSize=SourceSize_in
 !#endif
 IF (SourceSize.EQ.1) THEN
   Fac2= ChargeMPF
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
 ELSE IF (SourceSize.EQ.4) THEN
   Fac2(1:3) = PartVelo*ChargeMPF
   Fac2(4)= ChargeMPF
@@ -4253,7 +4253,7 @@ ELSE ! NbrOfSFdepoFixes.NE.0
               END IF
               ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(SFfixIdx,2,1:3)
               Fac = Fac * SFdepoFixesChargeMult(SFfixIdx)
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
               IF (SourceSize.EQ.4) THEN
                 ! change velocity
                 n_loc = SFdepoFixesGeo(SFfixIdx,2,1:3)
@@ -4305,7 +4305,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-!#if (defined (PP_HDG) && (PP_nVar==1))
+!#if ((USE_HDG) && (PP_nVar==1))
 !REAL, INTENT(IN)                 :: Fac(4:4)
 !#else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
@@ -4371,7 +4371,7 @@ DO kk = kmin,kmax
               IF (const) THEN
                 IF (SourceSize.EQ.1) THEN
                   PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 !#endif
@@ -4379,7 +4379,7 @@ DO kk = kmin,kmax
               ELSE !.NOT.const
                 IF (SourceSize.EQ.1) THEN
                   PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-!#if !(defined (PP_HDG) && (PP_nVar==1))
+!#if !((USE_HDG) && (PP_nVar==1))
                 ELSE IF (SourceSize.EQ.4) THEN
                   PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 !#endif
@@ -4416,7 +4416,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                 :: Position(3)
 INTEGER, INTENT(IN)              :: SourceSize
-#if (defined (PP_HDG) && (PP_nVar==1))
+#if ((USE_HDG) && (PP_nVar==1))
 REAL, INTENT(IN)                 :: Fac(4:4)
 #else
 REAL, INTENT(IN)                 :: Fac(4-SourceSize+1:4)
@@ -4465,7 +4465,7 @@ DO ElemID=1,PP_nElems
     IF (const) THEN
       IF (SourceSize.EQ.1) THEN
         PartSourceConst(4,k,l,m,ElemID) = PartSourceConst(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSourceConst(1:4,k,l,m,ElemID) = PartSourceConst(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif
@@ -4473,7 +4473,7 @@ DO ElemID=1,PP_nElems
     ELSE !.NOT.const
       IF (SourceSize.EQ.1) THEN
         PartSource(4,k,l,m,ElemID) = PartSource(4,k,l,m,ElemID) + Fac(4) * S1
-#if !(defined (PP_HDG) && (PP_nVar==1))
+#if !((USE_HDG) && (PP_nVar==1))
       ELSE IF (SourceSize.EQ.4) THEN
         PartSource(1:4,k,l,m,ElemID) = PartSource(1:4,k,l,m,ElemID) + Fac(1:4) * S1
 #endif

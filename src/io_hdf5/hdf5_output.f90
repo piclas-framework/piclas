@@ -67,11 +67,11 @@ INTERFACE WriteIMDStateToHDF5
 END INTERFACE
 #endif /*PARTICLES*/
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 INTERFACE WritePMLzetaGlobalToHDF5
   MODULE PROCEDURE WritePMLzetaGlobalToHDF5
 END INTERFACE
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 INTERFACE WriteDielectricGlobalToHDF5
   MODULE PROCEDURE WriteDielectricGlobalToHDF5
@@ -87,9 +87,9 @@ PUBLIC :: WriteQDSToHDF5
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage
-#ifndef PP_HDG
+#if !(USE_HDG)
 PUBLIC :: WritePMLzetaGlobalToHDF5
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 PUBLIC :: WriteDielectricGlobalToHDF5
 #ifdef PARTICLES
 PUBLIC :: WriteIMDStateToHDF5
@@ -120,7 +120,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #ifdef PP_POIS
 USE MOD_Equation_Vars ,ONLY: E,Phi
 #endif /*PP_POIS*/
-#ifdef PP_HDG
+#if USE_HDG
 USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
 USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
 #if PP_nVar==1
@@ -130,7 +130,7 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: E,B
 #endif /*PP_nVar*/
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -152,7 +152,7 @@ REAL                           :: StartT,EndT
 
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#elif defined PP_HDG
+#elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif PP_nVar==3
@@ -189,7 +189,7 @@ END IF
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
 RestartFile=Filename
-#ifdef PP_HDG
+#if USE_HDG
 #if PP_nVar==1
 IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
 #elif PP_nVar==3
@@ -199,7 +199,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputT
 #endif
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
   IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('State',OutputTime_loc,PreviousTime_loc)
@@ -279,7 +279,7 @@ ASSOCIATE (&
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==4)*/
   DEALLOCATE(Utemp)
-#elif defined PP_HDG
+#elif USE_HDG
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionLambda', rank=3,&
       nValGlobal=(/PP_nVarTmp,nGP_face,nGlobalUniqueSides/),&
@@ -2674,7 +2674,7 @@ END SUBROUTINE WriteIMDStateToHDF5
 
 
 
-#ifndef PP_HDG
+#if !(USE_HDG)
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -2765,7 +2765,7 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
-#endif /*PP_HDG*/
+#endif /*USE_HDG*/
 
 
 SUBROUTINE WriteDielectricGlobalToHDF5()

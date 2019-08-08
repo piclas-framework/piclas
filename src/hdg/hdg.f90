@@ -21,7 +21,7 @@ MODULE MOD_HDG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-#ifdef PP_HDG
+#if USE_HDG
 INTERFACE InitHDG
   MODULE PROCEDURE InitHDG
 END INTERFACE
@@ -37,12 +37,12 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef PP_HDG
+#if USE_HDG
 !==================================================================================================================================
 !> Define parameters for HDG (Hubridized Discontinous Galerkin)
 !==================================================================================================================================
@@ -1578,7 +1578,7 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
 END SUBROUTINE RestartHDG
-#endif /* PP_HDG*/
+#endif /*USE_HDG*/
 
 
 SUBROUTINE FinalizeHDG()
