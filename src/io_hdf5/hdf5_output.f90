@@ -502,11 +502,12 @@ SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars        ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_Mesh_Vars        ,ONLY: nElems
 USE MOD_HDF5_Input       ,ONLY: ReadArray
-USE MOD_Restart_Vars     ,ONLY: RestartFile,DoRestart
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp
+USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,offsetelem
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

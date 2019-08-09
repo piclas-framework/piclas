@@ -1331,7 +1331,7 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot,iError
+USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
 #if USE_MPI
 USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER
 #endif

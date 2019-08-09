@@ -321,8 +321,9 @@ REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_ele
 #if USE_MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
+INTEGER                                                  :: I,J,iSide
 #endif /*USE_MPI*/
-INTEGER                                                  :: iElem,I,J,iSide
+INTEGER                                                  :: iElem
 !===================================================================================================================================
 ! General workflow:
 ! 1.  Initialize dummy arrays for Elem/Face

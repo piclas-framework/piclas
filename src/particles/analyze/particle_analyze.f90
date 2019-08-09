@@ -1991,8 +1991,8 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcNumSpec
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
