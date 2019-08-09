@@ -72,7 +72,7 @@ TYPE tRadialWeighting
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
-  INTEGER                     :: nSubSides = 22
+  INTEGER                     :: nSubSides
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting

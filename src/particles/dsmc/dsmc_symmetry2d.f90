@@ -27,10 +27,43 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones, DSMC_2D_CalcSymmetryArea
-PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides
+PUBLIC :: CalcRadWeightMPF, DSMC_2D_CalcSymmetryAreaSubSides, DefineParametersParticleSymmetry
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for particles
+!==================================================================================================================================
+SUBROUTINE DefineParametersParticleSymmetry()
+! MODULES
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
+IMPLICIT NONE
+
+CALL prms%SetSection("Particle Symmetry")
+CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
+                              'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
+                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
+                              'simulation based on the particle position.', '.FALSE.')
+CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
+                              'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
+                              'be twice as large at the outer radial domain boudary than at the rotational axis')
+CALL prms%CreateLogicalOption('Particles-RadialWeighting-CellLocalWeighting', 'Enables a cell-local radial weighting, '//&
+                              'where every particle has the same weighting factor within a cell', '.FALSE.')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneMode',  &
+                              'Radial weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
+                              '1: Chronological, 2: Random', '2')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneDelay', &
+                              'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
+                              'at the position they were cloned', '2')
+CALL prms%CreateIntOption(    'Particles-RadialWeighting-SurfFluxSubSides', &
+                              'Radial weighting: Split the surface flux side into the given number of subsides, reduces the '//&
+                              'error in the particle distribution across the cell (visible in the number density)', '20')
+
+END SUBROUTINE DefineParametersParticleSymmetry
+
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
@@ -167,6 +200,11 @@ RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
 RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
 ! Cell local radial weighting (all particles have the same weighting factor within a cell)
 RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellLocalWeighting')
+
+! Number of subsides to split the surface flux sides into, otherwise a wrong distribution of particles across large cells will be
+! inserted, visible in the number density as an increase in the number density closer the axis (e.g. resulting in a heat flux peak)
+! (especially when using mortar meshes)
+RadialWeighting%nSubSides=GETINT('Particles-RadialWeighting-SurfFluxSubSides')
 
 RadialWeighting%NextClone = 0
 
