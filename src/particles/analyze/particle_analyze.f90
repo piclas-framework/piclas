@@ -168,9 +168,6 @@ CALL prms%CreateLogicalOption(  'CalcPorousBCInfo'         , 'Calculate output o
 
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , ' Calculate output of Power that is coupled into plasma' , '.FALSE.')
 
-! nachträglich ausarbeitenCALL prms%CreateLogicalOption(  'CalcCrossSection'         , 'Calculate the averaged total cross-section sigma_t per'//&
-! nachträglich ausarbeiten                                                            ' timestep.' , '.FALSE.')
-
 END SUBROUTINE DefineParametersParticleAnalyze
 
 SUBROUTINE InitParticleAnalyze()
@@ -429,7 +426,6 @@ IF(TrackParticlePosition)THEN
   END IF
 END IF
 !#if ( PP_TimeDiscMethod ==42)
-!nachträglich ausarbeitenCalcCrossSection = GETLOGICAL('CalcCrossSection','.FALSE.')
 !#endif
 CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
 CalcNumDens   = GETLOGICAL('CalcNumDens','.FALSE.')
@@ -934,18 +930,6 @@ IF (CollisMode.GT.1) THEN ! for relaxation - inner DOF
             END DO
           END IF
         END IF
-        ! nachträglich ausarbeitenIF(CalcCrossSection) THEN ! calculates averaged cross-section sigma_t per timestep
-        ! nachträglich ausarbeiten  DO iSpec = 1, nSpecies 
-        ! nachträglich ausarbeiten    DO jSpec = iSpec, nSpecies ! collision-specific averaged
-        ! nachträglich ausarbeiten      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        ! nachträglich ausarbeiten      WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-MeanCrossSection', iSpec, '+', jSpec,' '
-        ! nachträglich ausarbeiten      OutputCounter = OutputCounter + 1
-        ! nachträglich ausarbeiten    END DO
-        ! nachträglich ausarbeiten  END DO
-        ! nachträglich ausarbeiten  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        ! nachträglich ausarbeiten  WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-TotalMeanCrossSection',' ' ! over all collisions averaged
-        ! nachträglich ausarbeiten  OutputCounter = OutputCounter + 1
-        ! nachträglich ausarbeitenEND IF
 #endif
         WRITE(unit_index,'(A1)') ' '
       END IF
@@ -1167,7 +1151,6 @@ END IF
       CALL ReacRates(RRate, NumSpecTmp, iter)
     END IF
   END IF
-  !nachträglich ausarbeitenIF(CalcCrossSection) CALL CrossSection(meanCrossSection)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
@@ -1401,12 +1384,6 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') RRate(iCase)
       END DO
     END IF
-    ! nachträglich ausarbeiten IF(CalcCrossSection) THEN
-    ! nachträglich ausarbeiten   DO iCase=1, CollInf%NumCase +1
-    ! nachträglich ausarbeiten     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-    ! nachträglich ausarbeiten     WRITE(unit_index,WRITEFORMAT,ADVANCE='NO') MeanCrossSection(iCase)
-    ! nachträglich ausarbeiten   END DO
-    ! nachträglich ausarbeiten END IF
 #endif /*(PP_TimeDiscMethod==42)*/
     WRITE(unit_index,'(A1)') ' '
 #ifdef MPI
@@ -2608,59 +2585,6 @@ IF(PartAnalyzeStep.GT.1)THEN
 END IF
 END SUBROUTINE ReacRates
 
-! nachträglich ausarbeitenSUBROUTINE CrossSection(meanCrossSection)
-! nachträglich ausarbeiten!===================================================================================================================================
-! nachträglich ausarbeiten! Calculation of arithmetric mean cross section. 
-! nachträglich ausarbeiten!===================================================================================================================================
-! nachträglich ausarbeiten! MODULES
-! nachträglich ausarbeitenUSE MOD_Globals
-! nachträglich ausarbeitenUSE MOD_Mesh_Vars             ,ONLY: nElems
-! nachträglich ausarbeitenUSE MOD_DSMC_Vars             ,ONLY: CollInf, Coll_pData, DSMC
-! nachträglich ausarbeitenUSE MOD_TimeDisc_Vars         ,ONLY: dt
-! nachträglich ausarbeitenUSE MOD_Particle_Vars         ,ONLY: Species, nSpecies, PEM
-! nachträglich ausarbeiten! IMPLICIT VARIABLE HANDLING
-! nachträglich ausarbeitenIMPLICIT NONE
-! nachträglich ausarbeiten!-----------------------------------------------------------------------------------------------------------------------------------
-! nachträglich ausarbeiten! INPUT VARIABLES
-! nachträglich ausarbeiten!-----------------------------------------------------------------------------------------------------------------------------------
-! nachträglich ausarbeiten! OUTPUT VARIABLES
-! nachträglich ausarbeitenREAL,INTENT(OUT)                 :: meanCrossSection(:) ! averaged total cross section 
-! nachträglich ausarbeiten!-----------------------------------------------------------------------------------------------------------------------------------
-! nachträglich ausarbeiten! LOCAL VARIABLES
-! nachträglich ausarbeitenINTEGER                        :: nPair, iElem ,ipair! to sum up all cross sections of all colliding particles
-! nachträglich ausarbeitenINTEGER                        :: iSpec,jSpec 
-! nachträglich ausarbeiten!-----------------------------------------------------------------------------------------------------------------------------------
-! nachträglich ausarbeiten!definition
-! nachträglich ausarbeiten  iSpec    = PartSpecies(Coll_pData(iPair)%iPart_p1)
-! nachträglich ausarbeiten  jSpec    = PartSpecies(Coll_pData(iPair)%iPart_p2)
-! nachträglich ausarbeiten
-! nachträglich ausarbeiten! reset to zero
-! nachträglich ausarbeiteniColl=0
-! nachträglich ausarbeiten! to be solved- array mit zuordnung wer kollidiert? elems und coll muss auch laufen
-! nachträglich ausarbeiten  npair=PEM%pNumber(iElem)/2
-! nachträglich ausarbeiten                                                !DO iColl = 1, DSMC%NumColl(CollInf%NumCase+1) ! total number of collisions 
-! nachträglich ausarbeiten                                                !  sigma_t(iColl) = Coll_pData(iColl)%sigma(0) 
-! nachträglich ausarbeiten                                                
-! nachträglich ausarbeiten  ! summing up all sigma(0)=sigma_t over all collisions
-! nachträglich ausarbeiten  DO iPair = 1,npair
-! nachträglich ausarbeiten    DO iSpec = 1,nSpec       !these two loops are used to get the sum of the collision-specific cross section 
-! nachträglich ausarbeiten      DO jSpec = iSpec,nSpec 
-! nachträglich ausarbeiten        IF (Coll_pData(iPair)%PairType.EQ.CollInf%Coll_Case(iSpec,jSpec)) THEN 
-! nachträglich ausarbeiten          meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) + &
-! nachträglich ausarbeiten                                                               Coll_pData(iPair)%sigma_t
-! nachträglich ausarbeiten        END IF
-! nachträglich ausarbeiten      END DO !jSpec
-! nachträglich ausarbeiten    END DO !iSpec
-! nachträglich ausarbeiten  END DO ! nPair
-! nachträglich ausarbeiten! the arithmetric mean is determined
-! nachträglich ausarbeitenDO iSpec = 1,nSpec       !these two loops are used to get a collision-specific total averaged cross section 
-! nachträglich ausarbeiten  DO jSpec = iSpec,nSpec 
-! nachträglich ausarbeiten      meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) = meanCrossSection(CollInf%Coll_Case(iSpec,jSpec)) /  &
-! nachträglich ausarbeiten                                                           DSMC%NumColl(CollInf%Coll_Case(iSpec,jSpec))
-! nachträglich ausarbeiten  END DO !jSpec
-! nachträglich ausarbeitenEND DO !iSpec
-! nachträglich ausarbeitenmeanCrossSection(CollInf%NumCase+1) = SUM(meanCrossSection(:))/ REAL(DSMC%NumColl(CollInf%NumCase+1)) ! total sigma_t 
-! nachträglich ausarbeitenEND SUBROUTINE CrossSection
 #endif
 
 #if ( PP_TimeDiscMethod == 42)

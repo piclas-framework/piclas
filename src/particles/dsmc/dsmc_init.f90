@@ -170,7 +170,7 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-MergeSubcells'&
                                           'the minimum particle per subcell requirement', '.FALSE.')
 
 CALL prms%SetSection("DSMC Collision")
-!to be solved entferne collisionmodel
+!to be solved  collisionmodel ist für cases verantwortlich 
 CALL prms%CreateIntOption(      'CollisionModel'  &
                                             ,' Flags which model is used for collision. Check Bird for more information.\n '//&
                                              ' 0 : collision averaged parameters\n'//&
@@ -629,14 +629,19 @@ __STAMP__&
       IF(.NOT.CollInf%aveOmega) THEN ! collision-specific omega
         CollInf%omega(iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega')
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)
+        CollInf%dref(iSpec,jSpec)  = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
+        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
+        CollInf%Tref(iSpec,jSpec)  = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
+        CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
       ELSE                            !  collision-averaged omega
         CollInf%omega(iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
         CollInf%omega(jSpec,iSpec) = CollInf%omega(iSpec,jSpec)  
+        CollInf%dref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%drefVHS + SpecDSMC(jSpec)%drefVHS)
+        CollInf%dref(jSpec,iSpec)  = CollInf%dref(iSpec,jSpec) 
+        CollInf%Tref(iSpec,jSpec)  = 0.5 * (SpecDSMC(iSpec)%TrefVHS + SpecDSMC(jSpec)%TrefVHS)
+        CollInf%Tref(jSpec,iSpec)  = CollInf%Tref(iSpec,jSpec)
       END IF
-      CollInf%dref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-dref')
-      CollInf%dref(jSpec,iSpec)     = CollInf%dref(iSpec,jSpec) 
-      CollInf%Tref(iSpec,jSpec)     = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref')
-      CollInf%Tref(jSpec,iSpec)     = CollInf%Tref(iSpec,jSpec)
+
     END DO
   END DO
   DO iSpec = 1, nSpecies

@@ -332,8 +332,9 @@ END TYPE tPairData
 TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)           ! Data of collision pairs into a cell (nPair)
 
 TYPE tCollInf                                              ! Collision information 
-  INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der vier Fälle
+  INTEGER                       :: collModel               ! Collision model used. to be solved Beschreibung der beiden  Fälle
   LOGICAL                       :: aveOmega                ! Flags if coll-spec. omega(F) is taken or coll-average(T) is created.
+                                                           ! In case T,omega,Tref,dref are averaged
   INTEGER       , ALLOCATABLE   :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
   INTEGER                       :: NumCase                 ! Number of possible collision combination
   INTEGER       , ALLOCATABLE   :: Coll_CaseNum(:)         ! number of simulated species combination per cell Sab (number of cases)

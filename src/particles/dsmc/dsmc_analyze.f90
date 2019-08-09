@@ -781,28 +781,16 @@ IF(nPart.LE.0) RETURN
 
 ! Calculation of mixture reference diameter
 IF (nPart.EQ.0) RETURN
-  IF(CollInf%collModel.EQ.0) THEN ! VHS 
     DO iSpec = 1, nSpecies
       DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
     END DO
-  ELSE ! VSS
-    !siehe 4.77 bird
-    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  DO iSpec = 1, CollInf%NumCase ! for collision-specific dref,  formel durchsprechen. to be solved
-    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    DO jSpec = iSpec, CollInf%NumCase
-    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum      DrefMixture = DrefMixture + CollInf%Coll_CaseNum(iSpec,jSpec) * CollInf%dref(iSpec,jSpec) / nPart
-    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum    END DO
-    !Überlegung, dass man das so coll-spec macht. Gefordert ist aber ispecispec warum  END DO
-    DO iSpec = 1, nSpecies
-      DrefMixture = DrefMixture + SpecPartNum(iSpec) * CollInf%dref(iSpec,iSpec) / nPart
-    END DO
-  END IF
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
 ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
 IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
   omega = opt_omega
   Temp = opt_temp
   IF (Temp.LE.0) RETURN
-    IF(CollInf%collModel.EQ.0) THEN 
+    !IF(CollInf%aveOmega) THEN 
       DO iSpec = 1, nSpecies
         MFP_Tmp = 0.0
         IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
@@ -816,23 +804,23 @@ IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
           CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
         END IF
       END DO
-    ELSE ! VSS to be solved.
-      DO iSpec = 1, nSpecies
-        MFP_Tmp = 0.0
-        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
-          DO jSpec = 1, nSpecies
-            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-              MFP_Tmp = MFP_Tmp + (Pi * DrefMixture ** 2. * SpecPartNum(jSpec) * Species(jSpec)%MacroParticleFactor / Volume &
-                                * (CollInf%Tref(iSpec,jSpec)/Temp) ** (CollInf%omega(iSpec,jSpec)) & ! erwähnen, to be solved. da 
-                                * SQRT(1. + Species(iSpec)%MassIC / Species(jSpec)%MassIC)) ! hier ebenfalls auf ispec,jspec
-                              ! geachtet wird, denke ich das ist so richtig. Genauso oben dref für alle kollisionen. Jedoch
-                              ! bei allen kollisionen würde dref deutlich größer sein, als wenn ich nur die spezies anschaue. darum
-            END IF
-          END DO
-          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
-        END IF
-      END DO
-    END IF
+    !ELSE ! coll-spec necessary, since trefVHS etc. are not set
+    !  DO iSpec = 1, nSpecies
+    !    MFP_Tmp = 0.0
+    !    IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+    !      DO jSpec = 1, nSpecies
+    !        IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+    !          MFP_Tmp = MFP_Tmp + (Pi * DrefMixture ** 2. * SpecPartNum(jSpec) * Species(jSpec)%MacroParticleFactor / Volume &
+    !                            * (CollInf%Tref(iSpec,jSpec)/Temp) ** (CollInf%omega(iSpec,jSpec)) & ! erwähnen, to be solved. da 
+    !                            * SQRT(1. + Species(iSpec)%MassIC / Species(jSpec)%MassIC)) ! hier ebenfalls auf ispec,jspec
+    !                          ! geachtet wird, denke ich das ist so richtig. Genauso oben dref für alle kollisionen. Jedoch
+    !                          ! bei allen kollisionen würde dref deutlich größer sein, als wenn ich nur die spezies anschaue. darum
+    !        END IF
+    !      END DO
+    !      CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+    !    END IF
+    !  END DO
+    !END IF
 END IF
 RETURN
 END FUNCTION CalcMeanFreePath
