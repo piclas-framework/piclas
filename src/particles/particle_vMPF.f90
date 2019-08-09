@@ -25,35 +25,71 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: 
+PUBLIC :: SplitMerge_main
 !===================================================================================================================================
 
 CONTAINS
 
+SUBROUTINE SplitMerge_main()
+!===================================================================================================================================
+!> Main routine for the BGK model
+!> 1.) Loop over all elements, call of octree refinement or directly of the collision operator
+!> 2.) Sampling of macroscopic variables with DSMC routines
+!===================================================================================================================================
+! MODULES
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM
+USE MOD_Mesh_Vars             ,ONLY: nElems
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iElem, nPart, iLoop, iPart
+INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
+!===================================================================================================================================
+
+DO iElem = 1, nElems
+  nPart = PEM%pNumber(iElem)
+  IF (nPart.LT.vMPFNewPartNum) CYCLE
+  ALLOCATE(iPartIndx_Node(nPart))
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    iPartIndx_Node(iLoop) = iPart
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  CALL MergeParticles(iPartIndx_Node, nPart, vMPFNewPartNum)
+  DEALLOCATE(iPartIndx_Node)
+END DO
+
+
+END SUBROUTINE SplitMerge_main
 
 SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(INOUT)                  :: nPart
+INTEGER, INTENT(IN)                  :: nPart, nPartNew
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(OUT)                       :: vBulk(3), Energy, Vtherm2, PressTens(3,3), HeatVec(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: V_rel(3), vmag2, iRan
+REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
 INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart
-REAL                  :: partWeight, totalWeight
+REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
 !===================================================================================================================================
-Vtherm2 = 0.0; PressTens = 0.0; HeatVec = 0.0
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -81,6 +117,28 @@ DO iLoop = 1, nDelete
   nTemp = nTemp - 1
 END DO
 
+vBulkTmp = 0.
+DO iLoop = 1, nPartNew
+  PartMPF(iPartIndx_Node(iLoop)) = totalWeight / nPartNew
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  vBulkTmp(1:3) = vBulkTmp(1:3) + PartState(iPartIndx_Node(iLoop),4:6) * partWeight
+END DO
+vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
+
+ENew = 0.
+DO iLoop = 1, nPartNew
+  partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
+  ENew = ENew + 0.5 * vmag2 * partWeight
+  ! sample inner energies here!
+END DO
+
+alpha = SQRT(Energy/ENew)
+DO iLoop = 1, nPartNew
+  PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
+END DO
+
 END SUBROUTINE MergeParticles
 
 SUBROUTINE CalculateDistMomements(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
@@ -96,7 +154,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(INOUT)                  :: nPart
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-REAL, INTENT(OUT)                       :: vBulk(3), Energy, Vtherm2, PressTens(3,3), HeatVec(3)
+REAL, INTENT(INOUT)                       :: vBulk(3), Energy, Vtherm2, PressTens(3,3), HeatVec(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

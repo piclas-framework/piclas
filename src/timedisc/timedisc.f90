@@ -1380,6 +1380,7 @@ USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking,ParticleTria
 USE MOD_SurfaceModel,     ONLY: UpdateSurfModelVars, SurfaceModel_main
 USE MOD_Particle_Boundary_Porous, ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_Particle_Boundary_Vars, ONLY: nPorousBC
+USE MOD_vMPF,             ONLY: SplitMerge_main
 #if USE_MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -1533,7 +1534,11 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
+  
+  IF (iter.EQ.1) THEN
+    CALL SplitMerge_main()
+    CALL UpdateNextFreePosition()    
+  END IF
   CALL DSMC_main()
 
 #if USE_LOADBALANCE

@@ -217,6 +217,9 @@ CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PAR
                                                               , '15')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Count of particles wanted after merge.', '0')
+!Asim arbeite was!!!!!
+CALL prms%CreateIntOption(      'Part-vMPFNewPartNum', 'TODO-DEFINE-PARAMETER\n'//&
+                                                                'Count of particles wanted after merge.')
 CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Number of particles wanted after split.','0')
 CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
@@ -1442,6 +1445,7 @@ END IF
 
 ! init varibale MPF per particle
 IF (usevMPF) THEN
+  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum')
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
