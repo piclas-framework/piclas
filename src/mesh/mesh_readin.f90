@@ -365,7 +365,7 @@ IF (DoRestart) THEN
     IF(ElemTimeExists)THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
       IPWRITE(UNIT_stdOut,*)"DONE"
-      CALL ReadArray('ElemTime',2,(/1_IK,nGlobalElems/),0,2,RealArray=ElemTime_local)
+      CALL ReadArray('ElemTime',2,(/1_IK,INT(nGlobalElems,IK)/),0_IK,2,RealArray=ElemTime_local)
       CALL CloseDataFile()
     END IF ! ElemTimeExists
 
@@ -430,7 +430,7 @@ IF(ElemTimeExists)THEN
   ALLOCATE(ElemTime_tmp(1:nElems))
   ElemTime_tmp=0.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL ReadArray('ElemTime',2,(/1_IK,nElems/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+  CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
   CALL CloseDataFile()
 END IF ! ElemTimeExists
 
