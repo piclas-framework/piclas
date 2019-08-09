@@ -68,6 +68,7 @@ USE MOD_Mesh_Vars          ,ONLY: tElem,tSide
 USE MOD_Mesh_Vars          ,ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_ReadIn        ,ONLY: INVMAP
 #if USE_HDG
+USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSidesFromMesh
 #if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: offsetSide
 #endif /*USE_MPI*/
@@ -75,7 +76,6 @@ USE MOD_Mesh_Vars          ,ONLY: offsetSide
 USE MOD_LoadBalance_Vars   ,ONLY: 
 USE MOD_Mesh_Vars          ,ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nMortarSides,nMortarInnerSides,nMortarMPISides
-USE MOD_Mesh_Vars          ,ONLY: nGlobalUniqueSidesFromMesh
 #if USE_MPI
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_MPI_Vars           ,ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc

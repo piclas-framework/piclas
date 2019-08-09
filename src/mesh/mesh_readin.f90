@@ -80,8 +80,11 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY:BoundaryName,BoundaryType,nBCs,nUserBCs,ChangedPeriodicBC
-USE MOD_ReadInTools,ONLY:GETINTARRAY,CNTSTR,GETSTR
+USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+#if USE_HDG
+USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+#endif /*USE_HDG*/
+USE MOD_ReadInTools ,ONLY: GETINTARRAY,CNTSTR,GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -253,10 +256,12 @@ USE MOD_StringTools          ,ONLY: STRICMP
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 #endif /*PARTICLES*/
-USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTime_tmp
 #endif /*USE_LOADBALANCE*/
+#if USE_HDG
+USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -293,11 +298,11 @@ LOGICAL                        :: doConnection
 LOGICAL                        :: oriented
 LOGICAL                        :: isMortarMeshExists
 #if USE_MPI
-INTEGER                        :: nVal(15),iVar
+!INTEGER                        :: nVal(15),iVar
 LOGICAL                        :: ElemTimeExists
 REAL,ALLOCATABLE               :: ElemTime_local(:),WeightSum_proc(:)
-REAL,ALLOCATABLE               :: ElemData_loc(:,:),ElemData_tmp(:)
-CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
+!REAL,ALLOCATABLE               :: ElemData_loc(:,:),ElemData_tmp(:)
+!CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:)
 #endif
 #ifdef PARTICLES
 REAL, ALLOCATABLE              :: GlobVarTimeStep(:)

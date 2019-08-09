@@ -205,7 +205,6 @@ IMPLICIT NONE
 INTEGER       :: dir, VeloDirs_hilf(4),iElem
 REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
-REAL          :: Bounds(1:2,1:3)
 INTEGER       :: ALLOCSTAT
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
