@@ -453,6 +453,7 @@ END SUBROUTINE DSMC_2D_SetInClones
 REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 !===================================================================================================================================
 !> Calculates the actual area of an element for 2D simulations (plane/axisymmetric) regardless of the mesh dimension in z
+!> Utilized in the particle emission (surface flux) and boundary sampling
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -507,7 +508,7 @@ END FUNCTION DSMC_2D_CalcSymmetryArea
 
 FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)!,ymin,ymax)
 !===================================================================================================================================
-! 
+!> Calculates the area of the subsides for the insertion with the surface flux
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
