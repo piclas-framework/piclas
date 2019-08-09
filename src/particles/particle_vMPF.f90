@@ -87,7 +87,7 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: V_rel(3), vmag2, iRan, vBulk(3), Energy
-INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart
+INTEGER               :: iLoop,fillMa1, fillMa2, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart), joa(2)
 REAL                  :: partWeight, totalWeight, vBulkTmp(3), ENew, alpha
 !===================================================================================================================================
 vBulk = 0.0; totalWeight = 0.0; Energy = 0.
@@ -107,6 +107,7 @@ DO iLoop = 1, nPart
   ! sample inner energies here!
 END DO
 
+iPartIndx_NodeTMP = iPartIndx_Node
 nTemp = nPart
 nDelete = nPart - nPartNew
 DO iLoop = 1, nDelete
@@ -117,7 +118,19 @@ DO iLoop = 1, nDelete
   nTemp = nTemp - 1
 END DO
 
+joa = 0
+DO iLoop = 1, nPart
+  IF (PDM%ParticleInside(iPartIndx_NodeTMP(iLoop))) THEN
+    joa(1) = joa(1) + 1
+  ELSE
+    joa(2) = joa(2) + 1
+  END IF
+END DO
+print*, joa
+read*
+
 vBulkTmp = 0.
+print*, nPartNew, totalWeight
 DO iLoop = 1, nPartNew
   PartMPF(iPartIndx_Node(iLoop)) = totalWeight / nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -126,14 +139,17 @@ END DO
 vBulkTmp(1:3) = vBulkTmp(1:3) / totalWeight
 
 ENew = 0.
+totalWeight=0.0
 DO iLoop = 1, nPartNew
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
+  totalWeight = totalWeight + partWeight
   V_rel(1:3)=PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   ENew = ENew + 0.5 * vmag2 * partWeight
   ! sample inner energies here!
 END DO
-
+print*, totalWeight
+print*, Energy, ENew
 alpha = SQRT(Energy/ENew)
 DO iLoop = 1, nPartNew
   PartState(iPartIndx_Node(iLoop),4:6) = vBulk(1:3) + alpha*(PartState(iPartIndx_Node(iLoop),4:6)-vBulkTmp(1:3))
