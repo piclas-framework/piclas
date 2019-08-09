@@ -207,6 +207,7 @@ REAL          :: DOF,VolumeShapeFunction
 CHARACTER(32) :: hilf
 REAL          :: Bounds(1:2,1:3)
 INTEGER       :: ALLOCSTAT
+INTEGER       :: iSpec
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
 CALL abort(__STAMP__,&
@@ -471,11 +472,16 @@ IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,&
-            'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+      'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
-  ALLOCATE( PCouplDensityAvgElem(1:PP_nElems) )
-  PCouplDensityAvgElem=0.0
-  CALL AddToElemData(ElementOut,'PCouplDensityAvgElem',RealArray=PCouplDensityAvgElem(1:PP_nElems))
+  ! Allocate type array for all ranks
+  ALLOCATE(PCouplSpec(1:nSpecies))
+  DO iSpec = 1, nSpecies
+    ALLOCATE(PCouplSpec(iSpec)%DensityAvgElem(1:PP_nElems))
+    PCouplSpec(iSpec)%DensityAvgElem = 0.
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    CALL AddToElemData(ElementOut,'PCouplDensityAvgElem-Spec-'//TRIM(hilf),RealArray=PCouplSpec(iSpec)%DensityAvgElem)
+  END DO ! iSpec = 1, nSpecies
 END IF
 
 ! compute number of entering and leaving particles and their energy
@@ -1223,10 +1229,8 @@ IF(PartMPI%MPIRoot) THEN
   ! Moving Average of PCoupl:
     IF(iter.EQ.0) THEN
       PCouplAverage = 0.0
-      PCouplDensityAvgElem = 0.0
     ELSE
       PCouplAverage = PCouplAverage / (Time-RestartTime)
-      PCouplDensityAvgElem(1:nElems) = PCouplDensityAvgElem(1:nElems) / (Time-RestartTime)
     END IF
     ! current PCoupl (Delta_E / Timestep)
     PCoupl = PCoupl / dt
@@ -1493,8 +1497,7 @@ END IF
 
 ! Reset coupled power to particles if output of coupled power is active
 IF (CalcCoupledPower) THEN
-  PCouplAverage = PCouplAverage * (Time-RestartTime)                             ! PCouplAverage is reseted
-  PCouplDensityAvgElem(1:nElems) = PCouplDensityAvgElem(1:nElems) * (Time-RestartTime) ! PCouplDensityAvgElem is reseted
+  PCouplAverage = PCouplAverage * (Time-RestartTime) ! PCouplAverage is reseted
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

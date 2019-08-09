@@ -106,32 +106,37 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars       ,ONLY: U
-USE MOD_Globals_Vars  ,ONLY: ProjectName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems
-USE MOD_Equation_Vars ,ONLY: StrVarNames
-USE MOD_Restart_Vars  ,ONLY: RestartFile
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Globals_Vars           ,ONLY: ProjectName
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Restart_Vars           ,ONLY: RestartFile
 #ifdef PARTICLES
-USE MOD_DSMC_Vars     ,ONLY:RadialWeighting
-USE MOD_PICDepo_Vars  ,ONLY: OutputSource,PartSource
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Vars          ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: nAdaptiveBC, nPorousBC
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E,Phi
+USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
-USE MOD_Mesh_Vars     ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars      ,ONLY: lambda, nGP_face
+USE MOD_Mesh_Vars              ,ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
+USE MOD_Equation_Vars          ,ONLY: E
 #elif PP_nVar==3
-USE MOD_Equation_Vars ,ONLY: B
+USE MOD_Equation_Vars          ,ONLY: B
 #else
-USE MOD_Equation_Vars ,ONLY: E,B
+USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 #endif /*PP_HDG*/
-USE MOD_Analyze_Vars  ,ONLY: OutputTimeFixed
+USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
+USE MOD_TimeDisc_Vars          ,ONLY: Time
+USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCouplSpec
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Mesh_Vars              ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -147,6 +152,7 @@ CHARACTER(LEN=255)             :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
+INTEGER                        :: iSpec
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -376,7 +382,33 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 #endif /*Particles*/
 
+#ifdef PARTICLES
+! Set coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem / timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*Particles*/
+
 CALL WriteAdditionalElemData(FileName,ElementOut)
+
+#ifdef PARTICLES
+! Reset coupled power to particles if output of coupled power is active
+IF (CalcCoupledPower) THEN
+  ASSOCIATE( timediff => (Time-RestartTime) )
+    IF(timediff.GT.0.)THEN
+      DO iSpec = 1, nSpecies
+        PCouplSpec(iSpec)%DensityAvgElem = PCouplSpec(iSpec)%DensityAvgElem * timediff
+      END DO ! iSpec = 1, nSpecies
+    END IF ! timediff.GT.0.
+  END ASSOCIATE
+END IF
+#endif /*Particles*/
 
 #if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
