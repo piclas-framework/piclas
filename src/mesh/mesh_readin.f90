@@ -366,13 +366,13 @@ IF (DoRestart) THEN
     offsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 
     ! NEW method
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
     CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
     IF(ElemTimeExists)THEN
-      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-      IPWRITE(UNIT_stdOut,*)"DONE"
       CALL ReadArray('ElemTime',2,(/1_IK,INT(nGlobalElems,IK)/),0_IK,2,RealArray=ElemTime_local)
-      CALL CloseDataFile()
+      WRITE(UNIT_stdOut,*) "Read ElemTime from restart file: "//TRIM(RestartFile)
     END IF ! ElemTimeExists
+    CALL CloseDataFile()
 
     ! OLD method (do not delete!)
     ! CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
